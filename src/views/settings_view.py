@@ -63,6 +63,9 @@ class SettingsView(ft.Container):
         # 数据目录设置部分
         data_dir_section: ft.Container = self._build_data_dir_section()
         
+        # 字体设置部分
+        font_section: ft.Container = self._build_font_section()
+        
         # 关于部分
         about_section: ft.Container = self._build_about_section()
         
@@ -72,6 +75,8 @@ class SettingsView(ft.Container):
                 title,
                 ft.Container(height=PADDING_LARGE),
                 data_dir_section,
+                ft.Container(height=PADDING_LARGE),
+                font_section,
                 ft.Container(height=PADDING_LARGE),
                 about_section,
             ],
@@ -189,6 +194,134 @@ class SettingsView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
+    def _build_font_section(self) -> ft.Container:
+        """构建字体设置部分。
+        
+        Returns:
+            字体设置容器
+        """
+        # 分区标题
+        section_title: ft.Text = ft.Text(
+            "字体设置",
+            size=20,
+            weight=ft.FontWeight.W_600,
+            color=TEXT_PRIMARY,
+        )
+        
+        # 常用字体列表
+        common_fonts = [
+            ("System", "系统默认"),
+            ("Microsoft YaHei", "微软雅黑"),
+            ("SimSun", "宋体"),
+            ("SimHei", "黑体"),
+            ("KaiTi", "楷体"),
+            ("FangSong", "仿宋"),
+            ("Arial", "Arial"),
+            ("Consolas", "Consolas"),
+            ("Courier New", "Courier New"),
+            ("Times New Roman", "Times New Roman"),
+            ("Verdana", "Verdana"),
+        ]
+        
+        # 获取当前字体
+        current_font = self.config_service.get_config_value("font_family", "System")
+        current_scale = self.config_service.get_config_value("font_scale", 1.0)
+        
+        # 字体下拉选择
+        self.font_dropdown = ft.Dropdown(
+            label="选择字体",
+            options=[
+                ft.dropdown.Option(key=font[0], text=font[1])
+                for font in common_fonts
+            ],
+            value=current_font,
+            on_change=self._on_font_change,
+            width=300,
+        )
+        
+        # 字体大小滑块
+        self.font_scale_text = ft.Text(
+            f"字体大小: {int(current_scale * 100)}%",
+            size=14,
+            weight=ft.FontWeight.W_500,
+        )
+        
+        self.font_scale_slider = ft.Slider(
+            min=80,
+            max=150,
+            divisions=14,
+            value=current_scale * 100,
+            label="{value}%",
+            on_change=self._on_font_scale_change,
+        )
+        
+        # 字体大小容器
+        font_size_container = ft.Column(
+            controls=[
+                self.font_scale_text,
+                self.font_scale_slider,
+                ft.Text(
+                    "80% (较小) - 100% (标准) - 150% (特大)",
+                    size=11,
+                    color=TEXT_SECONDARY,
+                    italic=True,
+                ),
+            ],
+            spacing=PADDING_MEDIUM // 2,
+        )
+        
+        # 预览文本
+        base_preview_size = 16
+        preview_size = int(base_preview_size * current_scale)
+        self.font_preview_text = ft.Text(
+            "字体预览文本 Font Preview Text 0123456789",
+            size=preview_size,
+            font_family=current_font,
+        )
+        
+        # 预览容器
+        preview_container: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("预览:", size=14, weight=ft.FontWeight.W_500),
+                    self.font_preview_text,
+                ],
+                spacing=PADDING_MEDIUM // 2,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+        
+        # 说明文字
+        info_text: ft.Text = ft.Text(
+            "更改字体和字体大小后需要重启应用才能完全生效",
+            size=12,
+            color=TEXT_SECONDARY,
+            italic=True,
+        )
+        
+        # 组装字体设置部分
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.font_dropdown,
+                    ft.Container(height=PADDING_MEDIUM),
+                    font_size_container,
+                    ft.Container(height=PADDING_MEDIUM),
+                    preview_container,
+                    ft.Container(height=PADDING_MEDIUM // 2),
+                    info_text,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
     def _build_about_section(self) -> ft.Container:
         """构建关于部分。
         
@@ -291,6 +424,56 @@ class SettingsView(ft.Container):
                 subprocess.run(["xdg-open", str(data_dir)])
         except Exception as ex:
             self._show_snackbar(f"打开目录失败: {ex}", ft.Colors.RED)
+    
+    def _on_font_change(self, e: ft.ControlEvent) -> None:
+        """字体更改事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        selected_font = e.control.value
+        
+        # 保存字体设置
+        if self.config_service.set_config_value("font_family", selected_font):
+            # 更新预览文本字体
+            self.font_preview_text.font_family = selected_font
+            self.font_preview_text.update()
+            
+            # 尝试更新页面字体（部分生效）
+            if self.page.theme:
+                self.page.theme.font_family = selected_font
+            if self.page.dark_theme:
+                self.page.dark_theme.font_family = selected_font
+            self.page.update()
+            
+            self._show_snackbar("字体已更新，重启应用后完全生效", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("字体更新失败", ft.Colors.RED)
+    
+    def _on_font_scale_change(self, e: ft.ControlEvent) -> None:
+        """字体大小更改事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        scale_percent = int(e.control.value)
+        scale = scale_percent / 100.0
+        
+        # 更新文本显示
+        self.font_scale_text.value = f"字体大小: {scale_percent}%"
+        self.font_scale_text.update()
+        
+        # 保存字体大小设置
+        if self.config_service.set_config_value("font_scale", scale):
+            # 更新预览文本大小
+            base_size = 16
+            new_size = int(base_size * scale)
+            self.font_preview_text.size = new_size
+            self.font_preview_text.update()
+            
+            self._show_snackbar(f"字体大小已设置为 {scale_percent}%，重启应用后完全生效", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("字体大小更新失败", ft.Colors.RED)
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。

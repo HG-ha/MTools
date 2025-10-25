@@ -13,6 +13,7 @@ from constants import (
     WINDOW_MIN_WIDTH,
     WINDOW_WIDTH,
 )
+from services import ConfigService
 from views.main_view import MainView
 
 
@@ -24,6 +25,10 @@ def main(page: ft.Page) -> None:
     Args:
         page: Flet页面对象
     """
+    # 加载配置
+    config_service = ConfigService()
+    saved_font = config_service.get_config_value("font_family", "System")
+    
     # 配置页面属性
     page.title = APP_TITLE
     page.window.width = WINDOW_WIDTH
@@ -39,7 +44,7 @@ def main(page: ft.Page) -> None:
     page.theme = ft.Theme(
         color_scheme_seed="#667EEA",  # 柔和的蓝紫色
         use_material3=True,
-        font_family="System",
+        font_family=saved_font,  # 使用保存的字体
         # 页面和组件颜色配置
         scaffold_bgcolor="#F8F9FA",  # 浅灰背景
         card_color="#FFFFFF",         # 白色卡片
@@ -53,7 +58,7 @@ def main(page: ft.Page) -> None:
     page.dark_theme = ft.Theme(
         color_scheme_seed="#667EEA",  # 使用相同的种子色
         use_material3=True,
-        font_family="System",
+        font_family=saved_font,  # 使用保存的字体
         # 深色模式颜色配置
         scaffold_bgcolor="#121212",  # 深色背景
         card_color="#2C2C2C",        # 深色卡片

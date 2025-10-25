@@ -97,6 +97,8 @@ class ConfigService:
             "use_custom_dir": False,
             "theme_mode": "system",  # system, light, dark
             "language": "zh_CN",
+            "font_family": "System",  # 默认系统字体
+            "font_scale": 1.0,  # 字体缩放比例，1.0为默认大小
         }
     
     def save_config(self) -> bool:
