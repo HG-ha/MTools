@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """配置服务模块。
 
 提供应用配置管理，包括数据目录设置、用户偏好设置等。
@@ -99,6 +100,10 @@ class ConfigService:
             "language": "zh_CN",
             "font_family": "System",  # 默认系统字体
             "font_scale": 1.0,  # 字体缩放比例，1.0为默认大小
+            "window_left": None,   # 窗口左边距，None表示居中
+            "window_top": None,    # 窗口上边距，None表示居中
+            "window_width": None,  # 窗口宽度，None表示使用默认值
+            "window_height": None, # 窗口高度，None表示使用默认值
         }
     
     def save_config(self) -> bool:

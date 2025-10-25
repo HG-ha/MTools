@@ -15,6 +15,7 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
 )
+from services import ConfigService
 
 
 class CustomTitleBar(ft.Container):
@@ -27,14 +28,16 @@ class CustomTitleBar(ft.Container):
     - 窗口控制按钮（最小化、最大化、关闭）
     """
 
-    def __init__(self, page: ft.Page) -> None:
+    def __init__(self, page: ft.Page, config_service: Optional[ConfigService] = None) -> None:
         """初始化自定义标题栏。
         
         Args:
             page: Flet页面对象
+            config_service: 配置服务实例（用于保存窗口状态）
         """
         super().__init__()
         self.page: ft.Page = page
+        self.config_service: Optional[ConfigService] = config_service
         
         # 构建标题栏
         self._build_title_bar()
@@ -218,5 +221,15 @@ class CustomTitleBar(ft.Container):
         Args:
             e: 控件事件对象
         """
+        # 在关闭前保存窗口位置和大小
+        if self.config_service:
+            if self.page.window.left is not None and self.page.window.top is not None:
+                self.config_service.set_config_value("window_left", self.page.window.left)
+                self.config_service.set_config_value("window_top", self.page.window.top)
+            if self.page.window.width is not None and self.page.window.height is not None:
+                self.config_service.set_config_value("window_width", self.page.window.width)
+                self.config_service.set_config_value("window_height", self.page.window.height)
+        
+        # 关闭窗口
         self.page.window.close()
 

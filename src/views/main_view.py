@@ -42,8 +42,8 @@ class MainView(ft.Column):
         self.config_service: ConfigService = ConfigService()
         self.image_service: ImageService = ImageService()
         
-        # 创建自定义标题栏
-        self.title_bar: CustomTitleBar = CustomTitleBar(page)
+        # 创建自定义标题栏（传递配置服务以保存窗口状态）
+        self.title_bar: CustomTitleBar = CustomTitleBar(page, self.config_service)
         
         # 创建内容容器（稍后创建视图时需要）
         self.content_container: Optional[ft.Container] = None

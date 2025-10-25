@@ -349,12 +349,22 @@ class SettingsView(ft.Container):
             spacing=PADDING_MEDIUM // 2,
         )
         
+        # 重置窗口按钮
+        reset_window_button: ft.OutlinedButton = ft.OutlinedButton(
+            text="重置窗口位置和大小",
+            icon=ft.Icons.RESTORE,
+            on_click=self._on_reset_window_position,
+            tooltip="将窗口位置和大小重置为默认值",
+        )
+        
         return ft.Container(
             content=ft.Column(
                 controls=[
                     section_title,
                     ft.Container(height=PADDING_MEDIUM),
                     app_info,
+                    ft.Container(height=PADDING_MEDIUM),
+                    reset_window_button,
                 ],
                 spacing=0,
             ),
@@ -474,6 +484,30 @@ class SettingsView(ft.Container):
             self._show_snackbar(f"字体大小已设置为 {scale_percent}%，重启应用后完全生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("字体大小更新失败", ft.Colors.RED)
+    
+    def _on_reset_window_position(self, e: ft.ControlEvent) -> None:
+        """重置窗口位置和大小事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        from constants import WINDOW_WIDTH, WINDOW_HEIGHT
+        
+        # 清除保存的窗口位置和大小
+        self.config_service.set_config_value("window_left", None)
+        self.config_service.set_config_value("window_top", None)
+        self.config_service.set_config_value("window_width", None)
+        self.config_service.set_config_value("window_height", None)
+        
+        # 重置窗口大小为默认值
+        self.page.window.width = WINDOW_WIDTH
+        self.page.window.height = WINDOW_HEIGHT
+        
+        # 将窗口移动到屏幕中央
+        self.page.window.center()
+        self.page.update()
+        
+        self._show_snackbar("窗口位置和大小已重置为默认值", ft.Colors.GREEN)
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。
