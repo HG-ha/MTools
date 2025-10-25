@@ -1,0 +1,4 @@
+flet==0.27.6
+ffmpeg-python>=0.2.0
+Pillow>=10.0.0
+chardet>=5.0.0

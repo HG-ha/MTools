@@ -1,0 +1,222 @@
+"""自定义标题栏组件模块。
+
+提供自定义标题栏，包含窗口控制、主题切换等功能。
+"""
+
+from typing import Callable, Optional
+
+import flet as ft
+
+from constants import (
+    APP_TITLE,
+    BORDER_RADIUS_SMALL,
+    GRADIENT_END,
+    GRADIENT_START,
+    PADDING_MEDIUM,
+    PADDING_SMALL,
+)
+
+
+class CustomTitleBar(ft.Container):
+    """自定义标题栏类。
+    
+    提供现代化的自定义标题栏，包含：
+    - 应用图标和标题
+    - 窗口拖动区域
+    - 主题切换按钮
+    - 窗口控制按钮（最小化、最大化、关闭）
+    """
+
+    def __init__(self, page: ft.Page) -> None:
+        """初始化自定义标题栏。
+        
+        Args:
+            page: Flet页面对象
+        """
+        super().__init__()
+        self.page: ft.Page = page
+        
+        # 构建标题栏
+        self._build_title_bar()
+    
+    def _build_title_bar(self) -> None:
+        """构建标题栏UI。"""
+        # 左侧：应用图标 + 标题（可拖动，支持双击最大化）
+        drag_area: ft.WindowDragArea = ft.WindowDragArea(
+            content=ft.GestureDetector(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(
+                            name=ft.Icons.APPS_ROUNDED,
+                            size=24,
+                            color=ft.Colors.WHITE,
+                        ),
+                        ft.Container(width=PADDING_SMALL),
+                        ft.Text(
+                            APP_TITLE,
+                            size=14,
+                            weight=ft.FontWeight.W_500,
+                            color=ft.Colors.WHITE,
+                        ),
+                    ],
+                    spacing=0,
+                ),
+                on_double_tap=self._toggle_maximize,
+            ),
+            expand=True,
+        )
+        
+        # 右侧：主题切换 + 窗口控制按钮
+        self.theme_icon: ft.IconButton = ft.IconButton(
+            icon=ft.Icons.LIGHT_MODE_OUTLINED,
+            icon_color=ft.Colors.WHITE,
+            icon_size=18,
+            tooltip="切换主题",
+            on_click=self._toggle_theme,
+            style=ft.ButtonStyle(
+                padding=10,
+            ),
+        )
+        
+        minimize_button: ft.IconButton = ft.IconButton(
+            icon=ft.Icons.HORIZONTAL_RULE,
+            icon_color=ft.Colors.WHITE,
+            icon_size=18,
+            tooltip="最小化",
+            on_click=self._minimize_window,
+            style=ft.ButtonStyle(
+                padding=10,
+            ),
+        )
+        
+        self.maximize_button: ft.IconButton = ft.IconButton(
+            icon=ft.Icons.CROP_SQUARE,
+            icon_color=ft.Colors.WHITE,
+            icon_size=18,
+            tooltip="最大化",
+            on_click=self._toggle_maximize,
+            style=ft.ButtonStyle(
+                padding=10,
+            ),
+        )
+        
+        close_button: ft.IconButton = ft.IconButton(
+            icon=ft.Icons.CLOSE,
+            icon_color=ft.Colors.WHITE,
+            icon_size=18,
+            tooltip="关闭",
+            on_click=self._close_window,
+            style=ft.ButtonStyle(
+                padding=10,
+            ),
+            hover_color=ft.Colors.with_opacity(0.2, ft.Colors.RED),
+        )
+        
+        right_section: ft.Row = ft.Row(
+            controls=[
+                self.theme_icon,
+                ft.VerticalDivider(
+                    width=1,
+                    thickness=1,
+                    color=ft.Colors.with_opacity(0.2, ft.Colors.WHITE),
+                ),
+                minimize_button,
+                self.maximize_button,
+                close_button,
+            ],
+            spacing=0,
+            alignment=ft.MainAxisAlignment.END,
+        )
+        
+        # 组装标题栏
+        title_bar_content: ft.Row = ft.Row(
+            controls=[
+                drag_area,
+                right_section,
+            ],
+            spacing=0,
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+        
+        # 配置容器属性
+        self.content = title_bar_content
+        self.height = 48
+        self.padding = ft.padding.symmetric(horizontal=PADDING_MEDIUM)
+        self.gradient = ft.LinearGradient(
+            begin=ft.alignment.center_left,
+            end=ft.alignment.center_right,
+            colors=[
+                GRADIENT_START,
+                GRADIENT_END,
+            ],
+        )
+        
+        # 初始化主题图标
+        self._update_theme_icon()
+    
+    def _toggle_theme(self, e: ft.ControlEvent) -> None:
+        """切换主题模式。
+        
+        Args:
+            e: 控件事件对象
+        """
+        # 一键切换主题，所有组件自动更新
+        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+            self.page.theme_mode = ft.ThemeMode.DARK
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+        
+        self._update_theme_icon()
+        self.page.update()
+    
+    def _update_theme_icon(self) -> None:
+        """更新主题图标。"""
+        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+            self.theme_icon.icon = ft.Icons.LIGHT_MODE_OUTLINED
+            self.theme_icon.tooltip = "切换到深色模式"
+        else:
+            self.theme_icon.icon = ft.Icons.DARK_MODE_OUTLINED
+            self.theme_icon.tooltip = "切换到浅色模式"
+    
+    def _minimize_window(self, e: ft.ControlEvent) -> None:
+        """最小化窗口。
+        
+        Args:
+            e: 控件事件对象
+        """
+        self.page.window.minimized = True
+        self.page.update()
+    
+    def _toggle_maximize(self, e: ft.ControlEvent = None) -> None:
+        """切换最大化/还原窗口。
+        
+        Args:
+            e: 控件事件对象（可选，支持双击调用）
+        """
+        self.page.window.maximized = not self.page.window.maximized
+        self.page.update()
+        
+        # 更新按钮图标
+        self._update_maximize_button()
+    
+    def _update_maximize_button(self) -> None:
+        """根据窗口当前状态更新最大化/还原按钮图标。"""
+        try:
+            if self.page.window.maximized:
+                self.maximize_button.icon = ft.Icons.FILTER_NONE
+                self.maximize_button.tooltip = "还原"
+            else:
+                self.maximize_button.icon = ft.Icons.CROP_SQUARE
+                self.maximize_button.tooltip = "最大化"
+            self.maximize_button.update()
+        except Exception:
+            pass  # 忽略更新错误
+    
+    def _close_window(self, e: ft.ControlEvent) -> None:
+        """关闭窗口。
+        
+        Args:
+            e: 控件事件对象
+        """
+        self.page.window.close()
+

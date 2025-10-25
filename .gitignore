@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.conda/
+storage/
+tests/
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flet
+.flet/
+
+# 数据存储
+storage/data/*
+storage/temp/*
+!storage/data/.gitkeep
+!storage/temp/.gitkeep
+
+# 压缩工具（体积较大，建议不提交到 Git）
+# bin/
