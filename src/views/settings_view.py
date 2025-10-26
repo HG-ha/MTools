@@ -187,7 +187,6 @@ class SettingsView(ft.Container):
             "主题模式会立即生效",
             size=12,
             color=TEXT_SECONDARY,
-            italic=True,
         )
         
         # 组装主题模式设置部分
@@ -342,7 +341,6 @@ class SettingsView(ft.Container):
             "数据目录用于存储应用的处理结果和临时文件",
             size=12,
             color=TEXT_SECONDARY,
-            italic=True,
         )
         
         # 组装数据目录部分
@@ -394,6 +392,9 @@ class SettingsView(ft.Container):
             ("#14B8A6", "青色", "自然"),
             ("#06B6D4", "天蓝色", "清爽"),
             ("#0EA5E9", "天空蓝", "开阔"),
+            ("#6B7280", "灰色", "稳重"),
+            ("#1F2937", "深灰", "专业"),
+            ("#000000", "黑色", "经典"),
         ]
         
         # 获取当前主题色
@@ -414,12 +415,16 @@ class SettingsView(ft.Container):
             self.theme_color_cards.append(card)
             theme_cards_row.controls.append(card)
         
+        # 添加自定义颜色选项
+        custom_color_card = self._create_custom_color_card(current_theme_color)
+        self.theme_color_cards.append(custom_color_card)
+        theme_cards_row.controls.append(custom_color_card)
+        
         # 说明文字
         info_text: ft.Text = ft.Text(
-            "主题色会立即生效，包括标题栏和所有界面元素",
+            "主题色会立即生效，包括标题栏和所有界面元素。点击「自定义」可以使用调色盘选择任意颜色",
             size=12,
             color=TEXT_SECONDARY,
-            italic=True,
         )
         
         # 组装主题色设置部分
@@ -513,6 +518,246 @@ class SettingsView(ft.Container):
         
         return card
     
+    def _create_custom_color_card(self, current_theme_color: str) -> ft.Container:
+        """创建自定义颜色卡片。
+        
+        Args:
+            current_theme_color: 当前主题色
+        
+        Returns:
+            自定义颜色卡片容器
+        """
+        card: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Icon(
+                        ft.Icons.COLOR_LENS,
+                        size=32,
+                        color=TEXT_PRIMARY,
+                    ),
+                    ft.Container(height=4),
+                    ft.Text(
+                        "自定义",
+                        size=12,
+                        weight=ft.FontWeight.W_600,
+                        color=TEXT_PRIMARY,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        "点击选择",
+                        size=10,
+                        color=TEXT_SECONDARY,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=4,
+            ),
+            width=90,
+            height=110,
+            padding=PADDING_MEDIUM // 2,
+            border_radius=BORDER_RADIUS_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            data="custom",
+            on_click=self._open_color_picker,
+            ink=True,
+        )
+        
+        return card
+    
+    def _open_color_picker(self, e: ft.ControlEvent) -> None:
+        """打开调色盘对话框。
+        
+        Args:
+            e: 控件事件对象
+        """
+        # 当前主题色
+        current_color = self.config_service.get_config_value("theme_color", "#667EEA")
+        
+        # 颜色预览框
+        self.color_preview: ft.Container = ft.Container(
+            width=80,
+            height=80,
+            border_radius=40,
+            bgcolor=current_color,
+            border=ft.border.all(2, ft.Colors.OUTLINE),
+        )
+        
+        # 颜色输入框
+        self.color_input: ft.TextField = ft.TextField(
+            label="颜色代码",
+            hint_text="#667EEA",
+            value=current_color,
+            width=200,
+            on_change=self._on_color_input_change,
+        )
+        
+        # 常用颜色网格
+        common_colors = [
+            "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#22C55E",
+            "#10B981", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1",
+            "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#667EEA",
+            "#64748B", "#6B7280", "#71717A", "#78716C", "#57534E", "#44403C",
+            "#1F2937", "#374151", "#4B5563", "#000000", "#FFFFFF", "#F3F4F6",
+        ]
+        
+        color_grid_controls = []
+        for color in common_colors:
+            color_btn = ft.Container(
+                width=32,
+                height=32,
+                bgcolor=color,
+                border_radius=16,
+                border=ft.border.all(1, ft.Colors.OUTLINE),
+                tooltip=color,
+                data=color,
+                on_click=self._on_color_grid_click,
+                ink=True,
+            )
+            color_grid_controls.append(color_btn)
+        
+        color_grid = ft.Row(
+            controls=color_grid_controls,
+            wrap=True,
+            spacing=8,
+            run_spacing=8,
+            width=400,
+        )
+        
+        # 对话框内容
+        dialog_content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        self.color_preview,
+                        ft.Column(
+                            controls=[
+                                self.color_input,
+                                ft.Text("输入#RRGGBB格式或点击下方颜色选择", size=11, color=TEXT_SECONDARY),
+                            ],
+                            spacing=8,
+                        ),
+                    ],
+                    spacing=PADDING_LARGE,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Container(height=PADDING_MEDIUM),
+                ft.Text("常用颜色:", size=14, weight=ft.FontWeight.W_500),
+                color_grid,
+            ],
+            spacing=PADDING_MEDIUM,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        # 创建对话框
+        def close_dialog(apply: bool = False):
+            if apply:
+                color_value = self.color_input.value.strip()
+                if color_value:
+                    self._apply_custom_color(color_value)
+            self.color_picker_dialog.open = False
+            self.page.update()
+        
+        self.color_picker_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("选择自定义颜色"),
+            content=dialog_content,
+            actions=[
+                ft.TextButton("取消", on_click=lambda e: close_dialog(False)),
+                ft.ElevatedButton("应用", on_click=lambda e: close_dialog(True)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.overlay.append(self.color_picker_dialog)
+        self.color_picker_dialog.open = True
+        self.page.update()
+    
+    def _on_color_input_change(self, e: ft.ControlEvent) -> None:
+        """颜色输入框变化事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        color_value = e.control.value.strip()
+        
+        # 确保以#开头
+        if color_value and not color_value.startswith("#"):
+            color_value = "#" + color_value
+        
+        # 验证颜色格式并更新预览
+        import re
+        if re.match(r'^#[0-9A-Fa-f]{6}$', color_value):
+            self.color_preview.bgcolor = color_value
+            self.color_preview.update()
+    
+    def _on_color_grid_click(self, e: ft.ControlEvent) -> None:
+        """颜色网格点击事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        selected_color = e.control.data
+        self.color_input.value = selected_color
+        self.color_preview.bgcolor = selected_color
+        self.color_input.update()
+        self.color_preview.update()
+    
+    def _apply_custom_color(self, color_value: str) -> None:
+        """应用自定义颜色。
+        
+        Args:
+            color_value: 颜色值
+        """
+        # 确保以#开头
+        if not color_value.startswith("#"):
+            color_value = "#" + color_value
+        
+        # 验证颜色格式
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color_value):
+            self._show_snackbar("颜色格式错误，请使用#RRGGBB格式（如#667EEA）", ft.Colors.RED)
+            return
+        
+        # 保存并应用颜色
+        if self.config_service.set_config_value("theme_color", color_value.upper()):
+            # 立即更新页面主题色
+            if self.page.theme:
+                self.page.theme.color_scheme_seed = color_value
+            if self.page.dark_theme:
+                self.page.dark_theme.color_scheme_seed = color_value
+            
+            # 更新标题栏颜色
+            self._update_title_bar_color(color_value)
+            
+            # 更新所有预定义颜色卡片为未选中状态
+            for card in self.theme_color_cards:
+                if card.data != "custom":
+                    card.border = ft.border.all(1, ft.Colors.OUTLINE)
+                    card.bgcolor = None
+                    
+                    if card.content and isinstance(card.content, ft.Column):
+                        color_circle = card.content.controls[0]
+                        if isinstance(color_circle, ft.Container):
+                            color_circle.border = ft.border.all(1, ft.Colors.OUTLINE)
+                            color_circle.shadow = None
+                        
+                        name_text = card.content.controls[2]
+                        if isinstance(name_text, ft.Text):
+                            name_text.weight = ft.FontWeight.NORMAL
+                        
+                        if len(card.content.controls) > 4:
+                            card.content.controls[4] = ft.Container(height=16)
+                    
+                    card.update()
+            
+            # 更新整个页面
+            self.page.update()
+            self._show_snackbar(f"自定义主题色已应用: {color_value}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("主题色更新失败", ft.Colors.RED)
+    
     def _on_theme_color_click(self, e: ft.ControlEvent) -> None:
         """主题色卡片点击事件处理。
         
@@ -538,6 +783,10 @@ class SettingsView(ft.Container):
             
             # 更新所有卡片的样式
             for card in self.theme_color_cards:
+                # 跳过自定义颜色卡片（它的结构不同）
+                if card.data == "custom":
+                    continue
+                
                 is_selected = card.data == clicked_color
                 color = card.data
                 
@@ -566,15 +815,16 @@ class SettingsView(ft.Container):
                     if isinstance(name_text, ft.Text):
                         name_text.weight = ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL
                     
-                    # 更新选中标记
-                    if is_selected:
-                        card.content.controls[4] = ft.Icon(
-                            ft.Icons.CHECK_CIRCLE,
-                            size=16,
-                            color=color,
-                        )
-                    else:
-                        card.content.controls[4] = ft.Container(height=16)
+                    # 更新选中标记（只有预定义颜色卡片有这个元素）
+                    if len(card.content.controls) > 4:
+                        if is_selected:
+                            card.content.controls[4] = ft.Icon(
+                                ft.Icons.CHECK_CIRCLE,
+                                size=16,
+                                color=color,
+                            )
+                        else:
+                            card.content.controls[4] = ft.Container(height=16)
                 
                 card.update()
             
@@ -679,7 +929,6 @@ class SettingsView(ft.Container):
                     "80% (较小) - 100% (标准) - 150% (特大)",
                     size=11,
                     color=TEXT_SECONDARY,
-                    italic=True,
                 ),
             ],
             spacing=PADDING_MEDIUM // 2,
@@ -713,7 +962,6 @@ class SettingsView(ft.Container):
             "更改字体和字体大小后需要重启应用才能完全生效",
             size=12,
             color=TEXT_SECONDARY,
-            italic=True,
         )
         
         # 组装字体设置部分
