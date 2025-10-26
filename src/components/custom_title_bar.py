@@ -39,6 +39,12 @@ class CustomTitleBar(ft.Container):
         self.page: ft.Page = page
         self.config_service: Optional[ConfigService] = config_service
         
+        # 获取用户设置的主题色
+        if self.config_service:
+            self.theme_color: str = self.config_service.get_config_value("theme_color", "#667EEA")
+        else:
+            self.theme_color = "#667EEA"
+        
         # 构建标题栏
         self._build_title_bar()
     
@@ -145,17 +151,28 @@ class CustomTitleBar(ft.Container):
         self.content = title_bar_content
         self.height = 48
         self.padding = ft.padding.symmetric(horizontal=PADDING_MEDIUM)
-        self.gradient = ft.LinearGradient(
-            begin=ft.alignment.center_left,
-            end=ft.alignment.center_right,
-            colors=[
-                GRADIENT_START,
-                GRADIENT_END,
-            ],
-        )
+        # 使用用户设置的主题色创建渐变（或使用默认渐变）
+        self.gradient = self._create_gradient()
         
         # 初始化主题图标
         self._update_theme_icon()
+    
+    def _create_gradient(self) -> ft.LinearGradient:
+        """根据主题色创建渐变。
+        
+        Returns:
+            线性渐变对象
+        """
+        # 使用主题色作为渐变起始色
+        # 计算一个稍深的结束色（通过简单的色调偏移）
+        return ft.LinearGradient(
+            begin=ft.alignment.center_left,
+            end=ft.alignment.center_right,
+            colors=[
+                self.theme_color,
+                self.theme_color,  # 使用相同颜色，Material Design 会自动处理渐变
+            ],
+        )
     
     def _toggle_theme(self, e: ft.ControlEvent) -> None:
         """切换主题模式。

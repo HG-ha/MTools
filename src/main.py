@@ -28,6 +28,8 @@ def main(page: ft.Page) -> None:
     # 加载配置
     config_service = ConfigService()
     saved_font = config_service.get_config_value("font_family", "System")
+    saved_theme_color = config_service.get_config_value("theme_color", "#667EEA")
+    saved_theme_mode = config_service.get_config_value("theme_mode", "system")
     saved_left = config_service.get_config_value("window_left")
     saved_top = config_service.get_config_value("window_top")
     saved_width = config_service.get_config_value("window_width")
@@ -51,9 +53,9 @@ def main(page: ft.Page) -> None:
     page.window.title_bar_hidden = True
     page.window.title_bar_buttons_hidden = True
     
-    # 设置浅色主题 - 使用柔和的Material Design 3
+    # 设置浅色主题 - 使用用户选择的主题色或默认色
     page.theme = ft.Theme(
-        color_scheme_seed="#667EEA",  # 柔和的蓝紫色
+        color_scheme_seed=saved_theme_color,  # 使用用户设置的主题色
         use_material3=True,
         font_family=saved_font,  # 使用保存的字体
         # 页面和组件颜色配置
@@ -67,7 +69,7 @@ def main(page: ft.Page) -> None:
     
     # 设置深色主题
     page.dark_theme = ft.Theme(
-        color_scheme_seed="#667EEA",  # 使用相同的种子色
+        color_scheme_seed=saved_theme_color,  # 使用用户设置的主题色
         use_material3=True,
         font_family=saved_font,  # 使用保存的字体
         # 深色模式颜色配置
@@ -79,8 +81,13 @@ def main(page: ft.Page) -> None:
         ),
     )
     
-    # 默认跟随系统主题
-    page.theme_mode = ft.ThemeMode.SYSTEM
+    # 应用用户设置的主题模式
+    if saved_theme_mode == "light":
+        page.theme_mode = ft.ThemeMode.LIGHT
+    elif saved_theme_mode == "dark":
+        page.theme_mode = ft.ThemeMode.DARK
+    else:  # system 或其他
+        page.theme_mode = ft.ThemeMode.SYSTEM
     
     # 设置页面布局
     page.padding = 0

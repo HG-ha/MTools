@@ -63,6 +63,12 @@ class SettingsView(ft.Container):
         # 数据目录设置部分
         data_dir_section: ft.Container = self._build_data_dir_section()
         
+        # 主题模式设置部分
+        theme_mode_section: ft.Container = self._build_theme_mode_section()
+        
+        # 主题色设置部分
+        theme_color_section: ft.Container = self._build_theme_color_section()
+        
         # 字体设置部分
         font_section: ft.Container = self._build_font_section()
         
@@ -76,6 +82,10 @@ class SettingsView(ft.Container):
                 ft.Container(height=PADDING_LARGE),
                 data_dir_section,
                 ft.Container(height=PADDING_LARGE),
+                theme_mode_section,
+                ft.Container(height=PADDING_LARGE),
+                theme_color_section,
+                ft.Container(height=PADDING_LARGE),
                 font_section,
                 ft.Container(height=PADDING_LARGE),
                 about_section,
@@ -83,6 +93,168 @@ class SettingsView(ft.Container):
             spacing=0,
             scroll=ft.ScrollMode.HIDDEN,  # 隐藏滚动条
         )
+    
+    def _build_theme_mode_section(self) -> ft.Container:
+        """构建主题模式设置部分。
+        
+        Returns:
+            主题模式设置容器
+        """
+        # 分区标题
+        section_title: ft.Text = ft.Text(
+            "主题模式",
+            size=20,
+            weight=ft.FontWeight.W_600,
+            color=TEXT_PRIMARY,
+        )
+        
+        # 获取当前保存的主题模式
+        saved_theme_mode = self.config_service.get_config_value("theme_mode", "system")
+        
+        # 主题模式单选按钮
+        self.theme_mode_radio: ft.RadioGroup = ft.RadioGroup(
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Icon(ft.Icons.BRIGHTNESS_AUTO, size=32, color=TEXT_PRIMARY),
+                                ft.Text("跟随系统", size=14, weight=ft.FontWeight.W_500),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            spacing=PADDING_MEDIUM // 2,
+                        ),
+                        data="system",
+                        width=120,
+                        height=100,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        border=ft.border.all(2 if saved_theme_mode == "system" else 1, ft.Colors.PRIMARY if saved_theme_mode == "system" else ft.Colors.OUTLINE),
+                        padding=PADDING_MEDIUM,
+                        ink=True,
+                        on_click=lambda e: self._on_theme_mode_container_click("system"),
+                    ),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Icon(ft.Icons.LIGHT_MODE, size=32, color=TEXT_PRIMARY),
+                                ft.Text("浅色模式", size=14, weight=ft.FontWeight.W_500),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            spacing=PADDING_MEDIUM // 2,
+                        ),
+                        data="light",
+                        width=120,
+                        height=100,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        border=ft.border.all(2 if saved_theme_mode == "light" else 1, ft.Colors.PRIMARY if saved_theme_mode == "light" else ft.Colors.OUTLINE),
+                        padding=PADDING_MEDIUM,
+                        ink=True,
+                        on_click=lambda e: self._on_theme_mode_container_click("light"),
+                    ),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Icon(ft.Icons.DARK_MODE, size=32, color=TEXT_PRIMARY),
+                                ft.Text("深色模式", size=14, weight=ft.FontWeight.W_500),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            spacing=PADDING_MEDIUM // 2,
+                        ),
+                        data="dark",
+                        width=120,
+                        height=100,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        border=ft.border.all(2 if saved_theme_mode == "dark" else 1, ft.Colors.PRIMARY if saved_theme_mode == "dark" else ft.Colors.OUTLINE),
+                        padding=PADDING_MEDIUM,
+                        ink=True,
+                        on_click=lambda e: self._on_theme_mode_container_click("dark"),
+                    ),
+                ],
+                spacing=PADDING_LARGE,
+            ),
+            value=saved_theme_mode,
+        )
+        
+        # 保存主题模式容器的引用，用于更新样式
+        self.theme_mode_containers: list = [
+            self.theme_mode_radio.content.controls[0],
+            self.theme_mode_radio.content.controls[1],
+            self.theme_mode_radio.content.controls[2],
+        ]
+        
+        # 说明文字
+        info_text: ft.Text = ft.Text(
+            "主题模式会立即生效",
+            size=12,
+            color=TEXT_SECONDARY,
+            italic=True,
+        )
+        
+        # 组装主题模式设置部分
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.theme_mode_radio,
+                    ft.Container(height=PADDING_MEDIUM // 2),
+                    info_text,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _on_theme_mode_container_click(self, mode: str) -> None:
+        """主题模式容器点击事件处理。
+        
+        Args:
+            mode: 主题模式 ("system", "light", "dark")
+        """
+        # 更新RadioGroup的值
+        self.theme_mode_radio.value = mode
+        
+        # 保存到配置
+        if self.config_service.set_config_value("theme_mode", mode):
+            # 立即应用主题模式
+            if mode == "system":
+                self.page.theme_mode = ft.ThemeMode.SYSTEM
+            elif mode == "light":
+                self.page.theme_mode = ft.ThemeMode.LIGHT
+            else:  # dark
+                self.page.theme_mode = ft.ThemeMode.DARK
+            
+            # 更新所有容器的边框样式
+            for container in self.theme_mode_containers:
+                is_selected = container.data == mode
+                container.border = ft.border.all(
+                    2 if is_selected else 1,
+                    ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
+                )
+                container.update()
+            
+            self.page.update()
+            self._show_snackbar(f"已切换到{self._get_mode_name(mode)}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("主题模式更新失败", ft.Colors.RED)
+    
+    def _get_mode_name(self, mode: str) -> str:
+        """获取主题模式的中文名称。
+        
+        Args:
+            mode: 主题模式
+        
+        Returns:
+            中文名称
+        """
+        mode_names = {
+            "system": "跟随系统",
+            "light": "浅色模式",
+            "dark": "深色模式",
+        }
+        return mode_names.get(mode, mode)
     
     def _build_data_dir_section(self) -> ft.Container:
         """构建数据目录设置部分。
@@ -193,6 +365,249 @@ class SettingsView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
+    
+    def _build_theme_color_section(self) -> ft.Container:
+        """构建主题色设置部分。
+        
+        Returns:
+            主题色设置容器
+        """
+        # 分区标题
+        section_title: ft.Text = ft.Text(
+            "主题颜色",
+            size=20,
+            weight=ft.FontWeight.W_600,
+            color=TEXT_PRIMARY,
+        )
+        
+        # 预定义的主题色
+        theme_colors = [
+            ("#667EEA", "蓝紫色", "默认"),
+            ("#6366F1", "靛蓝色", "科技感"),
+            ("#8B5CF6", "紫色", "优雅"),
+            ("#EC4899", "粉红色", "活力"),
+            ("#F43F5E", "玫瑰红", "激情"),
+            ("#EF4444", "红色", "热烈"),
+            ("#F97316", "橙色", "温暖"),
+            ("#F59E0B", "琥珀色", "明亮"),
+            ("#10B981", "绿色", "清新"),
+            ("#14B8A6", "青色", "自然"),
+            ("#06B6D4", "天蓝色", "清爽"),
+            ("#0EA5E9", "天空蓝", "开阔"),
+        ]
+        
+        # 获取当前主题色
+        current_theme_color = self.config_service.get_config_value("theme_color", "#667EEA")
+        
+        # 创建主题色卡片
+        self.theme_color_cards: list = []
+        
+        theme_cards_row: ft.Row = ft.Row(
+            controls=[],
+            wrap=True,
+            spacing=PADDING_MEDIUM,
+            run_spacing=PADDING_MEDIUM,
+        )
+        
+        for color, name, desc in theme_colors:
+            card = self._create_theme_color_card(color, name, desc, color == current_theme_color)
+            self.theme_color_cards.append(card)
+            theme_cards_row.controls.append(card)
+        
+        # 说明文字
+        info_text: ft.Text = ft.Text(
+            "主题色会立即生效，包括标题栏和所有界面元素",
+            size=12,
+            color=TEXT_SECONDARY,
+            italic=True,
+        )
+        
+        # 组装主题色设置部分
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    theme_cards_row,
+                    ft.Container(height=PADDING_MEDIUM // 2),
+                    info_text,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _create_theme_color_card(self, color: str, name: str, desc: str, is_selected: bool) -> ft.Container:
+        """创建主题色选择卡片。
+        
+        Args:
+            color: 颜色值
+            name: 颜色名称
+            desc: 颜色描述
+            is_selected: 是否选中
+        
+        Returns:
+            主题色卡片容器
+        """
+        # 颜色圆圈
+        color_circle = ft.Container(
+            width=40,
+            height=40,
+            border_radius=20,
+            bgcolor=color,
+            border=ft.border.all(3, ft.Colors.WHITE) if is_selected else ft.border.all(1, ft.Colors.OUTLINE),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.3, color),
+                offset=ft.Offset(0, 2),
+            ) if is_selected else None,
+        )
+        
+        # 选中标记
+        check_icon = ft.Icon(
+            ft.Icons.CHECK_CIRCLE,
+            size=16,
+            color=color,
+        ) if is_selected else None
+        
+        card = ft.Container(
+            content=ft.Column(
+                controls=[
+                    color_circle,
+                    ft.Container(height=4),
+                    ft.Text(
+                        name,
+                        size=12,
+                        weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL,
+                        color=TEXT_PRIMARY,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        desc,
+                        size=10,
+                        color=TEXT_SECONDARY,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    check_icon if check_icon else ft.Container(height=16),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=2,
+            ),
+            width=90,
+            height=110,
+            padding=PADDING_MEDIUM // 2,
+            border_radius=BORDER_RADIUS_MEDIUM,
+            bgcolor=ft.Colors.with_opacity(0.05, color) if is_selected else None,
+            border=ft.border.all(
+                2 if is_selected else 1,
+                color if is_selected else ft.Colors.OUTLINE
+            ),
+            data=color,  # 存储颜色值
+            on_click=self._on_theme_color_click,
+            ink=True,
+            animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
+        )
+        
+        return card
+    
+    def _on_theme_color_click(self, e: ft.ControlEvent) -> None:
+        """主题色卡片点击事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        clicked_color: str = e.control.data
+        current_color = self.config_service.get_config_value("theme_color", "#667EEA")
+        
+        if clicked_color == current_color:
+            return  # 已选中，无需更新
+        
+        # 保存主题色设置
+        if self.config_service.set_config_value("theme_color", clicked_color):
+            # 立即更新页面主题色
+            if self.page.theme:
+                self.page.theme.color_scheme_seed = clicked_color
+            if self.page.dark_theme:
+                self.page.dark_theme.color_scheme_seed = clicked_color
+            
+            # 更新标题栏颜色（如果标题栏存在）
+            self._update_title_bar_color(clicked_color)
+            
+            # 更新所有卡片的样式
+            for card in self.theme_color_cards:
+                is_selected = card.data == clicked_color
+                color = card.data
+                
+                # 更新边框和背景
+                card.border = ft.border.all(
+                    2 if is_selected else 1,
+                    color if is_selected else ft.Colors.OUTLINE
+                )
+                card.bgcolor = ft.Colors.with_opacity(0.05, color) if is_selected else None
+                
+                # 更新内容
+                if card.content and isinstance(card.content, ft.Column):
+                    # 更新颜色圆圈
+                    color_circle = card.content.controls[0]
+                    if isinstance(color_circle, ft.Container):
+                        color_circle.border = ft.border.all(3, ft.Colors.WHITE) if is_selected else ft.border.all(1, ft.Colors.OUTLINE)
+                        color_circle.shadow = ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=8,
+                            color=ft.Colors.with_opacity(0.3, color),
+                            offset=ft.Offset(0, 2),
+                        ) if is_selected else None
+                    
+                    # 更新名称文字粗细
+                    name_text = card.content.controls[2]
+                    if isinstance(name_text, ft.Text):
+                        name_text.weight = ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL
+                    
+                    # 更新选中标记
+                    if is_selected:
+                        card.content.controls[4] = ft.Icon(
+                            ft.Icons.CHECK_CIRCLE,
+                            size=16,
+                            color=color,
+                        )
+                    else:
+                        card.content.controls[4] = ft.Container(height=16)
+                
+                card.update()
+            
+            # 更新整个页面
+            self.page.update()
+            self._show_snackbar("主题色已更新", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("主题色更新失败", ft.Colors.RED)
+    
+    def _update_title_bar_color(self, color: str) -> None:
+        """更新标题栏颜色。
+        
+        Args:
+            color: 新的主题色
+        """
+        # 尝试找到标题栏组件并更新颜色
+        try:
+            # 从页面的controls中查找标题栏
+            for control in self.page.controls:
+                if hasattr(control, 'controls'):
+                    for sub_control in control.controls:
+                        # 检查是否是标题栏（通过类名或属性判断）
+                        if hasattr(sub_control, 'gradient'):
+                            # 更新渐变色
+                            sub_control.gradient = ft.LinearGradient(
+                                begin=ft.alignment.center_left,
+                                end=ft.alignment.center_right,
+                                colors=[color, color],
+                            )
+                            sub_control.update()
+                            break
+        except Exception:
+            pass  # 如果更新失败也不影响其他功能
     
     def _build_font_section(self) -> ft.Container:
         """构建字体设置部分。
