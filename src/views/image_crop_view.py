@@ -5,14 +5,26 @@
 
 import os
 import subprocess
+import warnings
 from pathlib import Path
 from typing import Callable, Optional
 
 import flet as ft
 from PIL import Image
 
-from constants import PADDING_LARGE, PADDING_MEDIUM, PADDING_SMALL, PADDING_XLARGE
+from constants import (
+    BORDER_RADIUS_MEDIUM,
+    PADDING_LARGE,
+    PADDING_MEDIUM,
+    PADDING_SMALL,
+    PADDING_XLARGE,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+)
 from services import ConfigService, ImageService
+
+# 屏蔽 libpng 的 iCCP 警告
+warnings.filterwarnings("ignore", message=".*iCCP.*", category=UserWarning)
 
 
 class ImageCropView(ft.Container):
@@ -56,11 +68,12 @@ class ImageCropView(ft.Container):
         self.crop_height: int = 200
         
         # 显示尺寸（动态调整，适配图片大小）
-        # 最大尺寸限制（考虑窗口大小和其他UI元素）
-        self.max_canvas_width: int = 900
-        self.max_canvas_height: int = 600
+        # 最大尺寸限制（考虑窗口大小 1090x730，左侧区域约 700x650，减去内边距 PADDING_LARGE*2）
+        # PADDING_LARGE = 24，所以左右上下各减少24px，实际可用空间减少48px
+        self.max_canvas_width: int = 602  # 650 - 48
+        self.max_canvas_height: int = 552  # 600 - 48
         # 初始尺寸（空状态时的默认大小，加载图片后会动态调整）
-        self.canvas_width: int = 600
+        self.canvas_width: int = 500
         self.canvas_height: int = 400
         
         # 拖动状态
@@ -83,7 +96,7 @@ class ImageCropView(ft.Container):
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
-        # 标题栏
+        # 标题栏（参考压缩页面风格）
         header: ft.Row = ft.Row(
             controls=[
                 ft.IconButton(
@@ -91,9 +104,25 @@ class ImageCropView(ft.Container):
                     on_click=self._on_back_click,
                     tooltip="返回",
                 ),
-                ft.Text("图片裁剪 - 拖动裁剪框或四角调整，WASD精调", size=24, weight=ft.FontWeight.BOLD),
+                ft.Text("图片裁剪", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
             ],
             spacing=PADDING_MEDIUM,
+        )
+        
+        # 说明文本
+        description_text: ft.Container = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                    ft.Text(
+                        "拖动蓝框移动位置 | 拖动四个角调整大小 | WASD键精确微调1px",
+                        size=12,
+                        color=TEXT_SECONDARY,
+                    ),
+                ],
+                spacing=8,
+            ),
+            margin=ft.margin.only(left=4, top=4, bottom=PADDING_MEDIUM),
         )
         
         # 空状态（占满画布）
@@ -226,7 +255,7 @@ class ImageCropView(ft.Container):
             visible=False,
         )
         
-        # 使用 Stack 叠加
+        # 使用 Stack 叠加（设置初始尺寸）
         self.crop_canvas: ft.Stack = ft.Stack(
             controls=[
                 self.original_image_widget,
@@ -238,88 +267,96 @@ class ImageCropView(ft.Container):
                 self.handle_se,  # 右下
                 ft.Container(content=self.crop_info_text, padding=8, top=10, left=10),
             ],
-            # 不设置固定尺寸，由外层容器控制
-        )
-        
-        # 裁剪区域（动态尺寸）
-        self.canvas_container: ft.Container = ft.Container(
-            content=ft.Stack(
-                controls=[self.empty_state_widget, self.crop_canvas],
-            ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
-            border_radius=8,
             width=self.canvas_width,
             height=self.canvas_height,
-            alignment=ft.alignment.center,
         )
         
-        # 包装在容器中以保持居中和边距
+        # 裁剪区域（动态尺寸，带内边距让图片居中）
+        # Stack 需要明确设置尺寸，容器的尺寸需要加上 padding
+        self.canvas_stack: ft.Stack = ft.Stack(
+            controls=[self.empty_state_widget, self.crop_canvas],
+            width=self.canvas_width,
+            height=self.canvas_height,
+        )
+        
+        self.canvas_container: ft.Container = ft.Container(
+            content=self.canvas_stack,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            alignment=ft.alignment.center,
+            padding=PADDING_LARGE,  # 添加内边距让图片居中显示
+        )
+        
+        # 左侧裁剪区域
         crop_area: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("拖动蓝框移动 | 拖动四个角调整大小 | WASD精调1px", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Text("裁剪区域", size=14, weight=ft.FontWeight.W_500),
                     ft.Container(height=PADDING_SMALL),
                     self.canvas_container,
                 ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
                 spacing=0,
             ),
-            alignment=ft.alignment.center,
-            padding=ft.padding.symmetric(horizontal=PADDING_XLARGE),
+            expand=True,  # 占据剩余空间
+            padding=ft.padding.only(left=PADDING_LARGE, right=PADDING_MEDIUM),
         )
         
-        # 预览区域（下半部分）
+        # 右侧预览区域（缩小尺寸）
         self.preview_image_widget: ft.Image = ft.Image(
-            width=400,
-            height=400,
+            width=300,
+            height=300,
             fit=ft.ImageFit.CONTAIN,
             visible=False,
         )
         
         self.preview_info_text: ft.Text = ft.Text(
             "选择图片后拖动裁剪框查看效果",
-            size=12,
+            size=11,
             color=ft.Colors.ON_SURFACE_VARIANT,
             text_align=ft.TextAlign.CENTER,
         )
         
-        # 包装预览区域以保持居中和边距
         preview_area: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("裁剪预览", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Text("裁剪预览", size=14, weight=ft.FontWeight.W_500),
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
                         content=self.preview_image_widget,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
+                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border_radius=BORDER_RADIUS_MEDIUM,
                         alignment=ft.alignment.center,
-                        width=400,
-                        height=400,
+                        width=300,
+                        height=300,
                         on_click=self._on_preview_click,
                         tooltip="点击用系统默认应用打开",
                         ink=True,
+                        padding=PADDING_MEDIUM,  # 添加内边距
                     ),
                     ft.Container(height=PADDING_SMALL),
                     self.preview_info_text,
                 ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
                 spacing=0,
             ),
-            alignment=ft.alignment.center,
-            padding=ft.padding.symmetric(horizontal=PADDING_XLARGE),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
         )
         
-        # 控制按钮
-        select_button = ft.OutlinedButton(
+        # 控制按钮（垂直排列，更紧凑）
+        select_button = ft.ElevatedButton(
             text="选择图片",
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._on_select_file,
+            width=280,
         )
         reset_button = ft.OutlinedButton(
-            text="重置",
+            text="重置裁剪",
             icon=ft.Icons.REFRESH,
             on_click=self._on_reset,
+            width=280,
         )
         
         self.save_button = ft.FilledButton(
@@ -327,29 +364,54 @@ class ImageCropView(ft.Container):
             icon=ft.Icons.SAVE,
             on_click=self._on_save_result,
             disabled=True,
-            height=48,
+            width=280,
         )
         
-        button_row = ft.Row(
-            controls=[select_button, reset_button, self.save_button],
+        button_area = ft.Column(
+            controls=[
+                select_button,
+                reset_button,
+                self.save_button,
+            ],
             spacing=PADDING_MEDIUM,
-            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         
-        # 组装 - 上下布局
+        # 右侧区域（预览 + 按钮）
+        right_side = ft.Container(
+            content=ft.Column(
+                controls=[
+                    preview_area,
+                    ft.Container(height=PADDING_MEDIUM),
+                    button_area,
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.START,
+                spacing=0,
+            ),
+            width=380,
+            padding=ft.padding.only(right=PADDING_LARGE),
+        )
+        
+        # 组装 - 左右布局
+        main_row = ft.Row(
+            controls=[
+                crop_area,
+                right_side,
+            ],
+            spacing=0,
+            expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+        
         self.content = ft.Column(
             controls=[
                 header,
-                ft.Container(height=PADDING_MEDIUM),
-                crop_area,
-                ft.Container(height=PADDING_LARGE),
-                preview_area,
-                ft.Container(height=PADDING_LARGE),
-                button_row,
+                description_text,
+                main_row,
             ],
             spacing=0,
-            scroll=ft.ScrollMode.ADAPTIVE,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
         )
     
     def _calculate_canvas_size(self, img_width: int, img_height: int) -> tuple[int, int]:
@@ -405,11 +467,9 @@ class ImageCropView(ft.Container):
             # 计算合适的画布尺寸
             self.canvas_width, self.canvas_height = self._calculate_canvas_size(img_w, img_h)
             
-            # 更新画布容器尺寸
-            self.canvas_container.width = self.canvas_width
-            self.canvas_container.height = self.canvas_height
-            
             # 更新 Stack 尺寸（确保裁剪框可以正确定位）
+            self.canvas_stack.width = self.canvas_width
+            self.canvas_stack.height = self.canvas_height
             self.crop_canvas.width = self.canvas_width
             self.crop_canvas.height = self.canvas_height
             
