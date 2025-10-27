@@ -425,6 +425,20 @@ class ImagePuzzleMergeView(ft.Container):
                                 expand=True,
                             ),
                             ft.IconButton(
+                                icon=ft.Icons.ARROW_UPWARD,
+                                icon_size=16,
+                                tooltip="上移",
+                                on_click=lambda e, idx=i: self._on_move_up(idx),
+                                disabled=(i == 0),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.ARROW_DOWNWARD,
+                                icon_size=16,
+                                tooltip="下移",
+                                on_click=lambda e, idx=i: self._on_move_down(idx),
+                                disabled=(i == len(self.selected_files) - 1),
+                            ),
+                            ft.IconButton(
                                 icon=ft.Icons.CLOSE,
                                 icon_size=16,
                                 tooltip="移除",
@@ -440,7 +454,26 @@ class ImagePuzzleMergeView(ft.Container):
                 
                 self.file_list_view.controls.append(file_item)
         
-        self.file_list_view.update()
+        try:
+            self.file_list_view.update()
+        except:
+            pass
+    
+    def _on_move_up(self, index: int) -> None:
+        """上移文件。"""
+        if 1 <= index < len(self.selected_files):
+            self.selected_files[index], self.selected_files[index - 1] = \
+                self.selected_files[index - 1], self.selected_files[index]
+            self._update_file_list()
+            self._clear_preview()
+    
+    def _on_move_down(self, index: int) -> None:
+        """下移文件。"""
+        if 0 <= index < len(self.selected_files) - 1:
+            self.selected_files[index], self.selected_files[index + 1] = \
+                self.selected_files[index + 1], self.selected_files[index]
+            self._update_file_list()
+            self._clear_preview()
     
     def _on_remove_file(self, index: int) -> None:
         """移除文件。"""
@@ -547,43 +580,84 @@ class ImagePuzzleMergeView(ft.Container):
             bg_rgb = bg_color_map.get(bg_color, (255, 255, 255))
         
         if direction == "horizontal":
-            # 横向排列
-            total_width = sum(img.width for img in images) + spacing * (len(images) - 1)
+            # 横向排列：统一高度，宽度按比例缩放
             max_height = max(img.height for img in images)
+            
+            # 缩放所有图片到统一高度
+            resized_images = []
+            for img in images:
+                if img.height != max_height:
+                    aspect_ratio = img.width / img.height
+                    new_width = int(max_height * aspect_ratio)
+                    img = img.resize((new_width, max_height), Image.Resampling.LANCZOS)
+                resized_images.append(img)
+            
+            total_width = sum(img.width for img in resized_images) + spacing * (len(resized_images) - 1)
             
             result = Image.new('RGB', (total_width, max_height), bg_rgb)
             x_offset = 0
             
-            for img in images:
+            for img in resized_images:
                 result.paste(img, (x_offset, 0))
                 x_offset += img.width + spacing
         
         elif direction == "vertical":
-            # 纵向排列
+            # 纵向排列：统一宽度，高度按比例缩放
             max_width = max(img.width for img in images)
-            total_height = sum(img.height for img in images) + spacing * (len(images) - 1)
+            
+            # 缩放所有图片到统一宽度
+            resized_images = []
+            for img in images:
+                if img.width != max_width:
+                    aspect_ratio = img.height / img.width
+                    new_height = int(max_width * aspect_ratio)
+                    img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                resized_images.append(img)
+            
+            total_height = sum(img.height for img in resized_images) + spacing * (len(resized_images) - 1)
             
             result = Image.new('RGB', (max_width, total_height), bg_rgb)
             y_offset = 0
             
-            for img in images:
+            for img in resized_images:
                 result.paste(img, (0, y_offset))
                 y_offset += img.height + spacing
         
         else:  # grid
-            # 网格排列
+            # 网格排列：统一所有图片到最大尺寸
             cols = grid_cols or 3
             rows = (len(images) + cols - 1) // cols
             
             max_width = max(img.width for img in images)
             max_height = max(img.height for img in images)
             
+            # 缩放所有图片到统一尺寸（保持比例，填充背景）
+            resized_images = []
+            for img in images:
+                if img.width != max_width or img.height != max_height:
+                    # 计算缩放比例（保持比例，填充整个区域）
+                    scale_w = max_width / img.width
+                    scale_h = max_height / img.height
+                    scale = max(scale_w, scale_h)  # 使用较大的缩放比例，确保填充整个区域
+                    
+                    new_width = int(img.width * scale)
+                    new_height = int(img.height * scale)
+                    img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # 居中裁剪到目标尺寸
+                    left = (new_width - max_width) // 2
+                    top = (new_height - max_height) // 2
+                    img_resized = img_resized.crop((left, top, left + max_width, top + max_height))
+                    resized_images.append(img_resized)
+                else:
+                    resized_images.append(img)
+            
             total_width = max_width * cols + spacing * (cols - 1)
             total_height = max_height * rows + spacing * (rows - 1)
             
             result = Image.new('RGB', (total_width, total_height), bg_rgb)
             
-            for i, img in enumerate(images):
+            for i, img in enumerate(resized_images):
                 row = i // cols
                 col = i % cols
                 x = col * (max_width + spacing)
