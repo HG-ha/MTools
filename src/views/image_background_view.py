@@ -74,8 +74,15 @@ class ImageBackgroundView(ft.Container):
         # 获取模型路径
         self.model_path: Path = self._get_model_path()
         
-        # 构建界面
-        self._build_ui()
+        # 标记UI是否已构建
+        self._ui_built: bool = False
+        
+        # 先创建一个简单的加载界面，真正的UI延迟构建
+        self._build_loading_ui()
+        
+        # 延迟构建完整UI，避免阻塞初始化
+        import threading
+        threading.Thread(target=self._build_ui_async, daemon=True).start()
     
     def _get_model_path(self) -> Path:
         """获取模型文件路径。
@@ -88,9 +95,50 @@ class ImageBackgroundView(ft.Container):
         
         # 模型存储在 models/rmbg2.0 子目录
         models_dir = data_dir / "models" / "rmbg2.0"
-        models_dir.mkdir(parents=True, exist_ok=True)
+        # 不在初始化时创建目录，避免阻塞界面
+        # 目录会在需要时（下载/加载模型）自动创建
         
         return models_dir / "model_q4.onnx"
+    
+    def _ensure_model_dir(self) -> None:
+        """确保模型目录存在。"""
+        model_dir = self.model_path.parent
+        model_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _build_loading_ui(self) -> None:
+        """构建简单的加载界面（骨架屏）。"""
+        # 创建一个简单的加载提示
+        loading_content = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.ProgressRing(),
+                    ft.Text("正在加载背景移除功能...", size=16, color=TEXT_SECONDARY),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=PADDING_LARGE,
+            ),
+            expand=True,
+            alignment=ft.alignment.center,
+        )
+        
+        self.content = loading_content
+    
+    def _build_ui_async(self) -> None:
+        """异步构建完整UI。"""
+        import time
+        # 短暂延迟，确保加载界面先显示
+        time.sleep(0.05)
+        
+        # 构建完整UI
+        self._build_ui()
+        self._ui_built = True
+        
+        # 更新界面
+        try:
+            self.update()
+        except:
+            pass
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -346,7 +394,15 @@ class ImageBackgroundView(ft.Container):
             scroll=ft.ScrollMode.AUTO,
         )
         
-        # 检查模型状态
+        # 延迟检查模型状态，避免阻塞界面初始化
+        threading.Thread(target=self._check_model_status_async, daemon=True).start()
+    
+    def _check_model_status_async(self) -> None:
+        """异步检查模型状态，避免阻塞界面初始化。"""
+        # 在后台线程中执行文件系统操作
+        import time
+        time.sleep(0.05)  # 短暂延迟，确保界面已经显示
+        
         self._check_model_status()
     
     def _check_model_status(self) -> None:
@@ -399,6 +455,9 @@ class ImageBackgroundView(ft.Container):
         
         def download_task():
             try:
+                # 确保模型目录存在
+                self._ensure_model_dir()
+                
                 import urllib.request
                 
                 # 下载文件并显示进度
@@ -947,18 +1006,19 @@ class ImageBackgroundView(ft.Container):
         
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 禁用处理按钮
+        # 禁用处理按钮并显示进度（一次性更新所有UI，减少刷新次数）
         button = self.process_button.content
         button.disabled = True
-        self.process_button.update()
-        
-        # 显示进度
         self.progress_bar.visible = True
         self.progress_text.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备处理..."
-        self.progress_bar.update()
-        self.progress_text.update()
+        
+        # 一次性更新页面，减少UI刷新次数，避免卡顿
+        try:
+            self.page.update()
+        except:
+            pass
         
         # 在后台线程处理
         def process_task():
@@ -1009,8 +1069,8 @@ class ImageBackgroundView(ft.Container):
         self.progress_bar.value = value
         self.progress_text.value = text
         try:
-            self.progress_bar.update()
-            self.progress_text.update()
+            # 一次性更新整个页面，而不是分别更新两个控件
+            self.page.update()
         except:
             pass
     
@@ -1022,12 +1082,15 @@ class ImageBackgroundView(ft.Container):
             total: 总数量
             output_dir: 输出目录
         """
-        # 更新进度
+        # 更新进度和按钮状态（一次性更新）
         self.progress_bar.value = 1.0
         self.progress_text.value = f"处理完成! 成功: {success_count}/{total}"
+        button = self.process_button.content
+        button.disabled = False
+         
         try:
-            self.progress_bar.update()
-            self.progress_text.update()
+            # 一次性更新页面，提高响应速度
+            self.page.update()
         except:
             pass
         
@@ -1042,14 +1105,6 @@ class ImageBackgroundView(ft.Container):
                 f"处理完成! 成功处理 {success_count} 个文件，保存到: {output_dir}",
                 ft.Colors.GREEN
             )
-        
-        # 重新启用处理按钮
-        button = self.process_button.content
-        button.disabled = False
-        try:
-            self.process_button.update()
-        except:
-            pass
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。

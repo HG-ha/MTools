@@ -17,6 +17,7 @@ from services import ConfigService, ImageService
 from views.image_background_view import ImageBackgroundView
 from views.image_compress_view import ImageCompressView
 from views.image_format_view import ImageFormatView
+from views.image_puzzle_view import ImagePuzzleView
 from views.image_resize_view import ImageResizeView
 
 
@@ -58,6 +59,7 @@ class ImageView(ft.Container):
         self.resize_view: Optional[ImageResizeView] = None
         self.format_view: Optional[ImageFormatView] = None
         self.background_view: Optional[ImageBackgroundView] = None
+        self.puzzle_view: Optional[ImagePuzzleView] = None
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -97,6 +99,13 @@ class ImageView(ft.Container):
                     description="AI智能抠图，一键去除背景",
                     gradient_colors=("#FA709A", "#FEE140"),
                     on_click=self._open_background_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.DASHBOARD_CUSTOMIZE,
+                    title="图片拼接",
+                    description="九宫格切分、多图合并拼接",
+                    gradient_colors=("#43E97B", "#38F9D7"),
+                    on_click=self._open_puzzle_dialog,
                 ),
             ],
             wrap=True,  # 自动换行
@@ -205,20 +214,60 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
-        # 创建背景移除视图（如果还没创建）
-        if not self.background_view:
-            self.background_view = ImageBackgroundView(
+        # 使用定时器延迟切换，让点击动画先完成（Material Design 涟漪动画约150-200ms）
+        import threading
+        
+        def delayed_create_and_switch():
+            # 创建背景移除视图（如果还没创建）
+            if not self.background_view:
+                self.background_view = ImageBackgroundView(
+                    self.page,
+                    self.config_service,
+                    self.image_service,
+                    on_back=self._back_to_main
+                )
+            
+            # 记录当前子视图
+            self.current_sub_view = self.background_view
+            
+            # 切换到背景移除视图
+            self.parent_container.content = self.background_view
+            try:
+                self.parent_container.update()
+            except:
+                pass
+        
+        # 使用定时器延迟执行，让点击动画先播放完
+        timer = threading.Timer(0.2, delayed_create_and_switch)
+        timer.daemon = True
+        timer.start()
+    
+    def _open_puzzle_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图片拼接工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建拼接视图（如果还没创建）
+        if not self.puzzle_view:
+            self.puzzle_view = ImagePuzzleView(
                 self.page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
             )
+            # 设置拼图视图的父容器，让它可以切换到子功能
+            self.puzzle_view.set_parent_container(self.parent_container)
         
         # 记录当前子视图
-        self.current_sub_view = self.background_view
+        self.current_sub_view = self.puzzle_view
         
-        # 切换到背景移除视图
-        self.parent_container.content = self.background_view
+        # 切换到拼接视图
+        self.parent_container.content = self.puzzle_view
         self.parent_container.update()
     
     def _back_to_main(self) -> None:
