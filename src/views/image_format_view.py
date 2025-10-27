@@ -71,7 +71,7 @@ class ImageFormatView(ft.Container):
         # 右侧多留一些空间给滚动条
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,
+            right=PADDING_XLARGE,
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )
@@ -355,6 +355,7 @@ class ImageFormatView(ft.Container):
                 self.progress_bar,
                 self.progress_text,
                 self.convert_button,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=PADDING_LARGE,
             scroll=ft.ScrollMode.HIDDEN,

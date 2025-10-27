@@ -12,8 +12,8 @@ APP_VERSION: Final[str] = "0.1.0"
 APP_DESCRIPTION: Final[str] = "集成音视频处理、图片处理、编码转换、代码格式化等功能"
 
 # 窗口配置
-WINDOW_WIDTH: Final[int] = 1090
-WINDOW_HEIGHT: Final[int] = 730
+WINDOW_WIDTH: Final[int] = 1070
+WINDOW_HEIGHT: Final[int] = 700
 WINDOW_MIN_WIDTH: Final[int] = 800
 WINDOW_MIN_HEIGHT: Final[int] = 600
 

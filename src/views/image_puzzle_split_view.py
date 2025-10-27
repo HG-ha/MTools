@@ -69,7 +69,7 @@ class ImagePuzzleSplitView(ft.Container):
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,
+            right=PADDING_XLARGE,
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )
@@ -356,17 +356,6 @@ class ImagePuzzleSplitView(ft.Container):
                 self.bg_opacity_input,
                 self.split_shuffle,
                 self.keep_gif_animation,
-                ft.ElevatedButton(
-                    content=ft.Row(
-                        controls=[
-                            ft.Icon(ft.Icons.PREVIEW, size=20),
-                            ft.Text("生成预览", size=14),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=8,
-                    ),
-                    on_click=self._on_generate_preview,
-                ),
             ],
             wrap=True,
             spacing=PADDING_MEDIUM,
@@ -446,7 +435,22 @@ class ImagePuzzleSplitView(ft.Container):
             padding=PADDING_MEDIUM,
         )
         
-        # 底部：保存按钮
+        # 底部：按钮行（生成预览 + 保存结果）
+        self.preview_button: ft.ElevatedButton = ft.ElevatedButton(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.PREVIEW, size=20),
+                    ft.Text("生成预览", size=14),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            on_click=self._on_generate_preview,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+            ),
+        )
+        
         self.save_button: ft.ElevatedButton = ft.ElevatedButton(
             content=ft.Row(
                 controls=[
@@ -458,7 +462,19 @@ class ImagePuzzleSplitView(ft.Container):
             ),
             on_click=self._on_save_result,
             disabled=True,
-            height=48,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+            ),
+        )
+        
+        # 按钮行
+        buttons_row: ft.Row = ft.Row(
+            controls=[
+                self.preview_button,
+                self.save_button,
+            ],
+            spacing=PADDING_MEDIUM,
+            alignment=ft.MainAxisAlignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -469,7 +485,8 @@ class ImagePuzzleSplitView(ft.Container):
                 ft.Container(height=PADDING_LARGE),
                 bottom_content,
                 ft.Container(height=PADDING_MEDIUM),
-                self.save_button,
+                buttons_row,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
             scroll=ft.ScrollMode.ADAPTIVE,

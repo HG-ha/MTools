@@ -50,7 +50,7 @@ class ImageCropView(ft.Container):
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,
+            right=PADDING_XLARGE,
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )
@@ -489,6 +489,7 @@ class ImageCropView(ft.Container):
             controls=[
                 description_text,
                 main_row,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
             scroll=ft.ScrollMode.AUTO,

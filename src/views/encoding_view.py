@@ -50,7 +50,7 @@ class EncodingView(ft.Container):
         # 右侧多留一些空间
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,
+            right=PADDING_XLARGE,
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )

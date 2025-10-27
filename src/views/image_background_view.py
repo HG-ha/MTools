@@ -70,7 +70,7 @@ class ImageBackgroundView(ft.Container):
         # 右侧多留一些空间给滚动条
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,
+            right=PADDING_XLARGE,
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )
@@ -400,20 +400,23 @@ class ImageBackgroundView(ft.Container):
             ),
         )
         
-        # 底部大按钮
+        # 底部大按钮 - 与图片压缩页面样式一致
         self.process_button: ft.Container = ft.Container(
             content=ft.ElevatedButton(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=24),
-                        ft.Text("开始移除背景", size=16, weight=ft.FontWeight.W_500),
+                        ft.Text("开始移除背景", size=18, weight=ft.FontWeight.W_600),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_MEDIUM,
                 ),
                 on_click=self._on_process,
                 disabled=True,
-                height=56,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
             alignment=ft.alignment.center,
         )
@@ -428,6 +431,7 @@ class ImageBackgroundView(ft.Container):
                 progress_container,
                 ft.Container(height=PADDING_MEDIUM),
                 self.process_button,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
             scroll=ft.ScrollMode.ADAPTIVE,

@@ -60,7 +60,7 @@ class ImageCompressView(ft.Container):
         # 右侧多留一些空间给滚动条
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
-            right=PADDING_XLARGE + 16,  # 右侧多留16px给滚动条
+            right=PADDING_XLARGE,  # 右侧多留16px给滚动条
             top=PADDING_XLARGE,
             bottom=PADDING_XLARGE
         )
@@ -280,6 +280,7 @@ class ImageCompressView(ft.Container):
                 self.progress_bar,
                 self.progress_text,
                 self.compress_button,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=PADDING_LARGE,
             scroll=ft.ScrollMode.HIDDEN,  # 隐藏滚动条，但仍可滚动
