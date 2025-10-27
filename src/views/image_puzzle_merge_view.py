@@ -90,7 +90,7 @@ class ImagePuzzleMergeView(ft.Container):
         # 左侧：文件选择区域
         self.file_list_view: ft.Column = ft.Column(
             spacing=PADDING_MEDIUM // 2,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
         
         file_select_area: ft.Column = ft.Column(
@@ -324,7 +324,7 @@ class ImagePuzzleMergeView(ft.Container):
                 self.save_button,
             ],
             spacing=0,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
         
         # 更新文件列表
@@ -392,8 +392,24 @@ class ImagePuzzleMergeView(ft.Container):
         self.file_list_view.controls.clear()
         
         if not self.selected_files:
+            # 空状态提示（明确设置高度以实现居中）
             self.file_list_view.controls.append(
-                ft.Text("还没有选择文件", color=TEXT_SECONDARY)
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
+                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
+                            ft.Text("点击选择文件按钮或点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=PADDING_MEDIUM // 2,
+                    ),
+                    height=332,  # 400(父容器高度) - 2*34(标题+提示区域高度) = 332
+                    alignment=ft.alignment.center,
+                    on_click=self._on_select_files,
+                    tooltip="点击选择图片",
+                )
             )
         else:
             for i, file_path in enumerate(self.selected_files):

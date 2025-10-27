@@ -83,7 +83,7 @@ class ImageCompressView(ft.Container):
         # 文件选择区域
         self.file_list_view = ft.Column(
             spacing=PADDING_MEDIUM // 2,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
         
         file_select_area = ft.Column(

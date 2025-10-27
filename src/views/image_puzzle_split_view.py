@@ -88,10 +88,17 @@ class ImagePuzzleSplitView(ft.Container):
         )
         
         # 左侧：文件选择和预览
-        self.file_info_text: ft.Text = ft.Text(
-            "还没有选择文件",
-            size=13,
-            color=TEXT_SECONDARY,
+        # 空状态提示
+        self.empty_state_widget: ft.Column = ft.Column(
+            controls=[
+                ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
+                ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
+                ft.Text("点击选择文件按钮或点击此处选择图片", color=TEXT_SECONDARY, size=12),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=PADDING_MEDIUM // 2,
+            visible=True,
         )
         
         # 原图预览
@@ -131,7 +138,7 @@ class ImagePuzzleSplitView(ft.Container):
                     content=ft.Stack(
                         controls=[
                             ft.Container(
-                                content=self.file_info_text,
+                                content=self.empty_state_widget,
                                 alignment=ft.alignment.center,
                             ),
                             ft.Container(
@@ -405,7 +412,7 @@ class ImagePuzzleSplitView(ft.Container):
                 self.save_button,
             ],
             spacing=0,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
@@ -482,29 +489,31 @@ class ImagePuzzleSplitView(ft.Container):
     def _update_file_info(self) -> None:
         """更新文件信息显示（包括原图预览）。"""
         if not self.selected_file:
-            self.file_info_text.value = "还没有选择文件"
-            self.file_info_text.visible = True
+            self.empty_state_widget.visible = True
             self.original_image_widget.visible = False
         else:
             file_info = self.image_service.get_image_info(self.selected_file)
             
             if 'error' in file_info:
-                self.file_info_text.value = f"错误: {file_info['error']}"
-                self.file_info_text.visible = True
+                # 错误时显示空状态
+                self.empty_state_widget.visible = True
+                self.empty_state_widget.controls[1].value = "加载失败"
+                self.empty_state_widget.controls[2].value = f"错误: {file_info['error']}"
                 self.original_image_widget.visible = False
             else:
                 # 显示原图预览
                 try:
                     self.original_image_widget.src = self.selected_file
                     self.original_image_widget.visible = True
-                    self.file_info_text.visible = False
+                    self.empty_state_widget.visible = False
                 except Exception as e:
-                    self.file_info_text.value = f"无法加载图片: {e}"
-                    self.file_info_text.visible = True
+                    self.empty_state_widget.visible = True
+                    self.empty_state_widget.controls[1].value = "加载失败"
+                    self.empty_state_widget.controls[2].value = f"无法加载图片: {e}"
                     self.original_image_widget.visible = False
         
         try:
-            self.file_info_text.update()
+            self.empty_state_widget.update()
             self.original_image_widget.update()
         except:
             pass

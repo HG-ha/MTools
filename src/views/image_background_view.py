@@ -158,7 +158,7 @@ class ImageBackgroundView(ft.Container):
         # 文件选择区域
         self.file_list_view: ft.Column = ft.Column(
             spacing=PADDING_MEDIUM // 2,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
         
         file_select_area: ft.Column = ft.Column(
@@ -391,8 +391,11 @@ class ImageBackgroundView(ft.Container):
                 self.process_button,
             ],
             spacing=0,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
+        
+        # 初始化文件列表空状态
+        self._update_file_list()
         
         # 延迟检查模型状态，避免阻塞界面初始化
         threading.Thread(target=self._check_model_status_async, daemon=True).start()
@@ -888,8 +891,24 @@ class ImageBackgroundView(ft.Container):
         self.file_list_view.controls.clear()
         
         if not self.selected_files:
+            # 空状态提示（固定高度以实现居中）
             self.file_list_view.controls.append(
-                ft.Text("还没有选择文件", color=TEXT_SECONDARY, italic=True)
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
+                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
+                            ft.Text("点击选择按钮或点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=PADDING_MEDIUM // 2,
+                    ),
+                    height=280,  # 380(父容器) - 52(标题行) - 48(padding) = 280
+                    alignment=ft.alignment.center,
+                    on_click=self._on_select_files,
+                    tooltip="点击选择图片",
+                )
             )
         else:
             for i, file_path in enumerate(self.selected_files):
@@ -936,7 +955,10 @@ class ImageBackgroundView(ft.Container):
                 
                 self.file_list_view.controls.append(file_item)
         
-        self.file_list_view.update()
+        try:
+            self.file_list_view.update()
+        except:
+            pass
     
     def _on_remove_file(self, index: int) -> None:
         """移除文件列表中的文件。
