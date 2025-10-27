@@ -7,7 +7,7 @@ import gc
 import threading
 import webbrowser
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Dict
 
 import flet as ft
 
@@ -15,13 +15,14 @@ from constants import (
     BORDER_RADIUS_MEDIUM,
     PADDING_LARGE,
     PADDING_MEDIUM,
+    PADDING_SMALL,
     PADDING_XLARGE,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 from services.image_service import BackgroundRemover
-from utils import format_file_size
+from utils import format_file_size, GifUtils
 
 
 class ImageBackgroundView(ft.Container):
@@ -61,6 +62,9 @@ class ImageBackgroundView(ft.Container):
         self.selected_files: List[Path] = []
         self.bg_remover: Optional[BackgroundRemover] = None
         self.is_model_loading: bool = False
+        
+        # GIF 文件的帧选择映射：{文件路径: 帧索引}
+        self.gif_frame_selection: Dict[str, int] = {}
         
         self.expand: bool = True
         # 右侧多留一些空间给滚动条
@@ -305,6 +309,41 @@ class ImageBackgroundView(ft.Container):
             disabled=True,
         )
         
+        # GIF 选项（初始隐藏）
+        self.gif_files_list: ft.Column = ft.Column(
+            spacing=PADDING_SMALL,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        self.gif_options: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.WARNING_AMBER, size=20, color=ft.Colors.ORANGE),
+                            ft.Text("GIF 文件检测", size=14, weight=ft.FontWeight.W_500),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Container(
+                        content=ft.Text(
+                            "⚠️ 背景移除对 GIF 处理较慢且消耗大量资源，仅支持单帧处理",
+                            size=12,
+                            color=ft.Colors.ORANGE,
+                        ),
+                        margin=ft.margin.only(left=4, bottom=PADDING_SMALL),
+                    ),
+                    self.gif_files_list,
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.ORANGE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ORANGE),
+            visible=False,
+        )
+        
         process_options: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
@@ -385,6 +424,8 @@ class ImageBackgroundView(ft.Container):
                 header,
                 ft.Container(height=PADDING_LARGE),
                 main_content,
+                ft.Container(height=PADDING_MEDIUM),
+                self.gif_options,
                 ft.Container(height=PADDING_LARGE),
                 progress_container,
                 ft.Container(height=PADDING_MEDIUM),
@@ -959,6 +1000,9 @@ class ImageBackgroundView(ft.Container):
             self.file_list_view.update()
         except:
             pass
+        
+        # 更新 GIF 选项
+        self._update_gif_options()
     
     def _on_remove_file(self, index: int) -> None:
         """移除文件列表中的文件。
@@ -967,9 +1011,116 @@ class ImageBackgroundView(ft.Container):
             index: 文件索引
         """
         if 0 <= index < len(self.selected_files):
-            self.selected_files.pop(index)
+            removed_file = self.selected_files.pop(index)
+            # 清理 GIF 帧选择记录
+            if str(removed_file) in self.gif_frame_selection:
+                del self.gif_frame_selection[str(removed_file)]
             self._update_file_list()
             self._update_process_button()
+    
+    def _update_gif_options(self) -> None:
+        """更新 GIF 选项区域。"""
+        # 检测动态 GIF 文件
+        gif_files = [f for f in self.selected_files if GifUtils.is_animated_gif(f)]
+        
+        if gif_files:
+            # 显示 GIF 选项
+            self.gif_options.visible = True
+            self.gif_files_list.controls.clear()
+            
+            for gif_file in gif_files:
+                frame_count = GifUtils.get_frame_count(gif_file)
+                # 默认选择第一帧（索引 0）
+                if str(gif_file) not in self.gif_frame_selection:
+                    self.gif_frame_selection[str(gif_file)] = 0
+                
+                # 创建帧选择控件
+                frame_input = ft.TextField(
+                    value=str(self.gif_frame_selection[str(gif_file)] + 1),
+                    width=50,
+                    text_align=ft.TextAlign.CENTER,
+                    dense=True,
+                    on_submit=lambda e, gf=gif_file, fc=frame_count: self._on_gif_frame_submit(e, gf, fc),
+                )
+                
+                self.gif_files_list.controls.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.GIF, size=18, color=ft.Colors.ORANGE),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(gif_file.name, size=12, weight=ft.FontWeight.W_500),
+                                        ft.Text(f"{frame_count} 帧", size=10, color=TEXT_SECONDARY),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.SKIP_PREVIOUS,
+                                    icon_size=16,
+                                    on_click=lambda e, gf=gif_file, fc=frame_count: self._on_gif_prev_frame(gf, fc),
+                                    tooltip="上一帧",
+                                ),
+                                ft.Text("帧:", size=11),
+                                frame_input,
+                                ft.Text(f"/{frame_count}", size=11),
+                                ft.IconButton(
+                                    icon=ft.Icons.SKIP_NEXT,
+                                    icon_size=16,
+                                    on_click=lambda e, gf=gif_file, fc=frame_count: self._on_gif_next_frame(gf, fc),
+                                    tooltip="下一帧",
+                                ),
+                            ],
+                            spacing=6,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=PADDING_SMALL,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ORANGE),
+                    )
+                )
+            
+            try:
+                self.gif_files_list.update()
+            except:
+                pass
+        else:
+            # 隐藏 GIF 选项
+            self.gif_options.visible = False
+        
+        try:
+            self.gif_options.update()
+        except:
+            pass
+    
+    def _on_gif_prev_frame(self, gif_file: Path, frame_count: int) -> None:
+        """GIF 上一帧按钮点击事件。"""
+        key = str(gif_file)
+        current = self.gif_frame_selection.get(key, 0)
+        self.gif_frame_selection[key] = (current - 1) % frame_count
+        self._update_gif_options()
+    
+    def _on_gif_next_frame(self, gif_file: Path, frame_count: int) -> None:
+        """GIF 下一帧按钮点击事件。"""
+        key = str(gif_file)
+        current = self.gif_frame_selection.get(key, 0)
+        self.gif_frame_selection[key] = (current + 1) % frame_count
+        self._update_gif_options()
+    
+    def _on_gif_frame_submit(self, e: ft.ControlEvent, gif_file: Path, frame_count: int) -> None:
+        """GIF 帧输入框提交事件。"""
+        try:
+            frame_num = int(e.control.value)
+            if 1 <= frame_num <= frame_count:
+                self.gif_frame_selection[str(gif_file)] = frame_num - 1
+                self._update_gif_options()
+            else:
+                self._show_message(f"帧号必须在 1 到 {frame_count} 之间", ft.Colors.ORANGE)
+                self._update_gif_options()
+        except ValueError:
+            self._show_message("请输入有效的数字", ft.Colors.ORANGE)
+            self._update_gif_options()
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式改变事件。
@@ -1055,7 +1206,16 @@ class ImageBackgroundView(ft.Container):
                     
                     # 读取图片
                     from PIL import Image
-                    image = Image.open(file_path)
+                    
+                    # 检查是否是 GIF，如果是则提取指定帧
+                    if GifUtils.is_animated_gif(file_path):
+                        frame_index = self.gif_frame_selection.get(str(file_path), 0)
+                        image = GifUtils.extract_frame(file_path, frame_index)
+                        if image is None:
+                            print(f"提取 GIF 帧失败: {file_path.name}")
+                            continue
+                    else:
+                        image = Image.open(file_path)
                     
                     # 移除背景
                     result = self.bg_remover.remove_background(image)

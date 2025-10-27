@@ -22,7 +22,7 @@ from constants import (
     TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
-from utils import format_file_size
+from utils import format_file_size, GifUtils
 
 
 class ImagePuzzleSplitView(ft.Container):
@@ -60,6 +60,11 @@ class ImagePuzzleSplitView(ft.Container):
         self.selected_file: Optional[Path] = None
         self.preview_image: Optional[Image.Image] = None
         self.is_processing: bool = False
+        
+        # GIF 支持
+        self.is_animated_gif: bool = False
+        self.gif_frame_count: int = 0
+        self.current_frame_index: int = 0
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -501,16 +506,40 @@ class ImagePuzzleSplitView(ft.Container):
                 self.empty_state_widget.controls[2].value = f"错误: {file_info['error']}"
                 self.original_image_widget.visible = False
             else:
-                # 显示原图预览
-                try:
-                    self.original_image_widget.src = self.selected_file
-                    self.original_image_widget.visible = True
-                    self.empty_state_widget.visible = False
-                except Exception as e:
-                    self.empty_state_widget.visible = True
-                    self.empty_state_widget.controls[1].value = "加载失败"
-                    self.empty_state_widget.controls[2].value = f"无法加载图片: {e}"
-                    self.original_image_widget.visible = False
+                # 检测是否为动态 GIF
+                self.is_animated_gif = GifUtils.is_animated_gif(self.selected_file)
+                
+                if self.is_animated_gif:
+                    self.gif_frame_count = GifUtils.get_frame_count(self.selected_file)
+                    self.current_frame_index = 0
+                    
+                    # 提取第一帧并保存为临时文件
+                    try:
+                        frame_image = GifUtils.extract_frame(self.selected_file, 0)
+                        if frame_image:
+                            temp_path = self.config_service.get_temp_dir() / f"gif_frame_0.png"
+                            frame_image.save(temp_path)
+                            self.original_image_widget.src = str(temp_path)
+                            self.original_image_widget.visible = True
+                            self.empty_state_widget.visible = False
+                        else:
+                            raise Exception("无法提取 GIF 帧")
+                    except Exception as e:
+                        self.empty_state_widget.visible = True
+                        self.empty_state_widget.controls[1].value = "GIF 加载失败"
+                        self.empty_state_widget.controls[2].value = f"无法提取 GIF 帧: {e}"
+                        self.original_image_widget.visible = False
+                else:
+                    # 显示原图预览
+                    try:
+                        self.original_image_widget.src = self.selected_file
+                        self.original_image_widget.visible = True
+                        self.empty_state_widget.visible = False
+                    except Exception as e:
+                        self.empty_state_widget.visible = True
+                        self.empty_state_widget.controls[1].value = "加载失败"
+                        self.empty_state_widget.controls[2].value = f"无法加载图片: {e}"
+                        self.original_image_widget.visible = False
         
         try:
             self.empty_state_widget.update()
@@ -591,8 +620,13 @@ class ImagePuzzleSplitView(ft.Container):
         
         def process_task():
             try:
-                # 读取图片
-                image = Image.open(self.selected_file)
+                # 读取图片（如果是 GIF，使用提取的帧）
+                if self.is_animated_gif:
+                    image = GifUtils.extract_frame(self.selected_file, self.current_frame_index)
+                    if image is None:
+                        raise Exception("无法提取 GIF 帧")
+                else:
+                    image = Image.open(self.selected_file)
                 
                 # 切分并重新拼接
                 result = self._split_and_reassemble(

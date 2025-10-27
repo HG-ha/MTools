@@ -4,7 +4,7 @@
 """
 
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Dict
 
 import flet as ft
 
@@ -12,12 +12,13 @@ from constants import (
     BORDER_RADIUS_MEDIUM,
     PADDING_LARGE,
     PADDING_MEDIUM,
+    PADDING_SMALL,
     PADDING_XLARGE,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
-from utils import format_file_size
+from utils import format_file_size, GifUtils
 
 
 class ImageFormatView(ft.Container):
@@ -63,6 +64,8 @@ class ImageFormatView(ft.Container):
         self.on_back: Optional[Callable] = on_back
         
         self.selected_files: List[Path] = []
+        # GIF 文件的帧选择映射：{文件路径: 帧索引}
+        self.gif_frame_selection: Dict[str, int] = {}
         
         self.expand: bool = True
         # 右侧多留一些空间给滚动条
@@ -236,6 +239,46 @@ class ImageFormatView(ft.Container):
             disabled=True,
         )
         
+        # GIF 选项（初始隐藏）
+        self.gif_files_list: ft.Column = ft.Column(
+            spacing=PADDING_SMALL,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        self.gif_options: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.GIF_BOX, size=20, color=ft.Colors.PRIMARY),
+                            ft.Text("GIF 帧选择", size=14, weight=ft.FontWeight.W_500),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Container(
+                        content=ft.Text(
+                            "检测到 GIF 文件，转换为静态格式时请选择要导出的帧",
+                            size=12,
+                            color=TEXT_SECONDARY,
+                        ),
+                        margin=ft.margin.only(left=4, bottom=PADDING_SMALL),
+                    ),
+                    ft.Container(
+                        content=self.gif_files_list,
+                        height=200,
+                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        padding=PADDING_MEDIUM,
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.PRIMARY_CONTAINER),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            visible=False,
+        )
+        
         output_options: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
@@ -301,6 +344,7 @@ class ImageFormatView(ft.Container):
         scrollable_content: ft.Column = ft.Column(
             controls=[
                 file_select_area,
+                self.gif_options,
                 ft.Row(
                     controls=[
                         format_options,
@@ -413,6 +457,9 @@ class ImageFormatView(ft.Container):
                             control.color = ft.Colors.WHITE if is_selected else TEXT_SECONDARY
             
             card.update()
+        
+        # 更新 GIF 选项（如果目标格式变为 GIF，则隐藏 GIF 选项）
+        self._update_gif_options()
     
     def _init_empty_state(self) -> None:
         """初始化空状态显示。"""
@@ -504,7 +551,8 @@ class ImageFormatView(ft.Container):
                 # 获取文件信息
                 file_info: dict = self.image_service.get_image_info(file_path)
                 
-                file_size: int = file_info.get('size', 0)
+                # 获取文件大小（使用 file_size 键而不是 size）
+                file_size: int = file_info.get('file_size', 0)
                 size_str: str = format_file_size(file_size)
                 
                 if 'error' not in file_info:
@@ -577,11 +625,118 @@ class ImageFormatView(ft.Container):
                 )
         
         self.file_list_view.update()
+        
+        # 检查是否有 GIF 文件并更新 GIF 选项
+        self._update_gif_options()
+    
+    def _update_gif_options(self) -> None:
+        """更新 GIF 选项区域。"""
+        # 检测动态 GIF 文件
+        gif_files = [f for f in self.selected_files if GifUtils.is_animated_gif(f)]
+        
+        # 只有在目标格式不是 GIF 时才显示 GIF 选项
+        is_target_static = self.selected_format != ".gif"
+        
+        if gif_files and is_target_static:
+            # 显示 GIF 选项
+            self.gif_options.visible = True
+            self.gif_files_list.controls.clear()
+            
+            for gif_file in gif_files:
+                frame_count = GifUtils.get_frame_count(gif_file)
+                # 默认选择第一帧（索引 0）
+                if str(gif_file) not in self.gif_frame_selection:
+                    self.gif_frame_selection[str(gif_file)] = 0
+                
+                # 创建帧选择控件
+                frame_input = ft.TextField(
+                    value=str(self.gif_frame_selection[str(gif_file)] + 1),
+                    width=60,
+                    text_align=ft.TextAlign.CENTER,
+                    dense=True,
+                    on_submit=lambda e, gf=gif_file, fc=frame_count: self._on_gif_frame_submit(e, gf, fc),
+                )
+                
+                self.gif_files_list.controls.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.GIF, size=20, color=ft.Colors.PRIMARY),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(gif_file.name, size=13, weight=ft.FontWeight.W_500),
+                                        ft.Text(f"共 {frame_count} 帧", size=11, color=TEXT_SECONDARY),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.SKIP_PREVIOUS,
+                                    icon_size=18,
+                                    on_click=lambda e, gf=gif_file, fc=frame_count: self._on_gif_prev_frame(gf, fc),
+                                    tooltip="上一帧",
+                                ),
+                                ft.Text("帧:", size=12),
+                                frame_input,
+                                ft.Text(f"/ {frame_count}", size=12),
+                                ft.IconButton(
+                                    icon=ft.Icons.SKIP_NEXT,
+                                    icon_size=18,
+                                    on_click=lambda e, gf=gif_file, fc=frame_count: self._on_gif_next_frame(gf, fc),
+                                    tooltip="下一帧",
+                                ),
+                            ],
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=PADDING_SMALL,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
+                    )
+                )
+            
+            self.gif_files_list.update()
+        else:
+            # 隐藏 GIF 选项
+            self.gif_options.visible = False
+        
+        self.gif_options.update()
+    
+    def _on_gif_prev_frame(self, gif_file: Path, frame_count: int) -> None:
+        """GIF 上一帧按钮点击事件。"""
+        key = str(gif_file)
+        current = self.gif_frame_selection.get(key, 0)
+        self.gif_frame_selection[key] = (current - 1) % frame_count
+        self._update_gif_options()
+    
+    def _on_gif_next_frame(self, gif_file: Path, frame_count: int) -> None:
+        """GIF 下一帧按钮点击事件。"""
+        key = str(gif_file)
+        current = self.gif_frame_selection.get(key, 0)
+        self.gif_frame_selection[key] = (current + 1) % frame_count
+        self._update_gif_options()
+    
+    def _on_gif_frame_submit(self, e: ft.ControlEvent, gif_file: Path, frame_count: int) -> None:
+        """GIF 帧输入框提交事件。"""
+        try:
+            frame_num = int(e.control.value)
+            if 1 <= frame_num <= frame_count:
+                self.gif_frame_selection[str(gif_file)] = frame_num - 1
+                self._update_gif_options()
+            else:
+                self._show_message(f"帧号必须在 1 到 {frame_count} 之间", ft.Colors.ORANGE)
+                self._update_gif_options()
+        except ValueError:
+            self._show_message("请输入有效的数字", ft.Colors.ORANGE)
+            self._update_gif_options()
     
     def _on_remove_file(self, index: int) -> None:
         """移除单个文件。"""
         if 0 <= index < len(self.selected_files):
-            self.selected_files.pop(index)
+            removed_file = self.selected_files.pop(index)
+            # 清理 GIF 帧选择记录
+            if str(removed_file) in self.gif_frame_selection:
+                del self.gif_frame_selection[str(removed_file)]
             self._update_file_list()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
@@ -663,15 +818,43 @@ class ImageFormatView(ft.Container):
             if input_path.suffix.lower() == target_format.lower():
                 continue
             
-            # 执行转换
-            success: bool = self.image_service.convert_format(
-                input_path,
-                output_path,
-                quality=quality
-            )
+            # 检查是否是 GIF → 静态格式的转换
+            is_gif = GifUtils.is_animated_gif(input_path)
+            is_target_static = target_format != ".gif"
             
-            if success:
-                success_count += 1
+            if is_gif and is_target_static:
+                # GIF → 静态格式：提取指定帧后转换
+                frame_index = self.gif_frame_selection.get(str(input_path), 0)
+                frame_image = GifUtils.extract_frame(input_path, frame_index)
+                
+                if frame_image:
+                    try:
+                        # 保存提取的帧
+                        if target_format in [".jpg", ".jpeg"]:
+                            # JPG 不支持透明通道
+                            frame_image = frame_image.convert("RGB")
+                        
+                        # 保存时应用质量设置
+                        if target_format in [".jpg", ".jpeg", ".webp"]:
+                            frame_image.save(output_path, quality=quality)
+                        else:
+                            frame_image.save(output_path)
+                        
+                        success_count += 1
+                    except Exception as ex:
+                        print(f"保存 GIF 帧失败: {ex}")
+                else:
+                    print(f"提取 GIF 帧失败: {input_path}")
+            else:
+                # 普通转换
+                success: bool = self.image_service.convert_format(
+                    input_path,
+                    output_path,
+                    quality=quality
+                )
+                
+                if success:
+                    success_count += 1
         
         # 显示结果
         self.progress_bar.visible = False

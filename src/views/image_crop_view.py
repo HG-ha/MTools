@@ -135,8 +135,8 @@ class ImageCropView(ft.Container):
         self.empty_state_widget: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("点击下方「选择图片」按钮开始裁剪", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=TEXT_SECONDARY),
+                    ft.Text("点击下方「选择图片」按钮开始裁剪", size=16, color=TEXT_SECONDARY),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=PADDING_MEDIUM,
@@ -319,7 +319,7 @@ class ImageCropView(ft.Container):
         self.preview_info_text: ft.Text = ft.Text(
             "选择图片后拖动裁剪框查看效果",
             size=11,
-            color=ft.Colors.ON_SURFACE_VARIANT,
+            color=TEXT_SECONDARY,
             text_align=ft.TextAlign.CENTER,
         )
         
