@@ -7,7 +7,7 @@ import io
 import os
 import threading
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Dict
 
 import flet as ft
 from PIL import Image
@@ -22,7 +22,7 @@ from constants import (
     TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
-from utils import format_file_size
+from utils import format_file_size, GifUtils
 
 
 class ImagePuzzleMergeView(ft.Container):
@@ -60,6 +60,9 @@ class ImagePuzzleMergeView(ft.Container):
         self.selected_files: List[Path] = []
         self.preview_image: Optional[Image.Image] = None
         self.is_processing: bool = False
+        
+        # GIF 文件映射：{文件路径: (是否GIF, 帧数, 选择的帧索引)}
+        self.gif_info: Dict[str, tuple] = {}
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -213,31 +216,50 @@ class ImagePuzzleMergeView(ft.Container):
             on_change=self._on_option_change,
         )
         
+        # GIF 动画保留选项
+        self.keep_gif_animation: ft.Checkbox = ft.Checkbox(
+            label="保留 GIF 动画",
+            value=False,
+            on_change=self._on_option_change,
+        )
+        
         # 参数区域：自动换行
-        options_area: ft.Row = ft.Row(
+        options_area: ft.Column = ft.Column(
             controls=[
-                self.merge_direction,
-                self.merge_cols,
-                self.merge_spacing_input,
-                self.merge_bg_color,
-                self.custom_color_r,
-                self.custom_color_g,
-                self.custom_color_b,
-                ft.ElevatedButton(
-                    content=ft.Row(
-                        controls=[
-                            ft.Icon(ft.Icons.PREVIEW, size=20),
-                            ft.Text("生成预览", size=14),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=8,
-                    ),
-                    on_click=self._on_generate_preview,
+                ft.Row(
+                    controls=[
+                        self.merge_direction,
+                        self.merge_cols,
+                        self.merge_spacing_input,
+                        self.merge_bg_color,
+                        self.custom_color_r,
+                        self.custom_color_g,
+                        self.custom_color_b,
+                    ],
+                    wrap=True,
+                    spacing=PADDING_MEDIUM,
+                    run_spacing=PADDING_MEDIUM,
+                ),
+                ft.Container(height=PADDING_SMALL),
+                ft.Row(
+                    controls=[
+                        self.keep_gif_animation,
+                        ft.ElevatedButton(
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.PREVIEW, size=20),
+                                    ft.Text("生成预览", size=14),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=8,
+                            ),
+                            on_click=self._on_generate_preview,
+                        ),
+                    ],
+                    spacing=PADDING_MEDIUM,
                 ),
             ],
-            wrap=True,
-            spacing=PADDING_MEDIUM,
-            run_spacing=PADDING_MEDIUM,
+            spacing=0,
         )
         
         # 右侧：预览区域
@@ -390,6 +412,7 @@ class ImagePuzzleMergeView(ft.Container):
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         self.file_list_view.controls.clear()
+        self.gif_info.clear()  # 清除GIF信息
         
         if not self.selected_files:
             # 空状态提示（明确设置高度以实现居中）
@@ -415,16 +438,31 @@ class ImagePuzzleMergeView(ft.Container):
             for i, file_path in enumerate(self.selected_files):
                 file_info = self.image_service.get_image_info(file_path)
                 
+                # 检测是否为GIF
+                is_gif = GifUtils.is_animated_gif(file_path)
+                if is_gif:
+                    frame_count = GifUtils.get_frame_count(file_path)
+                    self.gif_info[str(file_path)] = (True, frame_count, 0)  # 默认使用第一帧
+                
                 if 'error' in file_info:
                     info_text = f"错误: {file_info['error']}"
                     icon_color = ft.Colors.RED
                 else:
                     size_str = format_file_size(file_info['file_size'])
-                    info_text = f"{file_info['width']}×{file_info['height']} · {size_str}"
-                    icon_color = ft.Colors.PRIMARY
+                    if is_gif:
+                        info_text = f"{file_info['width']}×{file_info['height']} · {size_str} · GIF({frame_count}帧)"
+                        icon_color = ft.Colors.ORANGE
+                    else:
+                        info_text = f"{file_info['width']}×{file_info['height']} · {size_str}"
+                        icon_color = ft.Colors.PRIMARY
                 
-                file_item: ft.Container = ft.Container(
-                    content=ft.Row(
+                # 构建文件项布局
+                if is_gif:
+                    # GIF文件：双行布局
+                    current_frame = self.gif_info[str(file_path)][2]
+                    
+                    # 第一行：文件信息
+                    first_row = ft.Row(
                         controls=[
                             ft.Icon(ft.Icons.IMAGE, size=20, color=icon_color),
                             ft.Column(
@@ -440,6 +478,36 @@ class ImagePuzzleMergeView(ft.Container):
                                 spacing=2,
                                 expand=True,
                             ),
+                        ],
+                        spacing=PADDING_MEDIUM // 2,
+                    )
+                    
+                    # 第二行：帧选择器和操作按钮
+                    second_row = ft.Row(
+                        controls=[
+                            ft.Container(width=28),  # 占位，对齐图标位置
+                            ft.Text("选帧:", size=11, color=TEXT_SECONDARY),
+                            ft.IconButton(
+                                icon=ft.Icons.SKIP_PREVIOUS,
+                                icon_size=14,
+                                on_click=lambda e, fp=file_path: self._on_gif_prev_frame(fp),
+                                tooltip="上一帧",
+                            ),
+                            ft.TextField(
+                                value=str(current_frame + 1),
+                                width=60,
+                                text_align=ft.TextAlign.CENTER,
+                                dense=True,
+                                on_submit=lambda e, fp=file_path, fc=frame_count: self._on_gif_frame_submit(e, fp, fc),
+                            ),
+                            ft.Text(f"/{frame_count}", size=11, color=TEXT_SECONDARY),
+                            ft.IconButton(
+                                icon=ft.Icons.SKIP_NEXT,
+                                icon_size=14,
+                                on_click=lambda e, fp=file_path: self._on_gif_next_frame(fp),
+                                tooltip="下一帧",
+                            ),
+                            ft.Container(expand=True),  # 弹性空间
                             ft.IconButton(
                                 icon=ft.Icons.ARROW_UPWARD,
                                 icon_size=16,
@@ -461,12 +529,64 @@ class ImagePuzzleMergeView(ft.Container):
                                 on_click=lambda e, idx=i: self._on_remove_file(idx),
                             ),
                         ],
-                        spacing=PADDING_MEDIUM // 2,
-                    ),
-                    padding=PADDING_MEDIUM // 2,
-                    border_radius=BORDER_RADIUS_MEDIUM,
-                    bgcolor=ft.Colors.SECONDARY_CONTAINER,
-                )
+                        spacing=PADDING_SMALL,
+                    )
+                    
+                    file_item: ft.Container = ft.Container(
+                        content=ft.Column(
+                            controls=[first_row, second_row],
+                            spacing=PADDING_SMALL,
+                        ),
+                        padding=PADDING_MEDIUM // 2,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                    )
+                else:
+                    # 普通图片：单行布局
+                    file_item: ft.Container = ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.IMAGE, size=20, color=icon_color),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(
+                                            file_path.name,
+                                            size=13,
+                                            weight=ft.FontWeight.W_500,
+                                            overflow=ft.TextOverflow.ELLIPSIS,
+                                        ),
+                                        ft.Text(info_text, size=11, color=TEXT_SECONDARY),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.ARROW_UPWARD,
+                                    icon_size=16,
+                                    tooltip="上移",
+                                    on_click=lambda e, idx=i: self._on_move_up(idx),
+                                    disabled=(i == 0),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.ARROW_DOWNWARD,
+                                    icon_size=16,
+                                    tooltip="下移",
+                                    on_click=lambda e, idx=i: self._on_move_down(idx),
+                                    disabled=(i == len(self.selected_files) - 1),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE,
+                                    icon_size=16,
+                                    tooltip="移除",
+                                    on_click=lambda e, idx=i: self._on_remove_file(idx),
+                                ),
+                            ],
+                            spacing=PADDING_MEDIUM // 2,
+                        ),
+                        padding=PADDING_MEDIUM // 2,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                    )
                 
                 self.file_list_view.controls.append(file_item)
         
@@ -497,6 +617,44 @@ class ImagePuzzleMergeView(ft.Container):
             self.selected_files.pop(index)
             self._update_file_list()
             self._clear_preview()
+    
+    def _on_gif_prev_frame(self, file_path: Path) -> None:
+        """GIF 上一帧。"""
+        key = str(file_path)
+        if key in self.gif_info:
+            is_gif, frame_count, current_frame = self.gif_info[key]
+            new_frame = (current_frame - 1) % frame_count
+            self.gif_info[key] = (is_gif, frame_count, new_frame)
+            self._update_file_list()
+            self._clear_preview()
+    
+    def _on_gif_next_frame(self, file_path: Path) -> None:
+        """GIF 下一帧。"""
+        key = str(file_path)
+        if key in self.gif_info:
+            is_gif, frame_count, current_frame = self.gif_info[key]
+            new_frame = (current_frame + 1) % frame_count
+            self.gif_info[key] = (is_gif, frame_count, new_frame)
+            self._update_file_list()
+            self._clear_preview()
+    
+    def _on_gif_frame_submit(self, e: ft.ControlEvent, file_path: Path, frame_count: int) -> None:
+        """GIF 帧输入提交。"""
+        try:
+            frame_num = int(e.control.value)
+            if 1 <= frame_num <= frame_count:
+                key = str(file_path)
+                if key in self.gif_info:
+                    is_gif, _, _ = self.gif_info[key]
+                    self.gif_info[key] = (is_gif, frame_count, frame_num - 1)
+                    self._update_file_list()
+                    self._clear_preview()
+            else:
+                self._show_snackbar(f"帧号必须在 1 到 {frame_count} 之间", ft.Colors.ORANGE)
+                self._update_file_list()
+        except ValueError:
+            self._show_snackbar("请输入有效的数字", ft.Colors.ORANGE)
+            self._update_file_list()
     
     def _clear_preview(self) -> None:
         """清空预览。"""
@@ -554,15 +712,42 @@ class ImagePuzzleMergeView(ft.Container):
         
         def process_task():
             try:
-                # 读取所有图片
-                images = [Image.open(f) for f in self.selected_files]
+                # 检查是否保留GIF动画
+                keep_animation = self.keep_gif_animation.value
                 
-                # 合并图片
-                result = self._merge_images(images, direction, spacing, grid_cols, bg_color, custom_rgb)
-                
-                # 更新预览
-                self._update_preview(result)
-                self._show_snackbar("预览生成成功", ft.Colors.GREEN)
+                if keep_animation and self.gif_info:
+                    # 生成GIF动画
+                    result_frames, duration = self._merge_as_gif(direction, spacing, grid_cols, bg_color, custom_rgb)
+                    if result_frames:
+                        # 只显示第一帧作为预览
+                        self._update_preview(result_frames[0])
+                        # 保存完整GIF供后续保存使用
+                        self.preview_image = result_frames  # 保存为帧列表
+                        self._show_snackbar(f"预览生成成功 (GIF动画, {len(result_frames)}帧)", ft.Colors.GREEN)
+                    else:
+                        raise Exception("生成GIF动画失败")
+                else:
+                    # 读取所有图片（GIF使用选择的帧）
+                    images = []
+                    for f in self.selected_files:
+                        if str(f) in self.gif_info:
+                            # 是GIF，提取选择的帧
+                            _, _, frame_idx = self.gif_info[str(f)]
+                            frame = GifUtils.extract_frame(f, frame_idx)
+                            if frame:
+                                images.append(frame)
+                            else:
+                                raise Exception(f"无法提取GIF帧: {f.name}")
+                        else:
+                            # 普通图片
+                            images.append(Image.open(f))
+                    
+                    # 合并图片
+                    result = self._merge_images(images, direction, spacing, grid_cols, bg_color, custom_rgb)
+                    
+                    # 更新预览
+                    self._update_preview(result)
+                    self._show_snackbar("预览生成成功", ft.Colors.GREEN)
             except Exception as ex:
                 self._show_snackbar(f"生成预览失败: {ex}", ft.Colors.RED)
                 self._clear_preview()
@@ -682,6 +867,57 @@ class ImagePuzzleMergeView(ft.Container):
         
         return result
     
+    def _merge_as_gif(
+        self,
+        direction: str,
+        spacing: int,
+        grid_cols: Optional[int] = None,
+        bg_color: str = "white",
+        custom_rgb: tuple = None
+    ) -> tuple:
+        """生成 GIF 动画合并结果。
+        
+        Returns:
+            (帧列表, 持续时间)
+        """
+        # 收集所有文件的信息
+        file_info_list = []
+        max_frames = 1
+        
+        for f in self.selected_files:
+            if str(f) in self.gif_info:
+                is_gif, frame_count, selected_frame = self.gif_info[str(f)]
+                file_info_list.append((f, True, frame_count, selected_frame))
+                max_frames = max(max_frames, frame_count)
+            else:
+                file_info_list.append((f, False, 1, 0))
+        
+        # 生成每一帧
+        result_frames = []
+        duration = 100  # 默认100ms每帧
+        
+        for frame_idx in range(max_frames):
+            # 为当前帧收集每个文件的图片
+            images = []
+            for file_path, is_gif, frame_count, selected_frame in file_info_list:
+                if is_gif:
+                    # GIF文件：循环使用帧
+                    actual_frame_idx = frame_idx % frame_count
+                    frame = GifUtils.extract_frame(file_path, actual_frame_idx)
+                    if frame:
+                        images.append(frame)
+                    else:
+                        raise Exception(f"无法提取GIF帧: {file_path.name}")
+                else:
+                    # 静态图片：每帧都用同一张
+                    images.append(Image.open(file_path))
+            
+            # 合并当前帧
+            merged_frame = self._merge_images(images, direction, spacing, grid_cols, bg_color, custom_rgb)
+            result_frames.append(merged_frame)
+        
+        return result_frames, duration
+    
     def _update_preview(self, image: Image.Image) -> None:
         """更新预览图片。"""
         import time
@@ -727,12 +963,24 @@ class ImagePuzzleMergeView(ft.Container):
             self._show_snackbar("没有可保存的预览图片", ft.Colors.ORANGE)
             return
         
-        # 生成默认文件名：第一个文件名_merge.png
-        default_filename = "merge_result.png"
+        # 检查是否是GIF动画（帧列表）
+        is_gif_animation = isinstance(self.preview_image, list)
+        
+        # 生成默认文件名
+        if is_gif_animation:
+            default_filename = "merge_result.gif"
+            allowed_extensions = ["gif"]
+        else:
+            default_filename = "merge_result.png"
+            allowed_extensions = ["png", "jpg", "jpeg"]
+        
         if self.selected_files and len(self.selected_files) > 0:
             first_file = self.selected_files[0]
-            original_stem = first_file.stem  # 获取不含扩展名的文件名
-            default_filename = f"{original_stem}_merge.png"
+            original_stem = first_file.stem
+            if is_gif_animation:
+                default_filename = f"{original_stem}_merge.gif"
+            else:
+                default_filename = f"{original_stem}_merge.png"
         
         def on_result(result: ft.FilePickerResultEvent) -> None:
             if result.path:
@@ -741,11 +989,29 @@ class ImagePuzzleMergeView(ft.Container):
                     
                     # 确保有扩展名
                     if not output_path.suffix:
-                        output_path = output_path.with_suffix('.png')
+                        if is_gif_animation:
+                            output_path = output_path.with_suffix('.gif')
+                        else:
+                            output_path = output_path.with_suffix('.png')
                     
-                    # 保存图片
-                    self.preview_image.save(output_path, quality=95, optimize=True)
-                    self._show_snackbar(f"保存成功: {output_path.name}", ft.Colors.GREEN)
+                    # 保存图片或GIF
+                    if is_gif_animation:
+                        # 保存为GIF动画
+                        frames = self.preview_image
+                        if frames:
+                            frames[0].save(
+                                output_path,
+                                save_all=True,
+                                append_images=frames[1:],
+                                duration=100,
+                                loop=0,
+                                optimize=False,
+                            )
+                            self._show_snackbar(f"保存成功: {output_path.name} ({len(frames)}帧)", ft.Colors.GREEN)
+                    else:
+                        # 保存静态图片
+                        self.preview_image.save(output_path, quality=95, optimize=True)
+                        self._show_snackbar(f"保存成功: {output_path.name}", ft.Colors.GREEN)
                 except Exception as ex:
                     self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
         
@@ -756,7 +1022,7 @@ class ImagePuzzleMergeView(ft.Container):
         picker.save_file(
             dialog_title="保存合并结果",
             file_name=default_filename,
-            allowed_extensions=["png", "jpg", "jpeg"],
+            allowed_extensions=allowed_extensions,
         )
     
     def _on_preview_click(self, e: ft.ControlEvent) -> None:
