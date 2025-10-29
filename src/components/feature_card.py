@@ -122,7 +122,7 @@ class FeatureCard(ft.Container):
         self.padding = PADDING_LARGE
         self.margin = self.card_margin  # 设置外边距
         self.width = 280
-        self.height = 240
+        self.height = 220
         self.border_radius = BORDER_RADIUS_LARGE
         # 不设置 bgcolor，使用主题的 card_color
         self.shadow = ft.BoxShadow(
