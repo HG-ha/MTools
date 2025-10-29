@@ -3,6 +3,7 @@
 提供可视化的图片裁剪功能，支持拖动裁剪框。
 """
 
+import logging
 import os
 import subprocess
 import warnings
@@ -25,7 +26,12 @@ from services import ConfigService, ImageService
 from utils import GifUtils
 
 # 屏蔽 libpng 的 iCCP 警告
-warnings.filterwarnings("ignore", message=".*iCCP.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*iCCP.*")
+warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
+warnings.filterwarnings("ignore", "Palette images with Transparency", UserWarning)
+
+# 屏蔽 PIL 的日志警告
+logging.getLogger('PIL').setLevel(logging.ERROR)
 
 
 class ImageCropView(ft.Container):
@@ -94,11 +100,17 @@ class ImageCropView(ft.Container):
         self.crop_start_width: int = 0
         self.crop_start_height: int = 0
         
+        # 精调步长（WASD 键移动的像素数）
+        self.fine_tune_step: int = 1
+        
         # 创建UI组件
         self._build_ui()
         
         # 注册键盘事件
         self.page.on_keyboard_event = self._on_keyboard
+        
+        # 注册窗口大小变化事件
+        self.page.on_resize = self._on_window_resize
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -115,16 +127,33 @@ class ImageCropView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
+        # WASD 精调步长输入框
+        self.fine_tune_input: ft.TextField = ft.TextField(
+            value=str(self.fine_tune_step),
+            width=60,
+            height=32,
+            text_size=12,
+            content_padding=8,
+            border_color=ft.Colors.OUTLINE_VARIANT,
+            on_change=self._on_fine_tune_step_change,
+            tooltip="WASD键每次移动的像素数（1-100）",
+            text_align=ft.TextAlign.CENTER,
+            keyboard_type=ft.KeyboardType.NUMBER,
+        )
+        
         # 说明文本
         description_text: ft.Container = ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
                     ft.Text(
-                        "拖动蓝框移动位置 | 拖动四个角调整大小 | WASD键精确微调1px",
+                        "这个UI框架本身不支持这个裁剪框实现，我尽力了 | 拖动蓝框移动位置 | 拖动四个角调整大小 | WASD键精确微调",
                         size=12,
                         color=TEXT_SECONDARY,
                     ),
+                    ft.Text("步长:", size=12, color=TEXT_SECONDARY),
+                    self.fine_tune_input,
+                    ft.Text("px | 支持GIF动画裁剪", size=12, color=TEXT_SECONDARY),
                 ],
                 spacing=8,
             ),
@@ -136,19 +165,21 @@ class ImageCropView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=TEXT_SECONDARY),
-                    ft.Text("点击下方「选择图片」按钮开始裁剪", size=16, color=TEXT_SECONDARY),
+                    ft.Text("选择图片开始裁剪", size=16, color=TEXT_SECONDARY),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=PADDING_MEDIUM,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.alignment.center,  # 在容器中居中
             expand=True,  # 占满整个 Stack
         )
         
-        # 原图显示（居中保持比例）
+        # 原图显示（居中保持比例，占满整个 Stack）
         self.original_image_widget: ft.Image = ft.Image(
             fit=ft.ImageFit.CONTAIN,
             visible=False,
+            width=self.canvas_width,
+            height=self.canvas_height,
         )
         
         # 图片在画布中的实际显示位置和大小
@@ -251,13 +282,15 @@ class ImageCropView(ft.Container):
             visible=False,
         )
         
-        # 裁剪信息显示
-        self.crop_info_text: ft.Text = ft.Text(
-            "",
-            size=14,
-            color=ft.Colors.PRIMARY,
-            weight=ft.FontWeight.BOLD,
-            bgcolor="#FFFFFFFF",
+        # 刻度尺容器（水平和垂直）
+        self.ruler_horizontal: ft.Row = ft.Row(
+            controls=[],
+            spacing=0,
+            visible=False,
+        )
+        self.ruler_vertical: ft.Column = ft.Column(
+            controls=[],
+            spacing=0,
             visible=False,
         )
         
@@ -271,7 +304,6 @@ class ImageCropView(ft.Container):
                 self.handle_ne,  # 右上
                 self.handle_sw,  # 左下
                 self.handle_se,  # 右下
-                ft.Container(content=self.crop_info_text, padding=8, top=10, left=10),
             ],
             width=self.canvas_width,
             height=self.canvas_height,
@@ -285,8 +317,32 @@ class ImageCropView(ft.Container):
             height=self.canvas_height,
         )
         
-        self.canvas_container: ft.Container = ft.Container(
+        # 画布内容（可点击选择图片）
+        self.canvas_clickable: ft.Container = ft.Container(
             content=self.canvas_stack,
+            on_click=self._on_canvas_click,  # 点击选择图片
+            tooltip="点击选择图片",
+        )
+        
+        # 画布与刻度尺的组合布局
+        self.canvas_with_rulers: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.ruler_horizontal,  # 顶部水平刻度尺
+                    ft.Row(
+                        controls=[
+                            self.ruler_vertical,  # 左侧垂直刻度尺
+                            self.canvas_clickable,  # 画布
+                        ],
+                        spacing=0,
+                    ),
+                ],
+                spacing=0,
+            ),
+        )
+        
+        self.canvas_container: ft.Container = ft.Container(
+            content=self.canvas_with_rulers,
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             alignment=ft.alignment.center,
@@ -299,56 +355,64 @@ class ImageCropView(ft.Container):
                 controls=[
                     ft.Text("裁剪区域", size=14, weight=ft.FontWeight.W_500),
                     ft.Container(height=PADDING_SMALL),
-                    self.canvas_container,
+                    ft.Container(
+                        content=self.canvas_container,
+                        alignment=ft.alignment.top_left,
+                    ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.START,
                 spacing=0,
+                scroll=ft.ScrollMode.AUTO,  # 添加滚动以防内容超出
             ),
-            expand=True,  # 占据剩余空间
+            expand=2,  # 占据更多空间（2:1 比例）
             padding=ft.padding.only(left=PADDING_LARGE, right=PADDING_MEDIUM),
         )
         
-        # 右侧预览区域（缩小尺寸）
+        # 右侧预览区域
         self.preview_image_widget: ft.Image = ft.Image(
-            width=300,
-            height=300,
             fit=ft.ImageFit.CONTAIN,
             visible=False,
         )
         
         self.preview_info_text: ft.Text = ft.Text(
             "选择图片后拖动裁剪框查看效果",
-            size=11,
+            size=12,
             color=TEXT_SECONDARY,
             text_align=ft.TextAlign.CENTER,
         )
         
+        # 预览区域（占据上半部分，1:1 平分）
         preview_area: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Text("裁剪预览", size=14, weight=ft.FontWeight.W_500),
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
-                        content=self.preview_image_widget,
+                        content=ft.Stack(
+                            controls=[
+                                ft.Container(
+                                    content=self.preview_info_text,
+                                    alignment=ft.alignment.center,
+                                ),
+                                ft.Container(
+                                    content=self.preview_image_widget,
+                                    alignment=ft.alignment.center,
+                                ),
+                            ],
+                        ),
                         border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=BORDER_RADIUS_MEDIUM,
                         alignment=ft.alignment.center,
-                        width=300,
-                        height=300,
+                        height=300,  # 固定高度
                         on_click=self._on_preview_click,
                         tooltip="点击用系统默认应用打开",
                         ink=True,
-                        padding=PADDING_MEDIUM,  # 添加内边距
                     ),
-                    ft.Container(height=PADDING_SMALL),
-                    self.preview_info_text,
                 ],
-                horizontal_alignment=ft.CrossAxisAlignment.START,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # 居中对齐
                 spacing=0,
             ),
-            padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-            border_radius=BORDER_RADIUS_MEDIUM,
+            expand=1,  # 占据上半部分（1:1 比例）
         )
         
         # GIF 帧选择器（初始隐藏）
@@ -357,6 +421,7 @@ class ImageCropView(ft.Container):
             width=60,
             text_align=ft.TextAlign.CENTER,
             on_submit=self._on_frame_input_submit,
+            on_blur=self._on_frame_input_submit,  # 失去焦点时也触发
             dense=True,
         )
         
@@ -365,7 +430,18 @@ class ImageCropView(ft.Container):
         self.gif_frame_selector: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("GIF 帧选择", size=14, weight=ft.FontWeight.W_500),
+                    ft.Row(
+                        controls=[
+                            ft.Text("GIF 帧选择", size=14, weight=ft.FontWeight.W_500),
+                            ft.Icon(
+                                ft.Icons.INFO_OUTLINE,
+                                size=16,
+                                color=TEXT_SECONDARY,
+                                tooltip="选择要裁剪的 GIF 帧\n可以输入帧号或使用左右按钮切换",
+                            ),
+                        ],
+                        spacing=8,
+                    ),
                     ft.Container(height=PADDING_SMALL),
                     ft.Row(
                         controls=[
@@ -400,8 +476,14 @@ class ImageCropView(ft.Container):
         self.gif_export_mode: ft.RadioGroup = ft.RadioGroup(
             content=ft.Column(
                 controls=[
-                    ft.Radio(value="current_frame", label="当前帧（静态图片）"),
-                    ft.Radio(value="all_frames", label="所有帧（保留动画）"),
+                    ft.Radio(
+                        value="current_frame",
+                        label="当前帧（静态图片）",
+                    ),
+                    ft.Radio(
+                        value="all_frames",
+                        label="所有帧（保留动画）",
+                    ),
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -411,7 +493,18 @@ class ImageCropView(ft.Container):
         self.gif_export_options: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("导出选项", size=14, weight=ft.FontWeight.W_500),
+                    ft.Row(
+                        controls=[
+                            ft.Text("导出选项", size=14, weight=ft.FontWeight.W_500),
+                            ft.Icon(
+                                ft.Icons.INFO_OUTLINE,
+                                size=16,
+                                color=TEXT_SECONDARY,
+                                tooltip="当前帧：导出为静态图片（PNG/JPG）\n所有帧：保留动画效果（GIF）",
+                            ),
+                        ],
+                        spacing=8,
+                    ),
                     ft.Container(height=PADDING_SMALL),
                     self.gif_export_mode,
                 ],
@@ -430,12 +523,14 @@ class ImageCropView(ft.Container):
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._on_select_file,
             width=280,
+            tooltip="选择要裁剪的图片（支持 GIF 动画）",
         )
         reset_button = ft.OutlinedButton(
             text="重置裁剪",
             icon=ft.Icons.REFRESH,
             on_click=self._on_reset,
             width=280,
+            tooltip="将裁剪框重置到图片中央",
         )
         
         self.save_button = ft.FilledButton(
@@ -444,32 +539,37 @@ class ImageCropView(ft.Container):
             on_click=self._on_save_result,
             disabled=True,
             width=280,
+            tooltip="导出裁剪后的图片",
         )
         
-        button_area = ft.Column(
-            controls=[
-                select_button,
-                reset_button,
-                self.save_button,
-            ],
-            spacing=PADDING_MEDIUM,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-        
-        # 右侧区域（GIF帧选择 + GIF导出选项 + 预览 + 按钮）
-        right_side = ft.Container(
+        # 按钮区域（占据下半部分，1:1 平分）
+        button_area = ft.Container(
             content=ft.Column(
                 controls=[
                     self.gif_frame_selector,
                     self.gif_export_options,
-                    preview_area,
-                    ft.Container(height=PADDING_MEDIUM),
-                    button_area,
+                    select_button,
+                    reset_button,
+                    self.save_button,
                 ],
-                horizontal_alignment=ft.CrossAxisAlignment.START,
                 spacing=PADDING_MEDIUM,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            width=380,
+            expand=1,  # 占据下半部分（1:1 比例）
+            margin=ft.margin.only(top=-4),  # 向上移动减小与预览区域的距离
+        )
+        
+        # 右侧区域（预览 + 按钮，上下平分）
+        right_side = ft.Container(
+            content=ft.Column(
+                controls=[
+                    preview_area,  # 上半部分：预览
+                    button_area,   # 下半部分：GIF选项 + 按钮
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # 居中对齐
+                spacing=20,  # 减小间距
+            ),
+            expand=1,  # 动态调整宽度，与左侧裁剪区域按比例分配
             padding=ft.padding.only(right=PADDING_LARGE),
         )
         
@@ -533,6 +633,11 @@ class ImageCropView(ft.Container):
         if self.on_back:
             self.on_back()
     
+    def _on_canvas_click(self, e: ft.ControlEvent) -> None:
+        """点击裁剪区域，如果未选择图片则打开选择文件对话框。"""
+        if not self.selected_file:
+            self._on_select_file(e)
+    
     def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件。"""
         file_picker = ft.FilePicker(on_result=self._on_file_selected)
@@ -583,6 +688,10 @@ class ImageCropView(ft.Container):
             self.crop_canvas.width = self.canvas_width
             self.crop_canvas.height = self.canvas_height
             
+            # 更新原图组件的尺寸（确保图片随容器缩放）
+            self.original_image_widget.width = self.canvas_width
+            self.original_image_widget.height = self.canvas_height
+            
             # 显示原图（GIF 需要保存临时帧）
             if self.is_animated_gif:
                 # 保存当前帧为临时文件
@@ -594,6 +703,9 @@ class ImageCropView(ft.Container):
             
             self.original_image_widget.visible = True
             self.empty_state_widget.visible = False
+            
+            # 更新画布容器提示（已选择图片后）
+            self.canvas_clickable.tooltip = "拖动蓝框移动位置，拖动四个角调整大小"
             
             # 初始化裁剪框（居中，1/2大小）
             self.crop_width = min(img_w // 2, 400)
@@ -678,14 +790,113 @@ class ImageCropView(ft.Container):
         self.handle_se.left = box_left + box_w - handle_offset
         self.handle_se.visible = True
         
-        # 更新信息
-        self.crop_info_text.value = f"{self.crop_width} × {self.crop_height} px"
-        self.crop_info_text.visible = True
+        # 更新刻度尺
+        self._update_rulers()
         
         try:
             self.page.update()
         except:
             pass
+    
+    def _update_rulers(self) -> None:
+        """更新刻度尺显示。"""
+        if not self.original_image:
+            self.ruler_horizontal.visible = False
+            self.ruler_vertical.visible = False
+            return
+        
+        # 获取图片尺寸
+        img_w, img_h = self.original_image.width, self.original_image.height
+        
+        # 计算刻度间隔（根据图片大小自动调整）
+        def get_ruler_interval(size: int) -> int:
+            """根据尺寸自动选择合适的刻度间隔。"""
+            if size <= 200:
+                return 20
+            elif size <= 500:
+                return 50
+            elif size <= 1000:
+                return 100
+            elif size <= 2000:
+                return 200
+            else:
+                return 500
+        
+        h_interval = get_ruler_interval(img_w)
+        v_interval = get_ruler_interval(img_h)
+        
+        # 生成水平刻度尺（顶部）
+        h_ruler_controls = []
+        # 添加起始占位符（对齐垂直刻度尺的宽度）
+        h_ruler_controls.append(ft.Container(width=30, height=20))
+        
+        scale_x = self.img_display_width / img_w
+        for i in range(0, img_w + 1, h_interval):
+            if i > img_w:
+                break
+            pixel_pos = i * scale_x
+            h_ruler_controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(
+                                width=1,
+                                height=6,
+                                bgcolor=TEXT_SECONDARY,
+                            ),
+                            ft.Text(
+                                str(i),
+                                size=9,
+                                color=TEXT_SECONDARY,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ],
+                        spacing=0,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    width=pixel_pos if i == 0 else (h_interval * scale_x),
+                )
+            )
+        
+        self.ruler_horizontal.controls = h_ruler_controls
+        self.ruler_horizontal.visible = True
+        
+        # 生成垂直刻度尺（左侧）
+        v_ruler_controls = []
+        # 添加起始占位符（对齐水平刻度尺的高度）
+        v_ruler_controls.append(ft.Container(width=30, height=20))
+        
+        scale_y = self.img_display_height / img_h
+        for i in range(0, img_h + 1, v_interval):
+            if i > img_h:
+                break
+            pixel_pos = i * scale_y
+            v_ruler_controls.append(
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Text(
+                                str(i),
+                                size=9,
+                                color=TEXT_SECONDARY,
+                                text_align=ft.TextAlign.RIGHT,
+                                width=24,
+                            ),
+                            ft.Container(
+                                width=6,
+                                height=1,
+                                bgcolor=TEXT_SECONDARY,
+                            ),
+                        ],
+                        spacing=0,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    height=pixel_pos if i == 0 else (v_interval * scale_y),
+                )
+            )
+        
+        self.ruler_vertical.controls = v_ruler_controls
+        self.ruler_vertical.visible = True
     
     def _on_crop_pan_start(self, e: ft.DragStartEvent) -> None:
         """开始拖动裁剪框。"""
@@ -775,8 +986,8 @@ class ImageCropView(ft.Container):
             # 右下角：增加宽高
             new_w = self.crop_start_width + dx_img
             new_h = self.crop_start_height + dy_img
-            new_w = max(50, min(new_w, img_w - self.crop_x))
-            new_h = max(50, min(new_h, img_h - self.crop_y))
+            new_w = max(1, min(new_w, img_w - self.crop_x))
+            new_h = max(1, min(new_h, img_h - self.crop_y))
             self.crop_width = new_w
             self.crop_height = new_h
             
@@ -784,8 +995,8 @@ class ImageCropView(ft.Container):
             # 左下角：调整左边界和高度
             new_x = self.crop_start_x + dx_img
             new_h = self.crop_start_height + dy_img
-            new_x = max(0, min(new_x, self.crop_start_x + self.crop_start_width - 50))
-            new_h = max(50, min(new_h, img_h - self.crop_y))
+            new_x = max(0, min(new_x, self.crop_start_x + self.crop_start_width - 1))
+            new_h = max(1, min(new_h, img_h - self.crop_y))
             self.crop_width = self.crop_start_width + (self.crop_start_x - new_x)
             self.crop_height = new_h
             self.crop_x = new_x
@@ -794,8 +1005,8 @@ class ImageCropView(ft.Container):
             # 右上角：调整上边界和宽度
             new_y = self.crop_start_y + dy_img
             new_w = self.crop_start_width + dx_img
-            new_y = max(0, min(new_y, self.crop_start_y + self.crop_start_height - 50))
-            new_w = max(50, min(new_w, img_w - self.crop_x))
+            new_y = max(0, min(new_y, self.crop_start_y + self.crop_start_height - 1))
+            new_w = max(1, min(new_w, img_w - self.crop_x))
             self.crop_height = self.crop_start_height + (self.crop_start_y - new_y)
             self.crop_width = new_w
             self.crop_y = new_y
@@ -804,8 +1015,8 @@ class ImageCropView(ft.Container):
             # 左上角：调整左边界和上边界
             new_x = self.crop_start_x + dx_img
             new_y = self.crop_start_y + dy_img
-            new_x = max(0, min(new_x, self.crop_start_x + self.crop_start_width - 50))
-            new_y = max(0, min(new_y, self.crop_start_y + self.crop_start_height - 50))
+            new_x = max(0, min(new_x, self.crop_start_x + self.crop_start_width - 1))
+            new_y = max(0, min(new_y, self.crop_start_y + self.crop_start_height - 1))
             self.crop_width = self.crop_start_width + (self.crop_start_x - new_x)
             self.crop_height = self.crop_start_height + (self.crop_start_y - new_y)
             self.crop_x = new_x
@@ -942,7 +1153,7 @@ class ImageCropView(ft.Container):
             self.page.update()
         except Exception as ex:
             print(f"保存失败: {ex}")
-            self._show_message(f"保存失败: {str(ex)}", ft.Colors.RED)
+            self._show_snackbar(f"保存失败: {str(ex)}", ft.Colors.RED)
     
     def _save_as_gif(self, output_path: Path) -> None:
         """保存为 GIF 动画（裁剪所有帧）。
@@ -955,7 +1166,7 @@ class ImageCropView(ft.Container):
         
         try:
             # 显示处理进度
-            self._show_message(f"正在处理 {self.gif_frame_count} 帧...", ft.Colors.BLUE)
+            self._show_snackbar(f"正在处理 {self.gif_frame_count} 帧...", ft.Colors.BLUE)
             
             # 打开原始 GIF
             with Image.open(self.selected_file) as gif:
@@ -1021,11 +1232,11 @@ class ImageCropView(ft.Container):
                 self.current_frame_index = frame_num - 1
                 self._load_gif_frame()
             else:
-                self._show_message(f"帧号必须在 1 到 {self.gif_frame_count} 之间", ft.Colors.ORANGE)
+                self._show_snackbar(f"帧号必须在 1 到 {self.gif_frame_count} 之间", ft.Colors.ORANGE)
                 self.gif_frame_input.value = str(self.current_frame_index + 1)
                 self.page.update()
         except ValueError:
-            self._show_message("请输入有效的数字", ft.Colors.ORANGE)
+            self._show_snackbar("请输入有效的数字", ft.Colors.ORANGE)
             self.gif_frame_input.value = str(self.current_frame_index + 1)
             self.page.update()
     
@@ -1069,32 +1280,33 @@ class ImageCropView(ft.Container):
         # 获取图片尺寸用于边界检查
         img_w, img_h = self.original_image.width, self.original_image.height
         
-        # 判断按键并移动 1px（只支持 WASD）
+        # 判断按键并移动（步长由用户指定，默认1px）
         moved = False
         key = e.key.lower() if hasattr(e.key, 'lower') else str(e.key)
+        step = self.fine_tune_step
         
         # W：向上移动
         if key == 'w':
             if self.crop_y > 0:
-                self.crop_y -= 1
+                self.crop_y = max(0, self.crop_y - step)
                 moved = True
         
         # S：向下移动
         elif key == 's':
             if self.crop_y + self.crop_height < img_h:
-                self.crop_y += 1
+                self.crop_y = min(img_h - self.crop_height, self.crop_y + step)
                 moved = True
         
         # A：向左移动
         elif key == 'a':
             if self.crop_x > 0:
-                self.crop_x -= 1
+                self.crop_x = max(0, self.crop_x - step)
                 moved = True
         
         # D：向右移动
         elif key == 'd':
             if self.crop_x + self.crop_width < img_w:
-                self.crop_x += 1
+                self.crop_x = min(img_w - self.crop_width, self.crop_x + step)
                 moved = True
         
         # 如果移动了，更新显示
@@ -1102,4 +1314,74 @@ class ImageCropView(ft.Container):
             self._update_crop_box_position()
             # 精调时也更新预览，但不会频繁（因为是单次按键）
             self._update_preview()
+    
+    def _on_fine_tune_step_change(self, e: ft.ControlEvent) -> None:
+        """精调步长输入框变化事件。"""
+        try:
+            value = int(self.fine_tune_input.value)
+            if value >= 1 and value <= 100:
+                self.fine_tune_step = value
+            else:
+                # 超出范围，恢复为当前值
+                self.fine_tune_input.value = str(self.fine_tune_step)
+                self.page.update()
+        except ValueError:
+            # 输入非数字，恢复为当前值
+            self.fine_tune_input.value = str(self.fine_tune_step)
+            self.page.update()
+    
+    def _show_snackbar(self, message: str, color: str) -> None:
+        """显示提示消息。"""
+        snackbar: ft.SnackBar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=color,
+            duration=3000,
+        )
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _on_window_resize(self, e: ft.ControlEvent) -> None:
+        """窗口大小变化时的处理。"""
+        # 如果已选择图片，重新计算画布尺寸
+        if self.original_image:
+            try:
+                img_w, img_h = self.original_image.width, self.original_image.height
+                
+                # 根据新窗口大小计算合适的画布尺寸
+                # 窗口宽度变化时，调整最大画布尺寸
+                window_width = self.page.width or 1070
+                window_height = self.page.height or 700
+                
+                # 左侧区域大约占窗口宽度的 2/3（因为 expand=2）
+                # 减去边距和右侧区域后的可用空间
+                available_width = int((window_width * 2 / 3) - 100)  # 预留边距
+                available_height = int(window_height - 200)  # 预留顶部和底部空间
+                
+                # 更新最大画布尺寸
+                self.max_canvas_width = max(400, min(available_width, 800))
+                self.max_canvas_height = max(300, min(available_height, 700))
+                
+                # 重新计算画布尺寸
+                self.canvas_width, self.canvas_height = self._calculate_canvas_size(img_w, img_h)
+                
+                # 更新所有相关组件的尺寸
+                self.canvas_stack.width = self.canvas_width
+                self.canvas_stack.height = self.canvas_height
+                self.crop_canvas.width = self.canvas_width
+                self.crop_canvas.height = self.canvas_height
+                self.original_image_widget.width = self.canvas_width
+                self.original_image_widget.height = self.canvas_height
+                
+                # 更新裁剪框位置
+                self._update_crop_box_position()
+                
+                # 更新页面
+                self.page.update()
+            except Exception as ex:
+                # 静默处理，避免影响用户体验
+                pass
 
