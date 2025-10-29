@@ -481,7 +481,7 @@ class PythonTerminalView(ft.Container):
         self.interpreter = None
         
         if self.parent_container:
-            from views.dev_tools_view import DevToolsView
+            from views.dev_tools import DevToolsView
             from services import EncodingService
             
             encoding_service = EncodingService()

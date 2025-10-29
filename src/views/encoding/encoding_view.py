@@ -14,7 +14,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, EncodingService
-from views.encoding_convert_view import EncodingConvertView
+from views.encoding.convert_view import EncodingConvertView
 
 
 class EncodingView(ft.Container):

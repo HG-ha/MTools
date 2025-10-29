@@ -9,11 +9,10 @@ import flet as ft
 
 from components import CustomTitleBar
 from services import ConfigService, EncodingService, ImageService
-from views.audio_view import AudioView
-from views.dev_tools_view import DevToolsView
-from views.image_view import ImageView
+from views.media import AudioView, VideoView
+from views.dev_tools import DevToolsView
+from views.image import ImageView
 from views.settings_view import SettingsView
-from views.video_view import VideoView
 
 
 class MainView(ft.Column):

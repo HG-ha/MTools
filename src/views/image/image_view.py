@@ -14,12 +14,12 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, ImageService
-from views.image_background_view import ImageBackgroundView
-from views.image_compress_view import ImageCompressView
-from views.image_crop_view import ImageCropView
-from views.image_format_view import ImageFormatView
-from views.image_puzzle_view import ImagePuzzleView
-from views.image_resize_view import ImageResizeView
+from views.image.background_view import ImageBackgroundView
+from views.image.compress_view import ImageCompressView
+from views.image.crop_view import ImageCropView
+from views.image.format_view import ImageFormatView
+from views.image.puzzle import ImagePuzzleView
+from views.image.resize_view import ImageResizeView
 
 
 class ImageView(ft.Container):

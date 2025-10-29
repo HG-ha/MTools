@@ -14,8 +14,8 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, ImageService
-from views.image_puzzle_split_view import ImagePuzzleSplitView
-from views.image_puzzle_merge_view import ImagePuzzleMergeView
+from views.image.puzzle.split_view import ImagePuzzleSplitView
+from views.image.puzzle.merge_view import ImagePuzzleMergeView
 
 
 class ImagePuzzleView(ft.Container):

@@ -226,7 +226,7 @@ class CodeFormatDetailView(ft.Container):
         """返回上一级视图。"""
         if self.parent_container:
             # 导入并创建开发工具主视图
-            from views.dev_tools_view import DevToolsView
+            from views.dev_tools import DevToolsView
             from services import EncodingService
             
             encoding_service = EncodingService()

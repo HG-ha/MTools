@@ -14,7 +14,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, EncodingService
-from views.encoding_convert_view import EncodingConvertView
+from views.encoding import EncodingConvertView
 
 
 class DevToolsView(ft.Container):
@@ -116,7 +116,7 @@ class DevToolsView(ft.Container):
     def _open_python_terminal(self, e: ft.ControlEvent) -> None:
         """打开Python终端。"""
         if self.python_terminal_view is None:
-            from views.python_terminal_view import PythonTerminalView
+            from views.dev_tools import PythonTerminalView
             self.python_terminal_view = PythonTerminalView(
                 self.page,
                 self.config_service,
@@ -148,7 +148,7 @@ class DevToolsView(ft.Container):
     def _open_code_format(self, e: ft.ControlEvent) -> None:
         """打开代码格式化。"""
         if self.code_format_view is None:
-            from views.code_format_detail_view import CodeFormatDetailView
+            from views.code_format.detail_view import CodeFormatDetailView
             self.code_format_view = CodeFormatDetailView(
                 self.page,
                 self.config_service,
