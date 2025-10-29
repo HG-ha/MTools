@@ -4,6 +4,9 @@
 遵循Material Design设计原则，使用Flet框架开发。
 """
 
+# Nuitka 打包初始化（必须在导入 flet 之前执行）
+from utils import nuitka_setup  # noqa: F401
+
 import flet as ft
 
 from constants import (
