@@ -6,6 +6,7 @@
 import io
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Callable, List, Optional, Dict
 
@@ -64,6 +65,11 @@ class ImagePuzzleMergeView(ft.Container):
         # GIF 文件映射：{文件路径: (是否GIF, 帧数, 选择的帧索引)}
         self.gif_info: Dict[str, tuple] = {}
         
+        # 实时预览支持
+        self._last_update_time: float = 0.0
+        self._update_timer: Optional[threading.Timer] = None
+        self._auto_preview_enabled: bool = False  # 是否启用自动预览（默认关闭以提升性能）
+        
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_XLARGE,
@@ -90,6 +96,22 @@ class ImagePuzzleMergeView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
+        # 实时预览复选框（需要在 file_select_area 之前定义）
+        self.auto_preview_checkbox: ft.Checkbox = ft.Checkbox(
+            label="实时预览",
+            value=False,
+            on_change=self._on_auto_preview_toggle,
+            tooltip="开启后，修改参数时将自动生成预览\n处理大图片时可能会占用较多系统性能",
+        )
+        
+        # GIF 动画保留选项（需要在 file_select_area 之前定义）
+        self.keep_gif_animation: ft.Checkbox = ft.Checkbox(
+            label="保留 GIF 动画",
+            value=False,
+            visible=False,  # 默认隐藏，只有选择了GIF时才显示
+            on_change=self._on_option_change,
+        )
+        
         # 左侧：文件选择区域
         self.file_list_view: ft.Column = ft.Column(
             spacing=PADDING_MEDIUM // 2,
@@ -110,6 +132,14 @@ class ImagePuzzleMergeView(ft.Container):
                             "清空",
                             icon=ft.Icons.CLEAR_ALL,
                             on_click=self._on_clear_files,
+                        ),
+                        ft.Container(width=PADDING_MEDIUM),  # 间隔
+                        ft.Column(
+                            controls=[
+                                self.auto_preview_checkbox,
+                                self.keep_gif_animation,
+                            ],
+                            spacing=0,
                         ),
                     ],
                     spacing=PADDING_MEDIUM,
@@ -216,21 +246,12 @@ class ImagePuzzleMergeView(ft.Container):
             on_change=self._on_option_change,
         )
         
-        # GIF 动画保留选项
-        self.keep_gif_animation: ft.Checkbox = ft.Checkbox(
-            label="保留 GIF 动画",
-            value=False,
-            on_change=self._on_option_change,
-        )
-        
-        # 参数区域：横向排列
+        # 参数区域：横向排列（单行，可横向滚动）
         options_area: ft.Column = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Text("排列方式:", size=14, weight=ft.FontWeight.W_500),
                         self.merge_direction,
-                        ft.VerticalDivider(width=1),
                         self.merge_spacing_input,
                         self.merge_cols,
                         self.merge_bg_color,
@@ -238,17 +259,9 @@ class ImagePuzzleMergeView(ft.Container):
                         self.custom_color_g,
                         self.custom_color_b,
                     ],
-                    wrap=True,
                     spacing=PADDING_MEDIUM,
-                    run_spacing=PADDING_MEDIUM,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                ft.Container(height=PADDING_SMALL),
-                ft.Row(
-                    controls=[
-                        self.keep_gif_animation,
-                    ],
-                    spacing=PADDING_MEDIUM,
+                    scroll=ft.ScrollMode.ADAPTIVE,
                 ),
             ],
             spacing=0,
@@ -261,7 +274,7 @@ class ImagePuzzleMergeView(ft.Container):
         )
         
         self.preview_info_text: ft.Text = ft.Text(
-            "选择图片后，点击「生成预览」查看效果",
+            "选择图片后将自动生成预览",
             size=13,
             color=TEXT_SECONDARY,
             text_align=ft.TextAlign.CENTER,
@@ -387,18 +400,60 @@ class ImagePuzzleMergeView(ft.Container):
         if self.on_back:
             self.on_back()
     
+    def _schedule_auto_preview(self) -> None:
+        """安排自动预览更新（使用防抖机制）。"""
+        # 取消之前的定时器
+        if self._update_timer is not None:
+            self._update_timer.cancel()
+        
+        # 设置新的定时器，延迟500ms后生成预览
+        self._update_timer = threading.Timer(0.5, self._auto_generate_preview)
+        self._update_timer.daemon = True
+        self._update_timer.start()
+    
+    def _auto_generate_preview(self) -> None:
+        """自动生成预览（防抖后触发）。"""
+        # 模拟点击生成预览按钮，传递 is_auto=True 标记
+        class FakeEvent:
+            is_auto = True
+        
+        self._on_generate_preview(FakeEvent())
+    
+    def _on_auto_preview_toggle(self, e: ft.ControlEvent) -> None:
+        """自动预览开关切换事件。"""
+        self._auto_preview_enabled = self.auto_preview_checkbox.value
+        
+        # 更新提示文本
+        if not self.preview_image:
+            if self._auto_preview_enabled:
+                self.preview_info_text.value = "选择图片后将自动生成预览"
+            else:
+                self.preview_info_text.value = "选择图片后，点击「生成预览」查看效果"
+            try:
+                self.preview_info_text.update()
+            except:
+                pass
+        
+        # 如果打开了自动预览，立即生成一次预览
+        if self._auto_preview_enabled and len(self.selected_files) >= 2:
+            self._schedule_auto_preview()
+    
     def _on_option_change(self, e: ft.ControlEvent) -> None:
-        """选项改变事件。"""
+        """选项改变事件 - 支持实时预览。"""
         # 网格排列时显示列数输入
         if hasattr(e.control, 'value') and e.control == self.merge_direction:
             self.merge_cols.visible = (self.merge_direction.value == "grid")
             self.merge_cols.update()
         
-        # 清空预览
-        self._clear_preview()
+        # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+        if self._auto_preview_enabled and len(self.selected_files) >= 2:
+            self._schedule_auto_preview()
+        else:
+            # 清空预览（选项改变后需要重新生成）
+            self._clear_preview()
     
     def _on_bg_color_change(self, e: ft.ControlEvent) -> None:
-        """背景色变化事件。"""
+        """背景色变化事件 - 支持实时预览。"""
         is_custom = self.merge_bg_color.value == "custom"
         self.custom_color_r.visible = is_custom
         self.custom_color_g.visible = is_custom
@@ -409,10 +464,15 @@ class ImagePuzzleMergeView(ft.Container):
             self.custom_color_b.update()
         except:
             pass
-        self._clear_preview()
+        
+        # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+        if self._auto_preview_enabled and len(self.selected_files) >= 2:
+            self._schedule_auto_preview()
+        else:
+            self._clear_preview()
     
     def _on_select_files(self, e: ft.ControlEvent) -> None:
-        """选择文件按钮点击事件。"""
+        """选择文件按钮点击事件 - 支持实时预览。"""
         def on_result(result: ft.FilePickerResultEvent) -> None:
             if result.files:
                 for file in result.files:
@@ -421,7 +481,12 @@ class ImagePuzzleMergeView(ft.Container):
                         self.selected_files.append(file_path)
                 
                 self._update_file_list()
-                self._clear_preview()
+                
+                # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+                if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                    self._schedule_auto_preview()
+                else:
+                    self._clear_preview()
         
         picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
         self.page.overlay.append(picker)
@@ -443,6 +508,9 @@ class ImagePuzzleMergeView(ft.Container):
         """更新文件列表显示。"""
         self.file_list_view.controls.clear()
         self.gif_info.clear()  # 清除GIF信息
+        
+        # 检查是否有GIF文件，用于控制"保留 GIF 动画"选项的显示
+        has_gif = False
         
         if not self.selected_files:
             # 空状态提示（明确设置高度以实现居中）
@@ -473,6 +541,7 @@ class ImagePuzzleMergeView(ft.Container):
                 if is_gif:
                     frame_count = GifUtils.get_frame_count(file_path)
                     self.gif_info[str(file_path)] = (True, frame_count, 0)  # 默认使用第一帧
+                    has_gif = True  # 标记有GIF文件
                 
                 if 'error' in file_info:
                     info_text = f"错误: {file_info['error']}"
@@ -529,6 +598,7 @@ class ImagePuzzleMergeView(ft.Container):
                                 text_align=ft.TextAlign.CENTER,
                                 dense=True,
                                 on_submit=lambda e, fp=file_path, fc=frame_count: self._on_gif_frame_submit(e, fp, fc),
+                                on_blur=lambda e, fp=file_path, fc=frame_count: self._on_gif_frame_submit(e, fp, fc),
                             ),
                             ft.Text(f"/{frame_count}", size=11, color=TEXT_SECONDARY),
                             ft.IconButton(
@@ -620,56 +690,85 @@ class ImagePuzzleMergeView(ft.Container):
                 
                 self.file_list_view.controls.append(file_item)
         
+        # 根据是否有GIF文件来控制"保留 GIF 动画"选项的显示
+        self.keep_gif_animation.visible = has_gif
+        
         try:
             self.file_list_view.update()
+            self.keep_gif_animation.update()
         except:
             pass
     
     def _on_move_up(self, index: int) -> None:
-        """上移文件。"""
+        """上移文件 - 支持实时预览。"""
         if 1 <= index < len(self.selected_files):
             self.selected_files[index], self.selected_files[index - 1] = \
                 self.selected_files[index - 1], self.selected_files[index]
             self._update_file_list()
-            self._clear_preview()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_move_down(self, index: int) -> None:
-        """下移文件。"""
+        """下移文件 - 支持实时预览。"""
         if 0 <= index < len(self.selected_files) - 1:
             self.selected_files[index], self.selected_files[index + 1] = \
                 self.selected_files[index + 1], self.selected_files[index]
             self._update_file_list()
-            self._clear_preview()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_remove_file(self, index: int) -> None:
-        """移除文件。"""
+        """移除文件 - 支持实时预览。"""
         if 0 <= index < len(self.selected_files):
             self.selected_files.pop(index)
             self._update_file_list()
-            self._clear_preview()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_gif_prev_frame(self, file_path: Path) -> None:
-        """GIF 上一帧。"""
+        """GIF 上一帧 - 支持实时预览。"""
         key = str(file_path)
         if key in self.gif_info:
             is_gif, frame_count, current_frame = self.gif_info[key]
             new_frame = (current_frame - 1) % frame_count
             self.gif_info[key] = (is_gif, frame_count, new_frame)
             self._update_file_list()
-            self._clear_preview()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_gif_next_frame(self, file_path: Path) -> None:
-        """GIF 下一帧。"""
+        """GIF 下一帧 - 支持实时预览。"""
         key = str(file_path)
         if key in self.gif_info:
             is_gif, frame_count, current_frame = self.gif_info[key]
             new_frame = (current_frame + 1) % frame_count
             self.gif_info[key] = (is_gif, frame_count, new_frame)
             self._update_file_list()
-            self._clear_preview()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_gif_frame_submit(self, e: ft.ControlEvent, file_path: Path, frame_count: int) -> None:
-        """GIF 帧输入提交。"""
+        """GIF 帧输入提交 - 支持实时预览。"""
         try:
             frame_num = int(e.control.value)
             if 1 <= frame_num <= frame_count:
@@ -678,7 +777,12 @@ class ImagePuzzleMergeView(ft.Container):
                     is_gif, _, _ = self.gif_info[key]
                     self.gif_info[key] = (is_gif, frame_count, frame_num - 1)
                     self._update_file_list()
-                    self._clear_preview()
+                    
+                    # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+                    if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                        self._schedule_auto_preview()
+                    else:
+                        self._clear_preview()
             else:
                 self._show_snackbar(f"帧号必须在 1 到 {frame_count} 之间", ft.Colors.ORANGE)
                 self._update_file_list()
@@ -691,7 +795,13 @@ class ImagePuzzleMergeView(ft.Container):
         self.preview_image = None
         self.preview_image_widget.src = None  # 清空图片源
         self.preview_image_widget.visible = False
-        self.preview_info_text.value = "选择图片后，点击「生成预览」查看效果"  # 重置提示文本
+        
+        # 根据是否启用自动预览更新提示文本
+        if self._auto_preview_enabled:
+            self.preview_info_text.value = "选择图片后将自动生成预览"
+        else:
+            self.preview_info_text.value = "选择图片后，点击「生成预览」查看效果"
+        
         self.preview_info_text.visible = True
         self.save_button.disabled = True
         try:
@@ -702,12 +812,24 @@ class ImagePuzzleMergeView(ft.Container):
             pass
     
     def _on_generate_preview(self, e: ft.ControlEvent) -> None:
-        """生成预览。"""
+        """生成预览 - 支持自动预览模式。"""
+        # 检查是否为自动触发
+        is_auto = hasattr(e, 'is_auto') and e.is_auto
+        
         if self.is_processing:
+            # 如果正在处理中，显示提示（特别是自动预览时）
+            if is_auto:
+                self.preview_info_text.value = "正在处理中，请稍候..."
+                self.preview_info_text.visible = True
+                try:
+                    self.preview_info_text.update()
+                except:
+                    pass
             return
         
         if len(self.selected_files) < 2:
-            self._show_snackbar("至少需要2张图片", ft.Colors.ORANGE)
+            if not is_auto:  # 只在手动预览时显示提示
+                self._show_snackbar("至少需要2张图片", ft.Colors.ORANGE)
             return
         
         direction = self.merge_direction.value
@@ -733,8 +855,12 @@ class ImagePuzzleMergeView(ft.Container):
             return
         
         self.is_processing = True
+        
+        # 隐藏预览图，显示处理中提示
+        self.preview_image_widget.visible = False
         self.preview_info_text.value = "正在生成预览..."
         self.preview_info_text.visible = True
+        
         try:
             self.page.update()
         except:
@@ -748,16 +874,18 @@ class ImagePuzzleMergeView(ft.Container):
                 if keep_animation and self.gif_info:
                     # 获取总帧数（以最长的GIF为准）
                     max_frames = max(info[1] for info in self.gif_info.values())
-                    self._show_snackbar(f"正在生成 GIF 动画 ({max_frames} 帧)...", ft.Colors.BLUE)
+                    if not is_auto:  # 只在手动预览时显示提示
+                        self._show_snackbar(f"正在生成 GIF 动画 ({max_frames} 帧)...", ft.Colors.BLUE)
                     
                     # 生成GIF动画
                     result_frames, duration = self._merge_as_gif(direction, spacing, grid_cols, bg_color, custom_rgb)
                     if result_frames:
-                        # 只显示第一帧作为预览
-                        self._update_preview(result_frames[0])
+                        # 将 GIF 帧列表传递给预览，以显示动态 GIF
+                        self._update_preview_gif(result_frames, duration)
                         # 保存完整GIF供后续保存使用
                         self.preview_image = result_frames  # 保存为帧列表
-                        self._show_snackbar(f"预览生成成功 (GIF动画, {len(result_frames)}帧)", ft.Colors.GREEN)
+                        if not is_auto:  # 只在手动预览时显示提示
+                            self._show_snackbar(f"预览生成成功 (GIF动画, {len(result_frames)}帧)", ft.Colors.GREEN)
                     else:
                         raise Exception("生成GIF动画失败")
                 else:
@@ -781,9 +909,11 @@ class ImagePuzzleMergeView(ft.Container):
                     
                     # 更新预览
                     self._update_preview(result)
-                    self._show_snackbar("预览生成成功", ft.Colors.GREEN)
+                    if not is_auto:  # 只在手动预览时显示提示
+                        self._show_snackbar("预览生成成功", ft.Colors.GREEN)
             except Exception as ex:
-                self._show_snackbar(f"生成预览失败: {ex}", ft.Colors.RED)
+                if not is_auto:  # 只在手动预览时显示错误提示
+                    self._show_snackbar(f"生成预览失败: {ex}", ft.Colors.RED)
                 self._clear_preview()
             finally:
                 self.is_processing = False
@@ -953,9 +1083,7 @@ class ImagePuzzleMergeView(ft.Container):
         return result_frames, duration
     
     def _update_preview(self, image: Image.Image) -> None:
-        """更新预览图片。"""
-        import time
-        
+        """更新预览图片（静态图片）。"""
         self.preview_image = image
         
         # 保存临时预览图片，使用时间戳避免缓存
@@ -971,7 +1099,65 @@ class ImagePuzzleMergeView(ft.Container):
         
         # 清理旧的预览文件（保留最新的）
         try:
-            for old_file in temp_dir.glob("merge_preview_*.png"):
+            for old_file in temp_dir.glob("merge_preview_*.*"):
+                if old_file != preview_path:
+                    try:
+                        old_file.unlink()
+                    except:
+                        pass
+        except:
+            pass
+        
+        # 直接使用文件路径显示
+        self.preview_image_widget.src = str(preview_path)
+        self.preview_image_widget.visible = True
+        self.preview_info_text.visible = False
+        self.save_button.disabled = False
+        
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _update_preview_gif(self, frames: list, duration: int) -> None:
+        """更新预览图片（GIF 动画）。"""
+        self.preview_image = frames
+        
+        # 保存临时预览 GIF，使用时间戳避免缓存
+        temp_dir = Path("storage/temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 使用时间戳作为文件名，避免 Flet 缓存
+        timestamp = int(time.time() * 1000)
+        preview_path = temp_dir / f"merge_preview_{timestamp}.gif"
+        
+        # GIF 不支持半透明！转换为 RGB
+        rgb_frames = []
+        for frame in frames:
+            if frame.mode == 'RGBA':
+                # 创建白色背景并合成
+                rgb_frame = Image.new('RGB', frame.size, (255, 255, 255))
+                rgb_frame.paste(frame, mask=frame.split()[3])
+                rgb_frames.append(rgb_frame)
+            elif frame.mode != 'RGB':
+                rgb_frames.append(frame.convert('RGB'))
+            else:
+                rgb_frames.append(frame)
+        
+        # 保存为 GIF 动画
+        if rgb_frames:
+            rgb_frames[0].save(
+                str(preview_path),
+                save_all=True,
+                append_images=rgb_frames[1:],
+                duration=duration,
+                loop=0,
+                optimize=False,
+            )
+        
+        # 清理旧的预览文件（保留最新的）
+        try:
+            for old_file in temp_dir.glob("merge_preview_*.*"):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
@@ -1172,10 +1358,41 @@ class ImagePuzzleMergeView(ft.Container):
             import subprocess
             import platform
             
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                tmp_path = tmp_file.name
-                self.preview_image.save(tmp_path, 'PNG')
+            # 检查是否为 GIF 动画（帧列表）
+            is_gif_animation = isinstance(self.preview_image, list)
+            
+            if is_gif_animation:
+                # 创建临时 GIF 文件
+                with tempfile.NamedTemporaryFile(suffix='.gif', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    
+                    # 转换帧为 RGB
+                    rgb_frames = []
+                    for frame in self.preview_image:
+                        if frame.mode == 'RGBA':
+                            rgb_frame = Image.new('RGB', frame.size, (255, 255, 255))
+                            rgb_frame.paste(frame, mask=frame.split()[3])
+                            rgb_frames.append(rgb_frame)
+                        elif frame.mode != 'RGB':
+                            rgb_frames.append(frame.convert('RGB'))
+                        else:
+                            rgb_frames.append(frame)
+                    
+                    # 保存为 GIF
+                    if rgb_frames:
+                        rgb_frames[0].save(
+                            tmp_path,
+                            save_all=True,
+                            append_images=rgb_frames[1:],
+                            duration=100,
+                            loop=0,
+                            optimize=False,
+                        )
+            else:
+                # 创建临时 PNG 文件
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    self.preview_image.save(tmp_path, 'PNG')
             
             # 用系统默认程序打开
             system = platform.system()

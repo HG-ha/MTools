@@ -70,7 +70,7 @@ class ImagePuzzleSplitView(ft.Container):
         # 实时预览支持
         self._last_update_time: float = 0.0
         self._update_timer: Optional[threading.Timer] = None
-        self._auto_preview_enabled: bool = True  # 是否启用自动预览
+        self._auto_preview_enabled: bool = False  # 是否启用自动预览（默认关闭以提升性能）
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -102,8 +102,9 @@ class ImagePuzzleSplitView(ft.Container):
         # 自动预览复选框（需要在 file_select_area 之前定义）
         self.auto_preview_switch: ft.Checkbox = ft.Checkbox(
             label="实时预览",
-            value=True,
+            value=False,
             on_change=self._on_auto_preview_toggle,
+            tooltip="开启后，修改参数时将自动生成预览\n处理大图片时可能会占用较多系统性能",
         )
         
         # 随机打乱选项（需要在 file_select_area 之前定义）
@@ -753,18 +754,26 @@ class ImagePuzzleSplitView(ft.Container):
             pass
     
     def _on_generate_preview(self, e: ft.ControlEvent) -> None:
-        """生成预览。"""
+        """生成预览 - 支持自动预览模式。"""
+        # 检测是否为自动预览
+        is_auto = hasattr(e, 'is_auto') and e.is_auto
+        
         if self.is_processing:
+            # 如果正在处理中，显示提示（特别是自动预览时）
+            if is_auto:
+                self.preview_info_text.value = "正在处理中，请稍候..."
+                self.preview_info_text.visible = True
+                try:
+                    self.preview_info_text.update()
+                except:
+                    pass
             return
         
         if not self.selected_file:
             # 只在手动点击时提示
-            if not hasattr(e, 'is_auto'):
+            if not is_auto:
                 self._show_snackbar("请先选择图片", ft.Colors.ORANGE)
             return
-        
-        # 检测是否为自动预览
-        is_auto = hasattr(e, 'is_auto') and e.is_auto
         
         try:
             rows = int(self.split_rows.value or 3)
@@ -810,41 +819,66 @@ class ImagePuzzleSplitView(ft.Container):
         
         self.is_processing = True
         
-        # 自动预览时不显示"正在生成预览"提示
-        if not is_auto:
-            self.preview_info_text.value = "正在生成预览..."
-            self.preview_info_text.visible = True
-            try:
-                self.page.update()
-            except:
-                pass
+        # 隐藏预览图，显示处理中提示
+        self.preview_image_widget.visible = False
+        self.preview_info_text.value = "正在生成预览..."
+        self.preview_info_text.visible = True
+        
+        try:
+            self.page.update()
+        except:
+            pass
         
         def process_task():
             try:
-                # 读取图片（如果是 GIF，使用提取的帧）
-                if self.is_animated_gif:
-                    image = GifUtils.extract_frame(self.selected_file, self.current_frame_index)
-                    if image is None:
-                        raise Exception("无法提取 GIF 帧")
+                # 检查是否需要生成 GIF 动画预览
+                keep_animation = self.is_animated_gif and self.keep_gif_animation.value
+                
+                if keep_animation:
+                    # 生成 GIF 动画预览
+                    if not is_auto:
+                        self._show_snackbar(f"正在生成 GIF 动画预览 ({self.gif_frame_count} 帧)...", ft.Colors.BLUE)
+                    
+                    result_frames, durations = self._generate_gif_frames(
+                        rows, cols, shuffle, spacing,
+                        corner_radius, overall_corner_radius,
+                        bg_color, custom_rgb, piece_opacity, bg_opacity
+                    )
+                    
+                    if result_frames:
+                        # 更新为 GIF 动画预览
+                        self._update_preview_gif(result_frames, durations)
+                        if not is_auto:
+                            self._show_snackbar(f"预览生成成功 (GIF动画, {len(result_frames)}帧)", ft.Colors.GREEN)
+                    else:
+                        raise Exception("生成GIF动画失败")
                 else:
-                    image = Image.open(self.selected_file)
-                
-                # 切分并重新拼接
-                result, _ = self._split_and_reassemble(
-                    image, rows, cols, shuffle, spacing, 
-                    corner_radius, overall_corner_radius,
-                    bg_color, custom_rgb, self.bg_image_path,
-                    piece_opacity, bg_opacity
-                )
-                
-                # 更新预览
-                self._update_preview(result)
-                
-                # 只在手动点击时显示成功提示
-                if not is_auto:
-                    self._show_snackbar("预览生成成功", ft.Colors.GREEN)
+                    # 生成静态图片预览
+                    # 读取图片（如果是 GIF，使用提取的帧）
+                    if self.is_animated_gif:
+                        image = GifUtils.extract_frame(self.selected_file, self.current_frame_index)
+                        if image is None:
+                            raise Exception("无法提取 GIF 帧")
+                    else:
+                        image = Image.open(self.selected_file)
+                    
+                    # 切分并重新拼接
+                    result, _ = self._split_and_reassemble(
+                        image, rows, cols, shuffle, spacing, 
+                        corner_radius, overall_corner_radius,
+                        bg_color, custom_rgb, self.bg_image_path,
+                        piece_opacity, bg_opacity
+                    )
+                    
+                    # 更新预览
+                    self._update_preview(result)
+                    
+                    # 只在手动点击时显示成功提示
+                    if not is_auto:
+                        self._show_snackbar("预览生成成功", ft.Colors.GREEN)
             except Exception as ex:
-                self._show_snackbar(f"生成预览失败: {ex}", ft.Colors.RED)
+                if not is_auto:
+                    self._show_snackbar(f"生成预览失败: {ex}", ft.Colors.RED)
                 self._clear_preview()
             finally:
                 self.is_processing = False
@@ -893,17 +927,27 @@ class ImagePuzzleSplitView(ft.Container):
         from PIL import ImageDraw
         
         width, height = image.size
-        piece_width = width // cols
-        piece_height = height // rows
+        
+        # 计算每个切块的实际位置（均匀分配余数）
+        col_positions = []
+        row_positions = []
+        
+        # 计算每列的起始位置
+        for col in range(cols + 1):
+            col_positions.append(int(width * col / cols))
+        
+        # 计算每行的起始位置
+        for row in range(rows + 1):
+            row_positions.append(int(height * row / rows))
         
         # 切分图片
         pieces = []
         for row in range(rows):
             for col in range(cols):
-                left = col * piece_width
-                top = row * piece_height
-                right = left + piece_width
-                bottom = top + piece_height
+                left = col_positions[col]
+                top = row_positions[row]
+                right = col_positions[col + 1]
+                bottom = row_positions[row + 1]
                 
                 piece = image.crop((left, top, right, bottom))
                 
@@ -993,11 +1037,27 @@ class ImagePuzzleSplitView(ft.Container):
                 result = Image.new('RGB', (new_width, new_height), bg_rgb)
         
         # 重新拼接，考虑间距
+        # 计算拼接位置（包含间距）
+        paste_x_positions = []
+        paste_y_positions = []
+        
+        for col in range(cols):
+            # 累积每列的起始位置（包含间距）
+            x_offset = sum([col_positions[c + 1] - col_positions[c] for c in range(col)])
+            x_offset += col * spacing
+            paste_x_positions.append(x_offset)
+        
+        for row in range(rows):
+            # 累积每行的起始位置（包含间距）
+            y_offset = sum([row_positions[r + 1] - row_positions[r] for r in range(row)])
+            y_offset += row * spacing
+            paste_y_positions.append(y_offset)
+        
         for i, piece in enumerate(pieces):
             row = i // cols
             col = i % cols
-            left = col * (piece_width + spacing)
-            top = row * (piece_height + spacing)
+            left = paste_x_positions[col]
+            top = paste_y_positions[row]
             
             # 使用alpha合成（支持透明度和圆角）
             if piece.mode == 'RGBA':
@@ -1014,8 +1074,8 @@ class ImagePuzzleSplitView(ft.Container):
         return result, used_indices
     
     def _add_rounded_corners(self, image: Image.Image, radius: int) -> Image.Image:
-        """给单个切块添加圆角。"""
-        from PIL import ImageDraw
+        """给单个切块添加圆角，保留原有的透明度。"""
+        from PIL import ImageDraw, ImageChops
         
         # 转换为RGBA模式
         if image.mode != 'RGBA':
@@ -1032,10 +1092,16 @@ class ImagePuzzleSplitView(ft.Container):
             fill=255
         )
         
-        # 应用蒙版
+        # 获取原图的alpha通道
+        original_alpha = image.split()[3]
+        
+        # 将圆角蒙版与原有alpha通道合并（取最小值，即同时满足两个条件）
+        combined_alpha = ImageChops.darker(original_alpha, mask)
+        
+        # 应用合并后的alpha通道
         output = Image.new('RGBA', image.size, (0, 0, 0, 0))
         output.paste(image, (0, 0))
-        output.putalpha(mask)
+        output.putalpha(combined_alpha)
         
         return output
     
@@ -1071,10 +1137,72 @@ class ImagePuzzleSplitView(ft.Container):
         
         return output
     
-    def _update_preview(self, image: Image.Image) -> None:
-        """更新预览图片。"""
-        import time
+    def _generate_gif_frames(
+        self,
+        rows: int,
+        cols: int,
+        shuffle: bool,
+        spacing: int,
+        corner_radius: int,
+        overall_corner_radius: int,
+        bg_color: str,
+        custom_rgb: tuple,
+        piece_opacity: int,
+        bg_opacity: int
+    ) -> tuple:
+        """生成 GIF 所有帧的切分结果。
         
+        Returns:
+            (帧列表, 持续时间列表)
+        """
+        if not self.is_animated_gif or not self.selected_file:
+            return [], []
+        
+        # 提取所有帧
+        all_frames = GifUtils.extract_all_frames(self.selected_file)
+        if not all_frames:
+            return [], []
+        
+        # 获取原始帧持续时间
+        durations = GifUtils.get_frame_durations(self.selected_file)
+        
+        # 检查背景图是否为GIF
+        bg_frames = None
+        if bg_color == "image" and self.bg_image_path and self.bg_image_path.exists():
+            if GifUtils.is_animated_gif(self.bg_image_path):
+                bg_frames = GifUtils.extract_all_frames(self.bg_image_path)
+        
+        # 处理每一帧
+        result_frames = []
+        shuffle_order = None
+        
+        for i, frame in enumerate(all_frames):
+            # 获取当前帧对应的背景图（如果背景是GIF）
+            current_bg_image = None
+            if bg_frames:
+                bg_index = i % len(bg_frames)
+                current_bg_image = bg_frames[bg_index]
+            
+            # 对当前帧进行切分
+            split_frame, indices = self._split_and_reassemble(
+                frame, rows, cols, shuffle, spacing,
+                corner_radius, overall_corner_radius,
+                bg_color, custom_rgb, self.bg_image_path,
+                piece_opacity, bg_opacity,
+                shuffle_indices=shuffle_order,
+                bg_image=current_bg_image
+            )
+            
+            # 保存第一帧的打乱顺序
+            if i == 0 and shuffle and indices is not None:
+                shuffle_order = indices
+            
+            result_frames.append(split_frame)
+        
+        return result_frames, durations
+    
+    def _update_preview(self, image: Image.Image) -> None:
+        """更新预览图片（静态图片）。"""
         self.preview_image = image
         
         # 保存临时预览图片，使用时间戳避免缓存
@@ -1090,7 +1218,65 @@ class ImagePuzzleSplitView(ft.Container):
         
         # 清理旧的预览文件（保留最新的）
         try:
-            for old_file in temp_dir.glob("puzzle_preview_*.png"):
+            for old_file in temp_dir.glob("puzzle_preview_*.*"):
+                if old_file != preview_path:
+                    try:
+                        old_file.unlink()
+                    except:
+                        pass
+        except:
+            pass
+        
+        # 直接使用文件路径显示
+        self.preview_image_widget.src = str(preview_path)
+        self.preview_image_widget.visible = True
+        self.preview_info_text.visible = False
+        self.save_button.disabled = False
+        
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _update_preview_gif(self, frames: list, durations: list) -> None:
+        """更新预览图片（GIF 动画）。"""
+        self.preview_image = frames
+        
+        # 保存临时预览 GIF，使用时间戳避免缓存
+        temp_dir = Path("storage/temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 使用时间戳作为文件名，避免 Flet 缓存
+        timestamp = int(time.time() * 1000)
+        preview_path = temp_dir / f"puzzle_preview_{timestamp}.gif"
+        
+        # GIF 不支持半透明！转换为 RGB
+        rgb_frames = []
+        for frame in frames:
+            if frame.mode == 'RGBA':
+                # 创建白色背景并合成
+                rgb_frame = Image.new('RGB', frame.size, (255, 255, 255))
+                rgb_frame.paste(frame, mask=frame.split()[3])
+                rgb_frames.append(rgb_frame)
+            elif frame.mode != 'RGB':
+                rgb_frames.append(frame.convert('RGB'))
+            else:
+                rgb_frames.append(frame)
+        
+        # 保存为 GIF 动画
+        if rgb_frames:
+            rgb_frames[0].save(
+                str(preview_path),
+                save_all=True,
+                append_images=rgb_frames[1:],
+                duration=durations if durations else 100,
+                loop=0,
+                optimize=False,
+            )
+        
+        # 清理旧的预览文件（保留最新的）
+        try:
+            for old_file in temp_dir.glob("puzzle_preview_*.*"):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
@@ -1375,10 +1561,44 @@ class ImagePuzzleSplitView(ft.Container):
             import subprocess
             import platform
             
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                tmp_path = tmp_file.name
-                self.preview_image.save(tmp_path, 'PNG')
+            # 检查是否为 GIF 动画（帧列表）
+            is_gif_animation = isinstance(self.preview_image, list)
+            
+            if is_gif_animation:
+                # 创建临时 GIF 文件
+                with tempfile.NamedTemporaryFile(suffix='.gif', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    
+                    # 转换帧为 RGB
+                    rgb_frames = []
+                    for frame in self.preview_image:
+                        if frame.mode == 'RGBA':
+                            rgb_frame = Image.new('RGB', frame.size, (255, 255, 255))
+                            rgb_frame.paste(frame, mask=frame.split()[3])
+                            rgb_frames.append(rgb_frame)
+                        elif frame.mode != 'RGB':
+                            rgb_frames.append(frame.convert('RGB'))
+                        else:
+                            rgb_frames.append(frame)
+                    
+                    # 获取帧持续时间
+                    durations = GifUtils.get_frame_durations(self.selected_file) if self.selected_file else 100
+                    
+                    # 保存为 GIF
+                    if rgb_frames:
+                        rgb_frames[0].save(
+                            tmp_path,
+                            save_all=True,
+                            append_images=rgb_frames[1:],
+                            duration=durations if durations else 100,
+                            loop=0,
+                            optimize=False,
+                        )
+            else:
+                # 创建临时 PNG 文件
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    self.preview_image.save(tmp_path, 'PNG')
             
             # 用系统默认程序打开
             system = platform.system()
