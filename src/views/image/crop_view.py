@@ -22,6 +22,10 @@ from constants import (
     PADDING_XLARGE,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
+    PRIMARY_COLOR,
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    BORDER_RADIUS_SMALL,
 )
 from services import ConfigService, ImageService
 from utils import GifUtils
@@ -128,7 +132,6 @@ class ImageCropView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
-        # WASD 精调步长输入框
         self.fine_tune_input: ft.TextField = ft.TextField(
             value=str(self.fine_tune_step),
             width=60,
@@ -136,43 +139,92 @@ class ImageCropView(ft.Container):
             text_size=12,
             content_padding=8,
             border_color=ft.Colors.OUTLINE_VARIANT,
+            bgcolor=ft.Colors.WHITE,
             on_change=self._on_fine_tune_step_change,
             tooltip="WASD键每次移动的像素数（1-100）",
             text_align=ft.TextAlign.CENTER,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
-        
-        # 说明文本
-        description_text: ft.Container = ft.Container(
-            content=ft.Row(
+ 
+        def create_tip_badge(icon_name: str, label: str) -> ft.Container:
+            return ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(icon_name, size=14, color=ft.Colors.WHITE),
+                        ft.Text(label, size=12, color=ft.Colors.WHITE),
+                    ],
+                    spacing=6,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                border_radius=20,
+                bgcolor=ft.Colors.with_opacity(0.15, ft.Colors.WHITE),
+            )
+
+        # 指南卡片 - 保存引用以便动态更新主题色
+        self.instruction_card: ft.Container = ft.Container(
+            content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
-                    ft.Text(
-                        "这个UI框架本身不支持这个裁剪框实现，我尽力了 | 拖动蓝框移动位置 | 拖动四个角调整大小 | WASD键精确微调",
-                        size=12,
-                        color=TEXT_SECONDARY,
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.CROP, size=18, color=ft.Colors.WHITE),
+                            ft.Text("裁剪操作指南", size=15, weight=ft.FontWeight.W_600, color=ft.Colors.WHITE),
+                        ],
+                        spacing=8,
+                        alignment=ft.MainAxisAlignment.START,
                     ),
-                    ft.Text("步长:", size=12, color=TEXT_SECONDARY),
-                    self.fine_tune_input,
-                    ft.Text("px | 支持GIF动画裁剪", size=12, color=TEXT_SECONDARY),
+                    ft.Text(
+                        "点击左侧画布选择图片，拖动蓝色框移动位置，拖动四角调整范围，使用 W / A / S / D 键进行精确微调。",
+                        size=11,
+                        color=ft.Colors.with_opacity(0.9, ft.Colors.WHITE),
+                    ),
+                    ft.Row(
+                        controls=[
+                            create_tip_badge(ft.Icons.PAN_TOOL_ALT, "拖动蓝框移动"),
+                            create_tip_badge(ft.Icons.CROP_FREE, "拖动角点缩放"),
+                            create_tip_badge(ft.Icons.KEYBOARD_ALT, "WASD 精调"),
+                            create_tip_badge(ft.Icons.MOVIE_FILTER, "支持 GIF"),
+                        ],
+                        spacing=6,
+                        wrap=False,
+                        alignment=ft.MainAxisAlignment.START,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Text("WASD 精调步长:", size=11, color=ft.Colors.with_opacity(0.9, ft.Colors.WHITE)),
+                            self.fine_tune_input,
+                            ft.Text("px", size=11, color=ft.Colors.with_opacity(0.9, ft.Colors.WHITE)),
+                        ],
+                        spacing=6,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
                 ],
                 spacing=8,
             ),
-            margin=ft.margin.only(left=4, top=4, bottom=PADDING_MEDIUM),
+            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL + 4),
+            border_radius=BORDER_RADIUS_SMALL,
+            margin=ft.margin.only(bottom=PADDING_MEDIUM - 4),
         )
+        # 更新指南卡片的渐变色
+        self._update_instruction_card_gradient()
         
         # 空状态（占满画布）
+        primary_color: str = self._get_theme_primary_color()
         self.empty_state_widget: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=TEXT_SECONDARY),
-                    ft.Text("选择图片开始裁剪", size=16, color=TEXT_SECONDARY),
+                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=72, color=primary_color),
+                    ft.Text("点击或拖拽图片到这里开始裁剪", size=16, weight=ft.FontWeight.W_500, color=TEXT_PRIMARY),
+                    ft.Text("支持 JPG · PNG · GIF · BMP · WebP", size=12, color=TEXT_SECONDARY),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=PADDING_MEDIUM,
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=PADDING_SMALL,
             ),
-            alignment=ft.alignment.center,  # 在容器中居中
-            expand=True,  # 占满整个 Stack
+            alignment=ft.alignment.center,
+            expand=True,
+            bgcolor=ft.Colors.with_opacity(0.05, primary_color),
+            border_radius=BORDER_RADIUS_MEDIUM,
         )
         
         # 原图显示（居中保持比例，占满整个 Stack）
@@ -322,7 +374,7 @@ class ImageCropView(ft.Container):
         self.canvas_clickable: ft.Container = ft.Container(
             content=self.canvas_stack,
             on_click=self._on_canvas_click,  # 点击选择图片
-            tooltip="点击选择图片",
+            tooltip="点击或拖拽图片到此区域",
         )
         
         # 画布与刻度尺的组合布局
@@ -588,7 +640,7 @@ class ImageCropView(ft.Container):
         # 可滚动内容区域
         scrollable_content = ft.Column(
             controls=[
-                description_text,
+                self.instruction_card,
                 main_row,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
@@ -607,6 +659,86 @@ class ImageCropView(ft.Container):
             spacing=0,
             expand=True,
         )
+
+        # 初始化画布尺寸约束
+        self._update_max_canvas_constraints()
+        self._apply_canvas_dimensions()
+
+    def _get_theme_primary_color(self) -> str:
+        """根据当前主题返回主颜色。"""
+        try:
+            theme = None
+            if self.page.theme_mode == ft.ThemeMode.DARK and self.page.dark_theme:
+                theme = self.page.dark_theme
+            elif self.page.theme:
+                theme = self.page.theme
+
+            if theme and getattr(theme, "color_scheme_seed", None):
+                return theme.color_scheme_seed
+        except Exception:
+            pass
+        return PRIMARY_COLOR
+    
+    def _update_instruction_card_gradient(self) -> None:
+        """更新指南卡片的渐变色（响应主题色变化）。"""
+        primary_color: str = self._get_theme_primary_color()
+        self.instruction_card.gradient = ft.LinearGradient(
+            begin=ft.alignment.center_left,
+            end=ft.alignment.center_right,
+            colors=[
+                ft.Colors.with_opacity(0.85, primary_color),
+                ft.Colors.with_opacity(0.65, primary_color),
+            ],
+        )
+        # 更新空状态的背景色
+        if hasattr(self, 'empty_state_widget'):
+            self.empty_state_widget.bgcolor = ft.Colors.with_opacity(0.05, primary_color)
+    
+    def did_mount(self) -> None:
+        """组件挂载时调用 - 确保主题色正确。"""
+        self._update_instruction_card_gradient()
+        try:
+            self.page.update()
+        except:
+            pass
+
+    def _update_max_canvas_constraints(self) -> None:
+        """根据窗口大小更新画布的最大宽高限制。"""
+        window_width: int = int(self.page.width or WINDOW_WIDTH)
+        window_height: int = int(self.page.height or WINDOW_HEIGHT)
+
+        # 左侧区域大约占比 62%，减去外边距和安全余量
+        available_width: int = int(window_width * 0.62)
+        available_width -= (PADDING_XLARGE * 2 + PADDING_LARGE * 2 + 60)
+        available_width = max(360, min(available_width, 900))
+
+        # 垂直方向扣除上下边距、标题和按钮区域
+        available_height: int = window_height - (PADDING_XLARGE * 2 + 220)
+        available_height = max(320, min(available_height, 720))
+
+        self.max_canvas_width = available_width
+        self.max_canvas_height = available_height
+
+    def _apply_canvas_dimensions(self) -> None:
+        """将当前画布尺寸应用到相关组件，并确保不超界。"""
+        self.canvas_width = max(240, min(self.canvas_width, self.max_canvas_width))
+        self.canvas_height = max(200, min(self.canvas_height, self.max_canvas_height))
+
+        # 更新画布及相关容器尺寸
+        self.canvas_stack.width = self.canvas_width
+        self.canvas_stack.height = self.canvas_height
+        self.crop_canvas.width = self.canvas_width
+        self.crop_canvas.height = self.canvas_height
+        self.original_image_widget.width = self.canvas_width
+        self.original_image_widget.height = self.canvas_height
+
+        # 尺寸包含刻度尺占用空间
+        self.canvas_with_rulers.width = self.canvas_width + 30
+        self.canvas_with_rulers.height = self.canvas_height + 20
+
+        # 包裹容器需要考虑 padding
+        self.canvas_container.width = self.canvas_width + PADDING_LARGE * 2 + 30
+        self.canvas_container.height = self.canvas_height + PADDING_LARGE * 2 + 20
     
     def _calculate_canvas_size(self, img_width: int, img_height: int) -> tuple[int, int]:
         """计算合适的画布尺寸（适配图片大小但不超出最大限制）。
@@ -679,20 +811,13 @@ class ImageCropView(ft.Container):
             
             # 获取图片尺寸
             img_w, img_h = self.original_image.width, self.original_image.height
-            
+ 
+            # 根据当前窗口更新画布限制
+            self._update_max_canvas_constraints()
             # 计算合适的画布尺寸
             self.canvas_width, self.canvas_height = self._calculate_canvas_size(img_w, img_h)
-            
-            # 更新 Stack 尺寸（确保裁剪框可以正确定位）
-            self.canvas_stack.width = self.canvas_width
-            self.canvas_stack.height = self.canvas_height
-            self.crop_canvas.width = self.canvas_width
-            self.crop_canvas.height = self.canvas_height
-            
-            # 更新原图组件的尺寸（确保图片随容器缩放）
-            self.original_image_widget.width = self.canvas_width
-            self.original_image_widget.height = self.canvas_height
-            
+            self._apply_canvas_dimensions()
+ 
             # 显示原图（GIF 需要保存临时帧）
             if self.is_animated_gif:
                 # 保存当前帧为临时文件
@@ -1347,42 +1472,20 @@ class ImageCropView(ft.Container):
     
     def _on_window_resize(self, e: ft.ControlEvent) -> None:
         """窗口大小变化时的处理。"""
-        # 如果已选择图片，重新计算画布尺寸
-        if self.original_image:
-            try:
+        # 更新最大画布尺寸
+        self._update_max_canvas_constraints()
+        try:
+            if self.original_image:
                 img_w, img_h = self.original_image.width, self.original_image.height
-                
-                # 根据新窗口大小计算合适的画布尺寸
-                # 窗口宽度变化时，调整最大画布尺寸
-                window_width = self.page.width or 1070
-                window_height = self.page.height or 700
-                
-                # 左侧区域大约占窗口宽度的 2/3（因为 expand=2）
-                # 减去边距和右侧区域后的可用空间
-                available_width = int((window_width * 2 / 3) - 100)  # 预留边距
-                available_height = int(window_height - 200)  # 预留顶部和底部空间
-                
-                # 更新最大画布尺寸
-                self.max_canvas_width = max(400, min(available_width, 800))
-                self.max_canvas_height = max(300, min(available_height, 700))
-                
-                # 重新计算画布尺寸
                 self.canvas_width, self.canvas_height = self._calculate_canvas_size(img_w, img_h)
-                
-                # 更新所有相关组件的尺寸
-                self.canvas_stack.width = self.canvas_width
-                self.canvas_stack.height = self.canvas_height
-                self.crop_canvas.width = self.canvas_width
-                self.crop_canvas.height = self.canvas_height
-                self.original_image_widget.width = self.canvas_width
-                self.original_image_widget.height = self.canvas_height
-                
-                # 更新裁剪框位置
+            # 无论是否有图片都需要应用尺寸以限制占位
+            self._apply_canvas_dimensions()
+
+            if self.original_image:
                 self._update_crop_box_position()
-                
-                # 更新页面
-                self.page.update()
-            except Exception as ex:
-                # 静默处理，避免影响用户体验
-                pass
+
+            self.page.update()
+        except Exception:
+            # 静默处理，避免影响用户体验
+            pass
 

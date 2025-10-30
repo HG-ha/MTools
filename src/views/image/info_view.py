@@ -210,7 +210,32 @@ class ImageInfoView(ft.Container):
             expand=True,
             scroll=ft.ScrollMode.AUTO,
         )
+ 
+    def _get_theme_primary_color(self) -> str:
+        """获取当前主题的主色。"""
+        try:
+            theme = None
+            if self.page.theme_mode == ft.ThemeMode.DARK and self.page.dark_theme:
+                theme = self.page.dark_theme
+            elif self.page.theme:
+                theme = self.page.theme
+
+            if theme and getattr(theme, "color_scheme_seed", None):
+                return theme.color_scheme_seed
+        except Exception:
+            pass
+        return PRIMARY_COLOR
     
+    def did_mount(self) -> None:
+        """组件挂载时调用 - 确保主题色正确。"""
+        # 如果已经有概览卡片，更新其主题色
+        if hasattr(self, 'summary_section') and self.summary_section:
+            self._update_summary_section_theme()
+            try:
+                self.page.update()
+            except:
+                pass
+
     def _init_empty_state(self) -> None:
         """初始化空状态显示。"""
         empty_hint = ft.Container(
@@ -284,10 +309,11 @@ class ImageInfoView(ft.Container):
         """显示图片信息。"""
         self.info_grid.controls.clear()
 
-        summary_section = self._build_summary_section()
-        if summary_section:
-            summary_section.col = {"sm": 12}
-            self.info_grid.controls.append(summary_section)
+        # 构建概览卡片并保存引用
+        self.summary_section = self._build_summary_section()
+        if self.summary_section:
+            self.summary_section.col = {"sm": 12}
+            self.info_grid.controls.append(self.summary_section)
         
         # 基本信息部分
         basic_info_controls = [
@@ -639,6 +665,7 @@ class ImageInfoView(ft.Container):
         if not self.current_info:
             return None
 
+        primary_color: str = self._get_theme_primary_color()
         filename: str = self.current_info.get('filename', '-')
         filepath: str = self.current_info.get('filepath', '-')
         file_size: str = format_file_size(self.current_info.get('file_size', 0))
@@ -654,38 +681,38 @@ class ImageInfoView(ft.Container):
             ("颜色模式", color_mode, ft.Icons.COLOR_LENS),
         ]
 
-        stat_tiles: list[ft.Control] = []
+        # 保存统计瓦片的引用，用于更新主题色
+        self.stat_tiles: list[ft.Container] = []
         for label, value, icon in stats:
-            stat_tiles.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Icon(icon, size=22, color=ft.Colors.WHITE),
-                            ft.Text(label, size=12, color=ft.Colors.with_opacity(0.6, ft.Colors.WHITE)),
-                            ft.Text(value, size=15, weight=ft.FontWeight.W_600, color=ft.Colors.WHITE),
-                        ],
-                        spacing=4,
-                        horizontal_alignment=ft.CrossAxisAlignment.START,
-                    ),
-                    padding=ft.padding.symmetric(horizontal=18, vertical=16),
-                    border_radius=BORDER_RADIUS_MEDIUM,
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_left,
-                        end=ft.alignment.bottom_right,
-                        colors=[
-                            ft.Colors.with_opacity(0.35, PRIMARY_COLOR),
-                            ft.Colors.with_opacity(0.15, PRIMARY_COLOR),
-                        ],
-                    ),
-                    col={"sm": 6, "md": 3, "lg": 3},
-                )
+            tile = ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(icon, size=22, color=ft.Colors.WHITE),
+                        ft.Text(label, size=12, color=ft.Colors.with_opacity(0.6, ft.Colors.WHITE)),
+                        ft.Text(value, size=15, weight=ft.FontWeight.W_600, color=ft.Colors.WHITE),
+                    ],
+                    spacing=4,
+                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                ),
+                padding=ft.padding.symmetric(horizontal=18, vertical=16),
+                border_radius=BORDER_RADIUS_MEDIUM,
+                col={"sm": 6, "md": 3, "lg": 3},
             )
+            self.stat_tiles.append(tile)
 
         stats_row = ft.ResponsiveRow(
-            controls=stat_tiles,
+            controls=self.stat_tiles,
             spacing=PADDING_SMALL,
             run_spacing=PADDING_SMALL,
             alignment=ft.MainAxisAlignment.START,
+        )
+
+        # 保存复制按钮的引用
+        self.copy_path_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            tooltip="复制路径",
+            icon_color=ft.Colors.WHITE,
+            on_click=lambda e, value=filepath: self._copy_to_clipboard(value),
         )
 
         header_row = ft.Row(
@@ -704,17 +731,7 @@ class ImageInfoView(ft.Container):
                     spacing=6,
                     expand=True,
                 ),
-                ft.IconButton(
-                    icon=ft.Icons.CONTENT_COPY,
-                    tooltip="复制路径",
-                    icon_color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        padding=10,
-                        bgcolor=ft.Colors.with_opacity(0.2, PRIMARY_COLOR),
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                    on_click=lambda e, value=filepath: self._copy_to_clipboard(value),
-                ),
+                self.copy_path_button,
             ],
             alignment=ft.MainAxisAlignment.START,
         )
@@ -730,18 +747,57 @@ class ImageInfoView(ft.Container):
             ),
             padding=PADDING_LARGE,
             border_radius=BORDER_RADIUS_MEDIUM,
-            gradient=ft.LinearGradient(
-                begin=ft.alignment.top_left,
-                end=ft.alignment.bottom_right,
-                colors=[
-                    ft.Colors.with_opacity(0.55, PRIMARY_COLOR),
-                    ft.Colors.with_opacity(0.35, PRIMARY_COLOR),
-                ],
-            ),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.4, PRIMARY_COLOR)),
         )
+        
+        # 更新概览卡片的主题色
+        self._update_summary_section_theme(summary_section)
 
         return summary_section
+    
+    def _update_summary_section_theme(self, summary_section: Optional[ft.Container] = None) -> None:
+        """更新概览卡片的主题色。
+        
+        Args:
+            summary_section: 概览卡片容器，如果为None则使用保存的引用
+        """
+        if summary_section is None:
+            summary_section = getattr(self, 'summary_section', None)
+        
+        if not summary_section:
+            return
+        
+        primary_color: str = self._get_theme_primary_color()
+        
+        # 更新主容器的渐变和边框
+        summary_section.gradient = ft.LinearGradient(
+            begin=ft.alignment.top_left,
+            end=ft.alignment.bottom_right,
+            colors=[
+                ft.Colors.with_opacity(0.55, primary_color),
+                ft.Colors.with_opacity(0.35, primary_color),
+            ],
+        )
+        summary_section.border = ft.border.all(1, ft.Colors.with_opacity(0.4, primary_color))
+        
+        # 更新统计瓦片的渐变
+        if hasattr(self, 'stat_tiles'):
+            for tile in self.stat_tiles:
+                tile.gradient = ft.LinearGradient(
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right,
+                    colors=[
+                        ft.Colors.with_opacity(0.35, primary_color),
+                        ft.Colors.with_opacity(0.15, primary_color),
+                    ],
+                )
+        
+        # 更新复制按钮的样式
+        if hasattr(self, 'copy_path_button'):
+            self.copy_path_button.style = ft.ButtonStyle(
+                padding=10,
+                bgcolor=ft.Colors.with_opacity(0.2, primary_color),
+                shape=ft.RoundedRectangleBorder(radius=8),
+            )
 
     def _create_section_title(self, title: str, icon: str) -> ft.Row:
         """创建分组标题。
