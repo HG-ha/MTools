@@ -10,11 +10,14 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
 from PIL import Image
+
+from models import GifAdjustmentOptions
+from utils import GifUtils
 
 
 class ImageService:
@@ -461,6 +464,112 @@ class ImageService:
             print(f"尺寸调整失败: {e}")
             return False
     
+    def adjust_gif(
+        self,
+        input_path: Path,
+        output_path: Path,
+        options: GifAdjustmentOptions
+    ) -> Tuple[bool, str]:
+        """根据配置调整 GIF 动画。
+
+        Args:
+            input_path: 源 GIF 文件路径
+            output_path: 输出 GIF 文件路径
+            options: 调整配置
+
+        Returns:
+            (是否成功, 描述信息)
+        """
+        if input_path.suffix.lower() != ".gif":
+            return False, "仅支持 GIF 格式文件"
+
+        frames, durations, original_loop = GifUtils.load_frames_with_metadata(input_path)
+        if not frames:
+            return False, "未能读取 GIF 帧数据"
+
+        total_frames = len(frames)
+        # 处理截取范围
+        start_index = max(0, options.trim_start or 0)
+        end_index = options.trim_end if options.trim_end is not None else total_frames - 1
+        end_index = max(start_index, min(total_frames - 1, end_index))
+
+        frames = frames[start_index:end_index + 1]
+        durations = durations[start_index:end_index + 1]
+
+        if not frames:
+            return False, "截取范围无有效帧"
+
+        # 按步长保留帧
+        if options.drop_every_n > 1:
+            frames, durations = self._drop_frames_with_step(frames, durations, options.drop_every_n)
+            if not frames:
+                return False, "跳帧设置导致无有效帧"
+
+        # 反转帧顺序
+        if options.reverse_order:
+            frames.reverse()
+            durations.reverse()
+
+        # 调整播放速度
+        speed_factor = options.speed_factor if options.speed_factor > 0 else 1.0
+        if abs(speed_factor - 1.0) > 0.001:
+            # 计算新的帧持续时间
+            # 注意：GIF 格式的帧延迟最小单位是 10ms (1/100秒)
+            # 但我们仍然允许更小的值，由 GIF 编码器处理取整
+            durations = [max(2, int(round(duration / speed_factor))) for duration in durations]
+
+        # 设定封面帧（首帧）
+        if options.cover_frame_index is not None and frames:
+            relative_index = options.cover_frame_index
+            relative_index = max(0, min(len(frames) - 1, relative_index))
+            if relative_index != 0:
+                frames = frames[relative_index:] + frames[:relative_index]
+                durations = durations[relative_index:] + durations[:relative_index]
+
+        loop_value = options.loop if options.loop is not None else original_loop
+        loop_value = max(0, loop_value)
+
+        success = GifUtils.save_frames_to_gif(frames, durations, output_path, loop=loop_value)
+        if not success:
+            return False, "保存 GIF 失败"
+
+        return True, f"GIF 调整完成，共 {len(frames)} 帧"
+
+    @staticmethod
+    def _drop_frames_with_step(
+        frames: List[Image.Image],
+        durations: List[int],
+        step: int
+    ) -> Tuple[List[Image.Image], List[int]]:
+        """按照指定步长保留帧并累加持续时间。
+
+        Args:
+            frames: 原始帧列表
+            durations: 原始持续时间列表
+            step: 保留步长
+
+        Returns:
+            (新的帧列表, 新的持续时间列表)
+        """
+        if step <= 1:
+            return frames, durations
+
+        new_frames: List[Image.Image] = []
+        new_durations: List[int] = []
+        accumulated = 0
+
+        for index, (frame, duration) in enumerate(zip(frames, durations)):
+            accumulated += duration
+            if index % step == 0:
+                new_frames.append(frame)
+                new_durations.append(accumulated)
+                accumulated = 0
+
+        if accumulated > 0 and new_durations:
+            new_durations[-1] += accumulated
+
+        return new_frames, new_durations
+
     def get_detailed_image_info(self, image_path: Path) -> dict:
         """获取详细的图片信息，包括EXIF、DPI、色彩统计等专业数据。
         

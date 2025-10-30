@@ -195,6 +195,77 @@ class GifUtils:
         return durations
     
     @staticmethod
+    def load_frames_with_metadata(image_path: Path) -> Tuple[List[Image.Image], List[int], int]:
+        """加载 GIF 的所有帧及元数据。
+        
+        Args:
+            image_path: GIF 图片路径
+        
+        Returns:
+            (帧列表, 持续时间列表, 循环次数)
+        """
+        frames: List[Image.Image] = []
+        durations: List[int] = []
+        loop: int = 0
+        try:
+            with Image.open(image_path) as img:
+                frame_count = GifUtils.get_frame_count(image_path)
+                loop = int(img.info.get('loop', 0) or 0)
+                for index in range(frame_count):
+                    try:
+                        img.seek(index)
+                        frame = img.convert('RGBA').copy()
+                        duration = int(img.info.get('duration', 100) or 100)
+                        frames.append(frame)
+                        # GIF 格式最小单位是 10ms，保持原始值
+                        durations.append(max(duration, 10))
+                    except Exception:
+                        continue
+        except Exception as exc:  # pragma: no cover - 日志输出
+            print(f"加载 GIF 元数据失败: {exc}")
+        return frames, durations, loop
+    
+    @staticmethod
+    def save_frames_to_gif(
+        frames: List[Image.Image],
+        durations: List[int],
+        output_path: Path,
+        loop: int = 0
+    ) -> bool:
+        """将帧序列保存为 GIF 文件。
+        
+        Args:
+            frames: 帧图像列表
+            durations: 每帧持续时间（毫秒）
+            output_path: 输出 GIF 路径
+            loop: 循环次数（0 表示无限循环）
+        
+        Returns:
+            是否保存成功
+        """
+        if not frames:
+            return False
+        # 确保持续时间数量与帧一致
+        if len(durations) != len(frames):
+            durations = [durations[0]] * len(frames) if durations else [100] * len(frames)
+        try:
+            first_frame = frames[0]
+            append_frames = frames[1:]
+            first_frame.save(
+                output_path,
+                save_all=True,
+                append_images=append_frames,
+                duration=durations,
+                loop=loop,
+                disposal=2,
+                optimize=True,
+            )
+            return True
+        except Exception as exc:  # pragma: no cover - 日志输出
+            print(f"保存 GIF 失败: {exc}")
+            return False
+    
+    @staticmethod
     def save_frame_as_image(
         image_path: Path,
         output_path: Path,

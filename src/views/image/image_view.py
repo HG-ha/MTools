@@ -19,6 +19,7 @@ from views.image.background_view import ImageBackgroundView
 from views.image.compress_view import ImageCompressView
 from views.image.crop_view import ImageCropView
 from views.image.format_view import ImageFormatView
+from views.image.gif_adjustment_view import GifAdjustmentView
 from views.image.info_view import ImageInfoView
 from views.image.puzzle import ImagePuzzleView
 from views.image.resize_view import ImageResizeView
@@ -66,6 +67,7 @@ class ImageView(ft.Container):
         self.puzzle_view: Optional[ImagePuzzleView] = None
         self.crop_view: Optional[ImageCropView] = None
         self.info_view: Optional[ImageInfoView] = None
+        self.gif_adjustment_view: Optional[GifAdjustmentView] = None
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -126,6 +128,13 @@ class ImageView(ft.Container):
                     description="查看图片详细信息和EXIF数据",
                     gradient_colors=("#FFA8A8", "#FCFF82"),
                     on_click=self._open_info_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.GIF_BOX,
+                    title="GIF 调整",
+                    description="调整 GIF 首帧、速度、循环等参数",
+                    gradient_colors=("#FF9A9E", "#FAD0C4"),
+                    on_click=self._open_gif_adjustment_dialog,
                 ),
             ],
             wrap=True,  # 自动换行
@@ -342,6 +351,32 @@ class ImageView(ft.Container):
         
         # 切换到信息查看视图
         self.parent_container.content = self.info_view
+        self.parent_container.update()
+    
+    def _open_gif_adjustment_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到 GIF 调整工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建 GIF 调整视图（如果还没创建）
+        if not self.gif_adjustment_view:
+            self.gif_adjustment_view = GifAdjustmentView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.gif_adjustment_view
+        
+        # 切换到 GIF 调整视图
+        self.parent_container.content = self.gif_adjustment_view
         self.parent_container.update()
     
     def _back_to_main(self) -> None:

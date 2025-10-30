@@ -10,6 +10,7 @@ from views.image.resize_view import ImageResizeView
 from views.image.format_view import ImageFormatView
 from views.image.background_view import ImageBackgroundView
 from views.image.crop_view import ImageCropView
+from views.image.gif_adjustment_view import GifAdjustmentView
 from views.image.puzzle import ImagePuzzleView, ImagePuzzleSplitView, ImagePuzzleMergeView
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     'ImageFormatView',
     'ImageBackgroundView',
     'ImageCropView',
+    'GifAdjustmentView',
     'ImagePuzzleView',
     'ImagePuzzleSplitView',
     'ImagePuzzleMergeView',
