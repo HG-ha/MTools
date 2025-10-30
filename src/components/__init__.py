@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """UI组件模块初始化文件。"""
 
 from .custom_title_bar import CustomTitleBar

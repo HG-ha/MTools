@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Python终端视图模块。
 
 提供交互式Python终端功能，可调用内嵌的Python解释器。

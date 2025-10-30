@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """常量模块初始化文件。"""
 
 from .app_config import (

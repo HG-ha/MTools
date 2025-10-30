@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """工具函数模块初始化文件。"""
 
 from .file_utils import (
