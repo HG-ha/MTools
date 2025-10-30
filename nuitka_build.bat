@@ -8,7 +8,6 @@ python -m nuitka ^
     --file-description="Multi-functional desktop application" ^
     --company-name="Flet" ^
     --copyright="Copyright (C) 2025 by Flet" ^
-    --enable-plugin=anti-bloat ^
     --assume-yes-for-downloads ^
     --include-data-dir=bin=bin ^
     --include-data-files=bin/windows/mozjpeg/shared/Release/cjpeg.exe=bin/windows/mozjpeg/shared/Release/cjpeg.exe ^

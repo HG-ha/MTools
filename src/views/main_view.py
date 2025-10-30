@@ -51,7 +51,7 @@ class MainView(ft.Column):
         # 创建各功能视图
         self.image_view: Optional[ImageView] = None
         self.dev_tools_view: Optional[DevToolsView] = None
-        self.audio_view: AudioView = AudioView(page)
+        self.audio_view: Optional[AudioView] = None
         self.video_view: VideoView = VideoView(page)
         self.settings_view: SettingsView = SettingsView(page, self.config_service)
         
@@ -136,8 +136,9 @@ class MainView(ft.Column):
             height=float('inf'),  # 占满可用高度
         )
         
-        # 创建图片视图和开发工具视图，并传递容器引用
+        # 创建图片视图、音频视图和开发工具视图，并传递容器引用
         self.image_view = ImageView(self.page, self.config_service, self.image_service, self.content_container)
+        self.audio_view = AudioView(self.page, self.config_service, self.content_container)
         self.dev_tools_view = DevToolsView(self.page, self.config_service, self.encoding_service, self.content_container)
         
         # 设置初始内容
@@ -181,8 +182,14 @@ class MainView(ft.Column):
                 self.content_container.update()
         elif selected_index == 1:
             view = self.audio_view
-            self.content_container.content = view
-            self.content_container.update()
+            # 尝试恢复音频处理页面的状态
+            restored = False
+            if hasattr(view, 'restore_state'):
+                restored = view.restore_state()
+            
+            if not restored:
+                self.content_container.content = view
+                self.content_container.update()
         elif selected_index == 2:
             view = self.video_view
             self.content_container.content = view

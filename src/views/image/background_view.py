@@ -564,33 +564,40 @@ class ImageBackgroundView(ft.Container):
                 # 确保模型目录存在
                 self._ensure_model_dir()
                 
-                import urllib.request
+                import httpx
                 
-                # 下载文件并显示进度
-                def report_progress(block_num, block_size, total_size):
-                    downloaded = block_num * block_size
-                    if total_size > 0:
-                        percent = min(downloaded * 100 / total_size, 100)
-                        progress = percent / 100
-                        
-                        # 格式化文件大小
-                        downloaded_mb = downloaded / (1024 * 1024)
-                        total_mb = total_size / (1024 * 1024)
-                        
-                        # 更新进度条和文本
-                        self.progress_bar.value = progress
-                        self.progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({percent:.1f}%)"
-                        self.model_status_text.value = f"正在下载模型... {percent:.1f}%"
-                        
-                        try:
-                            self.progress_bar.update()
-                            self.progress_text.update()
-                            self.model_status_text.update()
-                        except:
-                            pass
-                
-                # 使用当前选择的模型URL
-                urllib.request.urlretrieve(self.current_model.url, self.model_path, reporthook=report_progress)
+                # 使用 httpx 流式下载
+                with httpx.stream("GET", self.current_model.url, follow_redirects=True) as response:
+                    response.raise_for_status()
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(self.model_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                
+                                if total_size > 0:
+                                    percent = min(downloaded * 100 / total_size, 100)
+                                    progress = percent / 100
+                                    
+                                    # 格式化文件大小
+                                    downloaded_mb = downloaded / (1024 * 1024)
+                                    total_mb = total_size / (1024 * 1024)
+                                    
+                                    # 更新进度条和文本
+                                    self.progress_bar.value = progress
+                                    self.progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({percent:.1f}%)"
+                                    self.model_status_text.value = f"正在下载模型... {percent:.1f}%"
+                                    
+                                    try:
+                                        self.progress_bar.update()
+                                        self.progress_text.update()
+                                        self.model_status_text.update()
+                                    except:
+                                        pass
                 
                 # 下载完成，隐藏进度条
                 self.progress_bar.visible = False
