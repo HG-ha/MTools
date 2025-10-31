@@ -140,8 +140,8 @@ class ImageView(ft.Container):
                 ),
                 FeatureCard(
                     icon=ft.Icons.GIF_BOX,
-                    title="GIF 调整",
-                    description="调整 GIF 首帧、速度、循环等参数",
+                    title="GIF/Live Photo 编辑",
+                    description="调整 GIF / 实况图的速度、循环等参数，支持导出为视频",
                     gradient_colors=("#FF9A9E", "#FAD0C4"),
                     on_click=self._open_gif_adjustment_dialog,
                 ),
@@ -402,7 +402,8 @@ class ImageView(ft.Container):
                 self.page,
                 self.config_service,
                 self.image_service,
-                on_back=self._back_to_main
+                on_back=self._back_to_main,
+                parent_container=self.parent_container
             )
         
         # 记录当前子视图
