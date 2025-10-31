@@ -592,6 +592,9 @@ class ImageService:
                 md5_hash = hashlib.md5(file_data).hexdigest()
                 sha256_hash = hashlib.sha256(file_data).hexdigest()
             
+            # 检测实况图信息
+            live_photo_info = self._detect_live_photo(image_path, file_data)
+            
             with Image.open(image_path) as img:
                 # 基本信息
                 info = {
@@ -723,10 +726,9 @@ class ImageService:
                             tag = ExifTags.TAGS.get(tag_id, tag_id)
                             # 转换特殊类型为字符串
                             if isinstance(value, bytes):
-                                try:
-                                    value = value.decode('utf-8', errors='ignore')
-                                except:
-                                    value = str(value)
+                                # 尝试多种编码方式解码字节数据
+                                decoded_value = self._decode_exif_bytes(value)
+                                value = decoded_value
                             exif_data[str(tag)] = value
                             
                             # 提取GPS信息
@@ -801,9 +803,75 @@ class ImageService:
                 # 其他元数据
                 info['info'] = dict(img.info)
                 
+                # 添加实况图信息
+                if live_photo_info:
+                    info['live_photo'] = live_photo_info
+                
                 return info
         except Exception as e:
             return {'error': str(e)}
+    
+    def _decode_exif_bytes(self, data: bytes) -> str:
+        """智能解码 EXIF 字节数据。
+        
+        尝试多种编码方式解码 EXIF 中的字节数据。
+        
+        Args:
+            data: 字节数据
+        
+        Returns:
+            解码后的字符串
+        """
+        if not data:
+            return ''
+        
+        # 去除尾部的空字节
+        data = data.rstrip(b'\x00')
+        
+        if not data:
+            return ''
+        
+        # 尝试的编码列表（按优先级排序）
+        encodings = [
+            'utf-8',
+            'ascii',
+            'gbk',          # 中文 Windows 常用
+            'gb2312',       # 简体中文
+            'gb18030',      # 中文超集
+            'big5',         # 繁体中文
+            'shift_jis',    # 日文
+            'euc-kr',       # 韩文
+            'iso-8859-1',   # 西欧语言
+            'cp1252',       # Windows 西欧
+        ]
+        
+        # 尝试每种编码
+        for encoding in encodings:
+            try:
+                decoded = data.decode(encoding)
+                # 检查解码后的字符串是否包含有效字符
+                # 过滤掉只包含控制字符的结果
+                if decoded and any(c.isprintable() or c.isspace() for c in decoded):
+                    # 清理字符串：移除首尾空白和不可打印字符
+                    cleaned = ''.join(c for c in decoded if c.isprintable() or c.isspace())
+                    cleaned = cleaned.strip()
+                    if cleaned:
+                        return cleaned
+            except (UnicodeDecodeError, LookupError):
+                continue
+        
+        # 如果所有编码都失败，返回可打印的 ASCII 字符
+        # 或者返回十六进制表示
+        try:
+            # 尝试只提取 ASCII 可打印字符
+            ascii_chars = ''.join(chr(b) for b in data if 32 <= b < 127)
+            if ascii_chars:
+                return ascii_chars.strip()
+        except:
+            pass
+        
+        # 最后的选择：返回十六进制表示
+        return f"<binary: {data[:20].hex()}...>" if len(data) > 20 else f"<binary: {data.hex()}>"
     
     def _get_mode_description(self, mode: str) -> str:
         """获取颜色模式描述。
@@ -857,6 +925,447 @@ class ImageService:
             return decimal
         except:
             return 0.0
+    
+    def _detect_live_photo(self, image_path: Path, file_data: bytes) -> Optional[dict]:
+        """检测是否为实况图（Live Photo / Motion Photo）。
+        
+        Args:
+            image_path: 图片路径
+            file_data: 图片文件数据
+        
+        Returns:
+            实况图信息字典，如果不是实况图则返回None
+        """
+        live_info = {}
+        
+        # 检测 Android Motion Photo (Google Pixel 等)
+        android_motion = self._detect_android_motion_photo(image_path, file_data)
+        if android_motion:
+            live_info.update(android_motion)
+        
+        # 检测 iPhone Live Photo
+        iphone_live = self._detect_iphone_live_photo(image_path, file_data)
+        if iphone_live:
+            live_info.update(iphone_live)
+        
+        # 检测 Samsung Motion Photo
+        samsung_motion = self._detect_samsung_motion_photo(file_data)
+        if samsung_motion:
+            live_info.update(samsung_motion)
+        
+        return live_info if live_info else None
+    
+    def _detect_android_motion_photo(self, image_path: Path, file_data: bytes) -> Optional[dict]:
+        """检测 Android Motion Photo（Google Pixel 等设备）。
+        
+        Args:
+            image_path: 图片路径
+            file_data: 图片文件数据
+        
+        Returns:
+            Motion Photo 信息字典，如果不是则返回None
+        """
+        try:
+            import re
+            
+            # 方法1: 直接在文件数据中搜索 XMP 元数据
+            # JPEG 文件中 XMP 数据通常在 APP1 段中
+            xmp_data = None
+            
+            # 搜索 XMP 包标记
+            xmp_start_marker = b'<x:xmpmeta'
+            xmp_end_marker = b'</x:xmpmeta>'
+            
+            if xmp_start_marker in file_data:
+                xmp_start_pos = file_data.find(xmp_start_marker)
+                xmp_end_pos = file_data.find(xmp_end_marker, xmp_start_pos)
+                
+                if xmp_end_pos > xmp_start_pos:
+                    xmp_data = file_data[xmp_start_pos:xmp_end_pos + len(xmp_end_marker)].decode('utf-8', errors='ignore')
+            
+            # 方法2: 使用 Pillow 读取 XMP（作为备选）
+            if not xmp_data:
+                try:
+                    with Image.open(image_path) as img:
+                        if hasattr(img, 'info') and 'XML:com.adobe.xmp' in img.info:
+                            xmp_data_raw = img.info['XML:com.adobe.xmp']
+                            if isinstance(xmp_data_raw, bytes):
+                                xmp_data = xmp_data_raw.decode('utf-8', errors='ignore')
+                            else:
+                                xmp_data = xmp_data_raw
+                except:
+                    pass
+            
+            # 如果找到 XMP 数据，检查是否包含 MotionPhoto 标记
+            if xmp_data and ('MotionPhoto' in xmp_data or 'MicroVideo' in xmp_data or 'GCamera' in xmp_data):
+                info = {
+                    'type': 'Android Motion Photo',
+                    'is_live_photo': True,
+                    'platform': 'Android (Google)',
+                }
+                
+                # 查找 MicroVideo 偏移量
+                micro_video_match = re.search(r'GCamera:MicroVideoOffset="(\d+)"', xmp_data)
+                if micro_video_match:
+                    offset = int(micro_video_match.group(1))
+                    info['video_offset'] = offset
+                    info['video_size'] = offset
+                
+                # 查找 MicroVideo 版本
+                version_match = re.search(r'GCamera:MicroVideoVersion="(\d+)"', xmp_data)
+                if version_match:
+                    info['micro_video_version'] = version_match.group(1)
+                
+                # 查找 MotionPhoto 版本
+                motion_version_match = re.search(r'GCamera:MotionPhotoVersion="(\d+)"', xmp_data)
+                if motion_version_match:
+                    info['motion_photo_version'] = motion_version_match.group(1)
+                
+                # 查找 MotionPhotoPresentationTimestampUs (用于同步)
+                timestamp_match = re.search(r'GCamera:MotionPhotoPresentationTimestampUs="(\d+)"', xmp_data)
+                if timestamp_match:
+                    info['presentation_timestamp'] = timestamp_match.group(1)
+                
+                # 尝试检测嵌入的视频
+                if 'video_offset' in info:
+                    video_start = len(file_data) - info['video_offset']
+                    if video_start > 0 and video_start < len(file_data):
+                        video_data = file_data[video_start:]
+                        # 检查是否是 MP4 视频
+                        if (len(video_data) >= 8 and 
+                            (video_data[:4] == b'\x00\x00\x00\x18' or 
+                             video_data[:4] == b'\x00\x00\x00\x1c' or
+                             video_data[4:8] == b'ftyp')):
+                            info['has_embedded_video'] = True
+                            info['embedded_video_format'] = 'MP4'
+                else:
+                    # 即使没有偏移量，也尝试搜索嵌入的视频
+                    # 搜索 MP4 文件头
+                    mp4_signature = b'ftyp'
+                    last_ftyp_pos = file_data.rfind(mp4_signature)
+                    
+                    if last_ftyp_pos > 0 and last_ftyp_pos > len(file_data) * 0.5:  # 在文件后半部分
+                        # 回退到大小字段（ftyp 前面4字节）
+                        video_start = last_ftyp_pos - 4
+                        if video_start > 0:
+                            info['video_offset'] = len(file_data) - video_start
+                            info['video_size'] = len(file_data) - video_start
+                            info['has_embedded_video'] = True
+                            info['embedded_video_format'] = 'MP4'
+                            info['detection_method'] = 'File signature search'
+                
+                return info
+            
+            # 方法3: 检查 EXIF 中的 MakerNote
+            try:
+                with Image.open(image_path) as img:
+                    from PIL import ExifTags
+                    exif = img._getexif()
+                    if exif:
+                        for tag_id, value in exif.items():
+                            tag = ExifTags.TAGS.get(tag_id, tag_id)
+                            if tag == 'MakerNote' and isinstance(value, bytes):
+                                value_str = value.decode('utf-8', errors='ignore')
+                                if 'MotionPhoto' in value_str or 'MicroVideo' in value_str:
+                                    return {
+                                        'type': 'Android Motion Photo',
+                                        'is_live_photo': True,
+                                        'platform': 'Android',
+                                        'detection_method': 'EXIF MakerNote'
+                                    }
+            except:
+                pass
+            
+            return None
+        except Exception as e:
+            print(f"检测 Android Motion Photo 失败: {e}")
+            return None
+    
+    def _detect_iphone_live_photo(self, image_path: Path, file_data: bytes) -> Optional[dict]:
+        """检测 iPhone Live Photo。
+        
+        Args:
+            image_path: 图片路径
+            file_data: 图片文件数据
+        
+        Returns:
+            Live Photo 信息字典，如果不是则返回None
+        """
+        try:
+            with Image.open(image_path) as img:
+                # 检查 HEIC/HEIF 格式（iPhone 常用）
+                is_heic = img.format in ('HEIF', 'HEIC')
+                
+                # 检查是否有 Apple MakerNote
+                try:
+                    from PIL import ExifTags
+                    exif = img._getexif()
+                    if exif:
+                        for tag_id, value in exif.items():
+                            tag = ExifTags.TAGS.get(tag_id, tag_id)
+                            
+                            # 检查 MakerNote 中的 Apple 标记
+                            if tag == 'MakerNote' and isinstance(value, bytes):
+                                # Apple 的 MakerNote 包含特定标识
+                                if b'Apple iOS' in value or b'Apple' in value[:20]:
+                                    # 检查是否有 Live Photo 标识
+                                    # Apple 在 MakerNote 中使用特定的标记
+                                    info = {
+                                        'type': 'iPhone Live Photo',
+                                        'is_live_photo': True,
+                                        'platform': 'iOS (iPhone/iPad)',
+                                    }
+                                    
+                                    if is_heic:
+                                        info['format'] = 'HEIC'
+                                    else:
+                                        info['format'] = 'JPEG'
+                                    
+                                    # Live Photo 通常有对应的 MOV 文件
+                                    # 检查同目录下是否有对应的视频文件
+                                    video_extensions = ['.MOV', '.mov', '.MP4', '.mp4']
+                                    base_name = image_path.stem
+                                    
+                                    for ext in video_extensions:
+                                        video_path = image_path.parent / (base_name + ext)
+                                        if video_path.exists():
+                                            info['has_companion_video'] = True
+                                            info['companion_video_path'] = str(video_path)
+                                            info['companion_video_size'] = video_path.stat().st_size
+                                            break
+                                    else:
+                                        info['has_companion_video'] = False
+                                    
+                                    return info
+                            
+                            # 检查 QuickTime 相关标签（Live Photo 的标识）
+                            if tag == 'Software' and isinstance(value, str):
+                                if 'iOS' in value or 'iPhone' in value:
+                                    # 可能是 iPhone 拍摄的照片，检查其他标记
+                                    pass
+                except:
+                    pass
+                
+                # 检查文件元数据中的 QuickTime 标识
+                # HEIC 文件内部包含 QuickTime 容器，Live Photo 会有特殊标记
+                if is_heic:
+                    # 搜索文件中的 Live Photo 标识符
+                    # Apple 使用 "com.apple.quicktime.content.identifier" 作为 Live Photo 标识
+                    if b'com.apple.quicktime' in file_data or b'LivePhoto' in file_data:
+                        info = {
+                            'type': 'iPhone Live Photo (Possible)',
+                            'is_live_photo': True,
+                            'platform': 'iOS (iPhone/iPad)',
+                            'format': 'HEIC',
+                            'detection_method': 'File metadata'
+                        }
+                        
+                        # 检查对应的视频文件
+                        video_extensions = ['.MOV', '.mov']
+                        base_name = image_path.stem
+                        
+                        for ext in video_extensions:
+                            video_path = image_path.parent / (base_name + ext)
+                            if video_path.exists():
+                                info['has_companion_video'] = True
+                                info['companion_video_path'] = str(video_path)
+                                info['companion_video_size'] = video_path.stat().st_size
+                                break
+                        else:
+                            info['has_companion_video'] = False
+                        
+                        return info
+            
+            return None
+        except Exception as e:
+            print(f"检测 iPhone Live Photo 失败: {e}")
+            return None
+    
+    def _detect_samsung_motion_photo(self, file_data: bytes) -> Optional[dict]:
+        """检测 Samsung Motion Photo。
+        
+        Args:
+            file_data: 图片文件数据
+        
+        Returns:
+            Motion Photo 信息字典，如果不是则返回None
+        """
+        try:
+            # Samsung Motion Photo 在 JPG 文件末尾嵌入视频
+            # 通过搜索特定的标记来检测
+            
+            # Samsung 使用 SEFT (Samsung Embedded File Tags)
+            if b'MotionPhoto_Data' in file_data or b'SEFT' in file_data:
+                info = {
+                    'type': 'Samsung Motion Photo',
+                    'is_live_photo': True,
+                    'platform': 'Android (Samsung)',
+                }
+                
+                # 尝试查找视频部分
+                # Samsung 通常在文件末尾嵌入 MP4
+                # 搜索 MP4 文件头
+                mp4_signature = b'\x00\x00\x00\x1cftyp'
+                if mp4_signature in file_data:
+                    video_start = file_data.rfind(mp4_signature)
+                    if video_start > 0:
+                        info['has_embedded_video'] = True
+                        info['embedded_video_format'] = 'MP4'
+                        info['video_offset'] = len(file_data) - video_start
+                        info['video_size'] = len(file_data) - video_start
+                else:
+                    # 尝试其他 MP4 签名
+                    mp4_signatures = [b'ftypisom', b'ftypmp42', b'ftypMSNV']
+                    for sig in mp4_signatures:
+                        if sig in file_data:
+                            video_start = file_data.rfind(sig) - 4  # 减去前4字节的大小字段
+                            if video_start > 0:
+                                info['has_embedded_video'] = True
+                                info['embedded_video_format'] = 'MP4'
+                                info['video_offset'] = len(file_data) - video_start
+                                info['video_size'] = len(file_data) - video_start
+                                break
+                
+                return info
+            
+            return None
+        except Exception as e:
+            print(f"检测 Samsung Motion Photo 失败: {e}")
+            return None
+    
+    def debug_live_photo_detection(self, image_path: Path) -> dict:
+        """调试实况图检测（用于开发和测试）。
+        
+        Args:
+            image_path: 图片路径
+        
+        Returns:
+            包含调试信息的字典
+        """
+        debug_info = {
+            'file_size': 0,
+            'has_xmp_marker': False,
+            'has_ftyp_marker': False,
+            'xmp_content': '',
+            'ftyp_positions': [],
+            'file_end_preview': '',
+        }
+        
+        try:
+            with open(image_path, 'rb') as f:
+                file_data = f.read()
+            
+            debug_info['file_size'] = len(file_data)
+            
+            # 检查 XMP 标记
+            if b'<x:xmpmeta' in file_data:
+                debug_info['has_xmp_marker'] = True
+                xmp_start = file_data.find(b'<x:xmpmeta')
+                xmp_end = file_data.find(b'</x:xmpmeta>', xmp_start)
+                if xmp_end > xmp_start:
+                    xmp_content = file_data[xmp_start:xmp_end + 12].decode('utf-8', errors='ignore')
+                    debug_info['xmp_content'] = xmp_content[:1000]  # 前1000字符
+            
+            # 检查 ftyp 标记（MP4 视频）
+            if b'ftyp' in file_data:
+                debug_info['has_ftyp_marker'] = True
+                # 查找所有 ftyp 位置
+                pos = 0
+                while True:
+                    pos = file_data.find(b'ftyp', pos)
+                    if pos == -1:
+                        break
+                    debug_info['ftyp_positions'].append(pos)
+                    pos += 4
+            
+            # 文件末尾预览（最后1KB）
+            if len(file_data) > 1024:
+                end_preview = file_data[-1024:]
+                # 检查是否包含视频标记
+                if b'ftyp' in end_preview or b'mdat' in end_preview or b'moov' in end_preview:
+                    debug_info['file_end_preview'] = f"末尾包含可能的视频数据标记"
+            
+            # 检查其他 Motion Photo 标记
+            debug_info['has_motion_photo_marker'] = b'MotionPhoto' in file_data
+            debug_info['has_micro_video_marker'] = b'MicroVideo' in file_data
+            debug_info['has_gcamera_marker'] = b'GCamera' in file_data
+            
+        except Exception as e:
+            debug_info['error'] = str(e)
+        
+        return debug_info
+    
+    def extract_live_photo_video(self, image_path: Path, output_path: Path) -> Tuple[bool, str]:
+        """从实况图中提取嵌入的视频。
+        
+        Args:
+            image_path: 实况图路径
+            output_path: 输出视频路径
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        try:
+            from utils import format_file_size
+            
+            # 首先检测是否是实况图
+            with open(image_path, 'rb') as f:
+                file_data = f.read()
+            
+            live_info = self._detect_live_photo(image_path, file_data)
+            if not live_info:
+                return False, "这不是实况图"
+            
+            # iPhone Live Photo - 复制配套视频文件
+            if live_info.get('has_companion_video') and live_info.get('companion_video_path'):
+                import shutil
+                companion_path = Path(live_info['companion_video_path'])
+                if companion_path.exists():
+                    shutil.copy2(companion_path, output_path)
+                    return True, f"成功导出配套视频 ({format_file_size(output_path.stat().st_size)})"
+                else:
+                    return False, "配套视频文件不存在"
+            
+            # Android/Samsung Motion Photo - 提取嵌入视频
+            if live_info.get('has_embedded_video') and 'video_offset' in live_info:
+                video_offset = live_info['video_offset']
+                video_start = len(file_data) - video_offset
+                
+                if video_start < 0 or video_start >= len(file_data):
+                    return False, "视频偏移量无效"
+                
+                video_data = file_data[video_start:]
+                
+                # 验证视频数据
+                # MP4 通常以 ftyp 开始
+                if not (video_data[:4] == b'\x00\x00\x00\x18' or 
+                        video_data[:4] == b'\x00\x00\x00\x1c' or
+                        b'ftyp' in video_data[:20]):
+                    # 尝试查找正确的视频开始位置
+                    mp4_signatures = [b'\x00\x00\x00\x1cftyp', b'ftyp']
+                    found = False
+                    for sig in mp4_signatures:
+                        if sig in video_data:
+                            sig_pos = video_data.find(sig)
+                            if sig == b'ftyp':
+                                sig_pos -= 4  # 回退到大小字段
+                            video_data = video_data[sig_pos:]
+                            found = True
+                            break
+                    
+                    if not found:
+                        return False, "无法找到有效的视频数据"
+                
+                # 写入视频文件
+                with open(output_path, 'wb') as f:
+                    f.write(video_data)
+                
+                return True, f"成功提取嵌入视频 ({format_file_size(len(video_data))})"
+            
+            return False, "此实况图不包含可提取的视频"
+        
+        except Exception as e:
+            return False, f"提取视频失败: {e}"
 
 
 class BackgroundRemover:

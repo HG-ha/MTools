@@ -442,6 +442,103 @@ class ImageInfoView(ft.Container):
         color_section.col = {"sm": 12, "md": 6, "lg": 6}
         self.info_grid.controls.append(color_section)
         
+        # 实况图信息（如果是实况图）
+        live_photo_data = self.current_info.get('live_photo', {})
+        if live_photo_data:
+            live_controls = [
+                self._create_section_title("实况图信息", ft.Icons.MOTION_PHOTOS_ON),
+                self._create_info_row("类型", live_photo_data.get('type', '-'), copyable=True),
+                self._create_info_row("平台", live_photo_data.get('platform', '-'), copyable=True),
+            ]
+            
+            # 添加格式信息（如果有）
+            if 'format' in live_photo_data:
+                live_controls.append(
+                    self._create_info_row("照片格式", live_photo_data.get('format', '-'))
+                )
+            
+            # 添加检测方法（如果有）
+            if 'detection_method' in live_photo_data:
+                live_controls.append(
+                    self._create_info_row("检测方法", live_photo_data.get('detection_method', '-'))
+                )
+            
+            # iPhone Live Photo 的配套视频信息
+            if 'has_companion_video' in live_photo_data:
+                has_video = live_photo_data.get('has_companion_video', False)
+                live_controls.append(
+                    self._create_info_row("配套视频", "有" if has_video else "未找到")
+                )
+                if has_video and 'companion_video_path' in live_photo_data:
+                    video_size = format_file_size(live_photo_data.get('companion_video_size', 0))
+                    live_controls.append(
+                        self._create_info_row("视频路径", live_photo_data.get('companion_video_path', '-'), copyable=True)
+                    )
+                    live_controls.append(
+                        self._create_info_row("视频大小", video_size)
+                    )
+            
+            # Android/Samsung 嵌入视频信息
+            if 'has_embedded_video' in live_photo_data:
+                has_embedded = live_photo_data.get('has_embedded_video', False)
+                live_controls.append(
+                    self._create_info_row("嵌入视频", "有" if has_embedded else "无")
+                )
+                if has_embedded:
+                    if 'embedded_video_format' in live_photo_data:
+                        live_controls.append(
+                            self._create_info_row("视频格式", live_photo_data.get('embedded_video_format', '-'))
+                        )
+                    if 'video_offset' in live_photo_data:
+                        offset = live_photo_data.get('video_offset', 0)
+                        live_controls.append(
+                            self._create_info_row("视频偏移", format_file_size(offset))
+                        )
+                    if 'video_size' in live_photo_data:
+                        video_size = format_file_size(live_photo_data.get('video_size', 0))
+                        live_controls.append(
+                            self._create_info_row("视频大小", video_size)
+                        )
+            
+            # Google Motion Photo 版本信息
+            if 'micro_video_version' in live_photo_data:
+                live_controls.append(
+                    self._create_info_row("MicroVideo 版本", live_photo_data.get('micro_video_version', '-'))
+                )
+            if 'motion_photo_version' in live_photo_data:
+                live_controls.append(
+                    self._create_info_row("MotionPhoto 版本", live_photo_data.get('motion_photo_version', '-'))
+                )
+            
+            # 添加导出视频按钮（如果有视频可导出）
+            can_export = (
+                (live_photo_data.get('has_companion_video') and live_photo_data.get('companion_video_path')) or
+                (live_photo_data.get('has_embedded_video') and 'video_offset' in live_photo_data)
+            )
+            
+            if can_export:
+                live_controls.append(ft.Divider(height=1))
+                export_button = ft.ElevatedButton(
+                    "导出视频",
+                    icon=ft.Icons.VIDEO_FILE,
+                    on_click=self._export_live_photo_video,
+                    tooltip="从实况图中导出视频文件"
+                )
+                live_controls.append(export_button)
+            
+            live_section = ft.Container(
+                content=ft.Column(
+                    controls=live_controls,
+                    spacing=PADDING_SMALL,
+                ),
+                padding=PADDING_MEDIUM,
+                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border_radius=BORDER_RADIUS_MEDIUM,
+                bgcolor=ft.Colors.with_opacity(0.05, "#667EEA"),  # 实况图用特殊背景色
+            )
+            live_section.col = {"sm": 12, "md": 6, "lg": 6}
+            self.info_grid.controls.append(live_section)
+        
         # 动画信息（如果是动画）
         if self.current_info.get('is_animated', False):
             animation_section = ft.Container(
@@ -980,6 +1077,41 @@ class ImageInfoView(ft.Container):
             lines.append(f"  标准差: {self.current_info.get('std_deviation', 0)}")
         lines.append("")
         
+        # 实况图信息
+        live_photo_data = self.current_info.get('live_photo', {})
+        if live_photo_data:
+            lines.append("【实况图信息】")
+            lines.append(f"  类型: {live_photo_data.get('type', '-')}")
+            lines.append(f"  平台: {live_photo_data.get('platform', '-')}")
+            if 'format' in live_photo_data:
+                lines.append(f"  照片格式: {live_photo_data.get('format', '-')}")
+            if 'detection_method' in live_photo_data:
+                lines.append(f"  检测方法: {live_photo_data.get('detection_method', '-')}")
+            if 'has_companion_video' in live_photo_data:
+                has_video = live_photo_data.get('has_companion_video', False)
+                lines.append(f"  配套视频: {'有' if has_video else '未找到'}")
+                if has_video and 'companion_video_path' in live_photo_data:
+                    video_size = format_file_size(live_photo_data.get('companion_video_size', 0))
+                    lines.append(f"  视频路径: {live_photo_data.get('companion_video_path', '-')}")
+                    lines.append(f"  视频大小: {video_size}")
+            if 'has_embedded_video' in live_photo_data:
+                has_embedded = live_photo_data.get('has_embedded_video', False)
+                lines.append(f"  嵌入视频: {'有' if has_embedded else '无'}")
+                if has_embedded:
+                    if 'embedded_video_format' in live_photo_data:
+                        lines.append(f"  视频格式: {live_photo_data.get('embedded_video_format', '-')}")
+                    if 'video_offset' in live_photo_data:
+                        offset = format_file_size(live_photo_data.get('video_offset', 0))
+                        lines.append(f"  视频偏移: {offset}")
+                    if 'video_size' in live_photo_data:
+                        video_size = format_file_size(live_photo_data.get('video_size', 0))
+                        lines.append(f"  视频大小: {video_size}")
+            if 'micro_video_version' in live_photo_data:
+                lines.append(f"  MicroVideo 版本: {live_photo_data.get('micro_video_version', '-')}")
+            if 'motion_photo_version' in live_photo_data:
+                lines.append(f"  MotionPhoto 版本: {live_photo_data.get('motion_photo_version', '-')}")
+            lines.append("")
+        
         # 动画信息
         if self.current_info.get('is_animated', False):
             lines.append("【动画信息】")
@@ -1075,6 +1207,118 @@ class ImageInfoView(ft.Container):
         full_text = "\n".join(lines)
         self.page.set_clipboard(full_text)
         self._show_message("已复制全部信息到剪贴板", ft.Colors.GREEN)
+    
+    def _export_live_photo_video(self, e: ft.ControlEvent) -> None:
+        """导出实况图中的视频。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.selected_file:
+            self._show_message("未选择图片", ft.Colors.ORANGE)
+            return
+        
+        # 确定默认输出文件名
+        live_photo_data = self.current_info.get('live_photo', {})
+        if not live_photo_data:
+            self._show_message("这不是实况图", ft.Colors.ORANGE)
+            return
+        
+        # 根据实况图类型确定视频扩展名
+        default_ext = ".mp4"
+        if live_photo_data.get('has_companion_video'):
+            # iPhone Live Photo 通常是 MOV 格式
+            companion_path = live_photo_data.get('companion_video_path', '')
+            if companion_path:
+                import os
+                default_ext = os.path.splitext(companion_path)[1] or ".mov"
+        
+        default_filename = self.selected_file.stem + "_video" + default_ext
+        
+        # 打开文件保存对话框
+        def on_result(result: ft.FilePickerResultEvent) -> None:
+            if result.path:
+                output_path = Path(result.path)
+                
+                # 显示进度提示
+                progress_dialog = ft.AlertDialog(
+                    title=ft.Text("正在导出视频..."),
+                    content=ft.ProgressRing(),
+                )
+                self.page.overlay.append(progress_dialog)
+                progress_dialog.open = True
+                self.page.update()
+                
+                try:
+                    # 提取视频
+                    success, message = self.image_service.extract_live_photo_video(
+                        self.selected_file,
+                        output_path
+                    )
+                    
+                    # 关闭进度对话框
+                    progress_dialog.open = False
+                    self.page.overlay.remove(progress_dialog)
+                    self.page.update()
+                    
+                    if success:
+                        self._show_message(message, ft.Colors.GREEN)
+                        
+                        # 询问是否打开文件位置
+                        def open_folder(e):
+                            import subprocess
+                            import platform
+                            
+                            folder_path = output_path.parent
+                            system = platform.system()
+                            try:
+                                if system == "Windows":
+                                    subprocess.run(['explorer', '/select,', str(output_path)])
+                                elif system == "Darwin":  # macOS
+                                    subprocess.run(['open', '-R', str(output_path)])
+                                else:  # Linux
+                                    subprocess.run(['xdg-open', str(folder_path)])
+                            except:
+                                pass
+                            
+                            confirm_dialog.open = False
+                            self.page.update()
+                        
+                        def close_dialog(e):
+                            confirm_dialog.open = False
+                            self.page.update()
+                        
+                        confirm_dialog = ft.AlertDialog(
+                            title=ft.Text("导出成功"),
+                            content=ft.Text(f"视频已保存到:\n{output_path}"),
+                            actions=[
+                                ft.TextButton("打开文件位置", on_click=open_folder),
+                                ft.TextButton("关闭", on_click=close_dialog),
+                            ],
+                        )
+                        self.page.overlay.append(confirm_dialog)
+                        confirm_dialog.open = True
+                        self.page.update()
+                    else:
+                        self._show_message(message, ft.Colors.RED)
+                
+                except Exception as ex:
+                    # 确保关闭进度对话框
+                    if progress_dialog.open:
+                        progress_dialog.open = False
+                        self.page.overlay.remove(progress_dialog)
+                        self.page.update()
+                    
+                    self._show_message(f"导出失败: {str(ex)}", ft.Colors.RED)
+        
+        picker = ft.FilePicker(on_result=on_result)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.save_file(
+            dialog_title="保存视频文件",
+            file_name=default_filename,
+            allowed_extensions=["mp4", "mov", "MP4", "MOV"],
+        )
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。

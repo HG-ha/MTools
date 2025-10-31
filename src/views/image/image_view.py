@@ -21,7 +21,8 @@ from views.image.crop_view import ImageCropView
 from views.image.format_view import ImageFormatView
 from views.image.gif_adjustment_view import GifAdjustmentView
 from views.image.info_view import ImageInfoView
-from views.image.puzzle import ImagePuzzleView
+from views.image.puzzle.split_view import ImagePuzzleSplitView
+from views.image.puzzle.merge_view import ImagePuzzleMergeView
 from views.image.resize_view import ImageResizeView
 
 
@@ -64,7 +65,8 @@ class ImageView(ft.Container):
         self.resize_view: Optional[ImageResizeView] = None
         self.format_view: Optional[ImageFormatView] = None
         self.background_view: Optional[ImageBackgroundView] = None
-        self.puzzle_view: Optional[ImagePuzzleView] = None
+        self.split_view = None  # 九宫格切分视图
+        self.merge_view = None  # 多图合并视图
         self.crop_view: Optional[ImageCropView] = None
         self.info_view: Optional[ImageInfoView] = None
         self.gif_adjustment_view: Optional[GifAdjustmentView] = None
@@ -109,11 +111,18 @@ class ImageView(ft.Container):
                     on_click=self._open_background_dialog,
                 ),
                 FeatureCard(
-                    icon=ft.Icons.DASHBOARD_CUSTOMIZE,
-                    title="图片拼接",
-                    description="九宫格切分、多图合并拼接",
-                    gradient_colors=("#43E97B", "#38F9D7"),
-                    on_click=self._open_puzzle_dialog,
+                    icon=ft.Icons.GRID_ON,
+                    title="单图切分",
+                    description="单图切分为九宫格，可设置间距",
+                    gradient_colors=("#FF6B6B", "#FFE66D"),
+                    on_click=self._open_split_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.VIEW_MODULE,
+                    title="多图拼接",
+                    description="横向、纵向、网格拼接图片",
+                    gradient_colors=("#4ECDC4", "#44A08D"),
+                    on_click=self._open_merge_dialog,
                 ),
                 FeatureCard(
                     icon=ft.Icons.CROP,
@@ -273,8 +282,8 @@ class ImageView(ft.Container):
         timer.daemon = True
         timer.start()
     
-    def _open_puzzle_dialog(self, e: ft.ControlEvent) -> None:
-        """切换到图片拼接工具界面。
+    def _open_split_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到九宫格切分工具界面。
         
         Args:
             e: 控件事件对象
@@ -283,22 +292,46 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
-        # 创建拼接视图（如果还没创建）
-        if not self.puzzle_view:
-            self.puzzle_view = ImagePuzzleView(
+        # 创建切分视图（如果还没创建）
+        if not self.split_view:
+            self.split_view = ImagePuzzleSplitView(
                 self.page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
             )
-            # 设置拼图视图的父容器，让它可以切换到子功能
-            self.puzzle_view.set_parent_container(self.parent_container)
         
         # 记录当前子视图
-        self.current_sub_view = self.puzzle_view
+        self.current_sub_view = self.split_view
         
-        # 切换到拼接视图
-        self.parent_container.content = self.puzzle_view
+        # 切换到切分视图
+        self.parent_container.content = self.split_view
+        self.parent_container.update()
+    
+    def _open_merge_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到多图合并工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建合并视图（如果还没创建）
+        if not self.merge_view:
+            self.merge_view = ImagePuzzleMergeView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.merge_view
+        
+        # 切换到合并视图
+        self.parent_container.content = self.merge_view
         self.parent_container.update()
     
     def _open_crop_dialog(self, e: ft.ControlEvent) -> None:
