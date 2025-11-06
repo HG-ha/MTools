@@ -6,12 +6,13 @@
 
 import os
 import subprocess
-import sys
 import zipfile
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 import httpx
+
+from utils.file_utils import get_app_root
 
 
 class FFmpegService:
@@ -35,12 +36,7 @@ class FFmpegService:
         self.config_service = config_service
         
         # 获取应用程序根目录
-        if getattr(sys, 'frozen', False):
-            # 如果是打包后的exe
-            self.app_root = Path(sys.executable).parent
-        else:
-            # 如果是开发模式
-            self.app_root = Path(__file__).parent.parent.parent
+        self.app_root = get_app_root()
         
         # ffmpeg 本地安装目录
         self.ffmpeg_dir = self.app_root / "bin" / "windows" / "ffmpeg"

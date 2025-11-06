@@ -18,6 +18,7 @@ from PIL import Image
 
 from models import GifAdjustmentOptions
 from utils import GifUtils
+from utils.file_utils import get_app_root
 
 
 class ImageService:
@@ -37,12 +38,7 @@ class ImageService:
     def _init_tools_path(self) -> None:
         """初始化压缩工具路径。"""
         # 获取项目根目录
-        if getattr(sys, 'frozen', False):
-            # 打包后的可执行文件
-            base_path = Path(sys._MEIPASS)
-        else:
-            # 开发环境
-            base_path = Path(__file__).parent.parent.parent
+        base_path = get_app_root()
         
         system = platform.system()
         

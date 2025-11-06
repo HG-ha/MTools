@@ -6,8 +6,38 @@
 
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import List, Optional
+
+
+def is_packaged_app() -> bool:
+    """判断当前程序是否为打包后的可执行文件。
+    
+    通过检查程序文件扩展名是否为 .exe 来判断。
+    
+    Returns:
+        如果是打包的程序返回 True，否则返回 False
+    """
+    exe_path = Path(sys.argv[0])
+    return exe_path.suffix.lower() == '.exe'
+
+
+def get_app_root() -> Path:
+    """获取应用程序根目录。
+    
+    - 如果是打包程序(.exe)：返回可执行文件所在目录
+    - 如果是开发模式：返回项目根目录（src的父目录）
+    
+    Returns:
+        应用程序根目录路径
+    """
+    if is_packaged_app():
+        # 打包后的可执行文件，返回 exe 所在目录
+        return Path(sys.argv[0]).parent
+    else:
+        # 开发模式，返回项目根目录（假设当前文件在 src/utils/file_utils.py）
+        return Path(__file__).parent.parent.parent
 
 
 def ensure_dir(path: Path) -> bool:

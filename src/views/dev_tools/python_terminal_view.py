@@ -19,6 +19,7 @@ import flet as ft
 
 from constants import PADDING_LARGE, PADDING_MEDIUM, PADDING_SMALL, PADDING_XLARGE
 from services import ConfigService
+from utils.file_utils import is_packaged_app, get_app_root
 
 
 class PythonTerminalView(ft.Container):
@@ -57,7 +58,7 @@ class PythonTerminalView(ft.Container):
         self.interpreter: Optional[code.InteractiveConsole] = None
         self.output_queue: Queue = Queue()
         self.running: bool = False
-        self.is_frozen = getattr(sys, 'frozen', False)
+        self.is_frozen = is_packaged_app()
         
         # 命令历史
         self.command_history: list = []
@@ -75,9 +76,9 @@ class PythonTerminalView(ft.Container):
         Returns:
             Python解释器路径
         """
-        if getattr(sys, 'frozen', False):
+        if is_packaged_app():
             # 打包后的环境
-            exe_dir = Path(sys.executable).parent
+            exe_dir = get_app_root()
             
             # 尝试不同的可能位置
             possible_paths = [
@@ -276,7 +277,7 @@ class PythonTerminalView(ft.Container):
             环境信息卡片
         """
         python_version = sys.version.split()[0]
-        is_frozen = getattr(sys, 'frozen', False)
+        is_frozen = is_packaged_app()
         
         # 使用紧凑的横向布局
         info_row = ft.Row(

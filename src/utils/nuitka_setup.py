@@ -53,12 +53,8 @@ def _setup_flet_directory() -> None:
     # print(f"[Nuitka Setup] .flet directory not found, setting up...")
     
     # 获取打包后程序的目录
-    if getattr(sys, 'frozen', False):
-        # PyInstaller 打包
-        app_dir = Path(sys.executable).parent
-    else:
-        # Nuitka 打包
-        app_dir = Path(sys.argv[0]).parent
+    # 直接使用 sys.argv[0]，因为 Nuitka 打包不设置 sys.frozen
+    app_dir = Path(sys.argv[0]).parent
     
     # .flet.zip 文件路径
     flet_zip_path = app_dir / "src" / "assets" / ".flet.zip"

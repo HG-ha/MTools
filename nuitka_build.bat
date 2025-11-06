@@ -1,7 +1,7 @@
 python -m nuitka ^
     --standalone ^
     --windows-console-mode=disable ^
-    --windows-icon-from-ico=src/assets/icon.png ^
+    --windows-icon-from-ico=src/assets/icon2.png ^
     --product-name="MyTools" ^
     --file-version=0.1.0.0 ^
     --product-version=0.1.0 ^
