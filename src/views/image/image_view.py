@@ -71,6 +71,10 @@ class ImageView(ft.Container):
         self.info_view: Optional[ImageInfoView] = None
         self.gif_adjustment_view: Optional[GifAdjustmentView] = None
         self.to_base64_view = None  # 图片转Base64视图
+        self.rotate_view = None  # 图片旋转/翻转视图
+        self.remove_exif_view = None  # 去除EXIF视图
+        self.qrcode_view = None  # 二维码生成视图
+        self.watermark_view = None  # 添加水印视图
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -154,6 +158,34 @@ class ImageView(ft.Container):
                     description="将图片转换为Base64编码，支持Data URI格式",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=self._open_to_base64_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.ROTATE_90_DEGREES_CCW,
+                    title="旋转/翻转",
+                    description="支持实时预览、自定义角度、批量处理",
+                    gradient_colors=("#F77062", "#FE5196"),
+                    on_click=self._open_rotate_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.SECURITY,
+                    title="去除EXIF",
+                    description="删除图片元数据，保护隐私",
+                    gradient_colors=("#C471F5", "#FA71CD"),
+                    on_click=self._open_remove_exif_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.QR_CODE_2,
+                    title="二维码生成",
+                    description="生成二维码，支持自定义样式",
+                    gradient_colors=("#20E2D7", "#F9FEA5"),
+                    on_click=self._open_qrcode_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.BRANDING_WATERMARK,
+                    title="添加水印",
+                    description="支持单个水印和全屏平铺水印，批量处理，实时预览",
+                    gradient_colors=("#FF6FD8", "#3813C2"),
+                    on_click=self._open_watermark_dialog,
                 ),
             ],
             wrap=True,  # 自动换行
@@ -460,6 +492,118 @@ class ImageView(ft.Container):
         self.parent_container.content = self.to_base64_view
         self.parent_container.update()
     
+    def _open_rotate_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图片旋转/翻转工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建图片旋转视图（如果还没创建）
+        if not self.rotate_view:
+            from views.image.rotate_view import ImageRotateView
+            self.rotate_view = ImageRotateView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.rotate_view
+        self.current_sub_view_type = "rotate"
+        
+        # 切换到旋转视图
+        self.parent_container.content = self.rotate_view
+        self.parent_container.update()
+    
+    def _open_remove_exif_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到去除EXIF工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建去除EXIF视图（如果还没创建）
+        if not self.remove_exif_view:
+            from views.image.remove_exif_view import ImageRemoveExifView
+            self.remove_exif_view = ImageRemoveExifView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.remove_exif_view
+        self.current_sub_view_type = "remove_exif"
+        
+        # 切换到去除EXIF视图
+        self.parent_container.content = self.remove_exif_view
+        self.parent_container.update()
+    
+    def _open_qrcode_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到二维码生成工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建二维码生成视图（如果还没创建）
+        if not self.qrcode_view:
+            from views.image.qrcode_view import QRCodeGeneratorView
+            self.qrcode_view = QRCodeGeneratorView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.qrcode_view
+        self.current_sub_view_type = "qrcode"
+        
+        # 切换到二维码生成视图
+        self.parent_container.content = self.qrcode_view
+        self.parent_container.update()
+    
+    def _open_watermark_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到添加水印工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建添加水印视图（如果还没创建）
+        if not self.watermark_view:
+            from views.image.watermark_view import ImageWatermarkView
+            self.watermark_view = ImageWatermarkView(
+                self.page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.watermark_view
+        self.current_sub_view_type = "watermark"
+        
+        # 切换到添加水印视图
+        self.parent_container.content = self.watermark_view
+        self.parent_container.update()
+    
     def _back_to_main(self) -> None:
         """返回主界面。"""
         # 销毁当前子视图（而不是保留）
@@ -475,6 +619,10 @@ class ImageView(ft.Container):
                 "info": "info_view",
                 "gif_adjustment": "gif_adjustment_view",
                 "to_base64": "to_base64_view",
+                "rotate": "rotate_view",
+                "remove_exif": "remove_exif_view",
+                "qrcode": "qrcode_view",
+                "watermark": "watermark_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
             if view_attr:
