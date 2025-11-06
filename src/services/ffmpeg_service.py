@@ -74,7 +74,8 @@ class FFmpegService:
                 result = subprocess.run(
                     [str(self.ffmpeg_exe), "-version"],
                     capture_output=True,
-                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=5
                 )
                 if result.returncode == 0:
@@ -87,7 +88,8 @@ class FFmpegService:
             result = subprocess.run(
                 ["ffmpeg", "-version"],
                 capture_output=True,
-                text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             if result.returncode == 0:
@@ -112,7 +114,8 @@ class FFmpegService:
             result = subprocess.run(
                 ["ffmpeg", "-version"],
                 capture_output=True,
-                text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             if result.returncode == 0:
@@ -137,7 +140,8 @@ class FFmpegService:
             result = subprocess.run(
                 ["ffprobe", "-version"],
                 capture_output=True,
-                text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             if result.returncode == 0:
@@ -285,7 +289,8 @@ class FFmpegService:
                     result = subprocess.run(
                         [ffmpeg_cmd, "-version"],
                         capture_output=True,
-                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         timeout=5
                     )
                     if result.returncode == 0:

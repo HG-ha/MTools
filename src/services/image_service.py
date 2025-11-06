@@ -345,7 +345,8 @@ class ImageService:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True,
+                encoding='utf-8',
+                errors='replace',
                 creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
             )
             
@@ -397,7 +398,8 @@ class ImageService:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True,
+                encoding='utf-8',
+                errors='replace',
                 creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
             )
             
@@ -1366,6 +1368,208 @@ class ImageService:
         
         except Exception as e:
             return False, f"提取视频失败: {e}"
+    
+    def create_motion_photo(
+        self, 
+        cover_image_path: Path, 
+        video_data: bytes, 
+        output_path: Path,
+        photo_type: str = "Google Motion Photo"
+    ) -> Tuple[bool, str]:
+        """创建 Motion Photo（实况图）。
+        
+        支持 Google Motion Photo 和 Samsung Motion Photo 格式。
+        
+        Args:
+            cover_image_path: 封面图片路径（JPEG）
+            video_data: 视频数据（MP4格式）
+            output_path: 输出实况图路径
+            photo_type: 实况图类型 ("Google Motion Photo" 或 "Samsung Motion Photo")
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        try:
+            from PIL import Image
+            from PIL.ExifTags import TAGS
+            import io
+            
+            # 读取封面图片
+            with Image.open(cover_image_path) as img:
+                # 确保是 RGB 模式
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # 保存原始 EXIF 数据
+                exif_data = img.info.get('exif', b'')
+                
+                # 创建临时 JPEG
+                jpeg_buffer = io.BytesIO()
+                
+                # 保存为 JPEG（不包含视频）
+                save_kwargs = {'format': 'JPEG', 'quality': 95}
+                if exif_data:
+                    save_kwargs['exif'] = exif_data
+                
+                img.save(jpeg_buffer, **save_kwargs)
+                jpeg_data = jpeg_buffer.getvalue()
+            
+            # 验证视频数据是 MP4 格式
+            if not (b'ftyp' in video_data[:32] or 
+                    video_data[:4] in [b'\x00\x00\x00\x18', b'\x00\x00\x00\x1c']):
+                return False, "视频数据不是有效的 MP4 格式"
+            
+            # 计算视频偏移量
+            video_offset = len(video_data)
+            
+            # 构建 XMP 元数据
+            xmp_metadata = self._build_motion_photo_xmp(video_offset, photo_type)
+            
+            # 将 XMP 插入到 JPEG 中
+            jpeg_with_xmp = self._inject_xmp_into_jpeg(jpeg_data, xmp_metadata)
+            
+            # 合并 JPEG 和视频数据
+            final_data = jpeg_with_xmp + video_data
+            
+            # 写入输出文件
+            with open(output_path, 'wb') as f:
+                f.write(final_data)
+            
+            from utils import format_file_size
+            file_size = format_file_size(len(final_data))
+            
+            return True, f"成功创建 {photo_type} ({file_size})"
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False, f"创建实况图失败: {e}"
+    
+    def _build_motion_photo_xmp(self, video_offset: int, photo_type: str = "Google Motion Photo") -> str:
+        """构建 Motion Photo 的 XMP 元数据。
+        
+        Args:
+            video_offset: 视频数据偏移量（从文件末尾算起）
+            photo_type: 实况图类型
+        
+        Returns:
+            XMP 元数据字符串
+        """
+        import datetime
+        
+        # 生成时间戳（微秒）
+        timestamp_us = int(datetime.datetime.now().timestamp() * 1000000)
+        
+        if photo_type == "Samsung Motion Photo":
+            # Samsung Motion Photo XMP 格式
+            xmp = f'''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.1.0-jc003">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:GCamera="http://ns.google.com/photos/1.0/camera/"
+        xmlns:Container="http://ns.google.com/photos/1.0/container/"
+        xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
+        GCamera:MicroVideo="1"
+        GCamera:MicroVideoVersion="1"
+        GCamera:MicroVideoOffset="{video_offset}"
+        GCamera:MicroVideoPresentationTimestampUs="{timestamp_us}"
+        Container:Version="1"
+        Container:Directory>
+      <rdf:Seq>
+        <rdf:li rdf:parseType="Resource">
+          <Container:Item
+            Item:Semantic="Primary"
+            Item:Mime="image/jpeg"/>
+        </rdf:li>
+        <rdf:li rdf:parseType="Resource">
+          <Container:Item
+            Item:Semantic="MotionPhoto"
+            Item:Mime="video/mp4"
+            Item:Length="{video_offset}"/>
+        </rdf:li>
+      </rdf:Seq>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
+        else:
+            # Google Motion Photo XMP 格式（默认）
+            xmp = f'''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.1.0-jc003">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:GCamera="http://ns.google.com/photos/1.0/camera/"
+        xmlns:Container="http://ns.google.com/photos/1.0/container/"
+        xmlns:Item="http://ns.google.com/photos/1.0/container/item/"
+        GCamera:MotionPhoto="1"
+        GCamera:MotionPhotoVersion="1"
+        GCamera:MotionPhotoPresentationTimestampUs="{timestamp_us}"
+        GCamera:MicroVideo="1"
+        GCamera:MicroVideoVersion="1"
+        GCamera:MicroVideoOffset="{video_offset}"
+        Container:Version="1">
+      <Container:Directory>
+        <rdf:Seq>
+          <rdf:li rdf:parseType="Resource">
+            <Container:Item
+              Item:Semantic="Primary"
+              Item:Mime="image/jpeg"/>
+          </rdf:li>
+          <rdf:li rdf:parseType="Resource">
+            <Container:Item
+              Item:Semantic="MotionPhoto"
+              Item:Mime="video/mp4"
+              Item:Length="{video_offset}"/>
+          </rdf:li>
+        </rdf:Seq>
+      </Container:Directory>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
+        
+        return xmp
+    
+    def _inject_xmp_into_jpeg(self, jpeg_data: bytes, xmp_metadata: str) -> bytes:
+        """将 XMP 元数据注入到 JPEG 文件中。
+        
+        Args:
+            jpeg_data: 原始 JPEG 数据
+            xmp_metadata: XMP 元数据字符串
+        
+        Returns:
+            包含 XMP 的 JPEG 数据
+        """
+        # JPEG 文件结构：
+        # SOI (FF D8) + [Segments] + EOI (FF D9)
+        # APP1 段格式：FF E1 + 长度(2字节) + "http://ns.adobe.com/xap/1.0/\0" + XMP数据
+        
+        # 检查是否是有效的 JPEG
+        if len(jpeg_data) < 2 or jpeg_data[:2] != b'\xff\xd8':
+            raise ValueError("不是有效的 JPEG 文件")
+        
+        # XMP 命名空间标识符
+        xmp_namespace = b'http://ns.adobe.com/xap/1.0/\x00'
+        
+        # 将 XMP 字符串转换为字节
+        xmp_bytes = xmp_metadata.encode('utf-8')
+        
+        # 构建 APP1 段
+        # APP1 标记 (FF E1) + 长度(2字节, 包括长度字段本身) + 命名空间 + XMP数据
+        app1_data = xmp_namespace + xmp_bytes
+        app1_length = len(app1_data) + 2  # +2 for length field itself
+        
+        if app1_length > 0xFFFF:
+            raise ValueError("XMP 数据太大，超过 APP1 段最大长度")
+        
+        # 构建完整的 APP1 段
+        app1_segment = b'\xff\xe1' + app1_length.to_bytes(2, 'big') + app1_data
+        
+        # 在 SOI 之后插入 APP1 段
+        # 通常 APP1 段应该在 SOI 之后立即出现
+        result = jpeg_data[:2] + app1_segment + jpeg_data[2:]
+        
+        return result
 
 
 class BackgroundRemover:

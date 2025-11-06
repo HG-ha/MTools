@@ -437,10 +437,37 @@ class GifAdjustmentView(ft.Container):
             disabled=True,
         )
         
+        # 输出格式选择（动态显示，根据输入文件类型）
+        self.output_format_radio: ft.RadioGroup = ft.RadioGroup(
+            content=ft.Column(
+                controls=[
+                    ft.Radio(value="gif", label="GIF 动图 - 兼容性最好，适合分享"),
+                    ft.Radio(value="video", label="视频（MP4）- 文件更小，画质更好"),
+                    ft.Radio(value="live_photo", label="实况图（Motion Photo）- 保持原格式", visible=False),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            value="gif",
+            on_change=self._on_output_format_change,
+        )
+        
+        self.output_format_container: ft.Container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("输出格式", size=13, weight=ft.FontWeight.W_500),
+                    self.output_format_radio,
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            visible=False,  # 初始隐藏，选择文件后显示
+        )
+        
         output_section: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Text("输出选项", size=14, weight=ft.FontWeight.W_500),
+                    self.output_format_container,
+                    ft.Divider(height=1, visible=False),  # 分隔线，动态显示
                     self.output_mode_radio,
                     ft.Row(
                         controls=[
@@ -456,6 +483,9 @@ class GifAdjustmentView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
+        
+        # 保存分隔线引用，便于动态控制
+        self.format_divider = output_section.content.controls[2]
         
         # 调整选项可滚动区域
         options_scroll: ft.Column = ft.Column(
@@ -656,6 +686,9 @@ class GifAdjustmentView(ft.Container):
         self.live_photo_info = None
         self.temp_video_path = None
         
+        # 显示格式选择（GIF 可导出为 GIF 或视频）
+        self._update_format_options(is_live_photo=False)
+        
         # 保存当前文件ID用于延迟预览
         saved_file_id = self.current_file_id
         print(f"[_load_gif_file] 准备延迟显示第一帧，saved_file_id: {saved_file_id[:50]}...")
@@ -756,89 +789,59 @@ class GifAdjustmentView(ft.Container):
                 # 保存临时视频路径，用于封面预览
                 self.temp_video_path = temp_video
                 
-                # 获取视频信息（使用 ffprobe）
-                import subprocess
-                import platform
-                import json
+                # 获取视频信息（使用 ffmpeg-python）
+                import ffmpeg
                 
                 print(f"[process] 开始获取视频信息...")
                 try:
-                    ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
-                    print(f"[process] ffprobe 路径: {ffprobe_path}")
+                    # 设置 ffmpeg 环境
+                    self._setup_ffmpeg_env()
                     
-                    if not ffprobe_path:
-                        raise Exception("ffprobe 不可用")
+                    # 使用 ffmpeg.probe 获取视频信息
+                    probe = ffmpeg.probe(str(temp_video))
                     
-                    cmd = [
-                        ffprobe_path,
-                        "-v", "quiet",
-                        "-print_format", "json",
-                        "-show_format",
-                        "-show_streams",
-                        str(temp_video)
-                    ]
-                    print(f"[process] 执行命令: {' '.join(cmd)}")
+                    # 获取视频流信息
+                    video_stream = None
+                    for stream in probe.get('streams', []):
+                        if stream.get('codec_type') == 'video':
+                            video_stream = stream
+                            break
                     
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
-                    )
+                    print(f"[process] 找到视频流: {video_stream is not None}")
                     
-                    print(f"[process] ffprobe 返回码: {result.returncode}")
-                    
-                    if result.returncode == 0:
-                        print(f"[process] ffprobe 输出: {result.stdout[:500]}...")  # 只打印前500字符
-                        info = json.loads(result.stdout)
+                    if video_stream:
+                        # 计算帧数和 FPS
+                        r_frame_rate = video_stream.get('r_frame_rate', '30/1')
+                        duration = float(video_stream.get('duration', 0))
+                        nb_frames = int(video_stream.get('nb_frames', 0))
                         
-                        # 获取视频流信息
-                        video_stream = None
-                        for stream in info.get('streams', []):
-                            if stream.get('codec_type') == 'video':
-                                video_stream = stream
-                                break
+                        # 正确解析帧率（格式如 "30000/1001" 或 "30/1"）
+                        try:
+                            if '/' in r_frame_rate:
+                                num, den = r_frame_rate.split('/')
+                                fps = float(num) / float(den)
+                            else:
+                                fps = float(r_frame_rate)
+                        except:
+                            fps = 30.0
                         
-                        print(f"[process] 找到视频流: {video_stream is not None}")
+                        print(f"[process] 视频信息: r_frame_rate={r_frame_rate}, fps={fps:.2f}, duration={duration}, nb_frames={nb_frames}")
                         
-                        if video_stream:
-                            # 计算帧数和 FPS
-                            r_frame_rate = video_stream.get('r_frame_rate', '30/1')
-                            duration = float(video_stream.get('duration', 0))
-                            nb_frames = int(video_stream.get('nb_frames', 0))
-                            
-                            # 正确解析帧率（格式如 "30000/1001" 或 "30/1"）
-                            try:
-                                if '/' in r_frame_rate:
-                                    num, den = r_frame_rate.split('/')
-                                    fps = float(num) / float(den)
-                                else:
-                                    fps = float(r_frame_rate)
-                            except:
-                                fps = 30.0
-                            
-                            print(f"[process] 视频信息: r_frame_rate={r_frame_rate}, fps={fps:.2f}, duration={duration}, nb_frames={nb_frames}")
-                            
-                            if nb_frames == 0 and duration > 0:
-                                nb_frames = int(duration * fps)
-                            
-                            self.frame_count = max(1, nb_frames)
-                            self.video_duration = duration  # 保存视频时长
-                            
-                            # 估算每帧持续时间（毫秒）
-                            frame_duration = int(1000 / fps) if fps > 0 else 100
-                            frame_duration = max(10, frame_duration)  # 至少 10ms
-                            self.original_durations = [frame_duration] * self.frame_count
-                            
-                            print(f"[process] 设置帧数: {self.frame_count}, 帧时长: {frame_duration}ms")
-                        else:
-                            # 默认值
-                            print(f"[process] 未找到视频流，使用默认值")
-                            self.frame_count = 30
-                            self.original_durations = [100] * self.frame_count
+                        if nb_frames == 0 and duration > 0:
+                            nb_frames = int(duration * fps)
+                        
+                        self.frame_count = max(1, nb_frames)
+                        self.video_duration = duration  # 保存视频时长
+                        
+                        # 估算每帧持续时间（毫秒）
+                        frame_duration = int(1000 / fps) if fps > 0 else 100
+                        frame_duration = max(10, frame_duration)  # 至少 10ms
+                        self.original_durations = [frame_duration] * self.frame_count
+                        
+                        print(f"[process] 设置帧数: {self.frame_count}, 帧时长: {frame_duration}ms")
                     else:
-                        # ffprobe 失败，使用默认值
-                        print(f"[process] ffprobe 失败: stdout={result.stdout}, stderr={result.stderr}")
+                        # 默认值
+                        print(f"[process] 未找到视频流，使用默认值")
                         self.frame_count = 30
                         self.original_durations = [100] * self.frame_count
                         
@@ -900,6 +903,9 @@ class GifAdjustmentView(ft.Container):
                     button.disabled = False
                     self.process_button.update()
                     
+                    # 显示格式选择（实况图可导出为实况图、GIF 或视频）
+                    self._update_format_options(is_live_photo=True)
+                    
                     self._show_snackbar("✓ 实况图加载成功", ft.Colors.GREEN)
                     print(f"[update_ui] UI 更新完成")
                 
@@ -956,6 +962,55 @@ class GifAdjustmentView(ft.Container):
         self.trim_end_field.update()
         self.drop_frame_slider.update()
         self.reverse_checkbox.update()
+    
+    def _setup_ffmpeg_env(self) -> None:
+        """设置 ffmpeg 环境变量，使 ffmpeg-python 可以找到我们的 ffmpeg。"""
+        import os
+        
+        ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
+        if ffmpeg_path and ffmpeg_path != "ffmpeg":
+            # 如果是完整路径，将其目录添加到PATH
+            ffmpeg_dir = str(Path(ffmpeg_path).parent)
+            if 'PATH' in os.environ:
+                # 只在PATH中还没有这个目录时添加
+                if ffmpeg_dir not in os.environ['PATH']:
+                    os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ['PATH']
+            else:
+                os.environ['PATH'] = ffmpeg_dir
+    
+    def _update_format_options(self, is_live_photo: bool) -> None:
+        """更新输出格式选项。
+        
+        Args:
+            is_live_photo: 是否为实况图
+        """
+        # 获取格式选择的 Radio 按钮
+        radio_controls = self.output_format_radio.content.controls
+        gif_radio = radio_controls[0]  # GIF
+        video_radio = radio_controls[1]  # 视频
+        live_photo_radio = radio_controls[2]  # 实况图
+        
+        if is_live_photo:
+            # 实况图：显示所有三个选项
+            gif_radio.visible = True
+            video_radio.visible = True
+            live_photo_radio.visible = True
+            self.output_format_radio.value = "live_photo"  # 默认保持实况图格式
+        else:
+            # GIF：只显示 GIF 和视频选项
+            gif_radio.visible = True
+            video_radio.visible = True
+            live_photo_radio.visible = False
+            self.output_format_radio.value = "gif"  # 默认 GIF 格式
+        
+        # 显示格式选择容器
+        self.output_format_container.visible = True
+        self.format_divider.visible = True
+        
+        # 更新UI
+        self.output_format_radio.update()
+        self.output_format_container.update()
+        self.format_divider.update()
     
     def _on_cover_frame_change(self, e: ft.ControlEvent) -> None:
         """首帧滑块变化事件。
@@ -1022,6 +1077,15 @@ class GifAdjustmentView(ft.Container):
             self.drop_frame_text.value = f"每 {step} 帧保留 1 帧 (约 {estimated_frames} 帧)"
         self.drop_frame_text.update()
     
+    def _on_output_format_change(self, e: ft.ControlEvent) -> None:
+        """输出格式改变事件。
+        
+        Args:
+            e: 控件事件对象
+        """
+        # 可以在这里添加格式改变时的额外逻辑
+        pass
+    
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式改变事件。
         
@@ -1045,13 +1109,31 @@ class GifAdjustmentView(ft.Container):
                 self.custom_output_field.value = result.path
                 self.custom_output_field.update()
         
+        # 根据选择的格式确定文件扩展名和对话框标题
+        output_format = self.output_format_radio.value
+        
+        if output_format == "video":
+            dialog_title = "保存视频文件"
+            file_ext = ".mp4"
+            allowed_exts = ["mp4"]
+        elif output_format == "live_photo":
+            dialog_title = "保存实况图"
+            file_ext = self.selected_file.suffix if self.selected_file else ".jpg"
+            allowed_exts = ["jpg", "jpeg", "heic", "heif"]
+        else:  # gif
+            dialog_title = "保存 GIF 文件"
+            file_ext = ".gif"
+            allowed_exts = ["gif"]
+        
+        default_name = f"{self.selected_file.stem}_adjusted{file_ext}" if self.selected_file else f"output{file_ext}"
+        
         picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
         self.page.overlay.append(picker)
         self.page.update()
         picker.save_file(
-            dialog_title="保存 GIF 文件",
-            file_name=f"{self.selected_file.stem}_adjusted.gif" if self.selected_file else "output.gif",
-            allowed_extensions=["gif"],
+            dialog_title=dialog_title,
+            file_name=default_name,
+            allowed_extensions=allowed_exts,
         )
     
     def _on_process(self, e: ft.ControlEvent) -> None:
@@ -1087,6 +1169,17 @@ class GifAdjustmentView(ft.Container):
             reverse_order=self.reverse_checkbox.value,
         )
         
+        # 获取输出格式
+        output_format = self.output_format_radio.value
+        
+        # 确定文件扩展名
+        if output_format == "video":
+            file_ext = ".mp4"
+        elif output_format == "live_photo":
+            file_ext = self.selected_file.suffix if self.selected_file else ".jpg"
+        else:  # gif
+            file_ext = ".gif"
+        
         # 确定输出路径
         if self.output_mode_radio.value == "custom":
             if not self.custom_output_field.value:
@@ -1094,8 +1187,7 @@ class GifAdjustmentView(ft.Container):
                 return
             output_path = Path(self.custom_output_field.value)
         else:
-            suffix = ".gif"
-            output_path = self.selected_file.parent / f"{self.selected_file.stem}_adjusted{suffix}"
+            output_path = self.selected_file.parent / f"{self.selected_file.stem}_adjusted{file_ext}"
         
         # 禁用按钮并显示进度
         button = self.process_button.content
@@ -1118,20 +1210,33 @@ class GifAdjustmentView(ft.Container):
         def process_task():
             if self.is_live_photo:
                 # 处理实况图
-                success, message = self._process_live_photo(output_path, options)
+                if output_format == "live_photo":
+                    # 实况图 -> 实况图
+                    success, message = self._process_live_photo_to_live_photo(output_path, options)
+                elif output_format == "video":
+                    # 实况图 -> 视频
+                    success, message = self._process_live_photo_to_video(output_path, options)
+                else:  # gif
+                    # 实况图 -> GIF
+                    success, message = self._process_live_photo_to_gif(output_path, options)
             else:
                 # 处理 GIF
-                success, message = self.image_service.adjust_gif(
-                    self.selected_file,
-                    output_path,
-                    options
-                )
+                if output_format == "video":
+                    # GIF -> 视频
+                    success, message = self._process_gif_to_video(output_path, options)
+                else:  # gif
+                    # GIF -> GIF
+                    success, message = self.image_service.adjust_gif(
+                        self.selected_file,
+                        output_path,
+                        options
+                    )
             self._on_process_complete(success, message, output_path)
         
         threading.Thread(target=process_task, daemon=True).start()
     
-    def _process_live_photo(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
-        """处理实况图。
+    def _process_live_photo_to_gif(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
+        """处理实况图并导出为 GIF。
         
         Args:
             output_path: 输出路径
@@ -1147,8 +1252,6 @@ class GifAdjustmentView(ft.Container):
         
         try:
             import tempfile
-            import subprocess
-            import platform
             import shutil
             from PIL import Image
             
@@ -1165,44 +1268,36 @@ class GifAdjustmentView(ft.Container):
                 if not success:
                     return False, f"提取视频失败: {message}"
                 
-                # 2. 使用 ffmpeg 提取视频帧
+                # 2. 使用 ffmpeg-python 提取视频帧
+                import ffmpeg
+                
                 frames_dir = temp_dir / "frames"
                 frames_dir.mkdir()
                 
-                # 构建 ffmpeg 命令
                 frame_pattern = str(frames_dir / "frame_%04d.png")
                 
                 # 计算速度调整
                 speed_factor = options.speed_factor
                 setpts_value = 1.0 / speed_factor if speed_factor > 0 else 1.0
                 
-                # 是否反转
-                if options.reverse_order:
-                    vf_filter = f"setpts={setpts_value}*PTS,reverse"
-                else:
-                    vf_filter = f"setpts={setpts_value}*PTS"
-                
-                # 获取 ffmpeg 路径
-                ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
-                if not ffmpeg_path:
-                    return False, "ffmpeg 不可用"
-                
-                cmd = [
-                    ffmpeg_path,
-                    "-i", str(temp_video),
-                    "-vf", vf_filter,
-                    frame_pattern,
-                ]
-                
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
-                )
-                
-                if result.returncode != 0:
-                    return False, f"提取帧失败: {result.stderr}"
+                try:
+                    # 设置 ffmpeg 环境
+                    self._setup_ffmpeg_env()
+                    
+                    # 使用 ffmpeg-python 提取帧
+                    stream = ffmpeg.input(str(temp_video))
+                    
+                    # 应用速度调整
+                    stream = ffmpeg.filter(stream, 'setpts', f'{setpts_value}*PTS')
+                    
+                    # 应用反转
+                    if options.reverse_order:
+                        stream = ffmpeg.filter(stream, 'reverse')
+                    
+                    stream = ffmpeg.output(stream, frame_pattern)
+                    ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+                except ffmpeg.Error as e:
+                    return False, f"提取帧失败: {e.stderr.decode('utf-8', errors='replace') if e.stderr else str(e)}"
                 
                 # 3. 读取所有帧
                 frame_files = sorted(frames_dir.glob("frame_*.png"))
@@ -1273,6 +1368,269 @@ class GifAdjustmentView(ft.Container):
                     pass
         
         except Exception as e:
+            return False, f"处理失败: {e}"
+    
+    def _process_live_photo_to_video(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
+        """处理实况图并导出为视频。
+        
+        Args:
+            output_path: 输出路径
+            options: 调整选项
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        # 再次确认 FFmpeg 可用
+        is_available, message = self.ffmpeg_service.is_ffmpeg_available()
+        if not is_available:
+            return False, "FFmpeg 不可用，请先安装 FFmpeg"
+        
+        try:
+            import tempfile
+            import shutil
+            
+            # 创建临时目录
+            temp_dir = Path(tempfile.mkdtemp())
+            
+            try:
+                # 1. 提取视频
+                temp_video = temp_dir / "live_photo_video.mp4"
+                success, message = self.image_service.extract_live_photo_video(
+                    self.selected_file, temp_video
+                )
+                
+                if not success:
+                    return False, f"提取视频失败: {message}"
+                
+                # 2. 使用 ffmpeg-python 处理视频
+                import ffmpeg
+                
+                # 计算参数
+                speed_factor = options.speed_factor
+                setpts_value = 1.0 / speed_factor if speed_factor > 0 else 1.0
+                
+                try:
+                    # 设置 ffmpeg 环境
+                    self._setup_ffmpeg_env()
+                    
+                    # 使用 ffmpeg-python 处理视频
+                    stream = ffmpeg.input(str(temp_video))
+                    
+                    # 截取（使用 trim）
+                    if options.trim_start is not None and options.trim_end is not None:
+                        fps = 30.0  # 默认帧率
+                        start_time = options.trim_start / fps
+                        end_time = (options.trim_end + 1) / fps
+                        stream = ffmpeg.filter(stream, 'trim', start=start_time, end=end_time)
+                        stream = ffmpeg.filter(stream, 'setpts', 'PTS-STARTPTS')
+                    
+                    # 速度调整
+                    stream = ffmpeg.filter(stream, 'setpts', f'{setpts_value}*PTS')
+                    
+                    # 反转
+                    if options.reverse_order:
+                        stream = ffmpeg.filter(stream, 'reverse')
+                    
+                    # 跳帧（使用 select）
+                    if options.drop_every_n > 1:
+                        stream = ffmpeg.filter(stream, 'select', f'not(mod(n,{options.drop_every_n}))')
+                        stream = ffmpeg.filter(stream, 'setpts', 'N/FRAME_RATE/TB')
+                    
+                    stream = ffmpeg.output(stream, str(output_path), vcodec='libx264', preset='medium', crf=23)
+                    ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+                except ffmpeg.Error as e:
+                    return False, f"处理视频失败: {e.stderr.decode('utf-8', errors='replace') if e.stderr else str(e)}"
+                
+                from utils import format_file_size
+                video_size = format_file_size(output_path.stat().st_size)
+                return True, f"成功处理实况图并导出为视频 ({video_size})"
+            
+            finally:
+                # 清理临时目录
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False, f"处理失败: {e}"
+    
+    def _process_live_photo_to_live_photo(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
+        """处理实况图并保持实况图格式。
+        
+        Args:
+            output_path: 输出路径
+            options: 调整选项
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        # 再次确认 FFmpeg 可用
+        is_available, message = self.ffmpeg_service.is_ffmpeg_available()
+        if not is_available:
+            return False, "FFmpeg 不可用，请先安装 FFmpeg"
+        
+        try:
+            import tempfile
+            import shutil
+            from PIL import Image
+            
+            # 创建临时目录
+            temp_dir = Path(tempfile.mkdtemp())
+            
+            try:
+                # 1. 处理视频部分（生成调整后的视频）
+                temp_adjusted_video = temp_dir / "adjusted_video.mp4"
+                success, message = self._process_live_photo_to_video(temp_adjusted_video, options)
+                
+                if not success:
+                    return False, f"处理视频失败: {message}"
+                
+                # 2. 处理封面图片
+                temp_cover = temp_dir / "cover.jpg"
+                
+                # 如果需要调整封面帧，从调整后的视频中提取指定帧
+                if options.cover_frame_index and options.cover_frame_index > 0:
+                    import ffmpeg
+                    
+                    try:
+                        # 设置 ffmpeg 环境
+                        self._setup_ffmpeg_env()
+                        
+                        # 计算时间点
+                        fps = 30.0
+                        timestamp = options.cover_frame_index / fps
+                        
+                        # 使用 ffmpeg-python 提取封面帧
+                        stream = ffmpeg.input(str(temp_adjusted_video), ss=timestamp)
+                        stream = ffmpeg.output(stream, str(temp_cover), vframes=1, **{'q:v': 2})
+                        ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+                        
+                        if not temp_cover.exists():
+                            raise Exception("提取封面帧失败")
+                    except:
+                        # 使用原图作为封面
+                        with Image.open(self.selected_file) as img:
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            img.save(temp_cover, 'JPEG', quality=95)
+                else:
+                    # 使用原图作为封面
+                    with Image.open(self.selected_file) as img:
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        img.save(temp_cover, 'JPEG', quality=95)
+                
+                # 3. 读取调整后的视频数据
+                with open(temp_adjusted_video, 'rb') as f:
+                    video_data = f.read()
+                
+                # 4. 确定实况图类型（保持原格式）
+                photo_type = self.live_photo_info.get('type', 'Android Motion Photo')
+                if 'Samsung' in photo_type:
+                    photo_type = 'Samsung Motion Photo'
+                else:
+                    photo_type = 'Google Motion Photo'
+                
+                # 5. 创建实况图
+                success, message = self.image_service.create_motion_photo(
+                    temp_cover,
+                    video_data,
+                    output_path,
+                    photo_type
+                )
+                
+                if not success:
+                    return False, f"创建实况图失败: {message}"
+                
+                return True, message
+            
+            finally:
+                # 清理临时目录
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False, f"处理失败: {e}"
+    
+    def _process_gif_to_video(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
+        """处理 GIF 并导出为视频。
+        
+        Args:
+            output_path: 输出路径
+            options: 调整选项
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        # 检查 FFmpeg 是否可用
+        is_available, message = self.ffmpeg_service.is_ffmpeg_available()
+        if not is_available:
+            return False, "FFmpeg 不可用，请先安装 FFmpeg。GIF 转视频需要 FFmpeg 支持。"
+        
+        try:
+            import tempfile
+            import shutil
+            from PIL import Image
+            
+            # 创建临时目录
+            temp_dir = Path(tempfile.mkdtemp())
+            
+            try:
+                # 1. 先生成调整后的 GIF
+                temp_gif = temp_dir / "adjusted.gif"
+                success, message = self.image_service.adjust_gif(
+                    self.selected_file,
+                    temp_gif,
+                    options
+                )
+                
+                if not success:
+                    return False, f"调整 GIF 失败: {message}"
+                
+                # 2. 使用 ffmpeg-python 将 GIF 转换为 MP4
+                import ffmpeg
+                
+                try:
+                    # 设置 ffmpeg 环境
+                    self._setup_ffmpeg_env()
+                    
+                    # 使用 ffmpeg-python 转换 GIF 为 MP4
+                    stream = ffmpeg.input(str(temp_gif))
+                    stream = ffmpeg.filter(stream, 'scale', 'trunc(iw/2)*2:trunc(ih/2)*2')  # 确保宽高为偶数
+                    stream = ffmpeg.output(
+                        stream, 
+                        str(output_path), 
+                        movflags='faststart',
+                        pix_fmt='yuv420p',
+                        vcodec='libx264',
+                        preset='medium',
+                        crf=23
+                    )
+                    ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+                except ffmpeg.Error as e:
+                    return False, f"GIF 转视频失败: {e.stderr.decode('utf-8', errors='replace') if e.stderr else str(e)}"
+                
+                from utils import format_file_size
+                video_size = format_file_size(output_path.stat().st_size)
+                return True, f"成功将 GIF 转换为视频 ({video_size})"
+            
+            finally:
+                # 清理临时目录
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             return False, f"处理失败: {e}"
     
     def _on_process_complete(self, success: bool, message: str, output_path: Path) -> None:
@@ -1568,8 +1926,6 @@ class GifAdjustmentView(ft.Container):
             file_id: 文件ID，用于防止显示旧文件的帧
         """
         try:
-            import subprocess
-            import platform
             import tempfile
             
             # 检查文件ID
@@ -1602,30 +1958,21 @@ class GifAdjustmentView(ft.Container):
             
             # 输出文件（使用唯一文件名避免缓存冲突）
             import time
+            import ffmpeg
             unique_id = str(int(time.time() * 1000))  # 毫秒级时间戳
             temp_file = Path(tempfile.gettempdir()) / f"cover_preview_{unique_id}_{frame_index}.png"
             
-            # 使用 ffmpeg 提取帧
-            ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
-            if not ffmpeg_path:
-                print("[_extract_frame_from_video] ffmpeg 不可用")
+            # 使用 ffmpeg-python 提取帧
+            try:
+                # 设置 ffmpeg 环境
+                self._setup_ffmpeg_env()
+                
+                stream = ffmpeg.input(str(self.temp_video_path), ss=timestamp)
+                stream = ffmpeg.output(stream, str(temp_file), vframes=1)
+                ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+            except ffmpeg.Error as e:
+                print(f"[_extract_frame_from_video] ffmpeg 失败: {e}")
                 return
-            
-            cmd = [
-                ffmpeg_path,
-                "-ss", str(timestamp),
-                "-i", str(self.temp_video_path),
-                "-frames:v", "1",
-                "-y",  # 覆盖已存在的文件
-                str(temp_file)
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
-            )
             
             # 最后一次检查
             if file_id and file_id != self.current_file_id:
@@ -1633,7 +1980,7 @@ class GifAdjustmentView(ft.Container):
             if self.current_preview_frame != frame_index:
                 return
             
-            if result.returncode == 0 and temp_file.exists():
+            if temp_file.exists():
                 # 更新UI
                 async def update_preview():
                     # UI 更新时最后检查一次
@@ -1647,7 +1994,7 @@ class GifAdjustmentView(ft.Container):
                 
                 self.page.run_task(update_preview)
             else:
-                print(f"[_extract_frame_from_video] ffmpeg 失败: {result.stderr}")
+                print(f"[_extract_frame_from_video] 提取帧失败，文件不存在")
                 
         except Exception as e:
             print(f"[_extract_frame_from_video] 失败: {e}")
