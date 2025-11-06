@@ -4,7 +4,7 @@
 提供代码格式化功能的详细界面。
 """
 
-from typing import Optional
+from typing import Callable, Optional
 
 import flet as ft
 
@@ -25,19 +25,19 @@ class CodeFormatDetailView(ft.Container):
         self,
         page: ft.Page,
         config_service: ConfigService,
-        parent_container: Optional[ft.Container] = None
+        on_back: Optional[Callable] = None
     ) -> None:
         """初始化代码格式化视图。
         
         Args:
             page: Flet页面对象
             config_service: 配置服务实例
-            parent_container: 父容器（用于视图切换）
+            on_back: 返回按钮回调函数
         """
         super().__init__()
         self.page: ft.Page = page
         self.config_service: ConfigService = config_service
-        self.parent_container: Optional[ft.Container] = parent_container
+        self.on_back: Optional[Callable] = on_back
         self.expand: bool = True
         
         # 创建UI组件
@@ -225,18 +225,7 @@ class CodeFormatDetailView(ft.Container):
     
     def _go_back(self, e: ft.ControlEvent) -> None:
         """返回上一级视图。"""
-        if self.parent_container:
-            # 导入并创建开发工具主视图
-            from views.dev_tools import DevToolsView
-            from services import EncodingService
-            
-            encoding_service = EncodingService()
-            dev_tools_view = DevToolsView(
-                self.page,
-                self.config_service,
-                encoding_service,
-                self.parent_container
-            )
-            self.parent_container.content = dev_tools_view
-            self.parent_container.update()
+        # 调用返回回调
+        if self.on_back:
+            self.on_back()
 

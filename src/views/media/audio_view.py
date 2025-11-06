@@ -66,6 +66,8 @@ class AudioView(ft.Container):
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
+        # 记录当前子视图的类型（用于销毁）
+        self.current_sub_view_type: Optional[str] = None
         
         # 创建UI组件
         self._build_ui()
@@ -250,6 +252,7 @@ class AudioView(ft.Container):
             
             # 记录当前子视图
             self.current_sub_view = self.format_view
+            self.current_sub_view_type = "format"
             
             # 切换到格式转换视图
             self.parent_container.content = self.format_view
@@ -333,6 +336,7 @@ class AudioView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.ffmpeg_install_view
+        self.current_sub_view_type = "ffmpeg_install"
         
         # 切换到安装视图
         self.parent_container.content = self.ffmpeg_install_view
@@ -345,8 +349,19 @@ class AudioView(ft.Container):
     
     def _back_to_main(self) -> None:
         """返回主界面。"""
+        # 销毁当前子视图（而不是保留）
+        if self.current_sub_view_type:
+            view_map = {
+                "format": "format_view",
+                "ffmpeg_install": "ffmpeg_install_view",
+            }
+            view_attr = view_map.get(self.current_sub_view_type)
+            if view_attr:
+                setattr(self, view_attr, None)
+        
         # 清除子视图状态
         self.current_sub_view = None
+        self.current_sub_view_type = None
         
         if self.parent_container:
             self.parent_container.content = self

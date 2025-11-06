@@ -62,6 +62,8 @@ class DevToolsView(ft.Container):
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
+        # 记录当前子视图的类型（用于销毁）
+        self.current_sub_view_type: Optional[str] = None
         
         # 创建UI组件
         self._build_ui()
@@ -121,12 +123,13 @@ class DevToolsView(ft.Container):
             self.python_terminal_view = PythonTerminalView(
                 self.page,
                 self.config_service,
-                self.parent_container
+                on_back=self._back_to_main
             )
         
         # 切换到Python终端视图
         if self.parent_container:
             self.current_sub_view = self.python_terminal_view
+            self.current_sub_view_type = "python_terminal"
             self.parent_container.content = self.python_terminal_view
             self.parent_container.update()
     
@@ -137,12 +140,13 @@ class DevToolsView(ft.Container):
                 self.page,
                 self.config_service,
                 self.encoding_service,
-                self.parent_container
+                on_back=self._back_to_main
             )
         
         # 切换到编码转换视图
         if self.parent_container:
             self.current_sub_view = self.encoding_convert_view
+            self.current_sub_view_type = "encoding_convert"
             self.parent_container.content = self.encoding_convert_view
             self.parent_container.update()
     
@@ -153,13 +157,35 @@ class DevToolsView(ft.Container):
             self.code_format_view = CodeFormatDetailView(
                 self.page,
                 self.config_service,
-                self.parent_container
+                on_back=self._back_to_main
             )
         
         # 切换到代码格式化视图
         if self.parent_container:
             self.current_sub_view = self.code_format_view
+            self.current_sub_view_type = "code_format"
             self.parent_container.content = self.code_format_view
+            self.parent_container.update()
+    
+    def _back_to_main(self) -> None:
+        """返回主界面。"""
+        # 销毁当前子视图（而不是保留）
+        if self.current_sub_view_type:
+            view_map = {
+                "python_terminal": "python_terminal_view",
+                "encoding_convert": "encoding_convert_view",
+                "code_format": "code_format_view",
+            }
+            view_attr = view_map.get(self.current_sub_view_type)
+            if view_attr:
+                setattr(self, view_attr, None)
+        
+        # 清除子视图状态
+        self.current_sub_view = None
+        self.current_sub_view_type = None
+        
+        if self.parent_container:
+            self.parent_container.content = self
             self.parent_container.update()
     
     def restore_state(self) -> bool:

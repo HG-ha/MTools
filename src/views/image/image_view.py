@@ -73,6 +73,8 @@ class ImageView(ft.Container):
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
+        # 记录当前子视图的类型（用于销毁）
+        self.current_sub_view_type: Optional[str] = None
         
         # 创建UI组件
         self._build_ui()
@@ -187,6 +189,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.compress_view
+        self.current_sub_view_type = "compress"
         
         # 切换到压缩视图
         self.parent_container.content = self.compress_view
@@ -213,6 +216,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.resize_view
+        self.current_sub_view_type = "resize"
         
         # 切换到尺寸调整视图
         self.parent_container.content = self.resize_view
@@ -239,6 +243,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.format_view
+        self.current_sub_view_type = "format"
         
         # 切换到格式转换视图
         self.parent_container.content = self.format_view
@@ -269,6 +274,7 @@ class ImageView(ft.Container):
             
             # 记录当前子视图
             self.current_sub_view = self.background_view
+            self.current_sub_view_type = "background"
             
             # 切换到背景移除视图
             self.parent_container.content = self.background_view
@@ -303,6 +309,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.split_view
+        self.current_sub_view_type = "split"
         
         # 切换到切分视图
         self.parent_container.content = self.split_view
@@ -329,6 +336,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.merge_view
+        self.current_sub_view_type = "merge"
         
         # 切换到合并视图
         self.parent_container.content = self.merge_view
@@ -355,6 +363,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.crop_view
+        self.current_sub_view_type = "crop"
         
         # 切换到裁剪视图
         self.parent_container.content = self.crop_view
@@ -381,6 +390,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.info_view
+        self.current_sub_view_type = "info"
         
         # 切换到信息查看视图
         self.parent_container.content = self.info_view
@@ -408,6 +418,7 @@ class ImageView(ft.Container):
         
         # 记录当前子视图
         self.current_sub_view = self.gif_adjustment_view
+        self.current_sub_view_type = "gif_adjustment"
         
         # 切换到 GIF 调整视图
         self.parent_container.content = self.gif_adjustment_view
@@ -415,8 +426,26 @@ class ImageView(ft.Container):
     
     def _back_to_main(self) -> None:
         """返回主界面。"""
+        # 销毁当前子视图（而不是保留）
+        if self.current_sub_view_type:
+            view_map = {
+                "compress": "compress_view",
+                "resize": "resize_view",
+                "format": "format_view",
+                "background": "background_view",
+                "split": "split_view",
+                "merge": "merge_view",
+                "crop": "crop_view",
+                "info": "info_view",
+                "gif_adjustment": "gif_adjustment_view",
+            }
+            view_attr = view_map.get(self.current_sub_view_type)
+            if view_attr:
+                setattr(self, view_attr, None)
+        
         # 清除子视图状态
         self.current_sub_view = None
+        self.current_sub_view_type = None
         
         if self.parent_container:
             self.parent_container.content = self

@@ -11,7 +11,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from queue import Queue, Empty
 import contextlib
 
@@ -35,19 +35,19 @@ class PythonTerminalView(ft.Container):
         self,
         page: ft.Page,
         config_service: ConfigService,
-        parent_container: Optional[ft.Container] = None
+        on_back: Optional[Callable] = None
     ) -> None:
         """初始化Python终端视图。
         
         Args:
             page: Flet页面对象
             config_service: 配置服务实例
-            parent_container: 父容器（用于视图切换）
+            on_back: 返回按钮回调函数
         """
         super().__init__()
         self.page: ft.Page = page
         self.config_service: ConfigService = config_service
-        self.parent_container: Optional[ft.Container] = parent_container
+        self.on_back: Optional[Callable] = on_back
         self.expand: bool = True
         
         # 获取Python解释器路径
@@ -481,16 +481,6 @@ class PythonTerminalView(ft.Container):
         self.running = False
         self.interpreter = None
         
-        if self.parent_container:
-            from views.dev_tools import DevToolsView
-            from services import EncodingService
-            
-            encoding_service = EncodingService()
-            dev_tools_view = DevToolsView(
-                self.page,
-                self.config_service,
-                encoding_service,
-                self.parent_container
-            )
-            self.parent_container.content = dev_tools_view
-            self.parent_container.update()
+        # 调用返回回调
+        if self.on_back:
+            self.on_back()
