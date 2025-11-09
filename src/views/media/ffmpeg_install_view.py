@@ -15,6 +15,7 @@ from constants import (
     PADDING_LARGE,
     PADDING_MEDIUM,
     PADDING_SMALL,
+    PADDING_XLARGE,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
 )
@@ -52,28 +53,33 @@ class FFmpegInstallView(ft.Container):
         self.tool_name: str = tool_name
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.all(PADDING_LARGE)
+        # 设置 padding，由视图自己管理间距
+        self.padding: ft.padding = ft.padding.only(
+            left=PADDING_XLARGE,
+            right=PADDING_XLARGE,
+            top=PADDING_XLARGE,
+            bottom=PADDING_XLARGE
+        )
         
         # 构建界面
         self._build_ui()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
-        # 顶部：返回按钮（如果有）
-        header_controls = []
-        if self.on_back:
-            header_controls.append(
+        # 顶部：标题和返回按钮（与 VideoCompressView 保持一致）
+        header = ft.Row(
+            controls=[
                 ft.IconButton(
                     icon=ft.Icons.ARROW_BACK,
                     tooltip="返回",
                     on_click=self._on_back_click,
-                )
-            )
-        
-        header = ft.Row(
-            controls=header_controls,
+                ) if self.on_back else None,
+                ft.Text("FFmpeg 安装", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+            ],
             spacing=PADDING_MEDIUM,
-        ) if header_controls else None
+        )
+        # 过滤掉 None 值
+        header.controls = [c for c in header.controls if c is not None]
         
         # 下载进度控件
         self.download_progress_bar = ft.ProgressBar(value=0, visible=False, width=400)
@@ -97,8 +103,8 @@ class FFmpegInstallView(ft.Container):
             on_click=lambda e: self._open_ffmpeg_guide(),
         )
         
-        # 主要内容
-        content = ft.Container(
+        # 主要内容区域（居中显示）
+        main_content = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.WARNING_AMBER, size=64, color=ft.Colors.ORANGE),
@@ -131,19 +137,16 @@ class FFmpegInstallView(ft.Container):
             alignment=ft.alignment.center,
         )
         
-        # 组装视图
-        if header:
-            self.content = ft.Column(
-                controls=[
-                    header,
-                    ft.Divider(),
-                    content,
-                ],
-                spacing=0,
-                expand=True,
-            )
-        else:
-            self.content = content
+        # 组装视图（与 VideoCompressView 结构一致）
+        self.content = ft.Column(
+            controls=[
+                header,
+                ft.Divider(),
+                main_content,
+            ],
+            spacing=0,
+            expand=True,
+        )
     
     def _open_ffmpeg_guide(self) -> None:
         """打开FFmpeg安装教程。"""

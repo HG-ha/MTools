@@ -74,6 +74,9 @@ class VideoCompressView(ft.Container):
         # 检查 FFmpeg 是否可用
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
+            # 显示 FFmpeg 安装视图时，移除自己的 padding（避免双重 padding）
+            # FFmpegInstallView 内部已经管理了 padding
+            self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
                 self.page,
                 self.ffmpeg_service,
@@ -614,7 +617,12 @@ class VideoCompressView(ft.Container):
 
         threading.Thread(target=compress_task, daemon=True).start()
 
-    def _on_back_click(self, e: ft.ControlEvent) -> None:
+    def _on_back_click(self, e: Optional[ft.ControlEvent] = None) -> None:
+        """返回按钮点击事件。
+        
+        Args:
+            e: 控件事件对象（可选，因为可能被直接调用）
+        """
         if self.on_back:
             self.on_back()
 
