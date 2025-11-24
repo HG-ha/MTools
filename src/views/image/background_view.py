@@ -20,8 +20,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
     ModelInfo,
 )
 from services import ConfigService, ImageService
@@ -125,7 +123,7 @@ class ImageBackgroundView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.ProgressRing(),
-                    ft.Text("正在加载背景移除功能...", size=16, color=TEXT_SECONDARY),
+                    ft.Text("正在加载背景移除功能...", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -163,7 +161,7 @@ class ImageBackgroundView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("背景移除", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("背景移除", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -201,11 +199,11 @@ class ImageBackgroundView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "支持格式: JPG, PNG, WebP, BMP, TIFF, GIF 等 | 处理结果将保存为PNG格式（保留透明背景）",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -260,20 +258,20 @@ class ImageBackgroundView(ft.Container):
         self.model_info_text: ft.Text = ft.Text(
             f"质量: {self.current_model.quality} | 性能: {self.current_model.performance}",
             size=11,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 模型状态显示
         self.model_status_icon: ft.Icon = ft.Icon(
             ft.Icons.HOURGLASS_EMPTY,
             size=20,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         self.model_status_text: ft.Text = ft.Text(
             "正在初始化...",
             size=13,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 下载按钮（初始隐藏）
@@ -437,7 +435,7 @@ class ImageBackgroundView(ft.Container):
         
         # 进度显示
         self.progress_bar: ft.ProgressBar = ft.ProgressBar(value=0, visible=False)
-        self.progress_text: ft.Text = ft.Text("", size=12, color=TEXT_SECONDARY, visible=False)
+        self.progress_text: ft.Text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         progress_container: ft.Container = ft.Container(
             content=ft.Column(
@@ -783,7 +781,7 @@ class ImageBackgroundView(ft.Container):
                         border_radius=BORDER_RADIUS_MEDIUM,
                     ),
                     ft.Container(height=PADDING_MEDIUM // 2),
-                    ft.Text("4. 重新打开此界面即可使用", color=TEXT_SECONDARY, size=12),
+                    ft.Text("4. 重新打开此界面即可使用", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                 ],
                 tight=True,
                 spacing=PADDING_MEDIUM // 2,
@@ -840,7 +838,7 @@ class ImageBackgroundView(ft.Container):
                     controls=[
                         ft.Text("切换模型将卸载当前已加载的模型。", size=14),
                         ft.Container(height=PADDING_SMALL),
-                        ft.Text("是否继续？", size=13, color=TEXT_SECONDARY),
+                        ft.Text("是否继续？", size=13, color=ft.Colors.ON_SURFACE_VARIANT),
                     ],
                     tight=True,
                     spacing=PADDING_SMALL,
@@ -959,8 +957,8 @@ class ImageBackgroundView(ft.Container):
                 controls=[
                     ft.Text("确定要卸载背景移除模型吗？", size=14),
                     ft.Container(height=PADDING_MEDIUM // 2),
-                    ft.Text(f"此操作将释放约{estimated_memory}MB内存，不会删除模型文件。", size=12, color=TEXT_SECONDARY),
-                    ft.Text("需要时可以重新加载。", size=12, color=TEXT_SECONDARY),
+                    ft.Text(f"此操作将释放约{estimated_memory}MB内存，不会删除模型文件。", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("需要时可以重新加载。", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                 ],
                 tight=True,
                 spacing=PADDING_MEDIUM // 2,
@@ -1024,8 +1022,8 @@ class ImageBackgroundView(ft.Container):
                         ft.Text("确定要删除背景移除模型文件吗？", size=14),
                         ft.Container(height=PADDING_MEDIUM // 2),
                         ft.Text("此操作将：", size=13, weight=ft.FontWeight.W_500),
-                        ft.Text(f"• 删除模型文件（约{self.current_model.size_mb}MB）", size=12, color=TEXT_SECONDARY),
-                        ft.Text("• 如果模型已加载，将先卸载", size=12, color=TEXT_SECONDARY),
+                        ft.Text(f"• 删除模型文件（约{self.current_model.size_mb}MB）", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("• 如果模型已加载，将先卸载", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Container(height=PADDING_MEDIUM // 2),
                         ft.Text("删除后需要重新下载才能使用。", size=12, color=ft.Colors.ERROR),
                     ],
@@ -1122,9 +1120,9 @@ class ImageBackgroundView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击选择按钮或点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击选择按钮或点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -1160,7 +1158,7 @@ class ImageBackgroundView(ft.Container):
                                         weight=ft.FontWeight.W_500,
                                         overflow=ft.TextOverflow.ELLIPSIS,
                                     ),
-                                    ft.Text(info_text, size=11, color=TEXT_SECONDARY),
+                                    ft.Text(info_text, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ],
                                 spacing=2,
                                 expand=True,
@@ -1236,7 +1234,7 @@ class ImageBackgroundView(ft.Container):
                                 ft.Column(
                                     controls=[
                                         ft.Text(gif_file.name, size=12, weight=ft.FontWeight.W_500),
-                                        ft.Text(f"{frame_count} 帧", size=10, color=TEXT_SECONDARY),
+                                        ft.Text(f"{frame_count} 帧", size=10, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=2,
                                     expand=True,

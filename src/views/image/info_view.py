@@ -16,8 +16,6 @@ from constants import (
     PADDING_SMALL,
     PADDING_XLARGE,
     PRIMARY_COLOR,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 from utils import format_file_size
@@ -84,7 +82,7 @@ class ImageInfoView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("图片信息查看", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("图片信息查看", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -122,8 +120,8 @@ class ImageInfoView(ft.Container):
         self.preview_placeholder: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.IMAGE_OUTLINED, size=80, color=TEXT_SECONDARY),
-                    ft.Text("点击选择图片", size=16, weight=ft.FontWeight.W_500, color=TEXT_PRIMARY),
+                    ft.Icon(ft.Icons.IMAGE_OUTLINED, size=80, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("点击选择图片", size=16, weight=ft.FontWeight.W_500, ),
                     ft.Container(height=PADDING_SMALL),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -250,9 +248,9 @@ class ImageInfoView(ft.Container):
         empty_hint = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=64, color=TEXT_SECONDARY),
-                    ft.Text("图片信息将在此显示", color=TEXT_SECONDARY, size=16, weight=ft.FontWeight.W_500),
-                    ft.Text("请先在左侧选择一张图片", color=TEXT_SECONDARY, size=13),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("图片信息将在此显示", color=ft.Colors.ON_SURFACE_VARIANT, size=16, weight=ft.FontWeight.W_500),
+                    ft.Text("请先在左侧选择一张图片", color=ft.Colors.ON_SURFACE_VARIANT, size=13),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -748,7 +746,7 @@ class ImageInfoView(ft.Container):
                 if other_exif_controls:
                     exif_controls.append(ft.Divider(height=1))
                     exif_controls.append(
-                        ft.Text("其他 EXIF 信息", size=12, weight=ft.FontWeight.W_500, color=TEXT_SECONDARY)
+                        ft.Text("其他 EXIF 信息", size=12, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT)
                     )
                     exif_controls.extend(other_exif_controls)
             
@@ -918,7 +916,7 @@ class ImageInfoView(ft.Container):
         return ft.Row(
             controls=[
                 ft.Icon(icon, size=20, color=ft.Colors.PRIMARY),
-                ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text(title, size=16, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_SMALL,
         )
@@ -938,14 +936,13 @@ class ImageInfoView(ft.Container):
         
         controls = [
             ft.Container(
-                content=ft.Text(label, size=13, weight=ft.FontWeight.W_500, color=TEXT_SECONDARY),
+                content=ft.Text(label, size=13, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT),
                 width=120,
             ),
             ft.Container(
                 content=ft.Text(
                     value_str,
                     size=13,
-                    color=TEXT_PRIMARY,
                     selectable=True,
                 ),
                 expand=True,

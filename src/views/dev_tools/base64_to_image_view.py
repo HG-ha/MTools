@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService
 
@@ -68,7 +66,7 @@ class Base64ToImageView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("Base64转图片", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("Base64转图片", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -93,7 +91,7 @@ class Base64ToImageView(ft.Container):
                     ft.Text(
                         "支持纯Base64编码和Data URI格式，自动识别图片格式",
                         size=12,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -125,7 +123,7 @@ class Base64ToImageView(ft.Container):
         self.preview_info = ft.Text(
             "",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         

@@ -20,8 +20,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
     PRIMARY_COLOR,
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
@@ -134,7 +132,7 @@ class ImageCropView(ft.Container):
                     on_click=self._on_back_click,
                     tooltip="返回",
                 ),
-                ft.Text("图片裁剪", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("图片裁剪", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -221,8 +219,8 @@ class ImageCropView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=72, color=primary_color),
-                    ft.Text("点击或拖拽图片到这里开始裁剪", size=16, weight=ft.FontWeight.W_500, color=TEXT_PRIMARY),
-                    ft.Text("支持 JPG · PNG · GIF · BMP · WebP", size=12, color=TEXT_SECONDARY),
+                    ft.Text("点击或拖拽图片到这里开始裁剪", size=16, weight=ft.FontWeight.W_500, ),
+                    ft.Text("支持 JPG · PNG · GIF · BMP · WebP", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -438,14 +436,14 @@ class ImageCropView(ft.Container):
         self.crop_size_text: ft.Text = ft.Text(
             "",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             weight=ft.FontWeight.W_500,
         )
         
         self.preview_info_text: ft.Text = ft.Text(
             "选择图片后拖动裁剪框查看效果",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             text_align=ft.TextAlign.CENTER,
         )
         
@@ -511,7 +509,7 @@ class ImageCropView(ft.Container):
                             ft.Icon(
                                 ft.Icons.INFO_OUTLINE,
                                 size=16,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                                 tooltip="选择要裁剪的 GIF 帧\n可以输入帧号或使用左右按钮切换",
                             ),
                         ],
@@ -574,7 +572,7 @@ class ImageCropView(ft.Container):
                             ft.Icon(
                                 ft.Icons.INFO_OUTLINE,
                                 size=16,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                                 tooltip="当前帧：导出为静态图片（PNG/JPG）\n所有帧：保留动画效果（GIF）",
                             ),
                         ],
@@ -1061,12 +1059,12 @@ class ImageCropView(ft.Container):
                             ft.Container(
                                 width=1,
                                 height=6,
-                                bgcolor=TEXT_SECONDARY,
+                                bgcolor=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                             ft.Text(
                                 str(i),
                                 size=9,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                                 text_align=ft.TextAlign.CENTER,
                             ),
                         ],
@@ -1097,14 +1095,14 @@ class ImageCropView(ft.Container):
                             ft.Text(
                                 str(i),
                                 size=9,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                                 text_align=ft.TextAlign.RIGHT,
                                 width=24,
                             ),
                             ft.Container(
                                 width=6,
                                 height=1,
-                                bgcolor=TEXT_SECONDARY,
+                                bgcolor=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=0,

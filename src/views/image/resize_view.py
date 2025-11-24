@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 from utils import format_file_size, GifUtils
@@ -80,7 +78,7 @@ class ImageResizeView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("尺寸调整", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("尺寸调整", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -118,11 +116,11 @@ class ImageResizeView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "支持格式: JPG, PNG, WebP, GIF, TIFF, BMP, ICO, AVIF, HEIC 等",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -287,7 +285,6 @@ class ImageResizeView(ft.Container):
                     ft.Text(
                         "检测到 GIF 文件，将自动调整所有帧的尺寸",
                         size=13,
-                        color=TEXT_PRIMARY,
                     ),
                 ],
                 spacing=8,
@@ -321,7 +318,7 @@ class ImageResizeView(ft.Container):
         
         # 进度显示
         self.progress_bar = ft.ProgressBar(visible=False)
-        self.progress_text = ft.Text("", size=12, color=TEXT_SECONDARY)
+        self.progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
         
         # 可滚动内容区域
         scrollable_content = ft.Column(
@@ -365,9 +362,9 @@ class ImageResizeView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                        ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                        ft.Text("点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -512,9 +509,9 @@ class ImageResizeView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -561,7 +558,7 @@ class ImageResizeView(ft.Container):
                                         str(idx + 1),
                                         size=14,
                                         weight=ft.FontWeight.W_500,
-                                        color=TEXT_SECONDARY,
+                                        color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
                                     alignment=ft.alignment.center,
@@ -579,13 +576,13 @@ class ImageResizeView(ft.Container):
                                         ),
                                         ft.Row(
                                             controls=[
-                                                ft.Icon(ft.Icons.PHOTO_SIZE_SELECT_ACTUAL, size=12, color=TEXT_SECONDARY),
-                                                ft.Text(dimension_str, size=11, color=TEXT_SECONDARY),
-                                                ft.Text("•", size=11, color=TEXT_SECONDARY),
-                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=TEXT_SECONDARY),
-                                                ft.Text(size_str, size=11, color=TEXT_SECONDARY),
-                                                ft.Text("•", size=11, color=TEXT_SECONDARY),
-                                                ft.Text(format_str, size=11, color=TEXT_SECONDARY),
+                                                ft.Icon(ft.Icons.PHOTO_SIZE_SELECT_ACTUAL, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(dimension_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(size_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(format_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                             ],
                                             spacing=4,
                                         ),

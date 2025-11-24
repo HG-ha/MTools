@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 
@@ -70,7 +68,7 @@ class ImageRemoveExifView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("去除EXIF元数据", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("去除EXIF元数据", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -83,13 +81,12 @@ class ImageRemoveExifView(ft.Container):
                         "📌 什么是EXIF？",
                         size=14,
                         weight=ft.FontWeight.BOLD,
-                        color=TEXT_PRIMARY,
                     ),
                     ft.Text(
                         "EXIF（可交换图像文件格式）包含拍摄时间、地理位置、相机型号等信息。\n"
                         "删除EXIF可以保护隐私，并减小文件大小。",
                         size=12,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -103,7 +100,7 @@ class ImageRemoveExifView(ft.Container):
         self.file_list_text = ft.Text(
             "未选择文件",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         select_button = ft.ElevatedButton(
@@ -188,7 +185,7 @@ class ImageRemoveExifView(ft.Container):
                     ft.Text(
                         "提示：不覆盖原文件时，将创建新文件（文件名添加\"_no_exif\"后缀）",
                         size=12,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -213,7 +210,7 @@ class ImageRemoveExifView(ft.Container):
         self.progress_text = ft.Text(
             "",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         

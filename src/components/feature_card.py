@@ -18,8 +18,6 @@ from constants import (
     PADDING_LARGE,
     PADDING_MEDIUM,
     PRIMARY_COLOR,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 
 
@@ -93,14 +91,15 @@ class FeatureCard(ft.Container):
             self.card_title,
             size=18,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
+            # color=TEXT_PRIMARY,  # 移除硬编码颜色，使用默认主题色(ON_SURFACE)
         )
         
         # 描述
         description_text: ft.Text = ft.Text(
             self.card_description,
             size=14,
-            color=TEXT_SECONDARY,
+            # color=TEXT_SECONDARY, # 移除硬编码颜色，使用默认次要颜色
+            color=ft.Colors.ON_SURFACE_VARIANT, # 使用语义化颜色适应深色模式
             max_lines=2,
             overflow=ft.TextOverflow.ELLIPSIS,
         )

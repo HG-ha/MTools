@@ -15,8 +15,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 from utils import format_file_size, GifUtils
@@ -90,7 +88,7 @@ class ImageFormatView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("图片格式转换", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("图片格式转换", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -128,11 +126,11 @@ class ImageFormatView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "支持格式: JPG, JFIF, PNG, WebP, GIF, TIFF, BMP, ICO 等",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -191,11 +189,11 @@ class ImageFormatView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "质量设置对JPG、WebP、TIFF格式有效",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -260,7 +258,7 @@ class ImageFormatView(ft.Container):
                         content=ft.Text(
                             "检测到 GIF 文件，转换为静态格式时请选择要导出的帧",
                             size=12,
-                            color=TEXT_SECONDARY,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                         margin=ft.margin.only(left=4, bottom=PADDING_SMALL),
                     ),
@@ -296,11 +294,11 @@ class ImageFormatView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.TIPS_AND_UPDATES_OUTLINED, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.TIPS_AND_UPDATES_OUTLINED, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "转换后的文件会自动添加新的扩展名",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -319,7 +317,7 @@ class ImageFormatView(ft.Container):
         
         # 进度显示
         self.progress_bar: ft.ProgressBar = ft.ProgressBar(visible=False)
-        self.progress_text: ft.Text = ft.Text("", size=12, color=TEXT_SECONDARY)
+        self.progress_text: ft.Text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
         
         # 底部按钮
         self.convert_button: ft.Container = ft.Container(
@@ -396,12 +394,12 @@ class ImageFormatView(ft.Container):
                         name,
                         size=13,
                         weight=ft.FontWeight.W_600,
-                        color=ft.Colors.WHITE if is_selected else TEXT_PRIMARY,
+                        color=ft.Colors.WHITE if is_selected else ft.Colors.ON_SURFACE,
                     ),
                     ft.Text(
                         ext,
                         size=11,
-                        color=ft.Colors.WHITE if is_selected else TEXT_SECONDARY,
+                        color=ft.Colors.WHITE if is_selected else ft.Colors.ON_SURFACE_VARIANT,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -454,9 +452,9 @@ class ImageFormatView(ft.Container):
                 for control in card.content.controls:
                     if isinstance(control, ft.Text):
                         if control.size == 13:  # 名称
-                            control.color = ft.Colors.WHITE if is_selected else TEXT_PRIMARY
+                            control.color = ft.Colors.WHITE if is_selected else ft.Colors.ON_SURFACE
                         else:  # 扩展名
-                            control.color = ft.Colors.WHITE if is_selected else TEXT_SECONDARY
+                            control.color = ft.Colors.WHITE if is_selected else ft.Colors.ON_SURFACE_VARIANT
             
             card.update()
         
@@ -469,9 +467,9 @@ class ImageFormatView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                        ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                        ft.Text("点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -534,9 +532,9 @@ class ImageFormatView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -576,7 +574,7 @@ class ImageFormatView(ft.Container):
                                         str(idx + 1),
                                         size=14,
                                         weight=ft.FontWeight.W_500,
-                                        color=TEXT_SECONDARY,
+                                        color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
                                     alignment=ft.alignment.center,
@@ -594,13 +592,13 @@ class ImageFormatView(ft.Container):
                                         ),
                                         ft.Row(
                                             controls=[
-                                                ft.Icon(ft.Icons.PHOTO_SIZE_SELECT_ACTUAL, size=12, color=TEXT_SECONDARY),
-                                                ft.Text(dimension_str, size=11, color=TEXT_SECONDARY),
-                                                ft.Text("•", size=11, color=TEXT_SECONDARY),
-                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=TEXT_SECONDARY),
-                                                ft.Text(size_str, size=11, color=TEXT_SECONDARY),
-                                                ft.Text("•", size=11, color=TEXT_SECONDARY),
-                                                ft.Text(format_str, size=11, color=TEXT_SECONDARY),
+                                                ft.Icon(ft.Icons.PHOTO_SIZE_SELECT_ACTUAL, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(dimension_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(size_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(format_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                             ],
                                             spacing=4,
                                         ),
@@ -667,7 +665,7 @@ class ImageFormatView(ft.Container):
                                 ft.Column(
                                     controls=[
                                         ft.Text(gif_file.name, size=13, weight=ft.FontWeight.W_500),
-                                        ft.Text(f"共 {frame_count} 帧", size=11, color=TEXT_SECONDARY),
+                                        ft.Text(f"共 {frame_count} 帧", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=2,
                                     expand=True,

@@ -20,8 +20,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 
@@ -77,7 +75,7 @@ class QRCodeGeneratorView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("二维码生成器", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("二维码生成器", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -135,30 +133,30 @@ class QRCodeGeneratorView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持生成普通二维码、带背景图的艺术二维码和动态GIF二维码 | 支持中文、表情符号等所有字符",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
                         ),
                         margin=ft.margin.only(left=4, top=8, bottom=8),
                     ),
-                    ft.Text("快速模板：", size=12, color=TEXT_SECONDARY),
+                    ft.Text("快速模板：", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     template_buttons,
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text("WiFi 格式说明：", size=11, weight=ft.FontWeight.W_500, color=TEXT_PRIMARY),
+                                ft.Text("WiFi 格式说明：", size=11, weight=ft.FontWeight.W_500, ),
                                 ft.Text(
                                     "WIFI:T:WPA;S:网络名称;P:密码;;\n"
                                     "• T: 加密类型 (WPA, WEP, nopass)\n"
                                     "• S: 网络名称 (支持中文)\n"
                                     "• P: 密码",
                                     size=10,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=4,
@@ -228,7 +226,7 @@ class QRCodeGeneratorView(ft.Container):
         self.selected_image_text = ft.Text(
             "未选择图片",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         select_image_button = ft.ElevatedButton(
@@ -268,7 +266,7 @@ class QRCodeGeneratorView(ft.Container):
                 controls=[
                     ft.Text("艺术二维码设置", size=16, weight=ft.FontWeight.BOLD),
                     ft.Container(height=PADDING_SMALL),
-                    ft.Text("背景图片（可选，支持 GIF 动态图）", size=12, color=TEXT_SECONDARY),
+                    ft.Text("背景图片（可选，支持 GIF 动态图）", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Row(
                         controls=[
                             select_image_button,
@@ -314,7 +312,7 @@ class QRCodeGeneratorView(ft.Container):
         )
         
         self.progress_bar = ft.ProgressBar(visible=False, value=0)
-        self.progress_text = ft.Text("", size=12, color=TEXT_SECONDARY, visible=False)
+        self.progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         # 预览区域
         self.preview_image = ft.Image(

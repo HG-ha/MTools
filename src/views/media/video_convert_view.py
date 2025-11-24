@@ -17,8 +17,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, FFmpegService
 from utils import format_file_size
@@ -136,11 +134,11 @@ class VideoConvertView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: MP4, AVI, MKV, MOV, FLV, WMV, WebM, M4V, MPG, MPEG, TS 等",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -349,14 +347,14 @@ class VideoConvertView(ft.Container):
         self.progress_text = ft.Text(
             "",
             size=13,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         
         self.speed_text = ft.Text(
             "",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         
@@ -486,9 +484,9 @@ class VideoConvertView(ft.Container):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Icon(ft.Icons.VIDEO_FILE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                                ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                                ft.Text("点击此处或选择按钮添加视频", color=TEXT_SECONDARY, size=12),
+                                ft.Icon(ft.Icons.VIDEO_FILE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                                ft.Text("点击此处或选择按钮添加视频", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                             ],
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                             alignment=ft.MainAxisAlignment.CENTER,
@@ -529,7 +527,7 @@ class VideoConvertView(ft.Container):
                                         weight=ft.FontWeight.W_500,
                                         overflow=ft.TextOverflow.ELLIPSIS,
                                     ),
-                                    ft.Text(f"{ext} · {size_str}", size=11, color=TEXT_SECONDARY),
+                                    ft.Text(f"{ext} · {size_str}", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ],
                                 spacing=2,
                                 expand=True,

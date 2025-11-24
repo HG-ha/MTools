@@ -15,8 +15,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 
@@ -69,7 +67,7 @@ class ImageToBase64View(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("图片转Base64", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("图片转Base64", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -78,7 +76,7 @@ class ImageToBase64View(ft.Container):
         self.file_text = ft.Text(
             "未选择文件",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         select_button = ft.ElevatedButton(
@@ -104,11 +102,11 @@ class ImageToBase64View(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: JPG, PNG, WebP, GIF, BMP, TIFF, ICO 等",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,

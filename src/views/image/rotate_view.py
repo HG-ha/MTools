@@ -15,8 +15,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 
@@ -74,7 +72,7 @@ class ImageRotateView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("图片旋转/翻转", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("图片旋转/翻转", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -83,7 +81,7 @@ class ImageRotateView(ft.Container):
         self.file_list_text = ft.Text(
             "未选择文件",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         select_button = ft.ElevatedButton(
@@ -109,11 +107,11 @@ class ImageRotateView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: JPG, PNG, WebP, GIF, BMP, TIFF 等 | GIF动图将保留动画效果",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -235,7 +233,7 @@ class ImageRotateView(ft.Container):
                     ft.Text(
                         "提示：自定义角度旋转时，空白区域将使用填充颜色",
                         size=12,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         visible=False,
                     ),
                 ],
@@ -304,7 +302,7 @@ class ImageRotateView(ft.Container):
         self.preview_status_text = ft.Text(
             "选择图片后将自动显示预览",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             text_align=ft.TextAlign.CENTER,
         )
         
@@ -399,7 +397,7 @@ class ImageRotateView(ft.Container):
         self.progress_text = ft.Text(
             "",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         
@@ -617,7 +615,7 @@ class ImageRotateView(ft.Container):
                                 ft.Column(
                                     controls=[
                                         rgb_text,
-                                        ft.Text("调整RGB值:", size=12, color=TEXT_SECONDARY),
+                                        ft.Text("调整RGB值:", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=PADDING_SMALL,
                                 ),
@@ -652,7 +650,7 @@ class ImageRotateView(ft.Container):
                                 ),
                                 ft.Row(
                                     controls=[
-                                        ft.Text("不透明度:", width=60, color=TEXT_SECONDARY),
+                                        ft.Text("不透明度:", width=60, color=ft.Colors.ON_SURFACE_VARIANT),
                                         ft.Container(content=a_slider, expand=True),
                                     ],
                                     spacing=PADDING_SMALL,

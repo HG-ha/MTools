@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import AudioService, ConfigService, FFmpegService
 from utils import format_file_size
@@ -81,7 +79,7 @@ class AudioFormatView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("音频格式转换", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("音频格式转换", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -118,11 +116,11 @@ class AudioFormatView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "支持格式: MP3, WAV, AAC, M4A, FLAC, OGG, WMA, OPUS 等",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -336,7 +334,7 @@ class AudioFormatView(ft.Container):
         
         # 进度显示
         self.progress_bar: ft.ProgressBar = ft.ProgressBar(value=0, visible=False)
-        self.progress_text: ft.Text = ft.Text("", size=12, color=TEXT_SECONDARY, visible=False)
+        self.progress_text: ft.Text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         progress_container: ft.Container = ft.Container(
             content=ft.Column(
@@ -467,9 +465,9 @@ class AudioFormatView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.AUDIO_FILE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击选择按钮或点击此处选择音频", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.AUDIO_FILE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击选择按钮或点击此处选择音频", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -512,7 +510,7 @@ class AudioFormatView(ft.Container):
                                         weight=ft.FontWeight.W_500,
                                         overflow=ft.TextOverflow.ELLIPSIS,
                                     ),
-                                    ft.Text(info_text, size=11, color=TEXT_SECONDARY),
+                                    ft.Text(info_text, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ],
                                 spacing=2,
                                 expand=True,

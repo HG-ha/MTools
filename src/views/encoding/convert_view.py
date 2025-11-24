@@ -14,8 +14,6 @@ from constants import (
     PADDING_LARGE,
     PADDING_MEDIUM,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, EncodingService
 from utils import format_file_size
@@ -76,7 +74,7 @@ class EncodingConvertView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("编码转换", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("编码转换", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -114,11 +112,11 @@ class EncodingConvertView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "支持常见文本文件: .txt, .py, .java, .c, .cpp, .js, .html, .css, .json, .xml, .md 等",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -180,11 +178,11 @@ class EncodingConvertView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.TIPS_AND_UPDATES_OUTLINED, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.TIPS_AND_UPDATES_OUTLINED, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "推荐使用UTF-8编码，具有最好的兼容性和通用性",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -251,7 +249,7 @@ class EncodingConvertView(ft.Container):
         
         # 进度显示
         self.progress_bar: ft.ProgressBar = ft.ProgressBar(visible=False)
-        self.progress_text: ft.Text = ft.Text("", size=12, color=TEXT_SECONDARY)
+        self.progress_text: ft.Text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
         
         # 底部按钮
         self.convert_button: ft.Container = ft.Container(
@@ -313,9 +311,9 @@ class EncodingConvertView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.DESCRIPTION_OUTLINED, size=48, color=TEXT_SECONDARY),
-                        ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击此处选择文本文件", color=TEXT_SECONDARY, size=12),
+                        ft.Icon(ft.Icons.DESCRIPTION_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                        ft.Text("点击此处选择文本文件", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -378,9 +376,9 @@ class EncodingConvertView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.DESCRIPTION_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击此处选择文本文件", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.DESCRIPTION_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击此处选择文本文件", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -420,7 +418,7 @@ class EncodingConvertView(ft.Container):
                                         str(idx + 1),
                                         size=14,
                                         weight=ft.FontWeight.W_500,
-                                        color=TEXT_SECONDARY,
+                                        color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
                                     alignment=ft.alignment.center,
@@ -438,12 +436,12 @@ class EncodingConvertView(ft.Container):
                                         ),
                                         ft.Row(
                                             controls=[
-                                                ft.Icon(ft.Icons.CODE, size=12, color=TEXT_SECONDARY),
+                                                ft.Icon(ft.Icons.CODE, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                                                 ft.Text(encoding, size=11, color=confidence_color, weight=ft.FontWeight.W_500),
-                                                ft.Text(f"({confidence:.0%})", size=11, color=TEXT_SECONDARY),
-                                                ft.Text("•", size=11, color=TEXT_SECONDARY),
-                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=TEXT_SECONDARY),
-                                                ft.Text(size_str, size=11, color=TEXT_SECONDARY),
+                                                ft.Text(f"({confidence:.0%})", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(size_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                             ],
                                             spacing=4,
                                         ),

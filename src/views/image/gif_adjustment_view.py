@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from models import GifAdjustmentOptions
 from services import ConfigService, ImageService, FFmpegService
@@ -106,7 +104,7 @@ class GifAdjustmentView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("GIF / 实况图调整", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("GIF / 实况图调整", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -115,7 +113,7 @@ class GifAdjustmentView(ft.Container):
         self.file_info_text: ft.Text = ft.Text(
             "未选择文件",
             size=13,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         file_select_row: ft.Row = ft.Row(
@@ -142,10 +140,10 @@ class GifAdjustmentView(ft.Container):
         self.preview_placeholder: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.GIF_BOX_OUTLINED, size=80, color=TEXT_SECONDARY),
-                    ft.Text("点击选择 GIF 或实况图", size=16, weight=ft.FontWeight.W_500, color=TEXT_PRIMARY),
-                    ft.Text("支持调整首帧、速度、循环等", size=12, color=TEXT_SECONDARY),
-                    ft.Text("实况图将自动提取视频部分", size=11, color=TEXT_SECONDARY, italic=True),
+                    ft.Icon(ft.Icons.GIF_BOX_OUTLINED, size=80, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("点击选择 GIF 或实况图", size=16, weight=ft.FontWeight.W_500, ),
+                    ft.Text("支持调整首帧、速度、循环等", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("实况图将自动提取视频部分", size=11, color=ft.Colors.ON_SURFACE_VARIANT, italic=True),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -202,7 +200,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Text(
                 "预览将在拖动时显示",
                 size=12,
-                color=TEXT_SECONDARY,
+                color=ft.Colors.ON_SURFACE_VARIANT,
                 text_align=ft.TextAlign.CENTER,
             ),
             alignment=ft.alignment.center,
@@ -230,7 +228,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("封面设置", size=14, weight=ft.FontWeight.W_500),
-                    ft.Text("设置未播放时显示的默认帧", size=12, color=TEXT_SECONDARY),
+                    ft.Text("设置未播放时显示的默认帧", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     cover_preview_container,
                     self.cover_frame_text,
                     self.cover_frame_slider,
@@ -259,7 +257,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("播放速度", size=14, weight=ft.FontWeight.W_500),
-                    ft.Text("调整 GIF 播放速度 (0.25x - 4.0x)", size=12, color=TEXT_SECONDARY),
+                    ft.Text("调整 GIF 播放速度 (0.25x - 4.0x)", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Container(
                         content=ft.Row(
                             controls=[
@@ -305,7 +303,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("循环设置", size=14, weight=ft.FontWeight.W_500),
-                    ft.Text("设置 GIF 循环播放次数", size=12, color=TEXT_SECONDARY),
+                    ft.Text("设置 GIF 循环播放次数", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Row(
                         controls=[
                             self.loop_checkbox,
@@ -344,7 +342,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("帧范围截取", size=14, weight=ft.FontWeight.W_500),
-                    ft.Text("截取指定范围的帧（包含起始和结束帧）", size=12, color=TEXT_SECONDARY),
+                    ft.Text("截取指定范围的帧（包含起始和结束帧）", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Row(
                         controls=[
                             self.trim_start_field,
@@ -379,7 +377,7 @@ class GifAdjustmentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("跳帧设置", size=14, weight=ft.FontWeight.W_500),
-                    ft.Text("减少帧数以降低文件大小", size=12, color=TEXT_SECONDARY),
+                    ft.Text("减少帧数以降低文件大小", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     self.drop_frame_text,
                     self.drop_frame_slider,
                 ],
@@ -521,7 +519,7 @@ class GifAdjustmentView(ft.Container):
         
         # 进度显示
         self.progress_bar: ft.ProgressBar = ft.ProgressBar(value=0, visible=False)
-        self.progress_text: ft.Text = ft.Text("", size=12, color=TEXT_SECONDARY, visible=False)
+        self.progress_text: ft.Text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         progress_container: ft.Container = ft.Container(
             content=ft.Column(

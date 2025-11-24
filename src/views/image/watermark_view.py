@@ -17,8 +17,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 
@@ -73,7 +71,7 @@ class ImageWatermarkView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("添加水印", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("添加水印", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -113,11 +111,11 @@ class ImageWatermarkView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: JPG, PNG, WebP, BMP, TIFF 等 | 支持批量处理",
                                     size=12,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=8,
@@ -253,7 +251,7 @@ class ImageWatermarkView(ft.Container):
         self.custom_font_text = ft.Text(
             "未选择字体文件",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         custom_font_button = ft.ElevatedButton(
@@ -277,11 +275,11 @@ class ImageWatermarkView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: TTF, TTC, OTF",
                                     size=11,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=4,
@@ -348,11 +346,11 @@ class ImageWatermarkView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "自适应模式会根据图片宽度自动调整字体大小",
                                     size=11,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=4,
@@ -551,7 +549,7 @@ class ImageWatermarkView(ft.Container):
         self.progress_text = ft.Text(
             "",
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             visible=False,
         )
         
@@ -742,7 +740,7 @@ class ImageWatermarkView(ft.Container):
                                 ft.Column(
                                     controls=[
                                         rgb_text,
-                                        ft.Text("调整RGB值:", size=12, color=TEXT_SECONDARY),
+                                        ft.Text("调整RGB值:", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=PADDING_SMALL,
                                 ),
@@ -853,9 +851,9 @@ class ImageWatermarkView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                        ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击此处或选择按钮添加图片", color=TEXT_SECONDARY, size=12),
+                        ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                        ft.Text("点击此处或选择按钮添加图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -1133,7 +1131,7 @@ class ImageWatermarkView(ft.Container):
                                         str(idx + 1),
                                         size=12,
                                         weight=ft.FontWeight.W_500,
-                                        color=TEXT_SECONDARY,
+                                        color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
                                     alignment=ft.alignment.center,
@@ -1152,7 +1150,7 @@ class ImageWatermarkView(ft.Container):
                                         ft.Text(
                                             size_str,
                                             size=10,
-                                            color=TEXT_SECONDARY,
+                                            color=ft.Colors.ON_SURFACE_VARIANT,
                                         ),
                                     ],
                                     spacing=2,

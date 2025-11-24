@@ -17,8 +17,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, FFmpegService
 from utils import format_file_size
@@ -92,7 +90,7 @@ class VideoCompressView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("视频压缩", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("视频压缩", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -109,7 +107,7 @@ class VideoCompressView(ft.Container):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Text("文件选择", size=18, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                            ft.Text("文件选择", size=18, weight=ft.FontWeight.W_600, ),
                             ft.Container(expand=True),
                             ft.ElevatedButton(
                                 "选择文件",
@@ -136,11 +134,11 @@ class VideoCompressView(ft.Container):
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ft.Text(
                                     "支持格式: MP4, MKV, MOV, AVI, WMV, FLV, WebM, M4V, 3GP, TS, M2TS, F4V 等",
                                     size=11,
-                                    color=TEXT_SECONDARY,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
                             spacing=6,
@@ -217,7 +215,7 @@ class VideoCompressView(ft.Container):
                         width=100,
                         hint_text="px",
                     ),
-                    ft.Text("x", size=16, color=TEXT_SECONDARY),
+                    ft.Text("x", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.TextField(
                         label="高度",
                         value="1080",
@@ -249,7 +247,7 @@ class VideoCompressView(ft.Container):
         self.normal_options_container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("常规模式设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("常规模式设置", size=14, weight=ft.FontWeight.W_600, ),
                     ft.Row(
                         controls=[
                             self.resolution_dropdown,
@@ -433,7 +431,7 @@ class VideoCompressView(ft.Container):
         video_settings_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("视频编码设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("视频编码设置", size=14, weight=ft.FontWeight.W_600, ),
                     ft.Row(
                         controls=[self.vcodec_dropdown, self.preset_dropdown],
                         spacing=PADDING_MEDIUM,
@@ -452,7 +450,7 @@ class VideoCompressView(ft.Container):
         bitrate_settings_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("比特率控制", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("比特率控制", size=14, weight=ft.FontWeight.W_600, ),
                     self.bitrate_mode_radio,
                     ft.Row(
                         controls=[self.video_bitrate_input, self.max_bitrate_input],
@@ -470,7 +468,7 @@ class VideoCompressView(ft.Container):
         fps_settings_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("帧率设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("帧率设置", size=14, weight=ft.FontWeight.W_600, ),
                     self.fps_mode_radio,
                     self.fps_input,
                 ],
@@ -485,7 +483,7 @@ class VideoCompressView(ft.Container):
         advanced_params_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("高级参数", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("高级参数", size=14, weight=ft.FontWeight.W_600, ),
                     ft.Row(
                         controls=[self.gop_input, self.output_format_dropdown],
                         spacing=PADDING_MEDIUM,
@@ -503,7 +501,7 @@ class VideoCompressView(ft.Container):
         audio_settings_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("音频设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("音频设置", size=14, weight=ft.FontWeight.W_600, ),
                     ft.Row(
                         controls=[self.acodec_dropdown, self.audio_bitrate_input],
                         spacing=PADDING_MEDIUM,
@@ -521,7 +519,7 @@ class VideoCompressView(ft.Container):
         self.advanced_options_container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("高级模式设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("高级模式设置", size=14, weight=ft.FontWeight.W_600, ),
                     video_settings_card,
                     bitrate_settings_card,
                     fps_settings_card,
@@ -559,7 +557,7 @@ class VideoCompressView(ft.Container):
         
         # 质量设置卡片
         quality_card_controls = [
-            ft.Text("质量设置", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+            ft.Text("质量设置", size=14, weight=ft.FontWeight.W_600, ),
         ]
         if gpu_status_text:
             quality_card_controls.append(gpu_status_text)
@@ -583,7 +581,7 @@ class VideoCompressView(ft.Container):
         mode_card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("压缩模式", size=14, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("压缩模式", size=14, weight=ft.FontWeight.W_600, ),
                     self.mode_radio,
                 ],
                 spacing=PADDING_SMALL,
@@ -597,7 +595,7 @@ class VideoCompressView(ft.Container):
         compress_options = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("压缩设置", size=18, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("压缩设置", size=18, weight=ft.FontWeight.W_600, ),
                     quality_card,
                     mode_card,
                     self.normal_options_container,
@@ -649,7 +647,7 @@ class VideoCompressView(ft.Container):
         output_options = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("输出选项", size=18, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                    ft.Text("输出选项", size=18, weight=ft.FontWeight.W_600, ),
                     self.output_mode_radio,
                     ft.Container(
                         content=ft.Column(
@@ -679,7 +677,7 @@ class VideoCompressView(ft.Container):
         
         # 进度显示
         self.progress_bar = ft.ProgressBar(visible=False)
-        self.progress_text = ft.Text("", size=12, color=TEXT_SECONDARY)
+        self.progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
         
         # 底部按钮
         self.compress_button = ft.Container(
@@ -751,9 +749,9 @@ class VideoCompressView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.MOVIE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                        ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击此处或选择按钮添加视频", color=TEXT_SECONDARY, size=12),
+                        ft.Icon(ft.Icons.MOVIE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                        ft.Text("点击此处或选择按钮添加视频", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -824,7 +822,7 @@ class VideoCompressView(ft.Container):
                                 ft.Column(
                                     controls=[
                                         ft.Text(file_path.name, size=13, weight=ft.FontWeight.W_500),
-                                        ft.Text(f"大小: {size_str}", size=11, color=TEXT_SECONDARY),
+                                        ft.Text(f"大小: {size_str}", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=4,
                                     expand=True,

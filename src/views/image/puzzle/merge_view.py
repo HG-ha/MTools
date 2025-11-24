@@ -20,8 +20,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService, ImageService
 from utils import format_file_size, GifUtils
@@ -92,7 +90,7 @@ class ImagePuzzleMergeView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("多图合并", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("多图合并", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -148,11 +146,11 @@ class ImagePuzzleMergeView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=TEXT_SECONDARY),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
                                 "至少选择2张图片进行合并",
                                 size=12,
-                                color=TEXT_SECONDARY,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                         ],
                         spacing=8,
@@ -277,7 +275,7 @@ class ImagePuzzleMergeView(ft.Container):
         self.preview_info_text: ft.Text = ft.Text(
             "选择图片后将自动生成预览",
             size=13,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             text_align=ft.TextAlign.CENTER,
         )
         
@@ -519,9 +517,9 @@ class ImagePuzzleMergeView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击选择文件按钮或点击此处选择图片", color=TEXT_SECONDARY, size=12),
+                            ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
+                            ft.Text("点击选择文件按钮或点击此处选择图片", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -573,7 +571,7 @@ class ImagePuzzleMergeView(ft.Container):
                                         weight=ft.FontWeight.W_500,
                                         overflow=ft.TextOverflow.ELLIPSIS,
                                     ),
-                                    ft.Text(info_text, size=11, color=TEXT_SECONDARY),
+                                    ft.Text(info_text, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ],
                                 spacing=2,
                                 expand=True,
@@ -586,7 +584,7 @@ class ImagePuzzleMergeView(ft.Container):
                     second_row = ft.Row(
                         controls=[
                             ft.Container(width=28),  # 占位，对齐图标位置
-                            ft.Text("选帧:", size=11, color=TEXT_SECONDARY),
+                            ft.Text("选帧:", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.IconButton(
                                 icon=ft.Icons.SKIP_PREVIOUS,
                                 icon_size=14,
@@ -601,7 +599,7 @@ class ImagePuzzleMergeView(ft.Container):
                                 on_submit=lambda e, fp=file_path, fc=frame_count: self._on_gif_frame_submit(e, fp, fc),
                                 on_blur=lambda e, fp=file_path, fc=frame_count: self._on_gif_frame_submit(e, fp, fc),
                             ),
-                            ft.Text(f"/{frame_count}", size=11, color=TEXT_SECONDARY),
+                            ft.Text(f"/{frame_count}", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.IconButton(
                                 icon=ft.Icons.SKIP_NEXT,
                                 icon_size=14,
@@ -656,7 +654,7 @@ class ImagePuzzleMergeView(ft.Container):
                                             weight=ft.FontWeight.W_500,
                                             overflow=ft.TextOverflow.ELLIPSIS,
                                         ),
-                                        ft.Text(info_text, size=11, color=TEXT_SECONDARY),
+                                        ft.Text(info_text, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
                                     ],
                                     spacing=2,
                                     expand=True,

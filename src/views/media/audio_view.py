@@ -14,7 +14,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_SECONDARY,
 )
 from services import AudioService, ConfigService, FFmpegService
 from views.media.audio_format_view import AudioFormatView
@@ -301,7 +300,7 @@ class AudioView(ft.Container):
                 controls=[
                     ft.Text(f"{feature_name}功能正在开发中，敬请期待！", size=14),
                     ft.Container(height=PADDING_SMALL),
-                    ft.Text("FFmpeg环境已就绪，可以开始开发这个功能了。", size=12, color=TEXT_SECONDARY),
+                    ft.Text("FFmpeg环境已就绪，可以开始开发这个功能了。", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                 ],
                 tight=True,
                 spacing=PADDING_SMALL,

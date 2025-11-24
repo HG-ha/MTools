@@ -16,8 +16,6 @@ from constants import (
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_XLARGE,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import FFmpegService
 
@@ -74,7 +72,7 @@ class FFmpegInstallView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ) if self.on_back else None,
-                ft.Text("FFmpeg 安装", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Text("FFmpeg 安装", size=28, weight=ft.FontWeight.BOLD, ),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -83,7 +81,7 @@ class FFmpegInstallView(ft.Container):
         
         # 下载进度控件
         self.download_progress_bar = ft.ProgressBar(value=0, visible=False, width=400)
-        self.download_progress_text = ft.Text("", size=12, color=TEXT_SECONDARY, visible=False)
+        self.download_progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         # 自动安装按钮
         self.auto_install_button = ft.ElevatedButton(
@@ -108,18 +106,18 @@ class FFmpegInstallView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.WARNING_AMBER, size=64, color=ft.Colors.ORANGE),
-                    ft.Text("FFmpeg 未安装", size=24, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                    ft.Text("FFmpeg 未安装", size=24, weight=ft.FontWeight.BOLD, ),
                     ft.Container(height=PADDING_MEDIUM),
                     ft.Text(
                         f"{self.tool_name}需要 FFmpeg 支持",
                         size=14,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Text(
                         "点击下方按钮自动下载并安装到软件目录（约100MB）",
                         size=13,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Container(height=PADDING_LARGE),

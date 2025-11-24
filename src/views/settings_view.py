@@ -16,8 +16,6 @@ from constants import (
     PADDING_SMALL,
     PADDING_XLARGE,
     SURFACE_VARIANT,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
 )
 from services import ConfigService
 
@@ -60,7 +58,6 @@ class SettingsView(ft.Container):
             "设置",
             size=32,
             weight=ft.FontWeight.BOLD,
-            color=TEXT_PRIMARY,
         )
         
         # 数据目录设置部分
@@ -113,7 +110,6 @@ class SettingsView(ft.Container):
             "主题模式",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
         
         # 获取当前保存的主题模式
@@ -126,7 +122,7 @@ class SettingsView(ft.Container):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Icon(ft.Icons.BRIGHTNESS_AUTO, size=32, color=TEXT_PRIMARY),
+                                ft.Icon(ft.Icons.BRIGHTNESS_AUTO, size=32, ),
                                 ft.Text("跟随系统", size=14, weight=ft.FontWeight.W_500),
                             ],
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -144,7 +140,7 @@ class SettingsView(ft.Container):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Icon(ft.Icons.LIGHT_MODE, size=32, color=TEXT_PRIMARY),
+                                ft.Icon(ft.Icons.LIGHT_MODE, size=32, ),
                                 ft.Text("浅色模式", size=14, weight=ft.FontWeight.W_500),
                             ],
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -162,7 +158,7 @@ class SettingsView(ft.Container):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Icon(ft.Icons.DARK_MODE, size=32, color=TEXT_PRIMARY),
+                                ft.Icon(ft.Icons.DARK_MODE, size=32, ),
                                 ft.Text("深色模式", size=14, weight=ft.FontWeight.W_500),
                             ],
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -194,7 +190,7 @@ class SettingsView(ft.Container):
         info_text: ft.Text = ft.Text(
             "主题模式会立即生效",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 组装主题模式设置部分
@@ -274,7 +270,6 @@ class SettingsView(ft.Container):
             "数据存储",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
         
         # 当前数据目录显示
@@ -284,7 +279,7 @@ class SettingsView(ft.Container):
         self.data_dir_text: ft.Text = ft.Text(
             str(current_dir),
             size=14,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             selectable=True,
         )
         
@@ -348,7 +343,7 @@ class SettingsView(ft.Container):
         info_text: ft.Text = ft.Text(
             "数据目录用于存储应用的处理结果和临时文件",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 组装数据目录部分
@@ -442,7 +437,6 @@ class SettingsView(ft.Container):
             "GPU加速",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
 
         gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
@@ -483,21 +477,20 @@ class SettingsView(ft.Container):
             status_text = ft.Text(
                 "未检测到GPU编码器，将使用CPU编码",
                 size=12,
-                color=TEXT_SECONDARY,
+                color=ft.Colors.ON_SURFACE_VARIANT,
             )
 
         # 高级设置控件
         self.gpu_memory_value_text = ft.Text(
             f"{gpu_memory_limit} MB",
             size=13,
-            color=TEXT_PRIMARY,
             text_align=ft.TextAlign.END,
             width=80,
         )
 
         memory_label_row = ft.Row(
             controls=[
-                ft.Text("GPU内存限制", size=13, color=TEXT_PRIMARY),
+                ft.Text("GPU内存限制", size=13, ),
                 self.gpu_memory_value_text,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -544,7 +537,6 @@ class SettingsView(ft.Container):
             "高级参数",
             size=14,
             weight=ft.FontWeight.W_500,
-            color=TEXT_PRIMARY,
         )
 
         self.gpu_advanced_container = ft.Container(
@@ -558,7 +550,7 @@ class SettingsView(ft.Container):
         info_text = ft.Text(
             "启用GPU加速可显著提升图像与视频处理速度。如遇兼容性或显存不足问题，可在此调整参数。",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
 
         # 初始状态同步
@@ -674,7 +666,6 @@ class SettingsView(ft.Container):
             "主题颜色",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
         
         # 预定义的主题色
@@ -723,7 +714,7 @@ class SettingsView(ft.Container):
         info_text: ft.Text = ft.Text(
             "主题色会立即生效，包括标题栏和所有界面元素。点击「自定义」可以使用调色盘选择任意颜色",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 组装主题色设置部分
@@ -786,13 +777,12 @@ class SettingsView(ft.Container):
                         name,
                         size=12,
                         weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL,
-                        color=TEXT_PRIMARY,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Text(
                         desc,
                         size=10,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     check_icon if check_icon else ft.Container(height=16),
@@ -832,20 +822,18 @@ class SettingsView(ft.Container):
                     ft.Icon(
                         ft.Icons.COLOR_LENS,
                         size=32,
-                        color=TEXT_PRIMARY,
                     ),
                     ft.Container(height=4),
                     ft.Text(
                         "自定义",
                         size=12,
                         weight=ft.FontWeight.W_600,
-                        color=TEXT_PRIMARY,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Text(
                         "点击选择",
                         size=10,
-                        color=TEXT_SECONDARY,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER,
                     ),
                 ],
@@ -1053,7 +1041,7 @@ class SettingsView(ft.Container):
                                 controls=[
                                     rgb_text,
                                     color_input,
-                                    ft.Text("调整RGB值或输入颜色代码", size=12, color=TEXT_SECONDARY),
+                                    ft.Text("调整RGB值或输入颜色代码", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                                 ],
                                 spacing=PADDING_SMALL,
                             ),
@@ -1359,7 +1347,6 @@ class SettingsView(ft.Container):
             "字体设置",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
         
         # 常用字体列表
@@ -1417,7 +1404,7 @@ class SettingsView(ft.Container):
                 ft.Text(
                     "80% (较小) - 100% (标准) - 150% (特大)",
                     size=11,
-                    color=TEXT_SECONDARY,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
                 ),
             ],
             spacing=PADDING_MEDIUM // 2,
@@ -1450,7 +1437,7 @@ class SettingsView(ft.Container):
         info_text: ft.Text = ft.Text(
             "更改字体和字体大小后需要重启应用才能完全生效",
             size=12,
-            color=TEXT_SECONDARY,
+            color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
         # 组装字体设置部分
@@ -1484,18 +1471,17 @@ class SettingsView(ft.Container):
             "关于",
             size=20,
             weight=ft.FontWeight.W_600,
-            color=TEXT_PRIMARY,
         )
         
         app_info: ft.Column = ft.Column(
             controls=[
                 ft.Text("MyTools - 多功能工具箱", size=16, weight=ft.FontWeight.W_500),
-                ft.Text("版本: 0.1.0", size=14, color=TEXT_SECONDARY),
+                ft.Text("版本: 0.1.0", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
                 ft.Container(height=PADDING_MEDIUM // 2),
                 ft.Text(
                     "一个集成了图片处理、音视频处理、编码转换、代码格式化等功能的桌面应用",
                     size=14,
-                    color=TEXT_SECONDARY,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
                 ),
             ],
             spacing=PADDING_MEDIUM // 2,
