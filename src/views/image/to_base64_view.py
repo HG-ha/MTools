@@ -195,11 +195,9 @@ class ImageToBase64View(ft.Container):
             border_radius=8,
         )
         
-        # 组装视图
-        self.content = ft.Column(
+        # 可滚动内容区域
+        scrollable_content = ft.Column(
             controls=[
-                header,
-                ft.Container(height=PADDING_MEDIUM),
                 file_section,
                 ft.Container(height=PADDING_MEDIUM),
                 format_section,
@@ -207,8 +205,19 @@ class ImageToBase64View(ft.Container):
                 convert_button,
                 ft.Container(height=PADDING_MEDIUM),
                 result_section,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.HIDDEN,
+            expand=True,
+        )
+        
+        # 组装视图 - 标题固定，分隔线固定，内容可滚动
+        self.content = ft.Column(
+            controls=[
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
+            ],
             spacing=0,
         )
         

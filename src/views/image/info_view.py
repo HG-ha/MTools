@@ -198,17 +198,26 @@ class ImageInfoView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 组装主界面
-        self.content = ft.Column(
+        # 可滚动内容区域
+        scrollable_content = ft.Column(
             controls=[
-                header,
-                ft.Divider(),
                 file_select_row,
                 main_content,
             ],
             spacing=PADDING_MEDIUM,
+            scroll=ft.ScrollMode.HIDDEN,
             expand=True,
-            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        # 组装主界面 - 标题固定，分隔线固定，内容可滚动
+        self.content = ft.Column(
+            controls=[
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
+            ],
+            spacing=0,
+            expand=True,
         )
  
     def _get_theme_primary_color(self) -> str:

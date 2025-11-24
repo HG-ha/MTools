@@ -155,38 +155,52 @@ class CodeFormatDetailView(ft.Container):
             ),
         )
         
-        # 组装视图
+        # 标题行(只包含返回按钮和标题)
+        header = ft.Row(
+            controls=[
+                back_button,
+                title,
+            ],
+            spacing=PADDING_MEDIUM,
+        )
+        
+        # 可滚动内容区域
+        scrollable_content = ft.Column(
+            controls=[
+                info_card,
+                self.language_dropdown,
+                self.code_input,
+                ft.Container(
+                    content=ft.Row(
+                        controls=[format_button, copy_button],
+                        spacing=PADDING_MEDIUM,
+                    ),
+                    padding=ft.padding.symmetric(vertical=PADDING_SMALL),
+                ),
+                self.output_text,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
+            ],
+            spacing=PADDING_MEDIUM,
+            scroll=ft.ScrollMode.HIDDEN,
+            expand=True,
+        )
+        
+        # 组装视图 - 标题固定，分隔线固定，内容可滚动
         self.content = ft.Column(
             controls=[
-                title_bar,
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            info_card,
-                            self.language_dropdown,
-                            self.code_input,
-                            ft.Container(
-                                content=ft.Row(
-                                    controls=[format_button, copy_button],
-                                    spacing=PADDING_MEDIUM,
-                                ),
-                                padding=ft.padding.symmetric(vertical=PADDING_SMALL),
-                            ),
-                            self.output_text,
-                        ],
-                        spacing=PADDING_MEDIUM,
-                        scroll=ft.ScrollMode.AUTO,
-                    ),
-                    padding=ft.padding.only(
-                        left=PADDING_XLARGE,
-                        right=PADDING_XLARGE,
-                        bottom=PADDING_XLARGE,
-                    ),
-                    expand=True,
-                ),
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
             ],
             spacing=0,
             expand=True,
+        )
+        
+        self.padding = ft.padding.only(
+            left=PADDING_XLARGE,
+            right=PADDING_XLARGE,
+            top=PADDING_XLARGE,
+            bottom=PADDING_XLARGE,
         )
     
     def _format_code(self, e: ft.ControlEvent) -> None:

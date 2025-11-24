@@ -408,11 +408,9 @@ class ImageRotateView(ft.Container):
             visible=False,
         )
         
-        # 组装视图 - 调整顺序，预览放在文件选择下面
-        self.content = ft.Column(
+        # 可滚动内容区域
+        scrollable_content = ft.Column(
             controls=[
-                header,
-                ft.Container(height=PADDING_MEDIUM),
                 file_section,
                 ft.Container(height=PADDING_MEDIUM),
                 preview_section,
@@ -425,8 +423,19 @@ class ImageRotateView(ft.Container):
                 ft.Container(height=PADDING_SMALL),
                 self.progress_text,
                 self.progress_bar,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.HIDDEN,
+            expand=True,
+        )
+        
+        # 组装视图 - 标题固定，分隔线固定，内容可滚动
+        self.content = ft.Column(
+            controls=[
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
+            ],
             spacing=0,
         )
         
