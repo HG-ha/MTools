@@ -68,9 +68,9 @@ def main(page: ft.Page) -> None:
         # 页面和组件颜色配置
         scaffold_bgcolor="#F8F9FA",  # 浅灰背景
         card_color="#FFFFFF",         # 白色卡片
-        # 导航栏主题
+        # 导航栏主题 - 不设置固定背景色，使用容器的半透明背景
         navigation_rail_theme=ft.NavigationRailTheme(
-            bgcolor="#FFFFFF",
+            bgcolor=ft.Colors.TRANSPARENT,
         ),
     )
     
@@ -82,9 +82,9 @@ def main(page: ft.Page) -> None:
         # 深色模式颜色配置
         scaffold_bgcolor="#121212",  # 深色背景
         card_color="#2C2C2C",        # 深色卡片
-        # 深色导航栏主题
+        # 深色导航栏主题 - 不设置固定背景色，使用容器的半透明背景
         navigation_rail_theme=ft.NavigationRailTheme(
-            bgcolor="#1E1E1E",
+            bgcolor=ft.Colors.TRANSPARENT,
         ),
     )
     
@@ -106,6 +106,15 @@ def main(page: ft.Page) -> None:
     
     # 更新页面
     page.update()
+    
+    # 应用窗口透明度（必须在page.update()之后）
+    if hasattr(main_view, '_pending_opacity'):
+        page.window.opacity = main_view._pending_opacity
+        page.update()
+    
+    # 应用背景图片（如果有配置）
+    if hasattr(main_view, '_pending_bg_image') and main_view._pending_bg_image:
+        main_view.apply_background(main_view._pending_bg_image, main_view._pending_bg_fit)
     
     # 监听窗口事件（移动和调整大小时自动保存）
     def on_window_event(e):

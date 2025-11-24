@@ -44,6 +44,7 @@ class DevToolsView(ft.Container):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用
         self.config_service: ConfigService = config_service
         self.encoding_service: EncodingService = encoding_service
         self.parent_container: Optional[ft.Container] = parent_container
@@ -68,6 +69,12 @@ class DevToolsView(ft.Container):
         
         # 创建UI组件
         self._build_ui()
+    
+    def _safe_page_update(self) -> None:
+        """安全地更新页面。"""
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.update()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -140,7 +147,7 @@ class DevToolsView(ft.Container):
             self.current_sub_view = self.python_terminal_view
             self.current_sub_view_type = "python_terminal"
             self.parent_container.content = self.python_terminal_view
-            self.parent_container.update()
+        self._safe_page_update()
     
     def _open_encoding_convert(self, e: ft.ControlEvent) -> None:
         """打开编码转换。"""
@@ -157,7 +164,7 @@ class DevToolsView(ft.Container):
             self.current_sub_view = self.encoding_convert_view
             self.current_sub_view_type = "encoding_convert"
             self.parent_container.content = self.encoding_convert_view
-            self.parent_container.update()
+        self._safe_page_update()
     
     def _open_code_format(self, e: ft.ControlEvent) -> None:
         """打开代码格式化。"""
@@ -174,7 +181,7 @@ class DevToolsView(ft.Container):
             self.current_sub_view = self.code_format_view
             self.current_sub_view_type = "code_format"
             self.parent_container.content = self.code_format_view
-            self.parent_container.update()
+        self._safe_page_update()
     
     def _open_base64_to_image(self, e: ft.ControlEvent) -> None:
         """打开Base64转图片。"""
@@ -191,7 +198,7 @@ class DevToolsView(ft.Container):
             self.current_sub_view = self.base64_to_image_view
             self.current_sub_view_type = "base64_to_image"
             self.parent_container.content = self.base64_to_image_view
-            self.parent_container.update()
+        self._safe_page_update()
     
     def _back_to_main(self) -> None:
         """返回主界面。"""
@@ -213,7 +220,7 @@ class DevToolsView(ft.Container):
         
         if self.parent_container:
             self.parent_container.content = self
-            self.parent_container.update()
+        self._safe_page_update()
     
     def restore_state(self) -> bool:
         """恢复之前的视图状态。
@@ -223,7 +230,7 @@ class DevToolsView(ft.Container):
         """
         if self.current_sub_view and self.parent_container:
             self.parent_container.content = self.current_sub_view
-            self.parent_container.update()
+            self._safe_page_update()
             return True
         return False
 

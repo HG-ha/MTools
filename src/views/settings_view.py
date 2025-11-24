@@ -38,6 +38,7 @@ class SettingsView(ft.Container):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用,防止在布局重建后丢失
         self.config_service: ConfigService = config_service
         self.expand: bool = True
         # 左右边距使用 PADDING_LARGE
@@ -69,6 +70,9 @@ class SettingsView(ft.Container):
         # 主题色设置部分
         theme_color_section: ft.Container = self._build_theme_color_section()
         
+        # 外观设置部分（透明度和背景图片）
+        appearance_section: ft.Container = self._build_appearance_section()
+        
         # GPU加速设置部分
         gpu_acceleration_section: ft.Container = self._build_gpu_acceleration_section()
         
@@ -88,6 +92,8 @@ class SettingsView(ft.Container):
                 theme_mode_section,
                 ft.Container(height=PADDING_LARGE),
                 theme_color_section,
+                ft.Container(height=PADDING_LARGE),
+                appearance_section,
                 ft.Container(height=PADDING_LARGE),
                 gpu_acceleration_section,
                 ft.Container(height=PADDING_LARGE),
@@ -429,6 +435,281 @@ class SettingsView(ft.Container):
             ft.dropdown.Option("3", "GPU 3"),
         ]
     
+    def _build_appearance_section(self) -> ft.Container:
+        """构建外观设置部分（透明度和背景图片）。
+        
+        Returns:
+            外观设置容器
+        """
+        section_title = ft.Text(
+            "外观",
+            size=20,
+            weight=ft.FontWeight.W_600,
+        )
+        
+        # 获取当前配置
+        current_opacity = self.config_service.get_config_value("window_opacity", 1.0)
+        current_bg_image = self.config_service.get_config_value("background_image", None)
+        current_bg_fit = self.config_service.get_config_value("background_image_fit", "cover")
+        
+        # 不透明度滑块
+        self.opacity_value_text = ft.Text(
+            f"{int(current_opacity * 100)}%",
+            size=13,
+            text_align=ft.TextAlign.END,
+            width=60,
+        )
+        
+        self.opacity_slider = ft.Slider(
+            min=0.3,
+            max=1.0,
+            value=current_opacity,
+            divisions=14,
+            # label 不使用,因为格式化不够灵活,使用右侧文本显示
+            on_change=self._on_opacity_change,
+        )
+        
+        opacity_row = ft.Row(
+            controls=[
+                ft.Text("窗口不透明度", size=13),  # 改为"不透明度"更准确
+                self.opacity_value_text,
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+        
+        opacity_container = ft.Column(
+            controls=[
+                opacity_row,
+                self.opacity_slider,
+                ft.Text(
+                    "调整窗口的不透明度（30%-100%，数值越低越透明）",
+                    size=11,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                ),
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        # 背景图片设置
+        self.bg_image_text = ft.Text(
+            current_bg_image if current_bg_image else "未设置",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+            expand=True,
+        )
+        
+        self.bg_image_picker = ft.FilePicker(
+            on_result=self._on_bg_image_selected
+        )
+        self.page.overlay.append(self.bg_image_picker)
+        
+        bg_image_row = ft.Row(
+            controls=[
+                ft.Text("背景图片:", size=13),
+                self.bg_image_text,
+                ft.IconButton(
+                    icon=ft.Icons.FOLDER_OPEN,
+                    tooltip="选择背景图片",
+                    on_click=lambda _: self.bg_image_picker.pick_files(
+                        allowed_extensions=["png", "jpg", "jpeg", "webp", "bmp"],
+                        dialog_title="选择背景图片"
+                    ),
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.CLEAR,
+                    tooltip="清除背景图片",
+                    on_click=self._on_clear_bg_image,
+                ),
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        # 背景图片适应模式
+        self.bg_fit_dropdown = ft.Dropdown(
+            width=220,
+            value=current_bg_fit,
+            options=[
+                ft.dropdown.Option("cover", "覆盖 - 填满窗口(可能裁剪)"),
+                ft.dropdown.Option("contain", "适应 - 完整显示(可能留白)"),
+                ft.dropdown.Option("fill", "拉伸 - 填满窗口(可能变形)"),
+                ft.dropdown.Option("none", "原始尺寸 - 不缩放"),
+            ],
+            dense=True,
+            on_change=self._on_bg_fit_change,
+        )
+        
+        bg_fit_row = ft.Row(
+            controls=[
+                ft.Text("适应模式:", size=13),
+                self.bg_fit_dropdown,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        bg_image_container = ft.Column(
+            controls=[
+                bg_image_row,
+                bg_fit_row,
+                ft.Text(
+                    "设置窗口背景图片（透明度20%），支持PNG、JPG、WEBP等格式",
+                    size=11,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                ),
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    opacity_container,
+                    ft.Container(height=PADDING_MEDIUM),
+                    bg_image_container,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _on_opacity_change(self, e: ft.ControlEvent) -> None:
+        """透明度改变事件。"""
+        value = e.control.value
+        self.opacity_value_text.value = f"{int(value * 100)}%"
+        
+        # 保存配置
+        self.config_service.set_config_value("window_opacity", value)
+        
+        # 使用保存的页面引用
+        page = getattr(self, '_saved_page', self.page)
+        if not page:
+            return
+        
+        # 立即应用透明度 - 使用 window.opacity
+        page.window.opacity = value
+        
+        # 同时更新导航栏的透明度
+        if hasattr(page, '_main_view') and hasattr(page._main_view, 'navigation_container'):
+            # 根据窗口透明度调整导航栏背景透明度
+            # 窗口越透明，导航栏也应该越透明
+            nav_opacity = 0.85 * value  # 保持一定的可读性
+            page._main_view.navigation_container.bgcolor = ft.Colors.with_opacity(
+                nav_opacity, 
+                ft.Colors.SURFACE
+            )
+        
+        # 同时更新 FAB 的透明度
+        if hasattr(page, 'floating_action_button') and page.floating_action_button:
+            fab_opacity = 0.9 * value  # FAB 保持较高的可见度
+            page.floating_action_button.bgcolor = ft.Colors.with_opacity(
+                fab_opacity,
+                ft.Colors.PRIMARY
+            )
+        
+        # 同时更新标题栏的透明度
+        if hasattr(page, '_main_view') and hasattr(page._main_view, 'title_bar'):
+            # 标题栏保持较高的不透明度以保持可读性
+            title_bar_opacity = 0.95 * value
+            theme_color = page._main_view.title_bar.theme_color
+            page._main_view.title_bar.bgcolor = ft.Colors.with_opacity(
+                title_bar_opacity,
+                theme_color
+            )
+        
+        page.update()
+    
+    def _on_bg_image_selected(self, e: ft.FilePickerResultEvent) -> None:
+        """背景图片选择事件。"""
+        if e.files and len(e.files) > 0:
+            image_path = e.files[0].path
+            self.bg_image_text.value = image_path
+            
+            # 保存配置
+            self.config_service.set_config_value("background_image", image_path)
+            
+            # 立即应用背景图片
+            self._apply_background_image(image_path, self.bg_fit_dropdown.value)
+            
+            # 更新页面
+            if self.page:
+                self.page.update()
+    
+    def _on_clear_bg_image(self, e: ft.ControlEvent) -> None:
+        """清除背景图片事件。"""
+        self.bg_image_text.value = "未设置"
+        
+        # 保存配置
+        self.config_service.set_config_value("background_image", None)
+        
+        # 清除背景图片
+        self._apply_background_image(None, None)
+        
+        # 更新页面
+        if self.page:
+            self.page.update()
+    
+    def _on_bg_fit_change(self, e: ft.ControlEvent) -> None:
+        """背景图片适应模式改变事件。"""
+        fit_mode = e.control.value
+        
+        # 保存配置
+        self.config_service.set_config_value("background_image_fit", fit_mode)
+        
+        # 重新应用背景图片
+        bg_image = self.config_service.get_config_value("background_image", None)
+        if bg_image:
+            self._apply_background_image(bg_image, fit_mode)
+    
+    def _apply_background_image(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:
+        """应用背景图片。"""
+        # 通过 _saved_page 获取页面引用(因为 self.page 可能在布局重建后失效)
+        page = getattr(self, '_saved_page', self.page)
+        
+        if not page:
+            return
+            
+        # 应用背景图片
+        if hasattr(page, '_main_view') and hasattr(page._main_view, 'apply_background'):
+            page._main_view.apply_background(image_path, fit_mode)
+            
+        # 应用背景后,重新应用当前的窗口透明度和各组件的透明度
+        current_opacity = self.config_service.get_config_value("window_opacity", 1.0)
+        
+        # 重新应用窗口透明度
+        page.window.opacity = current_opacity
+        
+        # 重新应用导航栏透明度
+        if hasattr(page, '_main_view') and hasattr(page._main_view, 'navigation_container'):
+            nav_opacity = 0.85 * current_opacity
+            page._main_view.navigation_container.bgcolor = ft.Colors.with_opacity(
+                nav_opacity, 
+                ft.Colors.SURFACE
+            )
+        
+        # 重新应用 FAB 透明度
+        if hasattr(page, 'floating_action_button') and page.floating_action_button:
+            fab_opacity = 0.9 * current_opacity
+            page.floating_action_button.bgcolor = ft.Colors.with_opacity(
+                fab_opacity,
+                ft.Colors.PRIMARY
+            )
+        
+        # 重新应用标题栏透明度
+        if hasattr(page, '_main_view') and hasattr(page._main_view, 'title_bar'):
+            title_bar_opacity = 0.95 * current_opacity
+            theme_color = page._main_view.title_bar.theme_color
+            page._main_view.title_bar.bgcolor = ft.Colors.with_opacity(
+                title_bar_opacity,
+                theme_color
+            )
+        
+        page.update()
+    
     def _build_gpu_acceleration_section(self) -> ft.Container:
         """构建GPU加速设置部分，包括高级参数配置。"""
 
@@ -507,7 +788,7 @@ class SettingsView(ft.Container):
 
         # 动态检测GPU设备数量
         gpu_device_options = self._get_gpu_device_options()
-        
+
         self.gpu_device_dropdown = ft.Dropdown(
             label="GPU设备",
             hint_text="在多GPU系统中选择一个设备",

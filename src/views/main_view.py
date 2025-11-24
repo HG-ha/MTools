@@ -60,6 +60,16 @@ class MainView(ft.Column):
         
         # 创建UI组件
         self._build_ui()
+        
+        # 保存主视图引用到page，供设置视图调用
+        self.page._main_view = self
+        
+        # 保存透明度配置，延迟到页面加载后应用
+        self._pending_opacity = self.config_service.get_config_value("window_opacity", 1.0)
+        
+        # 保存背景图片配置，延迟到页面加载后应用
+        self._pending_bg_image = self.config_service.get_config_value("background_image", None)
+        self._pending_bg_fit = self.config_service.get_config_value("background_image_fit", "cover")
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -97,7 +107,7 @@ class MainView(ft.Column):
         )
         
         # 设置按钮（放在导航栏底部）
-        settings_button: ft.Container = ft.Container(
+        self.settings_button_container: ft.Container = ft.Container(
             content=ft.IconButton(
                 icon=ft.Icons.SETTINGS_OUTLINED,
                 icon_size=24,
@@ -107,22 +117,24 @@ class MainView(ft.Column):
             alignment=ft.alignment.center,
             padding=ft.padding.symmetric(vertical=16),
             width=100,  # 与导航栏宽度一致
+            bgcolor=ft.Colors.TRANSPARENT,  # 设为透明,与导航栏一致
         )
         
         # 导航栏区域（导航栏 + 设置按钮）
         navigation_column: ft.Column = ft.Column(
             controls=[
                 self.navigation_rail,
-                settings_button,
+                self.settings_button_container,
             ],
             spacing=0,
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             expand=True,
         )
         
-        # 导航栏容器（添加阴影效果）
+        # 导航栏容器（添加阴影效果，背景半透明以显示背景图）
         self.navigation_container: ft.Container = ft.Container(
             content=navigation_column,
+            bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.SURFACE),  # 半透明背景
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=10,
@@ -163,12 +175,12 @@ class MainView(ft.Column):
             expand=True,
         )
         
-        # 创建悬浮搜索按钮
+        # 创建悬浮搜索按钮（半透明背景）
         self.fab_search = ft.FloatingActionButton(
             icon=ft.Icons.SEARCH,
             tooltip="搜索工具 (Ctrl+K)",
             on_click=self._open_search,
-            bgcolor=ft.Colors.PRIMARY,
+            bgcolor=ft.Colors.with_opacity(0.9, ft.Colors.PRIMARY),  # 90% 不透明度
             foreground_color=ft.Colors.ON_PRIMARY,
         )
         
@@ -201,7 +213,6 @@ class MainView(ft.Column):
             # 如果没有恢复子视图，则显示主视图
             if not restored:
                 self.content_container.content = view
-                self.content_container.update()
         elif selected_index == 1:
             view = self.audio_view
             # 尝试恢复音频处理页面的状态
@@ -211,11 +222,9 @@ class MainView(ft.Column):
             
             if not restored:
                 self.content_container.content = view
-                self.content_container.update()
         elif selected_index == 2:
             view = self.video_view
             self.content_container.content = view
-            self.content_container.update()
         elif selected_index == 3:
             view = self.dev_tools_view
             # 尝试恢复开发工具页面的状态
@@ -225,9 +234,12 @@ class MainView(ft.Column):
             
             if not restored:
                 self.content_container.content = view
-                self.content_container.update()
         else:
             return
+        
+        # 统一使用page.update()更新整个页面
+        if self.page:
+            self.page.update()
     
     def _open_tool_by_id(self, tool_id: str) -> None:
         """根据工具ID打开工具。
@@ -266,8 +278,9 @@ class MainView(ft.Column):
             if hasattr(self.dev_tools_view, 'open_tool'):
                 self.dev_tools_view.open_tool(tool_name)
         
-        self.navigation_rail.update()
-        self.content_container.update()
+        # 使用page.update()而不是单独更新控件
+        if self.page:
+            self.page.update()
     
     def _open_search(self, e: ft.ControlEvent = None) -> None:
         """打开搜索对话框。"""
@@ -307,8 +320,96 @@ class MainView(ft.Column):
         """
         # 取消导航栏的选中状态
         self.navigation_rail.selected_index = None
-        self.navigation_rail.update()
         
         # 切换到设置视图
         self.content_container.content = self.settings_view
-        self.content_container.update()
+        
+        # 使用page.update()而不是单独更新控件
+        if self.page:
+            self.page.update()
+    
+    def apply_background(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:
+        """应用背景图片到主界面。
+        
+        Args:
+            image_path: 背景图片路径，None表示清除背景
+            fit_mode: 图片适应模式 (cover, contain, fill, none)
+        """
+        if image_path:
+            # 转换适应模式
+            fit_map = {
+                "cover": ft.ImageFit.COVER,
+                "contain": ft.ImageFit.CONTAIN,
+                "fill": ft.ImageFit.FILL,
+                "none": ft.ImageFit.NONE,
+            }
+            fit = fit_map.get(fit_mode, ft.ImageFit.COVER)
+            
+            # 创建带背景的Stack
+            if not hasattr(self, '_background_stack'):
+                # 首次创建背景层
+                # 找到main_content (ft.Row)
+                old_main_content = None
+                for i, control in enumerate(self.controls):
+                    if isinstance(control, ft.Row):
+                        old_main_content = control
+                        self._main_content_index = i
+                        break
+                
+                if old_main_content:
+                    # 创建背景图片控件
+                    self._background_image_control = ft.Image(
+                        src=image_path,
+                        fit=fit,
+                        opacity=0.20,  # 背景图片透明度(20%),避免影响内容可读性
+                        width=float('inf'),  # 占满宽度
+                        height=float('inf'),  # 占满高度
+                    )
+                    
+                    # 背景容器,确保填满整个区域
+                    self._background_container = ft.Container(
+                        content=self._background_image_control,
+                        expand=True,
+                        alignment=ft.alignment.center,
+                    )
+                    
+                    # 使用Stack层叠布局
+                    self._background_stack = ft.Stack(
+                        controls=[
+                            self._background_container,  # 背景层
+                            old_main_content,  # 内容层
+                        ],
+                        expand=True,
+                    )
+                    
+                    # 替换controls中的main_content为stack
+                    self.controls[self._main_content_index] = self._background_stack
+                    if self.page:
+                        self.page.update()
+            else:
+                # 更新现有背景图片
+                if hasattr(self, '_background_image_control'):
+                    self._background_image_control.src = image_path
+                    self._background_image_control.fit = fit
+                    if self.page:
+                        self.page.update()
+        else:
+            # 清除背景图片
+            if hasattr(self, '_background_stack') and hasattr(self, '_main_content_index'):
+                # 恢复原始布局
+                # 获取内容层（main_content）- 第二个控件
+                if len(self._background_stack.controls) >= 2:
+                    main_content = self._background_stack.controls[1]
+                    
+                    # 替换stack为main_content
+                    self.controls[self._main_content_index] = main_content
+                    
+                    # 删除背景相关属性
+                    delattr(self, '_background_stack')
+                    delattr(self, '_background_image_control')
+                    if hasattr(self, '_background_container'):
+                        delattr(self, '_background_container')
+                    delattr(self, '_main_content_index')
+                    
+                    if self.page:
+                        self.page.update()

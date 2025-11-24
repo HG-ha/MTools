@@ -47,6 +47,7 @@ class ImageView(ft.Container):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用,防止布局重建后丢失
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.parent_container: Optional[ft.Container] = parent_container
@@ -83,6 +84,12 @@ class ImageView(ft.Container):
         
         # 创建UI组件
         self._build_ui()
+    
+    def _safe_page_update(self) -> None:
+        """安全地更新页面,处理布局重建后页面引用丢失的情况。"""
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.update()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -233,7 +240,7 @@ class ImageView(ft.Container):
         
         # 切换到压缩视图
         self.parent_container.content = self.compress_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_resize_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片尺寸调整工具界面。
@@ -260,7 +267,7 @@ class ImageView(ft.Container):
         
         # 切换到尺寸调整视图
         self.parent_container.content = self.resize_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_format_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片格式转换工具界面。
@@ -287,7 +294,7 @@ class ImageView(ft.Container):
         
         # 切换到格式转换视图
         self.parent_container.content = self.format_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_background_dialog(self, e: ft.ControlEvent) -> None:
         """切换到背景移除工具界面。
@@ -318,10 +325,7 @@ class ImageView(ft.Container):
             
             # 切换到背景移除视图
             self.parent_container.content = self.background_view
-            try:
-                self.parent_container.update()
-            except:
-                pass
+            self._safe_page_update()
         
         # 使用定时器延迟执行，让点击动画先播放完
         timer = threading.Timer(0.2, delayed_create_and_switch)
@@ -353,7 +357,7 @@ class ImageView(ft.Container):
         
         # 切换到切分视图
         self.parent_container.content = self.split_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_merge_dialog(self, e: ft.ControlEvent) -> None:
         """切换到多图合并工具界面。
@@ -380,7 +384,7 @@ class ImageView(ft.Container):
         
         # 切换到合并视图
         self.parent_container.content = self.merge_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_crop_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片裁剪工具界面。
@@ -407,7 +411,7 @@ class ImageView(ft.Container):
         
         # 切换到裁剪视图
         self.parent_container.content = self.crop_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_info_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片信息查看工具界面。
@@ -434,7 +438,7 @@ class ImageView(ft.Container):
         
         # 切换到信息查看视图
         self.parent_container.content = self.info_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_gif_adjustment_dialog(self, e: ft.ControlEvent) -> None:
         """切换到 GIF 调整工具界面。
@@ -462,7 +466,7 @@ class ImageView(ft.Container):
         
         # 切换到 GIF 调整视图
         self.parent_container.content = self.gif_adjustment_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_to_base64_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片转Base64工具界面。
@@ -490,7 +494,7 @@ class ImageView(ft.Container):
         
         # 切换到图片转Base64视图
         self.parent_container.content = self.to_base64_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_rotate_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片旋转/翻转工具界面。
@@ -518,7 +522,7 @@ class ImageView(ft.Container):
         
         # 切换到旋转视图
         self.parent_container.content = self.rotate_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_remove_exif_dialog(self, e: ft.ControlEvent) -> None:
         """切换到去除EXIF工具界面。
@@ -546,7 +550,7 @@ class ImageView(ft.Container):
         
         # 切换到去除EXIF视图
         self.parent_container.content = self.remove_exif_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_qrcode_dialog(self, e: ft.ControlEvent) -> None:
         """切换到二维码生成工具界面。
@@ -574,7 +578,7 @@ class ImageView(ft.Container):
         
         # 切换到二维码生成视图
         self.parent_container.content = self.qrcode_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _open_watermark_dialog(self, e: ft.ControlEvent) -> None:
         """切换到添加水印工具界面。
@@ -602,7 +606,7 @@ class ImageView(ft.Container):
         
         # 切换到添加水印视图
         self.parent_container.content = self.watermark_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _back_to_main(self) -> None:
         """返回主界面。"""
@@ -634,7 +638,7 @@ class ImageView(ft.Container):
         
         if self.parent_container:
             self.parent_container.content = self
-            self.parent_container.update()
+            self._safe_page_update()
     
     def restore_state(self) -> bool:
         """恢复视图状态（从其他页面切换回来时调用）。
@@ -645,6 +649,6 @@ class ImageView(ft.Container):
         if self.parent_container and self.current_sub_view:
             # 如果之前在子视图中，恢复到子视图
             self.parent_container.content = self.current_sub_view
-            self.parent_container.update()
+            self._safe_page_update()
             return True
         return False

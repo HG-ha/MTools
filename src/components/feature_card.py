@@ -167,5 +167,8 @@ class FeatureCard(ft.Container):
                 color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
                 offset=ft.Offset(0, 1),
             )
-        self.update()
+        
+        # 安全更新：使用page.update()而不是self.update()
+        if self.page:
+            self.page.update()
 

@@ -46,6 +46,7 @@ class AudioView(ft.Container):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用
         self.config_service: ConfigService = config_service if config_service else ConfigService()
         self.parent_container: Optional[ft.Container] = parent_container
         self.expand: bool = True
@@ -72,6 +73,12 @@ class AudioView(ft.Container):
         
         # 创建UI组件
         self._build_ui()
+    
+    def _safe_page_update(self) -> None:
+        """安全地更新页面。"""
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.update()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -250,7 +257,7 @@ class AudioView(ft.Container):
             
             # 切换到格式转换视图
             self.parent_container.content = self.format_view
-            self.parent_container.update()
+            self._safe_page_update()
         
         self._check_ffmpeg_and_open("音频格式转换", open_func)
     
@@ -276,7 +283,7 @@ class AudioView(ft.Container):
             
             # 切换到压缩视图
             self.parent_container.content = self.compress_view
-            self.parent_container.update()
+            self._safe_page_update()
         
         self._check_ffmpeg_and_open("音频压缩", open_func)
     
@@ -336,7 +343,7 @@ class AudioView(ft.Container):
         
         # 切换到安装视图
         self.parent_container.content = self.ffmpeg_install_view
-        self.parent_container.update()
+        self._safe_page_update()
     
     def _on_ffmpeg_installed(self) -> None:
         """FFmpeg安装完成回调。"""
@@ -362,7 +369,7 @@ class AudioView(ft.Container):
         
         if self.parent_container:
             self.parent_container.content = self
-            self.parent_container.update()
+            self._safe_page_update()
     
     def restore_state(self) -> bool:
         """恢复视图状态（从其他页面切换回来时调用）。
@@ -373,6 +380,6 @@ class AudioView(ft.Container):
         if self.parent_container and self.current_sub_view:
             # 如果之前在子视图中，恢复到子视图
             self.parent_container.content = self.current_sub_view
-            self.parent_container.update()
+            self._safe_page_update()
             return True
         return False

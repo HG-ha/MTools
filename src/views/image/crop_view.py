@@ -453,8 +453,8 @@ class ImageCropView(ft.Container):
                 controls=[
                     # 标题行:包含"裁剪预览"和尺寸信息
                     ft.Row(
-                        controls=[
-                            ft.Text("裁剪预览", size=14, weight=ft.FontWeight.W_500),
+                controls=[
+                    ft.Text("裁剪预览", size=14, weight=ft.FontWeight.W_500),
                             self.crop_size_text,
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,

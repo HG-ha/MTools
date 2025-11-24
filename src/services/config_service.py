@@ -104,6 +104,9 @@ class ConfigService:
             "window_top": None,    # 窗口上边距，None表示居中
             "window_width": None,  # 窗口宽度，None表示使用默认值
             "window_height": None, # 窗口高度，None表示使用默认值
+            "window_opacity": 1.0,  # 窗口透明度，1.0为完全不透明，0.0为完全透明
+            "background_image": None,  # 背景图片路径，None表示无背景图片
+            "background_image_fit": "cover",  # 背景图片适应模式: cover, contain, fill, none
             "gpu_acceleration": True,  # GPU加速开关，默认开启
             "gpu_memory_limit": 2048,  # GPU内存限制（MB），默认2048MB
             "gpu_device_id": 0,  # GPU设备ID，默认使用第一个GPU（0）

@@ -152,8 +152,12 @@ class CustomTitleBar(ft.Container):
         self.content = title_bar_content
         self.height = 48
         self.padding = ft.padding.symmetric(horizontal=PADDING_MEDIUM)
-        # 使用用户设置的主题色创建渐变（或使用默认渐变）
+        # 使用用户设置的主题色创建半透明渐变
         self.gradient = self._create_gradient()
+        # 添加半透明背景色,避免完全不透明
+        self.bgcolor = ft.Colors.with_opacity(0.95, self.theme_color)  # 95% 不透明度
+        # 移除渐变,改用纯色半透明背景
+        self.gradient = None
         
         # 初始化主题图标
         self._update_theme_icon()
