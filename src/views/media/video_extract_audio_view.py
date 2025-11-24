@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""音频压缩视图模块。
+"""视频提取音频视图模块。
 
-提供音频压缩功能的用户界面。
+提供从视频文件中提取音频的用户界面。
 """
 
-import re
 import threading
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -23,13 +22,13 @@ from utils import format_file_size
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
-class AudioCompressView(ft.Container):
-    """音频压缩视图类。
+class VideoExtractAudioView(ft.Container):
+    """视频提取音频视图类。
     
-    提供音频压缩功能，包括：
-    - 单文件和批量压缩
+    提供视频提取音频功能，包括：
+    - 单文件和批量提取
+    - 多种音频格式支持（MP3, AAC, WAV, FLAC等）
     - 比特率调整
-    - 采样率调整
     - 实时进度显示
     """
 
@@ -40,7 +39,7 @@ class AudioCompressView(ft.Container):
         ffmpeg_service: FFmpegService,
         on_back: Optional[Callable] = None
     ) -> None:
-        """初始化音频压缩视图。
+        """初始化视频提取音频视图。
         
         Args:
             page: Flet页面对象
@@ -88,14 +87,14 @@ class AudioCompressView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("音频压缩", size=28, weight=ft.FontWeight.BOLD),
+                ft.Text("提取音频", size=28, weight=ft.FontWeight.BOLD),
             ],
             spacing=PADDING_MEDIUM,
         )
         
         # 副标题
         subtitle = ft.Text(
-            "通过调整比特率和采样率压缩音频文件",
+            "从视频文件中提取音频轨道",
             size=14,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
@@ -123,7 +122,7 @@ class AudioCompressView(ft.Container):
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Text("选择音频:", size=14, weight=ft.FontWeight.W_500),
+                        ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
                         ft.ElevatedButton(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
@@ -154,20 +153,44 @@ class AudioCompressView(ft.Container):
             spacing=PADDING_SMALL,
         )
         
-        # 压缩设置区域
+        # 音频设置区域
+        # 输出格式
+        self.format_dropdown = ft.Dropdown(
+            width=200,
+            value="mp3",
+            options=[
+                ft.dropdown.Option("mp3", "MP3"),
+                ft.dropdown.Option("aac", "AAC (M4A)"),
+                ft.dropdown.Option("wav", "WAV (无损)"),
+                ft.dropdown.Option("flac", "FLAC (无损)"),
+                ft.dropdown.Option("ogg", "OGG Vorbis"),
+                ft.dropdown.Option("opus", "Opus"),
+            ],
+            dense=True,
+            on_change=self._on_format_change,
+        )
+        
+        format_row = ft.Row(
+            controls=[
+                ft.Text("输出格式:", size=13),
+                self.format_dropdown,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
         # 比特率设置
         self.bitrate_value_text = ft.Text(
-            "128 kbps",
+            "192 kbps",
             size=13,
             text_align=ft.TextAlign.END,
             width=80,
         )
         
         self.bitrate_slider = ft.Slider(
-            min=32,
+            min=64,
             max=320,
-            value=128,
-            divisions=9,
+            value=192,
+            divisions=8,
             label="{value} kbps",
             on_change=self._on_bitrate_change,
         )
@@ -180,19 +203,23 @@ class AudioCompressView(ft.Container):
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
         
+        self.bitrate_container = ft.Column(
+            controls=[
+                bitrate_row,
+                self.bitrate_slider,
+            ],
+            spacing=0,
+        )
+        
         # 采样率设置
         self.sample_rate_dropdown = ft.Dropdown(
             width=200,
-            value="44100",
+            value="original",
             options=[
-                ft.dropdown.Option("8000", "8 kHz"),
-                ft.dropdown.Option("11025", "11.025 kHz"),
-                ft.dropdown.Option("16000", "16 kHz"),
-                ft.dropdown.Option("22050", "22.05 kHz"),
+                ft.dropdown.Option("original", "保持原始"),
                 ft.dropdown.Option("44100", "44.1 kHz (CD质量)"),
                 ft.dropdown.Option("48000", "48 kHz"),
                 ft.dropdown.Option("96000", "96 kHz (高品质)"),
-                ft.dropdown.Option("original", "保持原始"),
             ],
             dense=True,
         )
@@ -210,9 +237,9 @@ class AudioCompressView(ft.Container):
             width=200,
             value="original",
             options=[
+                ft.dropdown.Option("original", "保持原始"),
                 ft.dropdown.Option("1", "单声道 (Mono)"),
                 ft.dropdown.Option("2", "立体声 (Stereo)"),
-                ft.dropdown.Option("original", "保持原始"),
             ],
             dense=True,
         )
@@ -225,13 +252,14 @@ class AudioCompressView(ft.Container):
             spacing=PADDING_SMALL,
         )
         
-        compress_settings = ft.Container(
+        audio_settings = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("压缩设置", size=16, weight=ft.FontWeight.W_600),
+                    ft.Text("音频设置", size=16, weight=ft.FontWeight.W_600),
                     ft.Container(height=PADDING_SMALL),
-                    bitrate_row,
-                    self.bitrate_slider,
+                    format_row,
+                    ft.Container(height=PADDING_SMALL),
+                    self.bitrate_container,
                     ft.Container(height=PADDING_SMALL),
                     sample_rate_row,
                     ft.Container(height=PADDING_SMALL),
@@ -271,7 +299,7 @@ class AudioCompressView(ft.Container):
                 controls=[
                     ft.Radio(
                         value="same_dir",
-                        label="保存为新文件（原文件旁）",
+                        label="保存到视频所在目录",
                         fill_color=ft.Colors.PRIMARY,
                     ),
                     ft.Radio(
@@ -332,8 +360,8 @@ class AudioCompressView(ft.Container):
         
         # 操作按钮
         self.process_button = ft.ElevatedButton(
-            "开始压缩",
-            icon=ft.Icons.COMPRESS,
+            "开始提取",
+            icon=ft.Icons.AUDIO_FILE,
             on_click=lambda _: self._on_process(),
             disabled=True,
         )
@@ -350,7 +378,7 @@ class AudioCompressView(ft.Container):
             controls=[
                 file_select_area,
                 ft.Container(height=PADDING_MEDIUM),
-                compress_settings,
+                audio_settings,
                 ft.Container(height=PADDING_MEDIUM),
                 output_settings,
                 ft.Container(height=PADDING_MEDIUM),
@@ -383,9 +411,9 @@ class AudioCompressView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.MUSIC_NOTE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Icon(ft.Icons.VIDEO_FILE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Text("未选择文件", color=ft.Colors.ON_SURFACE_VARIANT, size=14),
-                        ft.Text("点击此处或选择按钮添加音频", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
+                        ft.Text("点击此处或选择按钮添加视频", color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -395,22 +423,22 @@ class AudioCompressView(ft.Container):
                 alignment=ft.alignment.center,
                 on_click=lambda e: self._on_select_files(),
                 ink=True,
-                tooltip="点击选择音频文件",
+                tooltip="点击选择视频文件",
             )
         )
     
     def _on_select_files(self) -> None:
         """选择文件。"""
         self.file_picker.pick_files(
-            allowed_extensions=["mp3", "wav", "aac", "flac", "ogg", "m4a", "wma", "opus"],
-            dialog_title="选择音频文件",
+            allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
+            dialog_title="选择视频文件",
             allow_multiple=True,
         )
     
     def _on_select_folder(self) -> None:
         """选择文件夹。"""
         self.file_picker.get_directory_path(
-            dialog_title="选择音频文件夹"
+            dialog_title="选择视频文件夹"
         )
     
     def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
@@ -424,9 +452,9 @@ class AudioCompressView(ft.Container):
         elif e.path:
             # 选择了文件夹
             folder_path = Path(e.path)
-            audio_extensions = {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".opus"}
+            video_extensions = {".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv", ".webm", ".m4v", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts"}
             for file_path in folder_path.rglob("*"):
-                if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+                if file_path.is_file() and file_path.suffix.lower() in video_extensions:
                     if file_path not in self.selected_files:
                         self.selected_files.append(file_path)
         
@@ -446,7 +474,7 @@ class AudioCompressView(ft.Container):
                 file_item = ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.MUSIC_NOTE, size=20),
+                            ft.Icon(ft.Icons.VIDEO_FILE, size=20),
                             ft.Column(
                                 controls=[
                                     ft.Text(file_path.name, size=13, weight=ft.FontWeight.W_500),
@@ -491,6 +519,16 @@ class AudioCompressView(ft.Container):
         self.selected_files.clear()
         self._update_file_list()
     
+    def _on_format_change(self, e: ft.ControlEvent) -> None:
+        """格式改变事件处理。"""
+        format_value = e.control.value
+        # 无损格式不显示比特率设置
+        if format_value in ["wav", "flac"]:
+            self.bitrate_container.visible = False
+        else:
+            self.bitrate_container.visible = True
+        self.bitrate_container.update()
+    
     def _on_bitrate_change(self, e: ft.ControlEvent) -> None:
         """比特率改变事件处理。"""
         value = int(e.control.value)
@@ -518,7 +556,7 @@ class AudioCompressView(ft.Container):
             self.output_dir_field.update()
     
     def _on_process(self) -> None:
-        """开始压缩处理。"""
+        """开始提取处理。"""
         if not self.selected_files:
             return
         
@@ -551,7 +589,7 @@ class AudioCompressView(ft.Container):
                 progress = (i + 1) / total_files
                 self._update_progress(
                     progress,
-                    f"正在压缩: {file_path.name} ({i + 1}/{total_files})"
+                    f"正在提取: {file_path.name} ({i + 1}/{total_files})"
                 )
                 
                 # 确定输出路径
@@ -560,17 +598,25 @@ class AudioCompressView(ft.Container):
                 else:
                     output_dir = file_path.parent
                 
-                output_path = output_dir / f"{file_path.stem}_compressed{file_path.suffix}"
+                # 获取输出格式和扩展名
+                output_format = self.format_dropdown.value
+                if output_format == "aac":
+                    output_ext = ".m4a"
+                else:
+                    output_ext = f".{output_format}"
+                
+                output_path = output_dir / f"{file_path.stem}{output_ext}"
                 
                 # 构建FFmpeg参数
                 bitrate = int(self.bitrate_slider.value)
                 sample_rate = self.sample_rate_dropdown.value
                 channels = self.channel_dropdown.value
                 
-                # 执行压缩
-                success = self._compress_audio(
+                # 执行提取
+                success = self._extract_audio(
                     file_path,
                     output_path,
+                    output_format,
                     bitrate,
                     sample_rate,
                     channels
@@ -582,25 +628,27 @@ class AudioCompressView(ft.Container):
                     error_count += 1
                     
             except Exception as e:
-                print(f"压缩文件失败: {file_path}, 错误: {e}")
+                print(f"提取音频失败: {file_path}, 错误: {e}")
                 error_count += 1
         
         # 完成处理
         self._on_processing_complete(success_count, error_count)
     
-    def _compress_audio(
+    def _extract_audio(
         self,
         input_path: Path,
         output_path: Path,
+        output_format: str,
         bitrate: int,
         sample_rate: str,
         channels: str
     ) -> bool:
-        """压缩音频文件。
+        """提取音频。
         
         Args:
-            input_path: 输入文件路径
-            output_path: 输出文件路径
+            input_path: 输入视频路径
+            output_path: 输出音频路径
+            output_format: 输出格式
             bitrate: 比特率（kbps）
             sample_rate: 采样率
             channels: 声道数
@@ -611,13 +659,32 @@ class AudioCompressView(ft.Container):
         try:
             import ffmpeg
             
-            # 构建输入流
+            # 构建输入流（只提取音频）
             stream = ffmpeg.input(str(input_path))
             
             # 构建输出参数
             output_kwargs = {
-                'audio_bitrate': f'{bitrate}k',
+                'vn': None,  # 不包含视频
             }
+            
+            # 音频编码器映射
+            codec_map = {
+                "mp3": "libmp3lame",
+                "aac": "aac",
+                "wav": "pcm_s16le",
+                "flac": "flac",
+                "ogg": "libvorbis",
+                "opus": "libopus",
+            }
+            
+            # 设置音频编码器
+            codec = codec_map.get(output_format)
+            if codec:
+                output_kwargs['acodec'] = codec
+            
+            # 设置比特率（无损格式不需要）
+            if output_format not in ["wav", "flac"]:
+                output_kwargs['audio_bitrate'] = f'{bitrate}k'
             
             # 采样率
             if sample_rate != "original":
@@ -630,7 +697,7 @@ class AudioCompressView(ft.Container):
             # 构建输出流
             stream = ffmpeg.output(stream, str(output_path), **output_kwargs)
             
-            # 执行转换（覆盖已存在的文件）
+            # 执行提取（覆盖已存在的文件）
             ffmpeg.run(
                 stream,
                 cmd=self.ffmpeg_service.get_ffmpeg_path(),
@@ -643,10 +710,10 @@ class AudioCompressView(ft.Container):
             return True
             
         except ffmpeg.Error as e:
-            print(f"压缩音频失败: {e.stderr.decode() if e.stderr else str(e)}")
+            print(f"提取音频失败: {e.stderr.decode() if e.stderr else str(e)}")
             return False
         except Exception as e:
-            print(f"压缩音频失败: {e}")
+            print(f"提取音频失败: {e}")
             return False
     
     def _update_progress(self, value: float, text: str) -> None:
@@ -683,7 +750,7 @@ class AudioCompressView(ft.Container):
             
             # 显示结果
             if error_count == 0:
-                message = f"成功压缩 {success_count} 个文件"
+                message = f"成功提取 {success_count} 个音频文件"
                 color = ft.Colors.GREEN
             else:
                 message = f"完成: {success_count} 成功, {error_count} 失败"

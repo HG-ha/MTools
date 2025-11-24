@@ -17,6 +17,7 @@ from constants import (
 from services import ConfigService, FFmpegService
 from views.media.video_compress_view import VideoCompressView
 from views.media.video_convert_view import VideoConvertView
+from views.media.video_extract_audio_view import VideoExtractAudioView
 
 
 class VideoView(ft.Container):
@@ -53,6 +54,7 @@ class VideoView(ft.Container):
         # 子视图
         self.compress_view: Optional[VideoCompressView] = None
         self.convert_view: Optional[VideoConvertView] = None
+        self.extract_audio_view: Optional[VideoExtractAudioView] = None
         
         # 创建UI组件
         self._build_ui()
@@ -76,10 +78,17 @@ class VideoView(ft.Container):
                     gradient_colors=("#a8edea", "#fed6e3"),
                 ),
                 FeatureCard(
+                    icon=ft.Icons.AUDIO_FILE_ROUNDED,
+                    title="提取音频",
+                    description="从视频中提取音频轨道",
+                    on_click=lambda e: self._open_view('extract_audio'),
+                    gradient_colors=("#ff9a9e", "#fad0c4"),
+                ),
+                FeatureCard(
                     icon=ft.Icons.VIDEO_CALL_ROUNDED,
                     title="视频剪辑",
                     description="裁剪、合并、添加水印 (开发中)",
-                    gradient_colors=("#ff9a9e", "#fad0c4"),
+                    gradient_colors=("#fbc2eb", "#a6c1ee"),
                 ),
             ],
             wrap=True,
@@ -125,6 +134,15 @@ class VideoView(ft.Container):
                 on_back=self._back_to_main
             )
             self.parent_container.content = self.convert_view
+            self.page.update()
+        elif view_name == 'extract_audio':
+            self.extract_audio_view = VideoExtractAudioView(
+                self.page,
+                self.config_service,
+                self.ffmpeg_service,
+                on_back=self._back_to_main
+            )
+            self.parent_container.content = self.extract_audio_view
             self.page.update()
 
     def _back_to_main(self) -> None:
