@@ -22,9 +22,9 @@ class DevToolsView(ft.Container):
     """开发工具视图类。
     
     提供开发工具相关功能的用户界面，包括：
-    - Python终端
     - 编码转换
     - 代码格式化
+    - Base64转图片
     """
 
     def __init__(
@@ -57,7 +57,6 @@ class DevToolsView(ft.Container):
         )
         
         # 创建子视图（延迟创建）
-        self.python_terminal_view: Optional[ft.Container] = None
         self.encoding_convert_view: Optional[EncodingConvertView] = None
         self.code_format_view: Optional[ft.Container] = None
         self.base64_to_image_view: Optional[ft.Container] = None
@@ -81,14 +80,6 @@ class DevToolsView(ft.Container):
         # 功能卡片区域
         feature_cards: ft.Row = ft.Row(
             controls=[
-                # Python终端
-                FeatureCard(
-                    icon=ft.Icons.TERMINAL_ROUNDED,
-                    title="Python终端",
-                    description="调用内嵌Python解释器执行代码",
-                    gradient_colors=("#3B82F6", "#1E40AF"),
-                    on_click=self._open_python_terminal,
-                ),
                 # 编码转换
                 FeatureCard(
                     icon=ft.Icons.TRANSFORM_ROUNDED,
@@ -131,23 +122,6 @@ class DevToolsView(ft.Container):
             horizontal_alignment=ft.CrossAxisAlignment.START,
             alignment=ft.MainAxisAlignment.START,
         )
-    
-    def _open_python_terminal(self, e: ft.ControlEvent) -> None:
-        """打开Python终端。"""
-        if self.python_terminal_view is None:
-            from views.dev_tools import PythonTerminalView
-            self.python_terminal_view = PythonTerminalView(
-                self.page,
-                self.config_service,
-                on_back=self._back_to_main
-            )
-        
-        # 切换到Python终端视图
-        if self.parent_container:
-            self.current_sub_view = self.python_terminal_view
-            self.current_sub_view_type = "python_terminal"
-            self.parent_container.content = self.python_terminal_view
-        self._safe_page_update()
     
     def _open_encoding_convert(self, e: ft.ControlEvent) -> None:
         """打开编码转换。"""
@@ -205,7 +179,6 @@ class DevToolsView(ft.Container):
         # 销毁当前子视图（而不是保留）
         if self.current_sub_view_type:
             view_map = {
-                "python_terminal": "python_terminal_view",
                 "encoding_convert": "encoding_convert_view",
                 "code_format": "code_format_view",
                 "base64_to_image": "base64_to_image_view",

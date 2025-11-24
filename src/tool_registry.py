@@ -193,15 +193,6 @@ def register_all_tools():
     # ==================== 开发工具 ====================
     
     register_tool_manual(
-        name="Python终端",
-        description="交互式Python REPL终端",
-        category="开发工具",
-        keywords=["Python", "终端", "REPL", "控制台", "解释器", "命令行", "terminal", "console", "shell", "交互式"],
-        icon="TERMINAL_ROUNDED",
-        tool_id="dev.python_terminal",
-    )
-    
-    register_tool_manual(
         name="Base64转图片",
         description="将Base64编码转换为图片",
         category="开发工具",

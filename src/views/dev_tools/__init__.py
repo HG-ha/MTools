@@ -5,12 +5,10 @@
 """
 
 from views.dev_tools.dev_tools_view import DevToolsView
-from views.dev_tools.python_terminal_view import PythonTerminalView
 from views.dev_tools.base64_to_image_view import Base64ToImageView
 
 __all__ = [
     'DevToolsView',
-    'PythonTerminalView',
     'Base64ToImageView',
 ]
 
