@@ -372,6 +372,68 @@ class SettingsView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
+    def _get_gpu_device_options(self) -> list:
+        """获取可用的GPU设备选项列表。
+        
+        Returns:
+            GPU设备选项列表
+        """
+        gpu_options = []
+        
+        try:
+            # 方法1: 尝试使用nvidia-smi (NVIDIA GPU)
+            import subprocess
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=index,name,memory.total', '--format=csv,noheader'],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    parts = line.split(',')
+                    if len(parts) >= 2:
+                        gpu_id = parts[0].strip()
+                        gpu_name = parts[1].strip()
+                        memory = parts[2].strip() if len(parts) >= 3 else ""
+                        
+                        label = f"GPU {gpu_id}: {gpu_name}"
+                        if memory:
+                            label += f" ({memory})"
+                        if gpu_id == "0":
+                            label = f"🎮 {label} - 主GPU"
+                        
+                        gpu_options.append(ft.dropdown.Option(gpu_id, label))
+                
+                if gpu_options:
+                    return gpu_options
+        except Exception:
+            pass
+        
+        # 方法2: 尝试使用DirectML检测 (Windows AMD/Intel/NVIDIA)
+        try:
+            import onnxruntime as ort
+            available_providers = ort.get_available_providers()
+            
+            if 'DmlExecutionProvider' in available_providers:
+                # DirectML通常只能访问默认GPU
+                gpu_options = [
+                    ft.dropdown.Option("0", "🎮 GPU 0 - DirectML (默认GPU)"),
+                ]
+                return gpu_options
+        except Exception:
+            pass
+        
+        # 方法3: 默认选项
+        return [
+            ft.dropdown.Option("0", "🎮 GPU 0 - 默认GPU"),
+            ft.dropdown.Option("1", "GPU 1"),
+            ft.dropdown.Option("2", "GPU 2"),
+            ft.dropdown.Option("3", "GPU 3"),
+        ]
+    
     def _build_gpu_acceleration_section(self) -> ft.Container:
         """构建GPU加速设置部分，包括高级参数配置。"""
 
@@ -450,18 +512,16 @@ class SettingsView(ft.Container):
             on_change=self._on_gpu_memory_change,
         )
 
+        # 动态检测GPU设备数量
+        gpu_device_options = self._get_gpu_device_options()
+        
         self.gpu_device_dropdown = ft.Dropdown(
             label="GPU设备",
             hint_text="在多GPU系统中选择一个设备",
             value=str(gpu_device_id),
-            options=[
-                ft.dropdown.Option("0", "GPU 0 (主GPU)"),
-                ft.dropdown.Option("1", "GPU 1"),
-                ft.dropdown.Option("2", "GPU 2"),
-                ft.dropdown.Option("3", "GPU 3"),
-            ],
+            options=gpu_device_options,
             on_change=self._on_gpu_device_change,
-            width=280,
+            width=500,
         )
 
         self.memory_arena_switch = ft.Switch(
@@ -492,7 +552,7 @@ class SettingsView(ft.Container):
             padding=ft.padding.all(PADDING_MEDIUM),
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
-            bgcolor=SURFACE_VARIANT,
+            bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
         )
 
         info_text = ft.Text(
