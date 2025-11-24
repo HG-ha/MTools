@@ -82,6 +82,7 @@ class ImageWatermarkView(ft.Container):
         self.file_list_view = ft.Column(
             spacing=PADDING_SMALL,
             scroll=ft.ScrollMode.AUTO,
+            expand=True,
         )
         
         file_section = ft.Container(
@@ -126,10 +127,11 @@ class ImageWatermarkView(ft.Container):
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
                         content=self.file_list_view,
-                        height=200,
+                        height=250,
                         border=ft.border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_MEDIUM,
+                        bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -853,14 +855,17 @@ class ImageWatermarkView(ft.Container):
                     controls=[
                         ft.Icon(ft.Icons.IMAGE_OUTLINED, size=48, color=TEXT_SECONDARY),
                         ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                        ft.Text("点击按钮选择图片文件或文件夹", color=TEXT_SECONDARY, size=12),
+                        ft.Text("点击此处或选择按钮添加图片", color=TEXT_SECONDARY, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_SMALL,
                 ),
-                height=152,  # 200 - 2*24(padding)
+                height=250,  # 固定高度以确保填满显示区域
                 alignment=ft.alignment.center,
+                on_click=lambda e: self._on_select_files(e),
+                ink=True,
+                tooltip="点击选择图片文件",
             )
         )
     

@@ -100,6 +100,7 @@ class VideoConvertView(ft.Container):
         self.file_list_view = ft.Column(
             spacing=PADDING_SMALL,
             scroll=ft.ScrollMode.AUTO,
+            expand=True,
         )
         
         file_section = ft.Container(
@@ -152,6 +153,7 @@ class VideoConvertView(ft.Container):
                         border_radius=BORDER_RADIUS_MEDIUM,
                         padding=PADDING_MEDIUM,
                         height=280,
+                        bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -481,27 +483,27 @@ class VideoConvertView(ft.Container):
         
         if not self.selected_files:
             self.file_list_view.controls.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Icon(ft.Icons.VIDEO_FILE_OUTLINED, size=48, color=TEXT_SECONDARY),
-                            ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
-                            ft.Text("点击此处或选择按钮添加视频", color=TEXT_SECONDARY, size=12),
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=PADDING_SMALL,
-                    ),
-                    expand=True,
-                    alignment=ft.alignment.center,
-                    on_click=lambda e: self.file_picker.pick_files(
-                        allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
-                        dialog_title="选择视频文件",
-                        allow_multiple=True,
-                    ),
-                    tooltip="点击选择视频文件",
-                    ink=True,
-                )
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Icon(ft.Icons.VIDEO_FILE_OUTLINED, size=48, color=TEXT_SECONDARY),
+                                ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
+                                ft.Text("点击此处或选择按钮添加视频", color=TEXT_SECONDARY, size=12),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=PADDING_SMALL,
+                        ),
+                        alignment=ft.alignment.center,
+                        height=250,  # 固定高度以确保填满显示区域
+                        on_click=lambda e: self.file_picker.pick_files(
+                            allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
+                            dialog_title="选择视频文件",
+                            allow_multiple=True,
+                        ),
+                        tooltip="点击选择视频文件",
+                        ink=True,
+                    )
             )
         else:
             for i, file_path in enumerate(self.selected_files):

@@ -101,6 +101,7 @@ class VideoCompressView(ft.Container):
         self.file_list_view = ft.Column(
             spacing=PADDING_SMALL,
             scroll=ft.ScrollMode.ADAPTIVE,
+            expand=True,
         )
         
         file_select_area = ft.Container(
@@ -752,15 +753,17 @@ class VideoCompressView(ft.Container):
                     controls=[
                         ft.Icon(ft.Icons.MOVIE_OUTLINED, size=48, color=TEXT_SECONDARY),
                         ft.Text("未选择文件", color=TEXT_SECONDARY, size=14),
+                        ft.Text("点击此处或选择按钮添加视频", color=TEXT_SECONDARY, size=12),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_MEDIUM // 2,
                 ),
-                height=332,
+                height=250,  # 固定高度以确保填满显示区域
                 alignment=ft.alignment.center,
                 on_click=lambda e: self._on_select_files(e),
                 ink=True,
+                tooltip="点击选择视频文件",
             )
         )
 
