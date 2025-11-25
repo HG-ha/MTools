@@ -93,16 +93,6 @@ class AudioCompressView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
-        # 副标题
-        subtitle = ft.Text(
-            "通过调整比特率和采样率压缩音频文件",
-            size=14,
-            color=ft.Colors.ON_SURFACE_VARIANT,
-        )
-        
-        # 分割线
-        divider = ft.Divider(height=1, color=ft.Colors.OUTLINE)
-        
         # 文件选择区域
         self.file_list_view = ft.Column(
             spacing=PADDING_SMALL,
@@ -357,23 +347,21 @@ class AudioCompressView(ft.Container):
                 progress_area,
                 ft.Container(height=PADDING_MEDIUM),
                 button_row,
+                ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.HIDDEN,  # 隐藏滚动条，但仍可滚动
             expand=True,
         )
         
-        # 组装视图
+        # 组装主界面 - 标题固定，分隔线固定，内容可滚动
         self.content = ft.Column(
             controls=[
-                header,
-                subtitle,
-                divider,
-                ft.Container(height=PADDING_SMALL),
-                scrollable_content,
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
             ],
-            spacing=0,
-            expand=True,
+            spacing=0,  # 取消间距，让布局更紧凑
         )
     
     def _init_empty_state(self) -> None:

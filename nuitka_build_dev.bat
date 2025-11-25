@@ -1,10 +1,8 @@
 @REM 开发快速编译版本 - 编译速度优先
 @REM conda activate mytoolsbuild
 
-@echo 开始快速编译（开发版）...
 python -m nuitka ^
     --standalone ^
-    --windows-console-mode=disable ^
     --windows-icon-from-ico=src/assets/icon2.png ^
     --assume-yes-for-downloads ^
     --include-data-dir=bin=bin ^
@@ -31,12 +29,6 @@ python -m nuitka ^
     --output-filename=mytools.exe ^
     --jobs=8 ^
     --low-memory ^
-    --disable-ccache=no ^
     --remove-output ^
     --python-flag=-O ^
     src/main.py
-
-@echo.
-@echo 编译完成！输出目录: dist\mytools.dist\
-@echo 可执行文件: dist\mytools.dist\mytools.exe
-

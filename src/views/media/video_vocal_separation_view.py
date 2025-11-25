@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""人声提取视图模块。
+"""视频人声分离视图模块。
 
-提供人声/伴奏分离功能的用户界面。
+提供视频人声/背景音处理功能的用户界面。
 """
 
 import threading
+import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -22,13 +23,13 @@ from services import ConfigService, VocalSeparationService, FFmpegService
 from utils import format_file_size
 
 
-class VocalExtractionView(ft.Container):
-    """人声提取视图类。
+class VideoVocalSeparationView(ft.Container):
+    """视频人声分离视图类。
     
-    提供人声/伴奏分离功能，包括：
+    提供视频人声/背景音处理功能，包括：
     - 单文件处理
     - 批量处理
-    - 人声和伴奏分离
+    - 保留人声/保留背景音
     - 实时进度显示
     """
 
@@ -39,7 +40,7 @@ class VocalExtractionView(ft.Container):
         ffmpeg_service: FFmpegService,
         on_back: Optional[Callable] = None
     ) -> None:
-        """初始化人声提取视图。
+        """初始化视频人声分离视图。
         
         Args:
             page: Flet页面对象
@@ -85,7 +86,7 @@ class VocalExtractionView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("人声提取", size=28, weight=ft.FontWeight.BOLD),
+                ft.Text("视频人声分离", size=28, weight=ft.FontWeight.BOLD),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -110,7 +111,7 @@ class VocalExtractionView(ft.Container):
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Text("选择音频:", size=14, weight=ft.FontWeight.W_500),
+                        ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
                         ft.ElevatedButton(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
@@ -134,7 +135,7 @@ class VocalExtractionView(ft.Container):
                         controls=[
                             ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
-                                "支持格式: MP3, WAV, FLAC, M4A, OGG, WMA 等",
+                                "支持格式: MP4, AVI, MKV, MOV, FLV, WMV, WEBM 等",
                                 size=12,
                                 color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
@@ -243,80 +244,45 @@ class VocalExtractionView(ft.Container):
         self._init_model_status()
         
         # 输出设置区域
-        self.output_vocals_checkbox = ft.Checkbox(
-            label="输出人声 (Vocals)",
-            value=True,
+        # 音频模式选择
+        self.audio_mode_radio = ft.RadioGroup(
+            content=ft.Column(
+                controls=[
+                    ft.Radio(value="vocals", label="仅保留人声"),
+                    ft.Radio(value="instrumental", label="仅保留背景音"),
+                    ft.Radio(value="both", label="输出两个版本（人声+背景音）"),
+                ],
+                spacing=PADDING_SMALL // 2,
+            ),
+            value="vocals",
         )
         
-        self.output_instrumental_checkbox = ft.Checkbox(
-            label="输出伴奏 (Instrumental)",
-            value=True,
-        )
-        
-        # 输出格式选择
-        self.output_format_dropdown = ft.Dropdown(
-            label="输出格式",
+        # 视频编码设置
+        self.video_codec_dropdown = ft.Dropdown(
+            label="视频编码",
             options=[
-                ft.dropdown.Option(key="original", text="跟随原文件"),
-                ft.dropdown.Option(key="wav", text="WAV (无损)"),
-                ft.dropdown.Option(key="flac", text="FLAC (无损压缩)"),
+                ft.dropdown.Option(key="copy", text="复制视频流 (最快，推荐)"),
+                ft.dropdown.Option(key="h264", text="H.264 (兼容性最好)"),
+                ft.dropdown.Option(key="h265", text="H.265/HEVC (体积更小)"),
+            ],
+            value="copy",
+            width=300,
+            dense=True,
+            text_size=13,
+        )
+        
+        # 音频格式设置
+        self.audio_codec_dropdown = ft.Dropdown(
+            label="音频编码",
+            options=[
+                ft.dropdown.Option(key="aac", text="AAC (推荐)"),
                 ft.dropdown.Option(key="mp3", text="MP3"),
-                ft.dropdown.Option(key="ogg", text="OGG Vorbis"),
+                ft.dropdown.Option(key="opus", text="Opus (高质量)"),
             ],
-            value="original",
-            width=200,
+            value="aac",
+            width=300,
             dense=True,
             text_size=13,
-            on_change=self._on_format_change,
-        )
-        
-        # 采样率设置
-        self.sample_rate_dropdown = ft.Dropdown(
-            label="采样率",
-            options=[
-                ft.dropdown.Option(key="original", text="跟随原文件"),
-                ft.dropdown.Option(key="44100", text="44.1 kHz (CD质量)"),
-                ft.dropdown.Option(key="48000", text="48 kHz (标准)"),
-                ft.dropdown.Option(key="96000", text="96 kHz (高保真)"),
-            ],
-            value="original",
-            width=200,
-            dense=True,
-            text_size=13,
-        )
-        
-        # MP3 码率设置（默认隐藏）
-        self.mp3_bitrate_dropdown = ft.Dropdown(
-            label="MP3 码率",
-            options=[
-                ft.dropdown.Option(key="original", text="跟随原文件"),
-                ft.dropdown.Option(key="128k", text="128 kbps (中等)"),
-                ft.dropdown.Option(key="192k", text="192 kbps (良好)"),
-                ft.dropdown.Option(key="256k", text="256 kbps (高质量)"),
-                ft.dropdown.Option(key="320k", text="320 kbps (最高)"),
-            ],
-            value="original",
-            width=200,
-            dense=True,
-            text_size=13,
-            visible=False,
-        )
-        
-        # OGG 质量设置（默认隐藏）
-        self.ogg_quality_dropdown = ft.Dropdown(
-            label="OGG 质量",
-            options=[
-                ft.dropdown.Option(key="original", text="跟随原文件"),
-                ft.dropdown.Option(key="4", text="质量 4 (~128 kbps)"),
-                ft.dropdown.Option(key="6", text="质量 6 (~192 kbps)"),
-                ft.dropdown.Option(key="8", text="质量 8 (~256 kbps)"),
-                ft.dropdown.Option(key="10", text="质量 10 (最高)"),
-            ],
-            value="original",
-            width=200,
-            dense=True,
-            text_size=13,
-            visible=False,
         )
         
         # 输出模式选择
@@ -333,7 +299,7 @@ class VocalExtractionView(ft.Container):
         )
         
         # 输出目录设置
-        default_output = self.config_service.get_output_dir() / "vocal_extraction"
+        default_output = self.config_service.get_output_dir() / "video_vocal_separation"
         
         self.output_dir_field = ft.TextField(
             label="输出目录",
@@ -355,24 +321,13 @@ class VocalExtractionView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Text("输出设置", size=14, weight=ft.FontWeight.W_500),
+                    ft.Text("音频模式:", size=13),
+                    self.audio_mode_radio,
+                    ft.Container(height=PADDING_SMALL // 2),
                     ft.Row(
                         controls=[
-                            self.output_vocals_checkbox,
-                            self.output_instrumental_checkbox,
-                        ],
-                        spacing=PADDING_MEDIUM,
-                    ),
-                    ft.Row(
-                        controls=[
-                            self.output_format_dropdown,
-                            self.sample_rate_dropdown,
-                        ],
-                        spacing=PADDING_MEDIUM,
-                    ),
-                    ft.Row(
-                        controls=[
-                            self.mp3_bitrate_dropdown,
-                            self.ogg_quality_dropdown,
+                            self.video_codec_dropdown,
+                            self.audio_codec_dropdown,
                         ],
                         spacing=PADDING_MEDIUM,
                     ),
@@ -423,13 +378,13 @@ class VocalExtractionView(ft.Container):
             spacing=PADDING_SMALL,
         )
         
-        # 底部大按钮 - 与背景移除工具样式一致
+        # 底部大按钮
         self.process_button = ft.Container(
             content=ft.ElevatedButton(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.GRAPHIC_EQ, size=24),
-                        ft.Text("开始提取人声", size=18, weight=ft.FontWeight.W_600),
+                        ft.Icon(ft.Icons.VIDEO_LIBRARY, size=24),
+                        ft.Text("开始处理", size=18, weight=ft.FontWeight.W_600),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_MEDIUM,
@@ -444,7 +399,7 @@ class VocalExtractionView(ft.Container):
             alignment=ft.alignment.center,
         )
         
-        # 取消按钮（保持原样式，处理时显示）
+        # 取消按钮
         self.cancel_button = ft.ElevatedButton(
             "取消",
             icon=ft.Icons.STOP,
@@ -501,14 +456,14 @@ class VocalExtractionView(ft.Container):
             ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.MUSIC_NOTE, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Icon(ft.Icons.VIDEO_FILE, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Text(
                             "未选择文件",
                             size=14,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                         ft.Text(
-                            "点击此处选择音频文件",
+                            "点击此处选择视频文件",
                             size=12,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
@@ -521,7 +476,7 @@ class VocalExtractionView(ft.Container):
                 alignment=ft.alignment.center,
                 on_click=self._on_empty_area_click,
                 ink=True,
-                tooltip="点击选择音频文件",
+                tooltip="点击选择视频文件",
             )
         )
     
@@ -532,15 +487,15 @@ class VocalExtractionView(ft.Container):
     def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
         self.file_picker.pick_files(
-            dialog_title="选择音频文件",
-            allowed_extensions=["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "opus"],
+            dialog_title="选择视频文件",
+            allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg"],
             allow_multiple=True,
         )
     
     def _on_select_folder(self) -> None:
         """选择文件夹按钮点击事件。"""
         self.file_picker.get_directory_path(
-            dialog_title="选择包含音频的文件夹"
+            dialog_title="选择包含视频的文件夹"
         )
     
     def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
@@ -552,9 +507,9 @@ class VocalExtractionView(ft.Container):
                     self.selected_files.append(file_path)
         elif e.path:
             folder_path = Path(e.path)
-            audio_extensions = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".wma", ".opus"}
+            video_extensions = {".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv", ".webm", ".m4v", ".mpg", ".mpeg"}
             for file_path in folder_path.rglob("*"):
-                if file_path.suffix.lower() in audio_extensions and file_path not in self.selected_files:
+                if file_path.suffix.lower() in video_extensions and file_path not in self.selected_files:
                     self.selected_files.append(file_path)
         
         self._update_file_list()
@@ -587,7 +542,7 @@ class VocalExtractionView(ft.Container):
         return ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.AUDIO_FILE, size=20),
+                    ft.Icon(ft.Icons.VIDEO_FILE, size=20),
                     ft.Column(
                         controls=[
                             ft.Text(
@@ -632,10 +587,6 @@ class VocalExtractionView(ft.Container):
     def _on_process_click(self, e: ft.ControlEvent) -> None:
         """开始处理按钮点击事件。"""
         if not self.selected_files:
-            return
-        
-        if not self.output_vocals_checkbox.value and not self.output_instrumental_checkbox.value:
-            self._show_snackbar("请至少选择一种输出类型", ft.Colors.ERROR)
             return
         
         # 开始处理
@@ -712,52 +663,12 @@ class VocalExtractionView(ft.Container):
                             overall_progress = (i + progress) / total_files
                             self._update_progress(message, overall_progress)
                     
-                    # 获取输出设置
-                    format_value = self.output_format_dropdown.value
-                    # 如果选择跟随原文件，则使用原始文件的扩展名
-                    if format_value == "original":
-                        original_ext = file_path.suffix.lower().lstrip('.')
-                        # 映射常见格式
-                        format_map = {
-                            'mp3': 'mp3',
-                            'wav': 'wav',
-                            'flac': 'flac',
-                            'ogg': 'ogg',
-                            'm4a': 'mp3',  # m4a转为mp3
-                            'wma': 'wav',  # wma转为wav
-                        }
-                        output_format = format_map.get(original_ext, 'wav')
-                    else:
-                        output_format = format_value
-                    
-                    sample_rate_value = self.sample_rate_dropdown.value
-                    output_sample_rate = None if sample_rate_value == "original" else int(sample_rate_value)
-                    
-                    # 获取比特率/质量设置（保持字符串格式，让服务层处理）
-                    mp3_bitrate = self.mp3_bitrate_dropdown.value
-                    ogg_quality_value = self.ogg_quality_dropdown.value
-                    # 如果不是"original"，转换为整数
-                    ogg_quality = ogg_quality_value if ogg_quality_value == "original" else int(ogg_quality_value)
-                    
-                    vocals_path, instrumental_path = self.vocal_service.separate(
+                    # 处理视频
+                    self._process_single_video(
                         file_path,
                         current_output_dir,
-                        progress_callback,
-                        output_format=output_format,
-                        output_sample_rate=output_sample_rate,
-                        mp3_bitrate=mp3_bitrate,
-                        ogg_quality=ogg_quality
+                        progress_callback
                     )
-                    
-                    # 验证输出文件是否存在
-                    if not vocals_path.exists() and not instrumental_path.exists():
-                        raise RuntimeError("输出文件未成功创建")
-                    
-                    # 根据用户选择删除不需要的输出
-                    if not self.output_vocals_checkbox.value and vocals_path.exists():
-                        vocals_path.unlink()
-                    if not self.output_instrumental_checkbox.value and instrumental_path.exists():
-                        instrumental_path.unlink()
                     
                 except Exception as e:
                     import traceback
@@ -775,6 +686,189 @@ class VocalExtractionView(ft.Container):
             self._show_snackbar(f"处理失败: {e}", ft.Colors.ERROR)
         finally:
             self._reset_ui()
+    
+    def _process_single_video(
+        self,
+        video_path: Path,
+        output_dir: Path,
+        progress_callback: Callable[[str, float], None]
+    ) -> None:
+        """处理单个视频文件。
+        
+        Args:
+            video_path: 视频文件路径
+            output_dir: 输出目录
+            progress_callback: 进度回调函数
+        """
+        import ffmpeg
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # 1. 提取音频
+            progress_callback("提取音频...", 0.1)
+            audio_file = temp_path / "audio.wav"
+            
+            try:
+                stream = ffmpeg.input(str(video_path))
+                stream = ffmpeg.output(stream, str(audio_file), acodec='pcm_s16le', ac=2, ar=44100)
+                ffmpeg.run(
+                    stream,
+                    cmd=self.ffmpeg_service.get_ffmpeg_path(),
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                    quiet=True
+                )
+            except ffmpeg.Error as e:
+                raise RuntimeError(f"提取音频失败: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}")
+            
+            # 2. 分离人声
+            progress_callback("分离人声...", 0.2)
+            
+            def vocal_progress_callback(message: str, progress: float):
+                # 将 0.2-0.8 的进度映射到人声分离
+                overall_progress = 0.2 + progress * 0.6
+                progress_callback(f"分离人声: {message}", overall_progress)
+            
+            vocals_path, instrumental_path = self.vocal_service.separate(
+                audio_file,
+                temp_path,
+                vocal_progress_callback,
+                output_format='wav',
+                output_sample_rate=None,
+            )
+            
+            # 3. 根据用户选择合并视频
+            progress_callback("合并视频...", 0.85)
+            
+            audio_mode = self.audio_mode_radio.value
+            video_codec = self.video_codec_dropdown.value
+            audio_codec = self.audio_codec_dropdown.value
+            
+            # 生成输出文件名
+            stem = video_path.stem
+            ext = video_path.suffix
+            
+            if audio_mode == "vocals":
+                # 仅保留人声
+                output_path = output_dir / f"{stem}_vocals{ext}"
+                self._merge_video_audio(
+                    video_path,
+                    vocals_path,
+                    output_path,
+                    video_codec,
+                    audio_codec
+                )
+            elif audio_mode == "instrumental":
+                # 仅保留背景音
+                output_path = output_dir / f"{stem}_instrumental{ext}"
+                self._merge_video_audio(
+                    video_path,
+                    instrumental_path,
+                    output_path,
+                    video_codec,
+                    audio_codec
+                )
+            else:  # both
+                # 输出两个版本
+                vocals_output = output_dir / f"{stem}_vocals{ext}"
+                instrumental_output = output_dir / f"{stem}_instrumental{ext}"
+                
+                self._merge_video_audio(
+                    video_path,
+                    vocals_path,
+                    vocals_output,
+                    video_codec,
+                    audio_codec
+                )
+                
+                self._merge_video_audio(
+                    video_path,
+                    instrumental_path,
+                    instrumental_output,
+                    video_codec,
+                    audio_codec
+                )
+            
+            progress_callback("完成!", 1.0)
+    
+    def _merge_video_audio(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        output_path: Path,
+        video_codec: str,
+        audio_codec: str
+    ) -> None:
+        """合并视频和音频。
+        
+        Args:
+            video_path: 视频文件路径
+            audio_path: 音频文件路径
+            output_path: 输出文件路径
+            video_codec: 视频编码器
+            audio_codec: 音频编码器
+        """
+        import ffmpeg
+        
+        try:
+            # 读取视频和音频流
+            video_stream = ffmpeg.input(str(video_path))
+            audio_stream = ffmpeg.input(str(audio_path))
+            
+            # 视频编码设置
+            if video_codec == "copy":
+                v_codec = "copy"
+            elif video_codec == "h264":
+                v_codec = "libx264"
+            elif video_codec == "h265":
+                v_codec = "libx265"
+            else:
+                v_codec = "copy"
+            
+            # 音频编码设置
+            if audio_codec == "aac":
+                a_codec = "aac"
+                audio_bitrate = "192k"
+            elif audio_codec == "mp3":
+                a_codec = "libmp3lame"
+                audio_bitrate = "192k"
+            elif audio_codec == "opus":
+                a_codec = "libopus"
+                audio_bitrate = "128k"
+            else:
+                a_codec = "aac"
+                audio_bitrate = "192k"
+            
+            # 合并视频和音频
+            output_kwargs = {
+                'vcodec': v_codec,
+                'acodec': a_codec,
+            }
+            
+            # 如果不是复制音频，设置比特率
+            if audio_codec != "copy":
+                output_kwargs['audio_bitrate'] = audio_bitrate
+            
+            stream = ffmpeg.output(
+                video_stream.video,
+                audio_stream.audio,
+                str(output_path),
+                **output_kwargs
+            )
+            
+            ffmpeg.run(
+                stream,
+                cmd=self.ffmpeg_service.get_ffmpeg_path(),
+                overwrite_output=True,
+                capture_stdout=True,
+                capture_stderr=True,
+                quiet=True
+            )
+            
+        except ffmpeg.Error as e:
+            raise RuntimeError(f"合并视频失败: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}")
     
     def _update_progress(self, message: str, progress: float) -> None:
         """更新进度显示。"""
@@ -961,22 +1055,6 @@ class VocalExtractionView(ft.Container):
         self.output_dir_field.update()
         self.browse_output_button.update()
     
-    def _on_format_change(self, e: ft.ControlEvent) -> None:
-        """输出格式变化事件。"""
-        format_value = e.control.value
-        
-        # 根据格式显示/隐藏对应的质量设置
-        # 如果是"跟随原文件"，则隐藏所有质量设置
-        if format_value == "original":
-            self.mp3_bitrate_dropdown.visible = False
-            self.ogg_quality_dropdown.visible = False
-        else:
-            self.mp3_bitrate_dropdown.visible = (format_value == "mp3")
-            self.ogg_quality_dropdown.visible = (format_value == "ogg")
-        
-        self.mp3_bitrate_dropdown.update()
-        self.ogg_quality_dropdown.update()
-    
     def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
         def on_result(result: ft.FilePickerResultEvent):
@@ -993,3 +1071,4 @@ class VocalExtractionView(ft.Container):
         """返回按钮点击事件。"""
         if self.on_back:
             self.on_back()
+

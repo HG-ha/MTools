@@ -199,6 +199,15 @@ def register_all_tools():
         tool_id="video.extract_audio",
     )
     
+    register_tool_manual(
+        name="视频人声分离",
+        description="分离视频中的人声和背景音",
+        category="视频处理",
+        keywords=["人声", "伴奏", "背景音", "分离", "视频", "音频", "vocal", "instrumental", "separation", "AI", "消音", "卡拉OK", "伴唱"],
+        icon="GRAPHIC_EQ",
+        tool_id="video.vocal_separation",
+    )
+    
     # ==================== 开发工具 ====================
     
     register_tool_manual(

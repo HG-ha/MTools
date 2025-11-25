@@ -11,7 +11,6 @@ from typing import Optional, Tuple, Callable, Union, TYPE_CHECKING
 
 import numpy as np
 import onnxruntime as ort
-import librosa
 import ffmpeg
 
 if TYPE_CHECKING:
@@ -308,7 +307,8 @@ class VocalSeparationService:
             elif output_format == 'mp3':
                 stream = ffmpeg.output(stream, str(output_path), acodec='libmp3lame', audio_bitrate=mp3_bitrate, ar=str(self.sample_rate))
             elif output_format == 'ogg':
-                stream = ffmpeg.output(stream, str(output_path), acodec='libvorbis', audio_quality=ogg_quality, ar=str(self.sample_rate))
+                # OGG Vorbis 使用 q:a 参数设置质量 (0-10, 10最高)
+                stream = ffmpeg.output(stream, str(output_path), acodec='libvorbis', ar=str(self.sample_rate), **{'q:a': ogg_quality})
             else:
                 # 默认使用 WAV
                 stream = ffmpeg.output(stream, str(output_path), acodec='pcm_s16le', ar=str(self.sample_rate))
@@ -507,6 +507,8 @@ class VocalSeparationService:
     def _resample_audio(self, audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
         """重采样音频到目标采样率。
         
+        使用 sinc 插值进行高质量重采样（基于 FFT 的方法）。
+        
         Args:
             audio: 音频数据 (channels, samples)
             orig_sr: 原始采样率
@@ -515,19 +517,48 @@ class VocalSeparationService:
         Returns:
             重采样后的音频数据
         """
-        import librosa
+        if orig_sr == target_sr:
+            return audio
+        
+        def resample_single_channel(y: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+            """对单通道音频进行重采样（使用 FFT 方法）。"""
+            # 计算新的采样点数
+            n_samples = int(np.ceil(len(y) * target_sr / orig_sr))
+            
+            # 使用 FFT 进行重采样（频域插值）
+            Y = np.fft.rfft(y)
+            
+            # 计算新的频率bins数量
+            n_fft_new = n_samples if n_samples % 2 == 0 else n_samples + 1
+            n_freq_new = n_fft_new // 2 + 1
+            n_freq_old = len(Y)
+            
+            # 创建新的频谱
+            if target_sr > orig_sr:
+                # 上采样：在频谱末尾补零
+                Y_new = np.zeros(n_freq_new, dtype=Y.dtype)
+                Y_new[:n_freq_old] = Y
+            else:
+                # 下采样：截断高频
+                Y_new = Y[:n_freq_new]
+            
+            # 逆FFT并调整幅度
+            y_new = np.fft.irfft(Y_new, n=n_fft_new)[:n_samples]
+            y_new *= target_sr / orig_sr
+            
+            return y_new
         
         if audio.shape[0] == 2:
             # 立体声，分别处理每个通道
-            resampled_left = librosa.resample(audio[0], orig_sr=orig_sr, target_sr=target_sr)
-            resampled_right = librosa.resample(audio[1], orig_sr=orig_sr, target_sr=target_sr)
+            resampled_left = resample_single_channel(audio[0], orig_sr, target_sr)
+            resampled_right = resample_single_channel(audio[1], orig_sr, target_sr)
             return np.stack([resampled_left, resampled_right])
         else:
             # 单声道
-            return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
+            return resample_single_channel(audio, orig_sr, target_sr)
     
     def _stft(self, y: np.ndarray, n_fft: int, hop_length: int, window: str = 'hann', center: bool = True) -> np.ndarray:
-        """手动实现 STFT（短时傅里叶变换），与 librosa 兼容。
+        """手动实现 STFT（短时傅里叶变换）。
         
         Args:
             y: 输入信号
@@ -545,7 +576,7 @@ class VocalSeparationService:
         else:
             win = np.ones(n_fft)
         
-        # Center padding（与 librosa 一致）
+        # Center padding（镜像填充）
         if center:
             pad_len = n_fft // 2
             y = np.pad(y, (pad_len, pad_len), mode='reflect')
@@ -575,7 +606,7 @@ class VocalSeparationService:
         center: bool = True,
         length: Optional[int] = None
     ) -> np.ndarray:
-        """手动实现 ISTFT（逆短时傅里叶变换），与 librosa 兼容。
+        """手动实现 ISTFT（逆短时傅里叶变换）。
         
         Args:
             spec: 复数频谱 (n_fft//2 + 1, n_frames)
@@ -648,7 +679,7 @@ class VocalSeparationService:
         if progress_callback:
             progress_callback("正在进行频谱分析...", 0.2)
         
-        # STFT (手动实现，与 librosa 完全一致)
+        # STFT (手动实现)
         spec_left = self._stft(
             audio[0],
             n_fft=self.n_fft,
@@ -780,7 +811,7 @@ class VocalSeparationService:
             padding = expected_freq_bins - vocal_spec.shape[1]
             vocal_spec = np.pad(vocal_spec, ((0, 0), (0, padding), (0, 0)), mode='constant')
         
-        # ISTFT 重建音频 (手动实现，与 librosa 完全一致)
+        # ISTFT 重建音频 (手动实现)
         vocals_left = self._istft(
             vocal_spec[0],
             hop_length=self.hop_length,

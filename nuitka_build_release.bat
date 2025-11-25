@@ -39,7 +39,6 @@ python -m nuitka ^
     --lto=yes ^
     --enable-plugin=upx ^
     --onefile-no-compression ^
-    --disable-ccache=no ^
     --python-flag=-O ^
     --python-flag=no_site ^
     --python-flag=no_warnings ^
