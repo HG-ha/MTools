@@ -247,3 +247,38 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
 # 默认人声分离模型
 DEFAULT_VOCAL_MODEL_KEY: Final[str] = "kim_vocal_2"
 
+
+# 图像增强模型配置（Real-ESRGAN）
+@dataclass
+class ImageEnhanceModelInfo(ModelInfo):
+    """图像增强模型信息（扩展ModelInfo以支持多文件）。
+    
+    Attributes:
+        data_url: 权重数据文件的下载链接（用于大型模型）
+        data_filename: 权重数据文件名
+        scale: 放大倍数
+    """
+    data_url: str = ""
+    data_filename: str = ""
+    scale: int = 4
+
+
+IMAGE_ENHANCE_MODELS: Final[dict[str, ImageEnhanceModelInfo]] = {
+    "realesrgan_x4plus": ImageEnhanceModelInfo(
+        name="realesrgan_x4plus",
+        display_name="Real-ESRGAN x4 Plus（推荐）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.data",
+        size_mb=67,
+        quality="高质量图像超分辨率",
+        performance="4倍放大、适合真实照片",
+        filename="model.onnx",
+        data_filename="model.data",
+        version="x4plus",
+        scale=4
+    ),
+}
+
+# 默认图像增强模型
+DEFAULT_ENHANCE_MODEL_KEY: Final[str] = "realesrgan_x4plus"
+

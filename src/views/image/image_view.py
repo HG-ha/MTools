@@ -18,6 +18,7 @@ from services import ConfigService, ImageService
 from views.image.background_view import ImageBackgroundView
 from views.image.compress_view import ImageCompressView
 from views.image.crop_view import ImageCropView
+from views.image.enhance_view import ImageEnhanceView
 from views.image.format_view import ImageFormatView
 from views.image.gif_adjustment_view import GifAdjustmentView
 from views.image.info_view import ImageInfoView
@@ -66,6 +67,7 @@ class ImageView(ft.Container):
         self.resize_view: Optional[ImageResizeView] = None
         self.format_view: Optional[ImageFormatView] = None
         self.background_view: Optional[ImageBackgroundView] = None
+        self.enhance_view: Optional[ImageEnhanceView] = None
         self.split_view = None  # 九宫格切分视图
         self.merge_view = None  # 多图合并视图
         self.crop_view: Optional[ImageCropView] = None
@@ -123,6 +125,13 @@ class ImageView(ft.Container):
                     description="AI智能抠图，一键去除背景",
                     gradient_colors=("#FA709A", "#FEE140"),
                     on_click=self._open_background_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.AUTO_AWESOME,
+                    title="图像增强",
+                    description="AI超分辨率，4倍放大清晰化",
+                    gradient_colors=("#30CFD0", "#330867"),
+                    on_click=self._open_enhance_dialog,
                 ),
                 FeatureCard(
                     icon=ft.Icons.GRID_ON,
@@ -328,6 +337,40 @@ class ImageView(ft.Container):
             self._safe_page_update()
         
         # 使用定时器延迟执行，让点击动画先播放完
+        timer = threading.Timer(0.2, delayed_create_and_switch)
+        timer.daemon = True
+        timer.start()
+    
+    def _open_enhance_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图像增强工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        import threading
+        
+        def delayed_create_and_switch():
+            # 创建图像增强视图（如果还没创建）
+            if not self.enhance_view:
+                self.enhance_view = ImageEnhanceView(
+                    self.page,
+                    self.config_service,
+                    self.image_service,
+                    on_back=self._back_to_main
+                )
+            
+            # 记录当前子视图
+            self.current_sub_view = self.enhance_view
+            self.current_sub_view_type = "enhance"
+            
+            # 切换到图像增强视图
+            self.parent_container.content = self.enhance_view
+            self._safe_page_update()
+        
         timer = threading.Timer(0.2, delayed_create_and_switch)
         timer.daemon = True
         timer.start()

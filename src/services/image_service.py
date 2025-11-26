@@ -1827,6 +1827,391 @@ class BackgroundRemover:
         finally:
             # 批量处理完成后进行完整的内存清理
             self._clear_memory()
+            
+            return results
+
+
+class ImageEnhancer:
+    """图像增强器类。
+    
+    使用 Real-ESRGAN ONNX 模型进行图像超分辨率增强，支持GPU加速。
+    """
+    
+    def __init__(
+        self, 
+        model_path: Path,
+        data_path: Optional[Path] = None,
+        use_gpu: bool = False,
+        gpu_device_id: int = 0,
+        gpu_memory_limit: int = 2048,
+        enable_memory_arena: bool = True,
+        scale: int = 4
+    ) -> None:
+        """初始化图像增强器。
+        
+        Args:
+            model_path: ONNX模型路径（.onnx文件）
+            data_path: 模型权重数据路径（.data文件），如果模型使用外部数据格式
+            use_gpu: 是否启用GPU加速
+            gpu_device_id: GPU设备ID，默认0（第一个GPU）
+            gpu_memory_limit: GPU内存限制（MB），默认2048MB
+            enable_memory_arena: 是否启用内存池优化，默认True
+            scale: 放大倍数，默认4
+        """
+        try:
+            import onnxruntime as ort
+        except ImportError:
+            raise ImportError("需要安装 onnxruntime 库。请运行: pip install onnxruntime")
+        
+        if not model_path.exists():
+            raise FileNotFoundError(f"模型文件不存在: {model_path}")
+        
+        # 如果指定了 data_path，检查是否存在
+        if data_path and not data_path.exists():
+            raise FileNotFoundError(f"模型数据文件不存在: {data_path}")
+        
+        # 配置会话选项，启用内存优化
+        sess_options = ort.SessionOptions()
+        sess_options.enable_mem_pattern = True
+        sess_options.enable_mem_reuse = True
+        sess_options.enable_cpu_mem_arena = enable_memory_arena
+        sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.log_severity_level = 3  # ERROR级别
+        
+        # 选择执行提供者（GPU或CPU）
+        providers = []
+        self.using_gpu = False
+        
+        if use_gpu:
+            available_providers = ort.get_available_providers()
+            
+            # 按优先级尝试GPU提供者
+            if 'CUDAExecutionProvider' in available_providers:
+                providers.append(('CUDAExecutionProvider', {
+                    'device_id': gpu_device_id,
+                    'arena_extend_strategy': 'kNextPowerOfTwo',
+                    'gpu_mem_limit': gpu_memory_limit * 1024 * 1024,
+                    'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                    'do_copy_in_default_stream': True,
+                }))
+                self.using_gpu = True
+            elif 'DmlExecutionProvider' in available_providers:
+                providers.append('DmlExecutionProvider')
+                self.using_gpu = True
+            elif 'ROCMExecutionProvider' in available_providers:
+                providers.append('ROCMExecutionProvider')
+                self.using_gpu = True
+        
+        # CPU作为后备
+        providers.append('CPUExecutionProvider')
+        
+        try:
+            self.sess = ort.InferenceSession(
+                str(model_path),
+                sess_options=sess_options,
+                providers=providers
+            )
+            
+            # 记录实际使用的提供者
+            actual_provider = self.sess.get_providers()[0]
+            self.using_gpu = actual_provider != 'CPUExecutionProvider'
+                
+        except Exception as e:
+            raise RuntimeError(f"加载ONNX模型失败: {e}")
+        
+        self.input_name: str = self.sess.get_inputs()[0].name
+        self.output_name: str = self.sess.get_outputs()[0].name
+        self.scale: int = scale
+        
+        # 获取模型的输入尺寸要求
+        input_shape = self.sess.get_inputs()[0].shape
+        # 通常是 [batch, channels, height, width]，但有些模型可能是动态的
+        if len(input_shape) >= 3 and isinstance(input_shape[-2], int) and isinstance(input_shape[-1], int):
+            self.tile_size = input_shape[-1]  # 使用模型要求的尺寸
+        else:
+            self.tile_size = 128  # 默认使用128作为tile大小
+        
+        # tile之间的重叠像素（用于避免边缘伪影）
+        self.tile_overlap = 8
+        
+        # 记录实际使用的执行提供者
+        self.device_info = self.sess.get_providers()[0]
+    
+    def is_using_gpu(self) -> bool:
+        """返回是否正在使用GPU加速。
+        
+        Returns:
+            如果使用GPU则返回True，否则返回False
+        """
+        return self.using_gpu
+    
+    def get_device_info(self) -> str:
+        """获取当前使用的设备信息。
+        
+        Returns:
+            设备信息字符串
+        """
+        provider_map = {
+            'CUDAExecutionProvider': 'CUDA GPU',
+            'DmlExecutionProvider': 'DirectML GPU',
+            'ROCMExecutionProvider': 'ROCm GPU',
+            'CPUExecutionProvider': 'CPU',
+        }
+        return provider_map.get(self.device_info, self.device_info)
+    
+    def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
+        """预处理图像。
+        
+        Args:
+            image: 输入图像数组 (H, W, C)，BGR格式
+        
+        Returns:
+            预处理后的图像张量 (1, C, H, W)
+        """
+        # 转换为 RGB
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+        else:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # 转换为float32并归一化到[0, 1]
+        image = image.astype(np.float32) / 255.0
+        
+        # 转换维度: (H, W, C) -> (C, H, W)
+        image = np.transpose(image, (2, 0, 1))
+        
+        # 添加batch维度: (C, H, W) -> (1, C, H, W)
+        image = np.expand_dims(image, axis=0)
+        
+        return image
+    
+    def _postprocess_image(self, output: np.ndarray) -> np.ndarray:
+        """后处理模型输出。
+        
+        Args:
+            output: 模型输出 (1, C, H, W)
+        
+        Returns:
+            处理后的图像数组 (H, W, C)，BGR格式
+        """
+        # 移除batch维度: (1, C, H, W) -> (C, H, W)
+        output = np.squeeze(output, axis=0)
+        
+        # 转换维度: (C, H, W) -> (H, W, C)
+        output = np.transpose(output, (1, 2, 0))
+        
+        # 反归一化并限制范围
+        output = np.clip(output * 255.0, 0, 255).astype(np.uint8)
+        
+        # 转换回 BGR
+        output = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
+        
+        return output
+    
+    def _clear_memory(self) -> None:
+        """清理内存。"""
+        try:
+            gc.collect()
+        except Exception:
+            pass
+    
+    def _process_tile(self, tile: np.ndarray) -> np.ndarray:
+        """处理单个图像块。
+        
+        Args:
+            tile: 输入图像块 (H, W, C)，BGR格式
+        
+        Returns:
+            处理后的图像块 (H*scale, W*scale, C)，BGR格式
+        """
+        # 预处理
+        input_tensor = self._preprocess_image(tile)
+        
+        # 推理
+        output = self.sess.run([self.output_name], {self.input_name: input_tensor})[0]
+        
+        # 后处理
+        result = self._postprocess_image(output)
+        
+        return result
+    
+    def _split_into_tiles(self, image: np.ndarray) -> list[tuple[np.ndarray, int, int, int, int]]:
+        """将大图像分割成小块。
+        
+        Args:
+            image: 输入图像 (H, W, C)
+        
+        Returns:
+            图像块列表，每个元素为 (tile, y_start, y_end, x_start, x_end)
+        """
+        h, w = image.shape[:2]
+        tile_size = self.tile_size
+        overlap = self.tile_overlap
+        
+        tiles = []
+        
+        # 计算需要的行数和列数
+        for y in range(0, h, tile_size - overlap):
+            for x in range(0, w, tile_size - overlap):
+                # 计算当前tile的边界
+                y_end = min(y + tile_size, h)
+                x_end = min(x + tile_size, w)
+                y_start = max(0, y_end - tile_size)
+                x_start = max(0, x_end - tile_size)
+                
+                # 提取tile
+                tile = image[y_start:y_end, x_start:x_end]
+                
+                # 如果tile尺寸不足，需要padding
+                if tile.shape[0] < tile_size or tile.shape[1] < tile_size:
+                    padded_tile = np.zeros((tile_size, tile_size, tile.shape[2]), dtype=tile.dtype)
+                    padded_tile[:tile.shape[0], :tile.shape[1]] = tile
+                    tile = padded_tile
+                
+                tiles.append((tile, y_start, y_end, x_start, x_end))
+        
+        return tiles
+    
+    def _merge_tiles(self, tiles: list[tuple[np.ndarray, int, int, int, int]], 
+                     output_h: int, output_w: int) -> np.ndarray:
+        """将处理后的图像块合并成完整图像。
+        
+        Args:
+            tiles: 处理后的图像块列表
+            output_h: 输出图像高度
+            output_w: 输出图像宽度
+        
+        Returns:
+            合并后的完整图像
+        """
+        # 创建输出图像
+        if len(tiles) > 0:
+            channels = tiles[0][0].shape[2]
+        else:
+            channels = 3
+        
+        output = np.zeros((output_h, output_w, channels), dtype=np.float32)
+        weight_map = np.zeros((output_h, output_w, channels), dtype=np.float32)
+        
+        # 创建权重矩阵（用于平滑拼接边界）
+        tile_size = self.tile_size * self.scale
+        overlap = self.tile_overlap * self.scale
+        
+        for processed_tile, y_start, y_end, x_start, x_end in tiles:
+            # 计算输出位置
+            out_y_start = y_start * self.scale
+            out_y_end = y_end * self.scale
+            out_x_start = x_start * self.scale
+            out_x_end = x_end * self.scale
+            
+            # 获取实际tile尺寸（可能小于tile_size）
+            actual_h = (y_end - y_start) * self.scale
+            actual_w = (x_end - x_start) * self.scale
+            
+            # 裁剪处理后的tile到实际大小
+            processed_tile = processed_tile[:actual_h, :actual_w]
+            
+            # 创建当前tile的权重（中心权重高，边缘权重低，用于平滑拼接）
+            weight = np.ones((actual_h, actual_w, channels), dtype=np.float32)
+            if overlap > 0:
+                # 在重叠区域应用渐变权重
+                for i in range(min(overlap, actual_h)):
+                    weight[i, :] *= (i + 1) / (overlap + 1)
+                    weight[-(i+1), :] *= (i + 1) / (overlap + 1)
+                for j in range(min(overlap, actual_w)):
+                    weight[:, j] *= (j + 1) / (overlap + 1)
+                    weight[:, -(j+1)] *= (j + 1) / (overlap + 1)
+            
+            # 累加到输出图像
+            output[out_y_start:out_y_end, out_x_start:out_x_end] += processed_tile.astype(np.float32) * weight
+            weight_map[out_y_start:out_y_end, out_x_start:out_x_end] += weight
+        
+        # 归一化（避免重叠区域变亮）
+        weight_map = np.maximum(weight_map, 1e-8)  # 避免除零
+        output = output / weight_map
+        
+        # 转换回uint8
+        output = np.clip(output, 0, 255).astype(np.uint8)
+        
+        return output
+    
+    def enhance_image(self, image: Image.Image) -> Image.Image:
+        """增强单张图像（使用tile分块处理）。
+        
+        Args:
+            image: 输入的PIL图像
+        
+        Returns:
+            增强后的PIL图像（放大scale倍）
+        """
+        try:
+            # 转换为RGB模式
+            if image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            
+            # 转换为numpy数组（BGR格式）
+            image_np = np.array(image)
+            if len(image_np.shape) == 2:  # 灰度图
+                image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2BGR)
+            else:  # RGB -> BGR
+                image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+            
+            h, w = image_np.shape[:2]
+            
+            # 如果图像尺寸小于等于tile_size，直接处理
+            if h <= self.tile_size and w <= self.tile_size:
+                # 需要padding到tile_size
+                padded = np.zeros((self.tile_size, self.tile_size, image_np.shape[2]), dtype=image_np.dtype)
+                padded[:h, :w] = image_np
+                
+                result_np = self._process_tile(padded)
+                
+                # 裁剪到实际输出尺寸
+                result_np = result_np[:h * self.scale, :w * self.scale]
+            else:
+                # 大图像需要分块处理
+                tiles = self._split_into_tiles(image_np)
+                
+                # 处理每个tile
+                processed_tiles = []
+                for tile, y_start, y_end, x_start, x_end in tiles:
+                    processed_tile = self._process_tile(tile)
+                    processed_tiles.append((processed_tile, y_start, y_end, x_start, x_end))
+                
+                # 合并tiles
+                output_h = h * self.scale
+                output_w = w * self.scale
+                result_np = self._merge_tiles(processed_tiles, output_h, output_w)
+            
+            # 转换回PIL图像（BGR -> RGB）
+            result_rgb = cv2.cvtColor(result_np, cv2.COLOR_BGR2RGB)
+            result_image = Image.fromarray(result_rgb)
+            
+            return result_image
+        finally:
+            self._clear_memory()
+    
+    def enhance_image_batch(self, images: list[Image.Image]) -> list[Image.Image]:
+        """批量增强多张图像。
+        
+        Args:
+            images: 输入的PIL图像列表
+        
+        Returns:
+            增强后的PIL图像列表
+        """
+        results = []
+        try:
+            for img in images:
+                # 直接使用 enhance_image 方法（已包含tile处理）
+                result = self.enhance_image(img)
+                results.append(result)
+                
+                # 每处理一张图片后清理
+                gc.collect()
+        finally:
+            self._clear_memory()
         
         return results
-

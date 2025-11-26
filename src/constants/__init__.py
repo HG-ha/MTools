@@ -50,8 +50,11 @@ from .app_config import (
 )
 from .model_config import (
     BACKGROUND_REMOVAL_MODELS,
+    DEFAULT_ENHANCE_MODEL_KEY,
     DEFAULT_MODEL_KEY,
     DEFAULT_VOCAL_MODEL_KEY,
+    IMAGE_ENHANCE_MODELS,
+    ImageEnhanceModelInfo,
     ModelInfo,
     VOCAL_SEPARATION_MODELS,
 )
@@ -105,6 +108,9 @@ __all__ = [
     "BACKGROUND_REMOVAL_MODELS",
     "DEFAULT_MODEL_KEY",
     "DEFAULT_VOCAL_MODEL_KEY",
+    "DEFAULT_ENHANCE_MODEL_KEY",
+    "IMAGE_ENHANCE_MODELS",
+    "ImageEnhanceModelInfo",
     "ModelInfo",
     "VOCAL_SEPARATION_MODELS",
 ]
