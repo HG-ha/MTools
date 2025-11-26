@@ -25,6 +25,7 @@ from views.image.info_view import ImageInfoView
 from views.image.puzzle.split_view import ImagePuzzleSplitView
 from views.image.puzzle.merge_view import ImagePuzzleMergeView
 from views.image.resize_view import ImageResizeView
+from views.image.search_view import ImageSearchView
 
 
 class ImageView(ft.Container):
@@ -78,6 +79,7 @@ class ImageView(ft.Container):
         self.remove_exif_view = None  # 去除EXIF视图
         self.qrcode_view = None  # 二维码生成视图
         self.watermark_view = None  # 添加水印视图
+        self.search_view = None  # 图片搜索视图
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -202,6 +204,13 @@ class ImageView(ft.Container):
                     description="支持单个水印和全屏平铺水印，批量处理，实时预览",
                     gradient_colors=("#FF6FD8", "#3813C2"),
                     on_click=self._open_watermark_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.IMAGE_SEARCH,
+                    title="图片搜索",
+                    description="以图搜图，搜索相似图片",
+                    gradient_colors=("#FFA726", "#FB8C00"),
+                    on_click=self._open_search_dialog,
                 ),
             ],
             wrap=True,  # 自动换行
@@ -651,6 +660,31 @@ class ImageView(ft.Container):
         self.parent_container.content = self.watermark_view
         self._safe_page_update()
     
+    def _open_search_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图片搜索工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 创建图片搜索视图（如果还没创建）
+        if not self.search_view:
+            self.search_view = ImageSearchView(
+                self.page,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.search_view
+        self.current_sub_view_type = "search"
+        
+        # 切换到图片搜索视图
+        self.parent_container.content = self.search_view
+        self._safe_page_update()
+    
     def _back_to_main(self, e: ft.ControlEvent = None) -> None:
         """返回主界面。
         
@@ -674,6 +708,7 @@ class ImageView(ft.Container):
                 "remove_exif": "remove_exif_view",
                 "qrcode": "qrcode_view",
                 "watermark": "watermark_view",
+                "search": "search_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
             if view_attr:
@@ -722,6 +757,7 @@ class ImageView(ft.Container):
             "gif": self._open_gif_adjustment_dialog,
             "puzzle.merge": self._open_merge_dialog,
             "puzzle.split": self._open_split_dialog,
+            "search": self._open_search_dialog,
         }
         
         # 查找并调用对应的方法

@@ -150,6 +150,15 @@ def register_all_tools():
         tool_id="image.puzzle.split",
     )
     
+    register_tool_manual(
+        name="图片搜索",
+        description="以图搜图，搜索相似图片",
+        category="图片处理",
+        keywords=["搜索", "以图搜图", "识图", "搜狗", "相似图片", "搜图", "查找", "识别", "search", "image search", "similar", "reverse image"],
+        icon="IMAGE_SEARCH",
+        tool_id="image.search",
+    )
+    
     # ==================== 音频处理工具 ====================
     
     register_tool_manual(
