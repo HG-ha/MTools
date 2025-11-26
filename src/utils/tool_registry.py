@@ -124,6 +124,15 @@ def register_all_tools():
     )
     
     register_tool_manual(
+        name="图像增强",
+        description="AI智能放大增强图片，支持降噪和锐化",
+        category="图片处理",
+        keywords=["增强", "放大", "超分", "高清", "清晰", "AI", "Real-ESRGAN", "upscale", "enhance", "超分辨率", "降噪", "锐化", "画质"],
+        icon="AUTO_AWESOME",
+        tool_id="image.enhance",
+    )
+    
+    register_tool_manual(
         name="图片拼接",
         description="将多张图片拼接成一张",
         category="图片处理",
