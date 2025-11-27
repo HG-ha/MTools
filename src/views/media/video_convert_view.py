@@ -380,11 +380,24 @@ class VideoConvertView(ft.Container):
         self.progress_section = progress_section
         
         # 转换按钮
-        self.convert_button = ft.ElevatedButton(
-            "开始转换",
-            icon=ft.Icons.TRANSFORM,
-            on_click=self._start_convert,
-            disabled=True,
+        self.convert_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.TRANSFORM, size=24),
+                        ft.Text("开始转换", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._start_convert,
+                disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
+            ),
+            alignment=ft.alignment.center,
         )
         
         # 可滚动内容
@@ -553,7 +566,7 @@ class VideoConvertView(ft.Container):
     
     def _update_convert_button(self) -> None:
         """更新转换按钮状态。"""
-        self.convert_button.disabled = not self.selected_files
+        self.convert_button.content.disabled = not self.selected_files
         try:
             self.convert_button.update()
         except:
@@ -607,7 +620,7 @@ class VideoConvertView(ft.Container):
             output_dir = None  # 保存在原文件旁边
         
         # 禁用按钮
-        self.convert_button.disabled = True
+        self.convert_button.content.disabled = True
         self.is_converting = True
         
         # 显示进度区域
@@ -700,7 +713,7 @@ class VideoConvertView(ft.Container):
                 
                 # 更新UI
                 self.is_converting = False
-                self.convert_button.disabled = False
+                self.convert_button.content.disabled = False
                 
                 self.progress_bar.value = 1.0
                 self.progress_text.value = f"转换完成! 成功: {success_count}/{total_files}"
@@ -716,7 +729,7 @@ class VideoConvertView(ft.Container):
                 
             except Exception as ex:
                 self.is_converting = False
-                self.convert_button.disabled = False
+                self.convert_button.content.disabled = False
                 self.progress_bar.value = 0
                 self.progress_text.value = "转换失败"
                 self.speed_text.value = ""

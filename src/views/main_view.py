@@ -14,6 +14,7 @@ from utils.tool_registry import register_all_tools
 from utils import get_all_tools
 from views.media import AudioView, VideoView
 from views.dev_tools import DevToolsView
+from views.others import OthersView
 from views.image import ImageView
 from views.settings_view import SettingsView
 
@@ -102,6 +103,11 @@ class MainView(ft.Column):
                     selected_icon=ft.Icons.DEVELOPER_MODE_ROUNDED,
                     label="开发工具",
                 ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.EXTENSION_OUTLINED,
+                    selected_icon=ft.Icons.EXTENSION_ROUNDED,
+                    label="其他工具",
+                ),
             ],
             on_change=self._on_navigation_change,
         )
@@ -151,10 +157,12 @@ class MainView(ft.Column):
             height=float('inf'),  # 占满可用高度
         )
         
-        # 创建图片视图、音频视图和开发工具视图，并传递容器引用
+        # 创建图片视图、音频视图、视频视图、开发工具视图和其他工具视图，并传递容器引用
         self.image_view = ImageView(self.page, self.config_service, self.image_service, self.content_container)
         self.audio_view = AudioView(self.page, self.config_service, self.content_container)
+        self.video_view = VideoView(self.page, self.config_service, self.ffmpeg_service, self.content_container)
         self.dev_tools_view = DevToolsView(self.page, self.config_service, self.encoding_service, self.content_container)
+        self.others_view = OthersView(self.page, self.config_service, self.content_container)
         
         # 设置初始内容
         self.content_container.content = self.image_view
@@ -234,6 +242,15 @@ class MainView(ft.Column):
             
             if not restored:
                 self.content_container.content = view
+        elif selected_index == 4:
+            view = self.others_view
+            # 尝试恢复其他工具页面的状态
+            restored = False
+            if hasattr(view, 'restore_state'):
+                restored = view.restore_state()
+            
+            if not restored:
+                self.content_container.content = view
         else:
             return
         
@@ -277,6 +294,11 @@ class MainView(ft.Column):
             self.content_container.content = self.dev_tools_view
             if hasattr(self.dev_tools_view, 'open_tool'):
                 self.dev_tools_view.open_tool(tool_name)
+        elif category == "others":
+            self.navigation_rail.selected_index = 4
+            self.content_container.content = self.others_view
+            if hasattr(self.others_view, 'open_tool'):
+                self.others_view.open_tool(tool_name)
         
         # 使用page.update()而不是单独更新控件
         if self.page:

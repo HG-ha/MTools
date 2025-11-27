@@ -80,7 +80,7 @@ class VideoExtractAudioView(ft.Container):
             return
 
         # 顶部：标题和返回按钮
-        header = ft.Row(
+        header: ft.Row = ft.Row(
             controls=[
                 ft.IconButton(
                     icon=ft.Icons.ARROW_BACK,
@@ -91,16 +91,6 @@ class VideoExtractAudioView(ft.Container):
             ],
             spacing=PADDING_MEDIUM,
         )
-        
-        # 副标题
-        subtitle = ft.Text(
-            "从视频文件中提取音频轨道",
-            size=14,
-            color=ft.Colors.ON_SURFACE_VARIANT,
-        )
-        
-        # 分割线
-        divider = ft.Divider(height=1, color=ft.Colors.OUTLINE)
         
         # 文件选择区域
         self.file_list_view = ft.Column(
@@ -359,18 +349,24 @@ class VideoExtractAudioView(ft.Container):
         )
         
         # 操作按钮
-        self.process_button = ft.ElevatedButton(
-            "开始提取",
-            icon=ft.Icons.AUDIO_FILE,
-            on_click=lambda _: self._on_process(),
-            disabled=True,
-        )
-        
-        button_row = ft.Row(
-            controls=[
-                self.process_button,
-            ],
-            alignment=ft.MainAxisAlignment.END,
+        self.process_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.AUDIO_FILE, size=24),
+                        ft.Text("开始提取", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=lambda _: self._on_process(),
+                disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
+            ),
+            alignment=ft.alignment.center,
         )
         
         # 可滚动内容区域
@@ -383,8 +379,8 @@ class VideoExtractAudioView(ft.Container):
                 output_settings,
                 ft.Container(height=PADDING_MEDIUM),
                 progress_area,
-                ft.Container(height=PADDING_MEDIUM),
-                button_row,
+                ft.Container(height=PADDING_SMALL),
+                self.process_button,
             ],
             spacing=0,
             scroll=ft.ScrollMode.AUTO,
@@ -395,8 +391,7 @@ class VideoExtractAudioView(ft.Container):
         self.content = ft.Column(
             controls=[
                 header,
-                subtitle,
-                divider,
+                ft.Divider(),
                 ft.Container(height=PADDING_SMALL),
                 scrollable_content,
             ],
@@ -466,7 +461,7 @@ class VideoExtractAudioView(ft.Container):
         
         if not self.selected_files:
             self._init_empty_state()
-            self.process_button.disabled = True
+            self.process_button.content.disabled = True
         else:
             for file_path in self.selected_files:
                 file_size = format_file_size(file_path.stat().st_size)
@@ -503,7 +498,7 @@ class VideoExtractAudioView(ft.Container):
                 
                 self.file_list_view.controls.append(file_item)
             
-            self.process_button.disabled = False
+            self.process_button.content.disabled = False
         
         self.file_list_view.update()
         self.process_button.update()
@@ -729,7 +724,7 @@ class VideoExtractAudioView(ft.Container):
     def _set_processing_state(self, processing: bool) -> None:
         """设置处理状态。"""
         def update():
-            self.process_button.disabled = processing
+            self.process_button.content.disabled = processing
             self.progress_bar.visible = processing
             self.progress_text.visible = processing
             

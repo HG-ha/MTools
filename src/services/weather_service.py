@@ -182,7 +182,6 @@ class WeatherService:
         # 如果没有提供 IP，先获取公网 IP
         if ip is None:
             try:
-                print("正在获取公网 IP...")  # 调试信息
                 
                 # 尝试多个仅支持 IPv4 的 API 服务
                 ip_services = [
@@ -201,7 +200,6 @@ class WeatherService:
                             ip = ip_response.text.strip()
                             # 验证是否为 IPv4 格式（包含点且不包含冒号）
                             if '.' in ip and ':' not in ip and len(ip.split('.')) == 4:
-                                print(f"当前公网 IPv4: {ip} (来源: {service_url})")
                                 break
                     except Exception as e:
                         print(f"从 {service_url} 获取 IP 失败: {e}")
@@ -239,11 +237,9 @@ class WeatherService:
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"IP定位返回数据: {result}")  # 调试信息
                 
                 if result.get('code') == 0 and 'data' in result:
                     location_data = result['data']
-                    print(f"位置数据: city={location_data.get('city')}, region={location_data.get('region')}, country={location_data.get('country')}")  # 调试信息
                     
                     # 优先使用城市，如果城市是区级名称（如"普陀区"），则使用省份/地区
                     city = location_data.get('city', '')
@@ -253,20 +249,16 @@ class WeatherService:
                     # 如果城市或地区是 "XX"（未知），则使用国家
                     if city == 'XX' or region == 'XX':
                         if country and country != 'XX':
-                            print(f"位置为 XX，使用国家名: {country}")  # 调试信息
                             return country
                     
                     # 如果城市名包含"区"或"县"，说明是区县级，使用上级地区
                     if city and not ('区' in city or '县' in city):
-                        print(f"使用城市名: {city}")  # 调试信息
                         return city
                     elif region:
-                        print(f"使用地区名: {region}")  # 调试信息
                         return region
                     elif city:
                         # 如果只有区县名，去掉"区"或"县"后缀
                         city_clean = city.replace('区', '').replace('县', '')
-                        print(f"使用清理后的城市名: {city_clean}")  # 调试信息
                         return city_clean
         except Exception as e:
             print(f"IP 查询失败: {e}")
@@ -376,25 +368,19 @@ class WeatherService:
         # 如果没有提供偏好城市，通过 IP 获取
         if not city:
             city = await self.get_city_from_ip()
-            print(f"IP定位获取的城市: {city}")  # 调试信息
-        else:
-            print(f"使用用户设置的城市: {city}")  # 调试信息
         
         if city:
             # 搜索城市坐标
             location = await self.search_location(city)
-            print(f"城市 '{city}' 的坐标: {location}")  # 调试信息
             
             if location:
                 # 获取天气数据
                 weather_data = await self.get_weather_detailed(location['lat'], location['lon'])
                 if weather_data:
                     formatted = self.format_weather_simple(weather_data, fallback_location=city)
-                    print(f"格式化后的天气数据: {formatted}")  # 调试信息
                     return formatted
         
         # 如果失败，使用默认位置（上海）
-        print("使用默认位置（上海）")  # 调试信息
         weather_data = await self.get_weather_detailed()
         if weather_data:
             return self.format_weather_simple(weather_data)

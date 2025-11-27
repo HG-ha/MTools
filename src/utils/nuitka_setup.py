@@ -31,27 +31,18 @@ def _setup_flet_directory() -> None:
     """
     is_compiled = _is_nuitka_compiled()
     
-    # 调试信息（可以取消注释用于调试）
-    print(f"[Nuitka Setup] Executable: {sys.argv[0]}")
-    print(f"[Nuitka Setup] Is compiled: {is_compiled}")
     
     if not is_compiled:
-        print("[Nuitka Setup] Not a nuitka compiled program, skip setup .flet directory")
         return
-    
-    print("[Nuitka Setup] Nuitka compiled program detected!")
-    
+        
     # 获取用户家目录
     home_dir = Path.home()
     flet_dir = home_dir / ".flet"
     
     # 如果 .flet 目录已存在，不需要做任何操作
     if flet_dir.exists():
-        print(f"[Nuitka Setup] .flet directory already exists at {flet_dir}")
         return
-    
-    print(f"[Nuitka Setup] .flet directory not found, setting up...")
-    
+        
     # 获取打包后程序的目录
     # 直接使用 sys.argv[0]，因为 Nuitka 打包不设置 sys.frozen
     app_dir = Path(sys.argv[0]).parent
@@ -65,15 +56,11 @@ def _setup_flet_directory() -> None:
     
     flet_zip_path = None
     for path in possible_paths:
-        print(f"[Nuitka Setup] Checking for .flet.zip at: {path}")
         if path.exists():
             flet_zip_path = path
-            print(f"[Nuitka Setup] Found .flet.zip at: {path}")
             break
     
     if flet_zip_path is None:
-        print(f"[Nuitka Setup] ERROR: .flet.zip not found in any expected location")
-        print(f"[Nuitka Setup] App directory contents: {list(app_dir.iterdir())[:10]}")
         return
     
     try:
@@ -81,13 +68,10 @@ def _setup_flet_directory() -> None:
         flet_dir.mkdir(parents=True, exist_ok=True)
         
         # 解压 zip 文件到用户目录
-        print(f"[Nuitka Setup] Extracting {flet_zip_path} to {flet_dir}")
         with zipfile.ZipFile(flet_zip_path, 'r') as zip_ref:
             zip_ref.extractall(flet_dir)
         
-        print(f"[Nuitka Setup] Successfully extracted .flet directory to {flet_dir}")
     except Exception as e:
-        print(f"[Nuitka Setup] ERROR setting up .flet directory: {e}")
         import traceback
         traceback.print_exc()
 
@@ -115,7 +99,6 @@ def _disable_flet_auto_download() -> None:
                 f"  3. flet version matches the packaged version\n"
                 f"{'='*60}\n"
             )
-            print(error_msg, file=sys.stderr)
             raise RuntimeError(
                 "Flet auto-download is disabled in packaged application. "
                 "Please ensure .flet directory is properly set up."
@@ -137,7 +120,6 @@ def _disable_flet_auto_download() -> None:
         for func_name in possible_names:
             if hasattr(flet_desktop, func_name):
                 setattr(flet_desktop, func_name, blocked_download)
-                print(f"[Nuitka Setup] ✅ Successfully patched {func_name}")
                 patched = True
         
         if not patched:
@@ -146,10 +128,8 @@ def _disable_flet_auto_download() -> None:
             
     except ImportError:
         # flet_desktop 还未导入，使用 import hook
-        print("[Nuitka Setup] flet_desktop not imported yet, installing import hook")
         _install_import_hook()
     except Exception as e:
-        print(f"[Nuitka Setup] Warning: Failed to disable flet auto-download: {e}")
         import traceback
         traceback.print_exc()
 
@@ -189,7 +169,6 @@ def _install_import_hook() -> None:
         return module
     
     __builtins__.__import__ = hooked_import
-    print("[Nuitka Setup] ✅ Installed import hook for flet_desktop")
 
 # 模块导入时自动执行初始化
 _setup_flet_directory()

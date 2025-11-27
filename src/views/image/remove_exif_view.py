@@ -12,6 +12,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS
 
 from constants import (
+    BORDER_RADIUS_MEDIUM,
     PADDING_LARGE,
     PADDING_MEDIUM,
     PADDING_SMALL,
@@ -196,14 +197,23 @@ class ImageRemoveExifView(ft.Container):
         )
         
         # 处理按钮
-        process_button = ft.ElevatedButton(
-            text="删除EXIF",
-            icon=ft.Icons.DELETE_SWEEP,
-            on_click=self._on_process,
-            style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=ft.Colors.RED,
+        self.process_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.DELETE_SWEEP, size=24),
+                        ft.Text("删除EXIF", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._on_process,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
+            alignment=ft.alignment.center,
         )
         
         # 进度显示
@@ -228,11 +238,11 @@ class ImageRemoveExifView(ft.Container):
                 exif_info_section,
                 ft.Container(height=PADDING_MEDIUM),
                 output_section,
-                ft.Container(height=PADDING_MEDIUM),
-                process_button,
                 ft.Container(height=PADDING_SMALL),
                 self.progress_text,
                 self.progress_bar,
+                ft.Container(height=PADDING_SMALL),
+                self.process_button,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             scroll=ft.ScrollMode.HIDDEN,

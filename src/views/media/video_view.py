@@ -15,10 +15,12 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, FFmpegService
+from views.media.ffmpeg_install_view import FFmpegInstallView
 from views.media.video_compress_view import VideoCompressView
 from views.media.video_convert_view import VideoConvertView
 from views.media.video_extract_audio_view import VideoExtractAudioView
 from views.media.video_vocal_separation_view import VideoVocalSeparationView
+from views.media.video_watermark_view import VideoWatermarkView
 
 
 class VideoView(ft.Container):
@@ -37,6 +39,7 @@ class VideoView(ft.Container):
         page: ft.Page,
         config_service: ConfigService,
         ffmpeg_service: FFmpegService,
+        parent_container: Optional[ft.Container] = None,
     ) -> None:
         """初始化视频处理视图。
         
@@ -44,11 +47,13 @@ class VideoView(ft.Container):
             page: Flet页面对象
             config_service: 配置服务实例
             ffmpeg_service: FFmpeg服务实例
+            parent_container: 父容器（用于视图切换）
         """
         super().__init__()
         self.page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
+        self.parent_container: Optional[ft.Container] = parent_container
         
         self.expand: bool = True
         
@@ -57,6 +62,8 @@ class VideoView(ft.Container):
         self.convert_view: Optional[VideoConvertView] = None
         self.extract_audio_view: Optional[VideoExtractAudioView] = None
         self.vocal_separation_view: Optional[VideoVocalSeparationView] = None
+        self.watermark_view: Optional[VideoWatermarkView] = None
+        self.ffmpeg_install_view: Optional[FFmpegInstallView] = None
         
         # 创建UI组件
         self._build_ui()
@@ -93,6 +100,13 @@ class VideoView(ft.Container):
                     on_click=lambda e: self._open_view('vocal_separation'),
                     gradient_colors=("#fbc2eb", "#a6c1ee"),
                 ),
+                FeatureCard(
+                    icon=ft.Icons.BRANDING_WATERMARK,
+                    title="添加水印",
+                    description="为视频添加文字或图片水印",
+                    on_click=lambda e: self._open_view('watermark'),
+                    gradient_colors=("#ffecd2", "#fcb69f"),
+                ),
             ],
             wrap=True,
             spacing=PADDING_LARGE,
@@ -121,41 +135,112 @@ class VideoView(ft.Container):
     def _open_view(self, view_name: str) -> None:
         """打开子视图。"""
         if view_name == 'compress':
-            self.compress_view = VideoCompressView(
-                self.page,
-                self.config_service,
-                self.ffmpeg_service,
-                on_back=self._back_to_main
-            )
-            self.parent_container.content = self.compress_view
-            self.page.update()
+            def open_func():
+                self.compress_view = VideoCompressView(
+                    self.page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+                self.parent_container.content = self.compress_view
+                self.page.update()
+            self._check_ffmpeg_and_open("视频压缩", open_func)
+            
         elif view_name == 'convert':
-            self.convert_view = VideoConvertView(
-                self.page,
-                self.config_service,
-                self.ffmpeg_service,
-                on_back=self._back_to_main
-            )
-            self.parent_container.content = self.convert_view
-            self.page.update()
+            def open_func():
+                self.convert_view = VideoConvertView(
+                    self.page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+                self.parent_container.content = self.convert_view
+                self.page.update()
+            self._check_ffmpeg_and_open("视频格式转换", open_func)
+            
         elif view_name == 'extract_audio':
-            self.extract_audio_view = VideoExtractAudioView(
-                self.page,
-                self.config_service,
-                self.ffmpeg_service,
-                on_back=self._back_to_main
-            )
-            self.parent_container.content = self.extract_audio_view
-            self.page.update()
+            def open_func():
+                self.extract_audio_view = VideoExtractAudioView(
+                    self.page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+                self.parent_container.content = self.extract_audio_view
+                self.page.update()
+            self._check_ffmpeg_and_open("提取音频", open_func)
+            
         elif view_name == 'vocal_separation':
-            self.vocal_separation_view = VideoVocalSeparationView(
-                self.page,
-                self.config_service,
-                self.ffmpeg_service,
-                on_back=self._back_to_main
-            )
-            self.parent_container.content = self.vocal_separation_view
-            self.page.update()
+            def open_func():
+                self.vocal_separation_view = VideoVocalSeparationView(
+                    self.page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+                self.parent_container.content = self.vocal_separation_view
+                self.page.update()
+            self._check_ffmpeg_and_open("视频人声分离", open_func)
+            
+        elif view_name == 'watermark':
+            def open_func():
+                self.watermark_view = VideoWatermarkView(
+                    self.page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+                self.parent_container.content = self.watermark_view
+                self.page.update()
+            self._check_ffmpeg_and_open("视频添加水印", open_func)
+    
+    def _check_ffmpeg_and_open(self, tool_name: str, open_func: Callable) -> None:
+        """检查FFmpeg并打开工具（通用方法）。
+        
+        Args:
+            tool_name: 工具名称
+            open_func: 打开工具的函数
+        """
+        if not self.parent_container:
+            print("错误: 未设置父容器")
+            return
+        
+        # 检查FFmpeg是否可用
+        is_available, _ = self.ffmpeg_service.is_ffmpeg_available()
+        
+        if not is_available:
+            # FFmpeg未安装，显示安装视图
+            self._show_ffmpeg_install_view(tool_name)
+        else:
+            # FFmpeg已安装，执行打开函数
+            open_func()
+    
+    def _show_ffmpeg_install_view(self, tool_name: str) -> None:
+        """显示FFmpeg安装视图。
+        
+        Args:
+            tool_name: 工具名称
+        """
+        if not self.parent_container:
+            return
+        
+        # 创建FFmpeg安装视图
+        self.ffmpeg_install_view = FFmpegInstallView(
+            self.page,
+            self.ffmpeg_service,
+            on_installed=lambda: self._on_ffmpeg_installed(),
+            on_back=self._back_to_main,
+            tool_name=tool_name
+        )
+        
+        # 切换到安装视图
+        self.parent_container.content = self.ffmpeg_install_view
+        self.page.update()
+    
+    def _on_ffmpeg_installed(self) -> None:
+        """FFmpeg安装完成回调。"""
+        # 返回主界面
+        self._back_to_main()
 
     def _back_to_main(self, e: ft.ControlEvent = None) -> None:
         """返回主视图。

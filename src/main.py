@@ -76,12 +76,6 @@ def main(page: ft.Page) -> None:
     
     if icon_path:
         page.window.icon = str(icon_path)
-        print(f"[Info] Window icon loaded from: {icon_path}")
-    else:
-        # 调试信息：如果找不到图标，打印可能的路径
-        print(f"[Warning] Window icon not found in any of these paths:")
-        for path in possible_icon_paths:
-            print(f"  - {path} (exists: {path.exists()})")
     
     # 设置窗口大小（使用保存的大小或默认大小）
     page.window.width = saved_width if saved_width is not None else WINDOW_WIDTH

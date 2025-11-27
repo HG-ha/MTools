@@ -1,5 +1,9 @@
 import subprocess
 import sys
+import warnings
+
+# 屏蔽 libpng 警告
+warnings.filterwarnings("ignore", message=".*iCCP.*")
 
 if sys.platform == "win32":
     # 保存原始 Popen

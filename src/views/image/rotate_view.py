@@ -11,6 +11,7 @@ import flet as ft
 from PIL import Image, ImageSequence
 
 from constants import (
+    BORDER_RADIUS_MEDIUM,
     PADDING_LARGE,
     PADDING_MEDIUM,
     PADDING_SMALL,
@@ -383,14 +384,23 @@ class ImageRotateView(ft.Container):
         self.preview_section = preview_section
         
         # 处理按钮
-        process_button = ft.ElevatedButton(
-            text="开始处理",
-            icon=ft.Icons.PLAY_ARROW,
-            on_click=self._on_process,
-            style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=ft.Colors.BLUE,
+        self.process_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.PLAY_ARROW, size=24),
+                        ft.Text("开始处理", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._on_process,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
+            alignment=ft.alignment.center,
         )
         
         # 进度显示
@@ -416,11 +426,11 @@ class ImageRotateView(ft.Container):
                 operation_section,
                 ft.Container(height=PADDING_MEDIUM),
                 output_section,
-                ft.Container(height=PADDING_MEDIUM),
-                process_button,
                 ft.Container(height=PADDING_SMALL),
                 self.progress_text,
                 self.progress_bar,
+                ft.Container(height=PADDING_SMALL),
+                self.process_button,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             scroll=ft.ScrollMode.HIDDEN,

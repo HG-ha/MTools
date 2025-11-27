@@ -321,18 +321,24 @@ class AudioCompressView(ft.Container):
         )
         
         # 操作按钮
-        self.process_button = ft.ElevatedButton(
-            "开始压缩",
-            icon=ft.Icons.COMPRESS,
-            on_click=lambda _: self._on_process(),
-            disabled=True,
-        )
-        
-        button_row = ft.Row(
-            controls=[
-                self.process_button,
-            ],
-            alignment=ft.MainAxisAlignment.END,
+        self.process_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.COMPRESS, size=24),
+                        ft.Text("开始压缩", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=lambda _: self._on_process(),
+                disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
+            ),
+            alignment=ft.alignment.center,
         )
         
         # 可滚动内容区域
@@ -345,8 +351,8 @@ class AudioCompressView(ft.Container):
                 output_settings,
                 ft.Container(height=PADDING_MEDIUM),
                 progress_area,
-                ft.Container(height=PADDING_MEDIUM),
-                button_row,
+                ft.Container(height=PADDING_SMALL),
+                self.process_button,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
@@ -426,7 +432,7 @@ class AudioCompressView(ft.Container):
         
         if not self.selected_files:
             self._init_empty_state()
-            self.process_button.disabled = True
+            self.process_button.content.disabled = True
         else:
             for file_path in self.selected_files:
                 file_size = format_file_size(file_path.stat().st_size)
@@ -463,7 +469,7 @@ class AudioCompressView(ft.Container):
                 
                 self.file_list_view.controls.append(file_item)
             
-            self.process_button.disabled = False
+            self.process_button.content.disabled = False
         
         self.file_list_view.update()
         self.process_button.update()
@@ -650,7 +656,7 @@ class AudioCompressView(ft.Container):
     def _set_processing_state(self, processing: bool) -> None:
         """设置处理状态。"""
         def update():
-            self.process_button.disabled = processing
+            self.process_button.content.disabled = processing
             self.progress_bar.visible = processing
             self.progress_text.visible = processing
             

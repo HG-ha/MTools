@@ -226,6 +226,14 @@ def register_all_tools():
         tool_id="video.vocal_separation",
     )
     
+    register_tool_manual(
+        name="视频添加水印",
+        description="为视频添加文字或图片水印",
+        category="视频处理",
+        keywords=["水印", "视频", "文字", "图片", "添加", "overlay", "logo", "stamp"],
+        icon="BRANDING_WATERMARK",
+        tool_id="video.watermark",
+    )
     # ==================== 开发工具 ====================
     
     register_tool_manual(

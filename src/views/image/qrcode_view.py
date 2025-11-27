@@ -16,6 +16,7 @@ import qrcode
 from PIL import Image, ImageDraw, ImageEnhance, ImageSequence
 
 from constants import (
+    BORDER_RADIUS_MEDIUM,
     PADDING_LARGE,
     PADDING_MEDIUM,
     PADDING_SMALL,
@@ -301,14 +302,23 @@ class QRCodeGeneratorView(ft.Container):
         )
         
         # 生成按钮和进度
-        generate_button = ft.ElevatedButton(
-            text="生成二维码",
-            icon=ft.Icons.QR_CODE_2,
-            on_click=self._on_generate,
-            style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=ft.Colors.BLUE,
+        self.generate_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.QR_CODE_2, size=24),
+                        ft.Text("生成二维码", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._on_generate,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
+            alignment=ft.alignment.center,
         )
         
         self.progress_bar = ft.ProgressBar(visible=False, value=0)
@@ -365,11 +375,11 @@ class QRCodeGeneratorView(ft.Container):
                 basic_section,
                 ft.Container(height=PADDING_MEDIUM),
                 artistic_section,
-                ft.Container(height=PADDING_MEDIUM),
-                generate_button,
                 ft.Container(height=PADDING_SMALL),
                 self.progress_bar,
                 self.progress_text,
+                ft.Container(height=PADDING_SMALL),
+                self.generate_button,
                 ft.Container(height=PADDING_MEDIUM),
                 preview_section,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
