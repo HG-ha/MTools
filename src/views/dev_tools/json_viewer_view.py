@@ -113,7 +113,6 @@ class JsonTreeNode(ft.Container):
     
     def _build_view(self):
         """构建节点视图。"""
-        print(f"[DEBUG] JsonTreeNode._build_view() called for key: {self.key}, type: {type(self.value)}")
         indent = self.level * 20
         
         # 如果是字典
@@ -125,7 +124,7 @@ class JsonTreeNode(ft.Container):
                 is_last_child = idx == len(items) - 1
                 children.append(JsonTreeNode(k, v, self.level + 1, is_last_child, parent_path=self.full_path))
             
-            result = ft.Container(
+            return ft.Container(
                 content=ft.Column(
                     controls=[
                         # 头部（可点击展开/收起）
@@ -153,9 +152,6 @@ class JsonTreeNode(ft.Container):
                                 padding=ft.padding.only(left=indent),
                                 on_click=self.toggle_expand,
                                 ink=True,
-                                # 添加调试用的背景色和最小高度
-                                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.GREEN),
-                                height=30,
                             ),
                             on_secondary_tap=self._on_right_click,
                         ),
@@ -170,8 +166,6 @@ class JsonTreeNode(ft.Container):
                     spacing=2,
                 ),
             )
-            print(f"[DEBUG] Built dict node for {self.key}, has {len(children)} children")
-            return result
         
         # 如果是数组
         elif isinstance(self.value, list):
@@ -181,7 +175,7 @@ class JsonTreeNode(ft.Container):
                 is_last_child = idx == len(self.value) - 1
                 children.append(JsonTreeNode(f"[{idx}]", item, self.level + 1, is_last_child, parent_path=self.full_path))
             
-            result = ft.Container(
+            return ft.Container(
                 content=ft.Column(
                     controls=[
                         # 头部
@@ -209,9 +203,6 @@ class JsonTreeNode(ft.Container):
                                 padding=ft.padding.only(left=indent),
                                 on_click=self.toggle_expand,
                                 ink=True,
-                                # 添加调试用的背景色和最小高度
-                                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ORANGE),
-                                height=30,
                             ),
                             on_secondary_tap=self._on_right_click,
                         ),
@@ -226,12 +217,10 @@ class JsonTreeNode(ft.Container):
                     spacing=2,
                 ),
             )
-            print(f"[DEBUG] Built list node for {self.key}, has {len(children)} items")
-            return result
         
         # 如果是基本类型
         else:
-            result = ft.GestureDetector(
+            return ft.GestureDetector(
                 content=ft.Container(
                     content=ft.Row(
                         controls=[
@@ -251,13 +240,9 @@ class JsonTreeNode(ft.Container):
                         vertical_alignment=ft.CrossAxisAlignment.START,
                     ),
                     padding=ft.padding.only(left=indent, top=2, bottom=2),
-                    # 添加调试用的背景色
-                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.BLUE),
                 ),
                 on_secondary_tap=self._on_right_click,
             )
-            print(f"[DEBUG] Built leaf node for {self.key}")
-            return result
 
     def _on_right_click(self, e):
         """右键点击事件处理。"""
@@ -333,101 +318,78 @@ class JsonViewerView(ft.Container):
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
-        self.padding = 0
+        # 设置合适的内边距
+        self.padding = ft.padding.only(
+            left=PADDING_MEDIUM,
+            right=PADDING_MEDIUM,
+            top=PADDING_MEDIUM,
+            bottom=PADDING_MEDIUM
+        )
         
         # 输入文本框引用
         self.input_text = ft.Ref[ft.TextField]()
-        # 左侧格式化文本引用
-        self.formatted_text = ft.Ref[ft.TextField]()
-        # 右侧树形视图引用
+        # 树形视图引用
         self.tree_view = ft.Ref[ft.Column]()
         # 错误提示引用
         self.error_text = ft.Ref[ft.Text]()
+        # 错误容器引用
+        self.error_container = ft.Ref[ft.Container]()
         
         self._build_ui()
     
     def _build_ui(self):
         """构建用户界面。"""
-        # 返回按钮（如果提供了 on_back 回调）
-        header_controls = []
-        if self.on_back:
-            back_button = ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.IconButton(
-                            icon=ft.Icons.ARROW_BACK,
-                            icon_color=ft.Colors.WHITE,
-                            on_click=lambda _: self.on_back() if self.on_back else None,
-                            tooltip="返回开发工具",
-                        ),
-                        ft.Text(
-                            "JSON 查看器",
-                            size=20,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
-                    spacing=PADDING_MEDIUM,
+        # 标题栏
+        header = ft.Row(
+            controls=[
+                ft.IconButton(
+                    icon=ft.Icons.ARROW_BACK,
+                    tooltip="返回",
+                    on_click=lambda _: self.on_back() if self.on_back else None,
                 ),
-                padding=PADDING_MEDIUM,
-            )
-            header_controls.extend([back_button, ft.Divider(height=1)])
-        
-        # 输入区域
-        input_section = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        "输入 JSON",
-                        size=16,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    ft.TextField(
-                        ref=self.input_text,
-                        multiline=True,
-                        min_lines=10,
-                        max_lines=20,
-                        hint_text='粘贴或输入 JSON 数据...\n\n✅ 支持标准 JSON: {"name": "value"}\n✅ 支持单引号: {\'name\': \'value\'}\n✅ 支持 Python 字典格式\n\n自动修复格式并显示！',
-                        border_color=ft.Colors.BLUE_400,
-                        text_size=13,
-                    ),
-                ],
-                spacing=PADDING_SMALL,
-            ),
-            padding=PADDING_MEDIUM,
+                ft.Text("JSON 查看器", size=28, weight=ft.FontWeight.BOLD),
+            ],
+            spacing=PADDING_MEDIUM,
         )
         
-        # 操作按钮
+        # 操作按钮组
         action_buttons = ft.Row(
             controls=[
                 ft.ElevatedButton(
-                    "格式化并查看",
+                    "格式化",
                     icon=ft.Icons.AUTO_AWESOME,
                     on_click=self._on_format_click,
+                    tooltip="格式化JSON并显示树形结构",
                 ),
                 ft.ElevatedButton(
-                    "压缩 JSON",
+                    "压缩",
                     icon=ft.Icons.COMPRESS,
                     on_click=self._on_compress_click,
+                    tooltip="压缩JSON为单行",
                 ),
                 ft.ElevatedButton(
                     "全部展开",
                     icon=ft.Icons.UNFOLD_MORE,
                     on_click=self._on_expand_all_click,
+                    tooltip="展开所有树节点",
                 ),
                 ft.ElevatedButton(
                     "全部收起",
                     icon=ft.Icons.UNFOLD_LESS,
                     on_click=self._on_collapse_all_click,
+                    tooltip="收起所有树节点",
                 ),
                 ft.ElevatedButton(
                     "加载示例",
                     icon=ft.Icons.LIGHTBULB_OUTLINE,
                     on_click=self._on_load_example_click,
+                    tooltip="加载示例JSON",
                 ),
                 ft.ElevatedButton(
                     "清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._on_clear_click,
+                    tooltip="清空所有内容",
                 ),
             ],
             spacing=PADDING_SMALL,
@@ -436,40 +398,49 @@ class JsonViewerView(ft.Container):
         
         # 错误提示
         error_section = ft.Container(
+            ref=self.error_container,
             content=ft.Text(
                 ref=self.error_text,
                 color=ft.Colors.RED_400,
-                visible=False,
+                size=13,
             ),
-            padding=ft.padding.only(left=PADDING_MEDIUM),
+            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
+            visible=False,  # 默认隐藏容器
         )
         
-        # 左侧：格式化后的 JSON 文本
+        # 左侧：JSON 输入区域
         left_panel = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Text(
-                        "格式化文本",
+                        "JSON 输入",
                         size=16,
                         weight=ft.FontWeight.BOLD,
                     ),
                     ft.TextField(
-                        ref=self.formatted_text,
+                        ref=self.input_text,
                         multiline=True,
-                        min_lines=20,
-                        max_lines=30,
-                        read_only=True,
-                        border_color=ft.Colors.GREEN_400,
+                        min_lines=25,
+                        hint_text='粘贴或输入 JSON 数据...\n\n✅ 支持标准 JSON: {"name": "value"}\n✅ 支持单引号: {\'name\': \'value\'}\n✅ 支持 Python 字典格式',
                         text_size=13,
+                        expand=True,
+                    ),
+                    ft.Text(
+                        "格式化后将直接替换输入框内容",
+                        size=12,
+                        color=ft.Colors.GREY_500,
                     ),
                 ],
                 spacing=PADDING_SMALL,
+                expand=True,
             ),
             padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.GREY_400),
+            border_radius=8,
             expand=1,
         )
         
-        # 右侧：树形视图
+        # 右侧：树形视图区域
         right_panel = ft.Container(
             content=ft.Column(
                 controls=[
@@ -482,52 +453,73 @@ class JsonViewerView(ft.Container):
                         content=ft.Column(
                             ref=self.tree_view,
                             controls=[
-                                ft.Text(
-                                    "格式化后将在此处显示树形结构",
-                                    color=ft.Colors.GREY_400,
-                                    italic=True,
+                                ft.Container(
+                                    content=ft.Column(
+                                        controls=[
+                                            ft.Icon(
+                                                ft.Icons.ACCOUNT_TREE,
+                                                size=48,
+                                                color=ft.Colors.GREY_400,
+                                            ),
+                                            ft.Text(
+                                                "格式化后将在此处显示树形结构",
+                                                color=ft.Colors.GREY_500,
+                                                size=14,
+                                                text_align=ft.TextAlign.CENTER,
+                                            ),
+                                            ft.Text(
+                                                "右键点击节点可复制路径和值",
+                                                color=ft.Colors.GREY_500,
+                                                size=12,
+                                                text_align=ft.TextAlign.CENTER,
+                                                italic=True,
+                                            ),
+                                        ],
+                                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                        alignment=ft.MainAxisAlignment.CENTER,
+                                        spacing=PADDING_SMALL,
+                                    ),
+                                    expand=True,
+                                    alignment=ft.alignment.center,
                                 ),
                             ],
                             spacing=2,
                             scroll=ft.ScrollMode.AUTO,
                             expand=True,
                         ),
-                        border=ft.border.all(1, ft.Colors.PURPLE_400),
-                        border_radius=5,
+                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border_radius=8,
                         padding=PADDING_MEDIUM,
-                        height=600,
-                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.SURFACE_TINT),  # 添加背景色以便看到区域
+                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
+                        expand=True,
                     ),
                 ],
                 spacing=PADDING_SMALL,
+                expand=True,
             ),
             padding=PADDING_MEDIUM,
             expand=1,
         )
         
-        # 结果区域（左右分栏）
-        result_section = ft.Row(
+        # 主内容区域（左右分栏）
+        content_area = ft.Row(
             controls=[left_panel, right_panel],
             spacing=PADDING_MEDIUM,
             expand=True,
         )
         
-        # 主内容区域
-        main_content = ft.Column(
-            controls=[
-                input_section,
-                action_buttons,
-                error_section,
-                result_section,
-            ],
-            spacing=PADDING_MEDIUM,
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-        )
-        
-        # 组装视图
+        # 组装整个视图
         self.content = ft.Column(
-            controls=header_controls + [main_content] if header_controls else [main_content],
+            controls=[
+                header,
+                ft.Divider(),
+                ft.Container(
+                    content=action_buttons,
+                    padding=ft.padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL),
+                ),
+                error_section,
+                content_area,
+            ],
             spacing=0,
             expand=True,
         )
@@ -576,15 +568,16 @@ class JsonViewerView(ft.Container):
             # 使用智能解析
             data = self._parse_json_smart(input_value)
             
-            # 格式化文本
+            # 格式化并替换输入框内容
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            self.formatted_text.current.value = formatted
+            self.input_text.current.value = formatted
             
             # 构建树形视图
             self._build_tree_view(data)
             
             # 隐藏错误提示
-            self.error_text.current.visible = False
+            if self.error_container.current:
+                self.error_container.current.visible = False
             
             self.update()
             
@@ -615,10 +608,13 @@ class JsonViewerView(ft.Container):
             # 使用智能解析
             data = self._parse_json_smart(input_value)
             compressed = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
-            self.formatted_text.current.value = compressed
+            
+            # 替换输入框内容
+            self.input_text.current.value = compressed
             
             # 隐藏错误提示
-            self.error_text.current.visible = False
+            if self.error_container.current:
+                self.error_container.current.visible = False
             
             self.update()
             
@@ -665,15 +661,39 @@ class JsonViewerView(ft.Container):
     def _on_clear_click(self, e):
         """清空按钮点击事件。"""
         self.input_text.current.value = ""
-        self.formatted_text.current.value = ""
         self.tree_view.current.controls = [
-            ft.Text(
-                "格式化后将在此处显示树形结构",
-                color=ft.Colors.GREY_400,
-                italic=True,
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(
+                            ft.Icons.ACCOUNT_TREE,
+                            size=48,
+                            color=ft.Colors.GREY_400,
+                        ),
+                        ft.Text(
+                            "格式化后将在此处显示树形结构",
+                            color=ft.Colors.GREY_500,
+                            size=14,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Text(
+                            "右键点击节点可复制路径和值",
+                            color=ft.Colors.GREY_500,
+                            size=12,
+                            text_align=ft.TextAlign.CENTER,
+                            italic=True,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_SMALL,
+                ),
+                expand=True,
+                alignment=ft.alignment.center,
             ),
         ]
-        self.error_text.current.visible = False
+        if self.error_container.current:
+            self.error_container.current.visible = False
         self.update()
     
     def _on_load_example_click(self, e):
@@ -707,14 +727,12 @@ class JsonViewerView(ft.Container):
         # 将示例填充到输入框
         self.input_text.current.value = json.dumps(example_json, indent=2, ensure_ascii=False)
         
-        # 自动格式化
-        self.formatted_text.current.value = json.dumps(example_json, indent=2, ensure_ascii=False)
-        
         # 构建树形视图
         self._build_tree_view(example_json)
         
         # 隐藏错误提示
-        self.error_text.current.visible = False
+        if self.error_container.current:
+            self.error_container.current.visible = False
         
         self.update()
     
@@ -724,38 +742,23 @@ class JsonViewerView(ft.Container):
         Args:
             data: JSON 数据
         """
-        print(f"[DEBUG] _build_tree_view called, tree_view ref: {self.tree_view}")
-        print(f"[DEBUG] tree_view.current: {self.tree_view.current}")
-        print(f"[DEBUG] Before clear, controls count: {len(self.tree_view.current.controls) if self.tree_view.current else 'None'}")
-        
         self.tree_view.current.controls.clear()
         
-        print(f"[DEBUG] After clear, controls count: {len(self.tree_view.current.controls)}")
-        print(f"[DEBUG] Building tree view for data type: {type(data)}")
-        
         if isinstance(data, dict):
-            print(f"[DEBUG] Building {len(data)} dict items")
             for key, value in data.items():
                 node = JsonTreeNode(key, value, level=0)
-                print(f"[DEBUG] Adding node: {key} = {type(value)}")
                 self.tree_view.current.controls.append(node)
         elif isinstance(data, list):
-            print(f"[DEBUG] Building {len(data)} list items")
             for idx, item in enumerate(data):
                 node = JsonTreeNode(f"[{idx}]", item, level=0)
                 self.tree_view.current.controls.append(node)
         else:
-            print(f"[DEBUG] Building simple value: {data}")
             self.tree_view.current.controls.append(
                 ft.Text(f"值: {json.dumps(data, ensure_ascii=False)}")
             )
         
-        print(f"[DEBUG] Total controls in tree view: {len(self.tree_view.current.controls)}")
-        print(f"[DEBUG] Controls types: {[type(c).__name__ for c in self.tree_view.current.controls]}")
-        
         # 更新树形视图
         self.tree_view.current.update()
-        print(f"[DEBUG] Tree view updated")
     
     def _show_error(self, message: str):
         """显示错误提示。
@@ -763,6 +766,8 @@ class JsonViewerView(ft.Container):
         Args:
             message: 错误消息
         """
-        self.error_text.current.value = message
-        self.error_text.current.visible = True
+        if self.error_text.current:
+            self.error_text.current.value = message
+        if self.error_container.current:
+            self.error_container.current.visible = True
         self.update()
