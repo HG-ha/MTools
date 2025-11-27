@@ -335,7 +335,64 @@ class JsonViewerView(ft.Container):
         # 错误容器引用
         self.error_container = ft.Ref[ft.Container]()
         
+        # 面板宽度控制
+        self.left_panel_ref = ft.Ref[ft.Container]()
+        self.right_panel_ref = ft.Ref[ft.Container]()
+        self.divider_ref = ft.Ref[ft.Container]()
+        self.ratio = 0.4  # 初始比例 4:6
+        self.left_flex = 400  # 左侧面板flex值 (使用大整数以支持平滑调整)
+        self.right_flex = 600  # 右侧面板flex值
+        self.is_dragging = False
+        
         self._build_ui()
+    
+    def _on_divider_pan_start(self, e: ft.DragStartEvent):
+        """开始拖动分隔条。"""
+        self.is_dragging = True
+        if self.divider_ref.current:
+            self.divider_ref.current.bgcolor = ft.Colors.PRIMARY
+            self.divider_ref.current.update()
+    
+    def _on_divider_pan_update(self, e: ft.DragUpdateEvent):
+        """拖动分隔条时更新面板宽度。"""
+        if not self.is_dragging:
+            return
+        
+        # 获取容器宽度（估算值，基于页面宽度）
+        # 减去 padding (left + right) 和 divider width (8)
+        container_width = self.page.width - PADDING_MEDIUM * 2 - 8
+        if container_width <= 0:
+            return
+        
+        # 计算拖动产生的比例变化
+        # e.delta_x 是像素变化
+        delta_ratio = e.delta_x / container_width
+        
+        # 更新比例
+        self.ratio += delta_ratio
+        
+        # 限制比例范围 (0.1 到 0.9)
+        self.ratio = max(0.1, min(0.9, self.ratio))
+        
+        # 更新 flex 值 (使用整数)
+        # 保持总和为 1000
+        new_total_flex = 1000
+        self.left_flex = int(self.ratio * new_total_flex)
+        self.right_flex = new_total_flex - self.left_flex
+        
+        # 更新面板
+        if self.left_panel_ref.current and self.right_panel_ref.current:
+            self.left_panel_ref.current.expand = self.left_flex
+            self.right_panel_ref.current.expand = self.right_flex
+            self.left_panel_ref.current.update()
+            self.right_panel_ref.current.update()
+    
+    def _on_divider_pan_end(self, e: ft.DragEndEvent):
+        """结束拖动分隔条。"""
+        self.is_dragging = False
+        if self.divider_ref.current:
+            self.divider_ref.current.bgcolor = None
+            self.divider_ref.current.update()
     
     def _build_ui(self):
         """构建用户界面。"""
@@ -410,6 +467,7 @@ class JsonViewerView(ft.Container):
         
         # 左侧：JSON 输入区域
         left_panel = ft.Container(
+            ref=self.left_panel_ref,
             content=ft.Column(
                 controls=[
                     ft.Text(
@@ -417,31 +475,58 @@ class JsonViewerView(ft.Container):
                         size=16,
                         weight=ft.FontWeight.BOLD,
                     ),
-                    ft.TextField(
-                        ref=self.input_text,
-                        multiline=True,
-                        min_lines=25,
-                        hint_text='粘贴或输入 JSON 数据...\n\n✅ 支持标准 JSON: {"name": "value"}\n✅ 支持单引号: {\'name\': \'value\'}\n✅ 支持 Python 字典格式',
-                        text_size=13,
+                    ft.Container(
+                        content=ft.TextField(
+                            ref=self.input_text,
+                            multiline=True,
+                            min_lines=25,
+                            hint_text='粘贴或输入 JSON 数据...\n\n✅ 支持标准 JSON: {"name": "value"}\n✅ 支持单引号: {\'name\': \'value\'}\n✅ 支持 Python 字典格式',
+                            text_size=13,
+                            expand=True,
+                            border=ft.InputBorder.NONE,
+                        ),
+                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border_radius=8,
+                        padding=PADDING_SMALL,
                         expand=True,
-                    ),
-                    ft.Text(
-                        "格式化后将直接替换输入框内容",
-                        size=12,
-                        color=ft.Colors.GREY_500,
                     ),
                 ],
                 spacing=PADDING_SMALL,
                 expand=True,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.GREY_400),
-            border_radius=8,
-            expand=1,
+            expand=self.left_flex,
+        )
+        
+        # 可拖动的分隔条
+        divider = ft.GestureDetector(
+            content=ft.Container(
+                ref=self.divider_ref,
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(ft.Icons.CIRCLE, size=4, color=ft.Colors.GREY_500),
+                        ft.Icon(ft.Icons.CIRCLE, size=4, color=ft.Colors.GREY_500),
+                        ft.Icon(ft.Icons.CIRCLE, size=4, color=ft.Colors.GREY_500),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=3,
+                ),
+                width=12,
+                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                border_radius=6,
+                alignment=ft.alignment.center,
+            ),
+            mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
+            on_pan_start=self._on_divider_pan_start,
+            on_pan_update=self._on_divider_pan_update,
+            on_pan_end=self._on_divider_pan_end,
+            drag_interval=10,
         )
         
         # 右侧：树形视图区域
         right_panel = ft.Container(
+            ref=self.right_panel_ref,
             content=ft.Column(
                 controls=[
                     ft.Text(
@@ -498,14 +583,15 @@ class JsonViewerView(ft.Container):
                 expand=True,
             ),
             padding=PADDING_MEDIUM,
-            expand=1,
+            expand=self.right_flex,
         )
         
-        # 主内容区域（左右分栏）
+        # 主内容区域（左右分栏，中间加分隔条）
         content_area = ft.Row(
-            controls=[left_panel, right_panel],
-            spacing=PADDING_MEDIUM,
+            controls=[left_panel, divider, right_panel],
+            spacing=0,
             expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
         
         # 组装整个视图
