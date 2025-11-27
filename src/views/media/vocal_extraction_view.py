@@ -71,6 +71,9 @@ class VocalExtractionView(ft.Container):
             model_dir,
             ffmpeg_service
         )
+        self.model_loading: bool = False
+        self.model_loaded: bool = False
+        self.auto_load_model: bool = self.config_service.get_config_value("vocal_auto_load_model", True)
         
         # 构建界面
         self._build_ui()
@@ -217,6 +220,21 @@ class VocalExtractionView(ft.Container):
             visible=False,
         )
         
+        self.load_model_button = ft.ElevatedButton(
+            "加载模型",
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_load_model_click,
+            visible=False,
+        )
+
+        self.unload_model_button = ft.IconButton(
+            icon=ft.Icons.POWER_SETTINGS_NEW,
+            icon_color=ft.Colors.ORANGE,
+            tooltip="卸载模型",
+            on_click=self._on_unload_model_click,
+            visible=False,
+        )
+
         # 删除模型按钮
         self.delete_model_button = ft.IconButton(
             icon=ft.Icons.DELETE_OUTLINE,
@@ -231,9 +249,17 @@ class VocalExtractionView(ft.Container):
                 self.model_status_icon,
                 self.model_status_text,
                 self.download_model_button,
+                self.load_model_button,
+                self.unload_model_button,
                 self.delete_model_button,
             ],
             spacing=PADDING_SMALL,
+        )
+
+        self.auto_load_checkbox = ft.Checkbox(
+            label="自动加载模型",
+            value=self.auto_load_model,
+            on_change=self._on_auto_load_change,
         )
         
         model_section = ft.Container(
@@ -244,6 +270,7 @@ class VocalExtractionView(ft.Container):
                     self.model_info_text,
                     ft.Container(height=PADDING_SMALL),
                     model_status_row,
+                    self.auto_load_checkbox,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -254,6 +281,8 @@ class VocalExtractionView(ft.Container):
         
         # 初始化模型状态
         self._init_model_status()
+        if self.auto_load_model:
+            self._try_auto_load_model()
         
         # 输出设置区域
         self.output_vocals_checkbox = ft.Checkbox(
@@ -692,17 +721,26 @@ class VocalExtractionView(ft.Container):
                 self._reset_ui()
                 return
             
-            self._update_progress("正在加载模型...", 0.0)
-            
-            try:
-                self.vocal_service.load_model(
-                    model_path, 
-                    invert_output=model_info.invert_output
-                )
-            except Exception as e:
-                self._show_snackbar(f"模型加载失败: {e}", ft.Colors.ERROR)
-                self._reset_ui()
-                return
+            need_load = (
+                not self.model_loaded
+                or self.vocal_service.current_model != model_info.filename
+            )
+
+            if need_load:
+                self._update_progress("正在加载模型...", 0.0)
+                try:
+                    self.vocal_service.load_model(
+                        model_path,
+                        invert_output=model_info.invert_output
+                    )
+                    message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                    self._update_model_status("ready", message)
+                except Exception as e:
+                    self._show_snackbar(f"模型加载失败: {e}", ft.Colors.ERROR)
+                    self._reset_ui()
+                    return
+            else:
+                self._update_progress("模型已加载，开始处理...", 0.0)
             
             # 处理每个文件
             total_files = len(self.selected_files)
@@ -817,7 +855,9 @@ class VocalExtractionView(ft.Container):
     
     def _on_model_change(self, e: ft.ControlEvent) -> None:
         """模型选择变化事件。"""
-        self._update_model_status()
+        self._init_model_status()
+        if self.auto_load_model:
+            self._try_auto_load_model()
     
     def _init_model_status(self) -> None:
         """初始化模型状态（不调用 update）。"""
@@ -827,34 +867,113 @@ class VocalExtractionView(ft.Container):
         
         # 更新模型信息显示
         self.model_info_text.value = f"质量: {model_info.quality} | 特点: {model_info.performance}"
-        
-        if model_path.exists():
-            # 模型已下载
+        model_exists = model_path.exists()
+        if model_exists:
+            if self.vocal_service.current_model == model_info.filename and self.model_loaded:
+                message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                self._update_model_status("ready", message)
+            else:
+                message = f"{model_info.display_name} 已下载 ({model_info.size_mb}MB)"
+                self._update_model_status("unloaded", message)
+        else:
+            message = f"{model_info.display_name} 未下载 (需下载 {model_info.size_mb}MB)"
+            self._update_model_status("need_download", message)
+
+    def _try_auto_load_model(self) -> None:
+        """尝试自动加载已下载的模型。"""
+        if not self.auto_load_model or self.model_loading:
+            return
+
+        model_key = self.model_dropdown.value
+        model_info = VOCAL_SEPARATION_MODELS[model_key]
+        model_path = self.vocal_service.model_dir / model_info.filename
+
+        if not model_path.exists():
+            return
+
+        if self.vocal_service.current_model == model_info.filename and self.model_loaded:
+            return
+
+        self.model_loading = True
+        self._update_model_status("loading", "自动加载模型...")
+
+        def load_thread():
+            try:
+                self.vocal_service.load_model(
+                    model_path,
+                    invert_output=model_info.invert_output,
+                )
+                message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                self._update_model_status("ready", message)
+            except Exception as exc:
+                self._update_model_status("error", f"自动加载失败: {exc}")
+                self._show_snackbar(f"自动加载模型失败: {exc}", ft.Colors.ERROR)
+            finally:
+                self.model_loading = False
+
+        thread = threading.Thread(target=load_thread, daemon=True)
+        thread.start()
+
+    def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
+        """自动加载复选框变化事件。"""
+        self.auto_load_model = bool(e.control.value)
+        self.config_service.set_config_value("vocal_auto_load_model", self.auto_load_model)
+        if self.auto_load_model:
+            self._try_auto_load_model()
+    
+    def _update_model_status(self, status: str, message: str) -> None:
+        """更新模型状态图标和按钮显示。"""
+        if status == "loading":
+            self.model_status_icon.name = ft.Icons.HOURGLASS_EMPTY
+            self.model_status_icon.color = ft.Colors.BLUE
+            self.download_model_button.visible = False
+            self.load_model_button.visible = False
+            self.unload_model_button.visible = False
+            self.delete_model_button.visible = False
+        elif status == "ready":
             self.model_status_icon.name = ft.Icons.CHECK_CIRCLE
             self.model_status_icon.color = ft.Colors.GREEN
-            file_size = model_path.stat().st_size
-            size_mb = file_size / (1024 * 1024)
-            self.model_status_text.value = f"已下载 ({size_mb:.1f}MB)"
             self.download_model_button.visible = False
+            self.load_model_button.visible = False
+            self.unload_model_button.visible = True
             self.delete_model_button.visible = True
-        else:
-            # 模型未下载
-            self.model_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
+        elif status == "unloaded":
+            self.model_status_icon.name = ft.Icons.DOWNLOAD_DONE
+            self.model_status_icon.color = ft.Colors.GREY
+            self.download_model_button.visible = False
+            self.load_model_button.visible = True
+            self.unload_model_button.visible = False
+            self.delete_model_button.visible = True
+        elif status == "need_download":
+            self.model_status_icon.name = ft.Icons.WARNING
             self.model_status_icon.color = ft.Colors.ORANGE
-            self.model_status_text.value = f"未下载 (需下载 {model_info.size_mb}MB)"
             self.download_model_button.visible = True
+            self.load_model_button.visible = False
+            self.unload_model_button.visible = False
             self.delete_model_button.visible = False
-    
-    def _update_model_status(self) -> None:
-        """更新模型状态显示（已添加到页面后调用）。"""
-        self._init_model_status()
-        
-        # 只有在已添加到页面后才调用 update
+        elif status == "error":
+            self.model_status_icon.name = ft.Icons.ERROR
+            self.model_status_icon.color = ft.Colors.RED
+            self.download_model_button.visible = False
+            self.load_model_button.visible = False
+            self.unload_model_button.visible = False
+            self.delete_model_button.visible = False
+        else:
+            self.model_status_icon.name = ft.Icons.HELP_OUTLINE
+            self.model_status_icon.color = ft.Colors.ON_SURFACE_VARIANT
+            self.download_model_button.visible = False
+            self.load_model_button.visible = False
+            self.unload_model_button.visible = False
+            self.delete_model_button.visible = False
+
+        self.model_status_text.value = message
+        self.model_loaded = (status == "ready")
         try:
-            self.model_info_text.update()
             self.model_status_icon.update()
             self.model_status_text.update()
             self.download_model_button.update()
+            self.load_model_button.update()
+            self.unload_model_button.update()
             self.delete_model_button.update()
         except:
             pass
@@ -896,7 +1015,9 @@ class VocalExtractionView(ft.Container):
                 )
                 
                 # 更新模型状态
-                self._update_model_status()
+                self._init_model_status()
+                if self.auto_load_model:
+                    self._try_auto_load_model()
                 self._show_snackbar("模型下载成功!", ft.Colors.GREEN)
                 
                 # 隐藏进度条
@@ -924,6 +1045,48 @@ class VocalExtractionView(ft.Container):
         
         thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()
+
+    def _on_load_model_click(self, e: ft.ControlEvent) -> None:
+        """加载模型按钮点击事件。"""
+        if self.model_loading or self.model_loaded:
+            return
+
+        model_key = self.model_dropdown.value
+        model_info = VOCAL_SEPARATION_MODELS[model_key]
+        model_path = self.vocal_service.model_dir / model_info.filename
+
+        if not model_path.exists():
+            self._show_snackbar("请先下载模型", ft.Colors.ERROR)
+            return
+
+        self.model_loading = True
+        self._update_model_status("loading", "正在加载模型...")
+
+        def load_thread():
+            try:
+                self.vocal_service.load_model(
+                    model_path,
+                    invert_output=model_info.invert_output,
+                )
+                message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                self._update_model_status("ready", message)
+                self._show_snackbar("模型加载完成", ft.Colors.GREEN)
+            except Exception as exc:
+                self._update_model_status("error", f"加载失败: {exc}")
+                self._show_snackbar(f"模型加载失败: {exc}", ft.Colors.ERROR)
+            finally:
+                self.model_loading = False
+
+        threading.Thread(target=load_thread, daemon=True).start()
+
+    def _on_unload_model_click(self, e: ft.ControlEvent) -> None:
+        """卸载模型按钮点击事件。"""
+        if not self.model_loaded:
+            return
+
+        self.vocal_service.unload_model()
+        self._init_model_status()
+        self._show_snackbar("模型已卸载", ft.Colors.GREEN)
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
@@ -935,7 +1098,9 @@ class VocalExtractionView(ft.Container):
             if confirmed and model_path.exists():
                 try:
                     model_path.unlink()
-                    self._update_model_status()
+                    self._init_model_status()
+                    if self.auto_load_model:
+                        self._try_auto_load_model()
                     self._show_snackbar("模型已删除", ft.Colors.GREEN)
                 except Exception as ex:
                     self._show_snackbar(f"删除失败: {ex}", ft.Colors.ERROR)

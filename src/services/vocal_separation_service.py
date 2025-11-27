@@ -43,6 +43,8 @@ class VocalSeparationService:
         
         self.session: Optional['ort.InferenceSession'] = None
         self.current_model: Optional[str] = None
+        self.model_channels: int = 0
+        self.model_freq_bins: int = 0
         self.invert_output: bool = False  # 是否反转输出（模型输出伴奏而非人声）
         
         # 模型参数
@@ -841,21 +843,16 @@ class VocalSeparationService:
                 
         return vocals, instrumentals
     
-    def get_available_models(self) -> list[str]:
-        """获取可用的模型列表。
-        
-        Returns:
-            模型文件名列表
-        """
-        return [
-            "Kim_Vocal_2.onnx",
-            "MDX23C-8KFFT-InstVoc_HQ.onnx",
-            "UVR-MDX-NET-Inst_HQ_3.onnx",
-        ]
-    
     def cleanup(self) -> None:
         """清理资源。"""
         if self.session:
             del self.session
             self.session = None
+
+    def unload_model(self) -> None:
+        """卸载当前模型并释放推理会话。"""
+        self.cleanup()
+        self.current_model = None
+        self.model_channels = 0
+        self.model_freq_bins = 0
 
