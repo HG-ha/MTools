@@ -210,11 +210,13 @@ class MainView(ft.Column):
         """
         selected_index: int = e.control.selected_index
         
+        # 标记是否恢复了子视图
+        restored = False
+        
         # 根据选中的索引切换视图
         if selected_index == 0:
             view = self.image_view
             # 尝试恢复图片处理页面的状态（如果之前在子视图中）
-            restored = False
             if hasattr(view, 'restore_state'):
                 restored = view.restore_state()
             
@@ -224,7 +226,6 @@ class MainView(ft.Column):
         elif selected_index == 1:
             view = self.audio_view
             # 尝试恢复音频处理页面的状态
-            restored = False
             if hasattr(view, 'restore_state'):
                 restored = view.restore_state()
             
@@ -236,7 +237,6 @@ class MainView(ft.Column):
         elif selected_index == 3:
             view = self.dev_tools_view
             # 尝试恢复开发工具页面的状态
-            restored = False
             if hasattr(view, 'restore_state'):
                 restored = view.restore_state()
             
@@ -245,7 +245,6 @@ class MainView(ft.Column):
         elif selected_index == 4:
             view = self.others_view
             # 尝试恢复其他工具页面的状态
-            restored = False
             if hasattr(view, 'restore_state'):
                 restored = view.restore_state()
             
@@ -253,6 +252,12 @@ class MainView(ft.Column):
                 self.content_container.content = view
         else:
             return
+        
+        # 如果恢复了子视图（在具体工具中），隐藏搜索按钮；否则显示
+        if restored:
+            self.hide_search_button()
+        else:
+            self.show_search_button()
         
         # 统一使用page.update()更新整个页面
         if self.page:
@@ -334,6 +339,18 @@ class MainView(ft.Column):
         if e.key == "K" and e.ctrl and not e.shift and not e.alt:
             self._open_search()
     
+    def show_search_button(self) -> None:
+        """显示搜索按钮。"""
+        if self.fab_search and self.page:
+            self.page.floating_action_button = self.fab_search
+            self.page.update()
+    
+    def hide_search_button(self) -> None:
+        """隐藏搜索按钮。"""
+        if self.page:
+            self.page.floating_action_button = None
+            self.page.update()
+    
     def _open_settings(self, e: ft.ControlEvent) -> None:
         """打开设置视图。
         
@@ -342,6 +359,9 @@ class MainView(ft.Column):
         """
         # 取消导航栏的选中状态
         self.navigation_rail.selected_index = None
+        
+        # 隐藏搜索按钮
+        self.hide_search_button()
         
         # 切换到设置视图
         self.content_container.content = self.settings_view

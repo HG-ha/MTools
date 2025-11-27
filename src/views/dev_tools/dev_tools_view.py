@@ -75,6 +75,16 @@ class DevToolsView(ft.Container):
         if page:
             page.update()
     
+    def _hide_search_button(self) -> None:
+        """隐藏主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.hide_search_button()
+    
+    def _show_search_button(self) -> None:
+        """显示主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.show_search_button()
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域
@@ -125,6 +135,9 @@ class DevToolsView(ft.Container):
     
     def _open_encoding_convert(self, e: ft.ControlEvent) -> None:
         """打开编码转换。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         if self.encoding_convert_view is None:
             self.encoding_convert_view = EncodingConvertView(
                 self.page,
@@ -142,6 +155,9 @@ class DevToolsView(ft.Container):
     
     def _open_code_format(self, e: ft.ControlEvent) -> None:
         """打开代码格式化。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         if self.code_format_view is None:
             from views.code_format.detail_view import CodeFormatDetailView
             self.code_format_view = CodeFormatDetailView(
@@ -159,6 +175,9 @@ class DevToolsView(ft.Container):
     
     def _open_base64_to_image(self, e: ft.ControlEvent) -> None:
         """打开Base64转图片。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         if self.base64_to_image_view is None:
             from views.dev_tools.base64_to_image_view import Base64ToImageView
             self.base64_to_image_view = Base64ToImageView(
@@ -191,9 +210,14 @@ class DevToolsView(ft.Container):
         self.current_sub_view = None
         self.current_sub_view_type = None
         
+        # 先恢复容器内容
         if self.parent_container:
             self.parent_container.content = self
-        self._safe_page_update()
+            # 更新父容器而不是视图本身
+            self.parent_container.update()
+        
+        # 显示搜索按钮并更新页面
+        self._show_search_button()
     
     def restore_state(self) -> bool:
         """恢复之前的视图状态。

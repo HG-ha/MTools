@@ -62,6 +62,16 @@ class OthersView(ft.Container):
         if page:
             page.update()
     
+    def _hide_search_button(self) -> None:
+        """隐藏主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.hide_search_button()
+    
+    def _show_search_button(self) -> None:
+        """显示主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.show_search_button()
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域
@@ -108,6 +118,9 @@ class OthersView(ft.Container):
     
     def _open_windows_update_view(self) -> None:
         """打开Windows更新管理视图。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         from views.others import WindowsUpdateView
         
         if not self.parent_container:
@@ -130,6 +143,9 @@ class OthersView(ft.Container):
     
     def _open_image_to_url_view(self) -> None:
         """打开图片转URL视图。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         from views.others import ImageToUrlView
         
         if not self.parent_container:
@@ -152,6 +168,9 @@ class OthersView(ft.Container):
     
     def _open_file_to_url_view(self) -> None:
         """打开文件转URL视图。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         from views.others import FileToUrlView
         
         if not self.parent_container:
@@ -174,11 +193,18 @@ class OthersView(ft.Container):
     
     def _restore_main_view(self) -> None:
         """恢复到主视图。"""
+        # 清除子视图状态
+        self.current_sub_view = None
+        self.current_sub_view_type = None
+        
+        # 先恢复容器内容
         if self.parent_container:
-            self.current_sub_view = None
-            self.current_sub_view_type = None
             self.parent_container.content = self
-            self._safe_page_update()
+            # 更新父容器而不是视图本身
+            self.parent_container.update()
+        
+        # 显示搜索按钮并更新页面
+        self._show_search_button()
     
     def _show_message(self, message: str) -> None:
         """显示消息提示。
@@ -194,15 +220,20 @@ class OthersView(ft.Container):
         snack_bar.open = True
         self.page.update()
     
-    def restore_state(self) -> None:
+    def restore_state(self) -> bool:
         """恢复视图状态。
         
         当用户从其他类型视图返回时，恢复之前的状态。
+        
+        Returns:
+            是否恢复了子视图（True表示已恢复子视图，False表示需要显示主视图）
         """
         if self.current_sub_view and self.parent_container:
             # 恢复到子视图
             self.parent_container.content = self.current_sub_view
             self._safe_page_update()
+            return True
+        return False
     
     def cleanup(self) -> None:
         """清理视图资源。

@@ -81,6 +81,16 @@ class AudioView(ft.Container):
         if page:
             page.update()
     
+    def _hide_search_button(self) -> None:
+        """隐藏主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.hide_search_button()
+    
+    def _show_search_button(self) -> None:
+        """显示主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.show_search_button()
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域
@@ -249,6 +259,9 @@ class AudioView(ft.Container):
             e: 控件事件对象
         """
         def open_func():
+            # 隐藏搜索按钮
+            self._hide_search_button()
+            
             # 创建格式转换视图（如果还没创建）
             if not self.format_view:
                 self.format_view = AudioFormatView(
@@ -276,6 +289,9 @@ class AudioView(ft.Container):
             e: 控件事件对象
         """
         def open_func():
+            # 隐藏搜索按钮
+            self._hide_search_button()
+            
             # 创建压缩视图（如果还没创建）
             if not self.compress_view:
                 self.compress_view = AudioCompressView(
@@ -336,6 +352,9 @@ class AudioView(ft.Container):
         if not self.parent_container:
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建FFmpeg安装视图
         self.ffmpeg_install_view = FFmpegInstallView(
             self.page,
@@ -366,6 +385,9 @@ class AudioView(ft.Container):
         """
         if not self.parent_container:
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建人声提取视图（如果还没创建）
         if self.vocal_extraction_view is None:
@@ -407,9 +429,14 @@ class AudioView(ft.Container):
         self.current_sub_view = None
         self.current_sub_view_type = None
         
+        # 先恢复容器内容
         if self.parent_container:
             self.parent_container.content = self
-            self._safe_page_update()
+            # 更新父容器而不是视图本身
+            self.parent_container.update()
+        
+        # 显示搜索按钮并更新页面
+        self._show_search_button()
     
     def restore_state(self) -> bool:
         """恢复视图状态（从其他页面切换回来时调用）。

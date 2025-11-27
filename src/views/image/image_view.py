@@ -95,6 +95,16 @@ class ImageView(ft.Container):
         if page:
             page.update()
     
+    def _hide_search_button(self) -> None:
+        """隐藏主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.hide_search_button()
+    
+    def _show_search_button(self) -> None:
+        """显示主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.show_search_button()
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域 - 自适应布局，确保从左到右、从上到下排列
@@ -243,6 +253,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建压缩视图（如果还没创建）
         if not self.compress_view:
             self.compress_view = ImageCompressView(
@@ -269,6 +282,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建尺寸调整视图（如果还没创建）
         if not self.resize_view:
@@ -297,6 +313,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建格式转换视图（如果还没创建）
         if not self.format_view:
             self.format_view = ImageFormatView(
@@ -323,6 +342,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 使用定时器延迟切换，让点击动画先完成（Material Design 涟漪动画约150-200ms）
         import threading
@@ -360,6 +382,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         import threading
         
         def delayed_create_and_switch():
@@ -394,6 +419,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建切分视图（如果还没创建）
         if not self.split_view:
             self.split_view = ImagePuzzleSplitView(
@@ -420,6 +448,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建合并视图（如果还没创建）
         if not self.merge_view:
@@ -448,6 +479,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建裁剪视图（如果还没创建）
         if not self.crop_view:
             self.crop_view = ImageCropView(
@@ -475,6 +509,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建信息查看视图（如果还没创建）
         if not self.info_view:
             self.info_view = ImageInfoView(
@@ -501,6 +538,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建 GIF 调整视图（如果还没创建）
         if not self.gif_adjustment_view:
@@ -530,6 +570,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建图片转Base64视图（如果还没创建）
         if not self.to_base64_view:
             from views.image.to_base64_view import ImageToBase64View
@@ -557,6 +600,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建图片旋转视图（如果还没创建）
         if not self.rotate_view:
@@ -586,6 +632,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建去除EXIF视图（如果还没创建）
         if not self.remove_exif_view:
             from views.image.remove_exif_view import ImageRemoveExifView
@@ -613,6 +662,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建二维码生成视图（如果还没创建）
         if not self.qrcode_view:
@@ -642,6 +694,9 @@ class ImageView(ft.Container):
             print("错误: 未设置父容器")
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建添加水印视图（如果还没创建）
         if not self.watermark_view:
             from views.image.watermark_view import ImageWatermarkView
@@ -669,6 +724,9 @@ class ImageView(ft.Container):
         if not self.parent_container:
             print("错误: 未设置父容器")
             return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
         
         # 创建图片搜索视图（如果还没创建）
         if not self.search_view:
@@ -718,9 +776,14 @@ class ImageView(ft.Container):
         self.current_sub_view = None
         self.current_sub_view_type = None
         
+        # 先恢复容器内容
         if self.parent_container:
             self.parent_container.content = self
-            self._safe_page_update()
+            # 更新父容器而不是视图本身
+            self.parent_container.update()
+        
+        # 显示搜索按钮并更新页面
+        self._show_search_button()
     
     def restore_state(self) -> bool:
         """恢复视图状态（从其他页面切换回来时调用）。

@@ -263,3 +263,28 @@ def register_all_tools():
         tool_id="dev.code_format",
     )
 
+    # ==================== 其他工具 ====================
+    register_tool_manual(
+        name="Windows更新管理",
+        description="管理Windows更新设置，禁用或恢复更新",
+        category="其他工具",
+        keywords=["Windows", "更新", "管理", "禁用", "恢复", "暂停", "升级", "windows update", "disable", "enable", "pause"],
+        icon="SYSTEM_UPDATE",
+        tool_id="others.windows_update",
+    )
+    register_tool_manual(
+        name="图片转URL",
+        description="上传图片获取分享链接",
+        category="其他工具",
+        keywords=["图片", "上传", "分享", "链接", "url", "image", "upload", "share"],
+        icon="IMAGE_SEARCH",
+        tool_id="others.image_to_url",
+    )
+    register_tool_manual(
+        name="文件转URL",
+        description="上传文件获取分享链接",
+        category="其他工具",
+        keywords=["文件", "上传", "分享", "链接", "url", "file", "upload", "share"],
+        icon="INSERT_DRIVE_FILE",
+        tool_id="others.file_to_url",
+    )

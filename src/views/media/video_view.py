@@ -65,8 +65,22 @@ class VideoView(ft.Container):
         self.watermark_view: Optional[VideoWatermarkView] = None
         self.ffmpeg_install_view: Optional[FFmpegInstallView] = None
         
+        # 记录当前显示的视图（用于状态恢复）
+        self.current_sub_view: Optional[ft.Container] = None
+        self.current_sub_view_type: Optional[str] = None
+        
         # 创建UI组件
         self._build_ui()
+    
+    def _hide_search_button(self) -> None:
+        """隐藏主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.hide_search_button()
+    
+    def _show_search_button(self) -> None:
+        """显示主视图的搜索按钮。"""
+        if hasattr(self.page, '_main_view'):
+            self.page._main_view.show_search_button()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -136,60 +150,85 @@ class VideoView(ft.Container):
         """打开子视图。"""
         if view_name == 'compress':
             def open_func():
+                # 隐藏搜索按钮
+                self._hide_search_button()
+                
                 self.compress_view = VideoCompressView(
                     self.page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
                 )
+                self.current_sub_view = self.compress_view
+                self.current_sub_view_type = "compress"
                 self.parent_container.content = self.compress_view
                 self.page.update()
             self._check_ffmpeg_and_open("视频压缩", open_func)
             
         elif view_name == 'convert':
             def open_func():
+                # 隐藏搜索按钮
+                self._hide_search_button()
+                
                 self.convert_view = VideoConvertView(
                     self.page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
                 )
+                self.current_sub_view = self.convert_view
+                self.current_sub_view_type = "convert"
                 self.parent_container.content = self.convert_view
                 self.page.update()
             self._check_ffmpeg_and_open("视频格式转换", open_func)
             
         elif view_name == 'extract_audio':
             def open_func():
+                # 隐藏搜索按钮
+                self._hide_search_button()
+                
                 self.extract_audio_view = VideoExtractAudioView(
                     self.page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
                 )
+                self.current_sub_view = self.extract_audio_view
+                self.current_sub_view_type = "extract_audio"
                 self.parent_container.content = self.extract_audio_view
                 self.page.update()
             self._check_ffmpeg_and_open("提取音频", open_func)
             
         elif view_name == 'vocal_separation':
             def open_func():
+                # 隐藏搜索按钮
+                self._hide_search_button()
+                
                 self.vocal_separation_view = VideoVocalSeparationView(
                     self.page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
                 )
+                self.current_sub_view = self.vocal_separation_view
+                self.current_sub_view_type = "vocal_separation"
                 self.parent_container.content = self.vocal_separation_view
                 self.page.update()
             self._check_ffmpeg_and_open("视频人声分离", open_func)
             
         elif view_name == 'watermark':
             def open_func():
+                # 隐藏搜索按钮
+                self._hide_search_button()
+                
                 self.watermark_view = VideoWatermarkView(
                     self.page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
                 )
+                self.current_sub_view = self.watermark_view
+                self.current_sub_view_type = "watermark"
                 self.parent_container.content = self.watermark_view
                 self.page.update()
             self._check_ffmpeg_and_open("视频添加水印", open_func)
@@ -224,6 +263,9 @@ class VideoView(ft.Container):
         if not self.parent_container:
             return
         
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
         # 创建FFmpeg安装视图
         self.ffmpeg_install_view = FFmpegInstallView(
             self.page,
@@ -232,6 +274,10 @@ class VideoView(ft.Container):
             on_back=self._back_to_main,
             tool_name=tool_name
         )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.ffmpeg_install_view
+        self.current_sub_view_type = "ffmpeg_install"
         
         # 切换到安装视图
         self.parent_container.content = self.ffmpeg_install_view
@@ -248,5 +294,25 @@ class VideoView(ft.Container):
         Args:
             e: 控件事件对象（可选）
         """
+        # 显示搜索按钮
+        self._show_search_button()
+        
+        # 清除子视图状态
+        self.current_sub_view = None
+        self.current_sub_view_type = None
+        
         self.parent_container.content = self.main_view
         self.page.update()
+    
+    def restore_state(self) -> bool:
+        """恢复视图状态（从其他页面切换回来时调用）。
+        
+        Returns:
+            是否恢复了子视图（True表示已恢复子视图，False表示需要显示主视图）
+        """
+        if self.parent_container and self.current_sub_view:
+            # 如果之前在子视图中，恢复到子视图
+            self.parent_container.content = self.current_sub_view
+            self.page.update()
+            return True
+        return False
