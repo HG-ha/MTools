@@ -67,13 +67,26 @@ class OthersView(ft.Container):
         # 功能卡片区域
         feature_cards: ft.Row = ft.Row(
             controls=[
-                # 预留位置，后续添加具体工具
                 FeatureCard(
-                    icon=ft.Icons.CONSTRUCTION_ROUNDED,
-                    title="敬请期待",
-                    description="更多实用工具即将上线",
+                    icon=ft.Icons.UPDATE_DISABLED,
+                    title="Windows更新管理",
+                    description="禁用或恢复Windows自动更新",
+                    gradient_colors=("#FF6B6B", "#FFA500"),
+                    on_click=lambda _: self._open_windows_update_view(),
+                ),
+                FeatureCard(
+                    icon=ft.Icons.LINK,
+                    title="图片转URL",
+                    description="上传图片生成分享链接",
                     gradient_colors=("#667EEA", "#764BA2"),
-                    on_click=lambda _: self._show_message("功能开发中..."),
+                    on_click=lambda _: self._open_image_to_url_view(),
+                ),
+                FeatureCard(
+                    icon=ft.Icons.UPLOAD_FILE,
+                    title="文件转URL",
+                    description="上传文件获取分享链接",
+                    gradient_colors=("#F093FB", "#F5576C"),
+                    on_click=lambda _: self._open_file_to_url_view(),
                 ),
             ],
             wrap=True,
@@ -92,6 +105,80 @@ class OthersView(ft.Container):
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
+    
+    def _open_windows_update_view(self) -> None:
+        """打开Windows更新管理视图。"""
+        from views.others import WindowsUpdateView
+        
+        if not self.parent_container:
+            self._show_message("无法打开视图")
+            return
+        
+        # 创建Windows更新视图
+        windows_update_view = WindowsUpdateView(
+            page=self.page,
+            on_back=lambda: self._restore_main_view(),
+        )
+        
+        # 保存当前子视图
+        self.current_sub_view = windows_update_view
+        self.current_sub_view_type = "windows_update"
+        
+        # 切换到子视图
+        self.parent_container.content = windows_update_view
+        self._safe_page_update()
+    
+    def _open_image_to_url_view(self) -> None:
+        """打开图片转URL视图。"""
+        from views.others import ImageToUrlView
+        
+        if not self.parent_container:
+            self._show_message("无法打开视图")
+            return
+        
+        # 创建图片转URL视图
+        image_to_url_view = ImageToUrlView(
+            page=self.page,
+            on_back=lambda: self._restore_main_view(),
+        )
+        
+        # 保存当前子视图
+        self.current_sub_view = image_to_url_view
+        self.current_sub_view_type = "image_to_url"
+        
+        # 切换到子视图
+        self.parent_container.content = image_to_url_view
+        self._safe_page_update()
+    
+    def _open_file_to_url_view(self) -> None:
+        """打开文件转URL视图。"""
+        from views.others import FileToUrlView
+        
+        if not self.parent_container:
+            self._show_message("无法打开视图")
+            return
+        
+        # 创建文件转URL视图
+        file_to_url_view = FileToUrlView(
+            page=self.page,
+            on_back=lambda: self._restore_main_view(),
+        )
+        
+        # 保存当前子视图
+        self.current_sub_view = file_to_url_view
+        self.current_sub_view_type = "file_to_url"
+        
+        # 切换到子视图
+        self.parent_container.content = file_to_url_view
+        self._safe_page_update()
+    
+    def _restore_main_view(self) -> None:
+        """恢复到主视图。"""
+        if self.parent_container:
+            self.current_sub_view = None
+            self.current_sub_view_type = None
+            self.parent_container.content = self
+            self._safe_page_update()
     
     def _show_message(self, message: str) -> None:
         """显示消息提示。
