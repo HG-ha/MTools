@@ -168,107 +168,71 @@ class WeatherService:
         
         return None
     
-    async def get_city_from_ip(self, ip: str = None) -> Optional[str]:
-        """通过 IP 地址查询城市信息
+    async def get_location_info(self) -> Optional[Tuple[str, float, float]]:
+        """获取当前位置信息（通过 IP 地理位置 API）
         
-        Args:
-            ip: IP 地址，为 None 时自动获取当前公网 IP
-            
         Returns:
-            城市名称，失败返回 None
+            元组 (城市名称, 纬度, 经度)，失败返回 None
         """
         client = self._ensure_client()
         
-        # 如果没有提供 IP，先获取公网 IP
-        if ip is None:
+        # 检查是否包含中文字符
+        def contains_cjk(s: str) -> bool:
             try:
-                
-                # 只使用搜狐的文本接口（返回 JS 片段，包含 window.sohu_user_ip="1.2.3.4"）
-                # 以及提供的网易代理地址作为回退
-                ip_services = [
-                    "http://txt.go.sohu.com/ip/soip",
-                    "http://only-329841-103-107-216-231.nstool.yqkk.link/",
-                ]
-
-                ip = ""
-                import re
-                for service_url in ip_services:
-                    try:
-                        ip_response = await client.get(service_url, timeout=5)
-                        if ip_response.status_code == 200 and ip_response.text:
-                            text = ip_response.text.strip()
-                            # 尝试从任意返回文本中提取第一个 IPv4 地址
-                            m = re.search(r"(\d{1,3}(?:\.\d{1,3}){3})", text)
-                            if m:
-                                candidate = m.group(1)
-                                # 基本验证每段 0-255
-                                try:
-                                    parts = [int(p) for p in candidate.split('.')]
-                                    if len(parts) == 4 and all(0 <= p <= 255 for p in parts):
-                                        ip = candidate
-                                        break
-                                except Exception:
-                                    # 如果解析失败，继续尝试下一个服务
-                                    continue
-                    except Exception as e:
-                        print(f"从 {service_url} 获取 IP 失败: {e}")
-                        continue
-
-                if not ip:
-                    print("所有 IP 获取服务均失败")
-                        
-            except Exception as e:
-                print(f"获取公网 IP 失败: {e}")
-                ip = ""
+                return any('\u4e00' <= ch <= '\u9fff' for ch in s)
+            except Exception:
+                return False
         
-        # 如果还是没有 IP，使用空字符串（淘宝 API 会自动识别）
-        if not ip:
-            ip = ""
-        
+        # 尝试 ipapi.co
         try:
-            api_url = "https://ip.taobao.com/outGetIpInfo"
-            
-            data = {
-                'ip': ip,
-                'accessKey': 'alibaba-inc'
-            }
+            api_url = "https://ipapi.co/json"
             headers = {
-                'accept': '*/*',
-                'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'content-type': 'application/x-www-form-urlencoded',
-                'origin': 'https://ip.taobao.com',
-                'referer': f'https://ip.taobao.com/ipSearch?ipAddr={ip}',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'x-requested-with': 'XMLHttpRequest'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
-            response = await client.post(api_url, data=data, headers=headers)
+            response = await client.get(api_url, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                result = response.json()
-                if result.get('code') == 0 and 'data' in result:
-                    location_data = result['data']
-                    
-                    city = location_data.get('city', '')
-                    region = location_data.get('region', '')
-                    country = location_data.get('country', '')
-                    
-                    # 如果城市或地区是 "XX"（未知），则使用国家
-                    if city == 'XX' or region == 'XX':
-                        if country and country != 'XX':
-                            return country
-                    
-                    # 如果城市名包含"区"或"县"，说明是区县级，使用上级地区
-                    if city and not ('区' in city or '县' in city):
-                        return city
-                    elif region:
-                        return region
-                    elif city:
-                        # 如果只有区县名，去掉"区"或"县"后缀
-                        city_clean = city.replace('区', '').replace('县', '')
-                        return city_clean
+                data = response.json()
+                
+                city = data.get('city', '')
+                region = data.get('region', '')
+                latitude = data.get('latitude')
+                longitude = data.get('longitude')
+                
+                # 如果城市名不是中文，优先使用 region
+                location_name = region if (region and contains_cjk(region)) else (city or region)
+                
+                if location_name and latitude is not None and longitude is not None:
+                    return (location_name, latitude, longitude)
         except Exception as e:
-            print(f"IP 查询失败: {e}")
+            print(f"ipapi.co 获取位置信息失败: {e}")
+        
+        # 备用方案：尝试 ipwhois.app
+        try:
+            api_url = "https://ipwhois.app/json/"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = await client.get(api_url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('success'):
+                    city = data.get('city', '')
+                    region = data.get('region', '')
+                    latitude = data.get('latitude')
+                    longitude = data.get('longitude')
+                    
+                    # 如果城市名不是中文，优先使用 region
+                    location_name = region if (region and contains_cjk(region)) else (city or region)
+                    
+                    if location_name and latitude is not None and longitude is not None:
+                        return (location_name, latitude, longitude)
+        except Exception as e:
+            print(f"ipwhois.app 获取位置信息失败: {e}")
         
         return None
     
@@ -297,23 +261,28 @@ class WeatherService:
                     current_data = current_weather.get('current', {})
                     location = source.get('location', {})
                     
-                    # 尝试获取 provider 返回的位置名称
-                    provider_loc = location.get('Name', '')
-
                     # 检查字符串是否包含中文字符
                     def contains_cjk(s: str) -> bool:
                         try:
                             return any('\u4e00' <= ch <= '\u9fff' for ch in s)
                         except Exception:
                             return False
-
-                    if provider_loc:
-                        if not contains_cjk(provider_loc) and fallback_location:
-                            display_loc = fallback_location
-                        else:
-                            display_loc = provider_loc
+                    
+                    # 优先使用天气数据中的中文地名
+                    state_code = location.get('StateCode', '')  # 如 "北京"
+                    provider_loc = location.get('Name', '')      # 如 "beijing"
+                    
+                    # 优先级：中文 StateCode > 包含中文的 Name > fallback_location > 英文 Name
+                    if state_code and contains_cjk(state_code):
+                        display_loc = state_code
+                    elif provider_loc and contains_cjk(provider_loc):
+                        display_loc = provider_loc
+                    elif fallback_location:
+                        display_loc = fallback_location
+                    elif provider_loc:
+                        display_loc = provider_loc
                     else:
-                        display_loc = fallback_location or '未知'
+                        display_loc = '未知'
 
                     return {
                         'temperature': current_data.get('temp'),
@@ -371,21 +340,28 @@ class WeatherService:
             简化的天气数据字典
         """
         city = preferred_city
+        lat = None
+        lon = None
         
-        # 如果没有提供偏好城市，通过 IP 获取
+        # 如果没有提供偏好城市，通过 ipapi.co 获取位置
         if not city:
-            city = await self.get_city_from_ip()
+            location_info = await self.get_location_info()
+            if location_info:
+                city, lat, lon = location_info
         
-        if city:
-            # 搜索城市坐标
+        # 如果有城市但没有坐标，搜索城市坐标
+        if city and (lat is None or lon is None):
             location = await self.search_location(city)
-            
             if location:
-                # 获取天气数据
-                weather_data = await self.get_weather_detailed(location['lat'], location['lon'])
-                if weather_data:
-                    formatted = self.format_weather_simple(weather_data, fallback_location=city)
-                    return formatted
+                lat = location['lat']
+                lon = location['lon']
+        
+        # 获取天气数据
+        if lat is not None and lon is not None:
+            weather_data = await self.get_weather_detailed(lat, lon)
+            if weather_data:
+                formatted = self.format_weather_simple(weather_data, fallback_location=city)
+                return formatted
         
         # 如果失败，使用默认位置（上海）
         weather_data = await self.get_weather_detailed()
