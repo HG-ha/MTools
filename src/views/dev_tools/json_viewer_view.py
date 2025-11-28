@@ -1335,9 +1335,10 @@ class JsonViewerView(ft.Container):
         )
         
         # 创建透明背景覆盖层（点击关闭菜单）
-        overlay = ft.Container(
-            expand=True,
-            on_click=close_menu,
+        overlay = ft.GestureDetector(
+            content=ft.Container(expand=True),
+            on_tap=close_menu,  # 左键关闭
+            on_secondary_tap_up=close_menu,  # 右键关闭
         )
         
         # 更新浮动菜单的内容为 Stack，包含覆盖层和菜单
