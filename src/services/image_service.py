@@ -36,7 +36,8 @@ class ImageService:
     
     # 图片压缩工具下载链接
     MOZJPEG_DOWNLOAD_URL = "https://ghproxy.cn/https://github.com/mozilla/mozjpeg/releases/download/v4.0.3/mozjpeg-v4.0.3-win-x64.zip"
-    PNGQUANT_DOWNLOAD_URL = "https://pngquant.org/pngquant-windows.zip"
+    PNGQUANT_WINDOWS_URL = "https://pngquant.org/pngquant-windows.zip"
+    PNGQUANT_MACOS_URL = "https://pngquant.org/pngquant.tar.bz2"
     
     def __init__(self, config_service=None) -> None:
         """初始化图片处理服务。
@@ -114,6 +115,9 @@ class ImageService:
             是否可用
         """
         if tool_name == "mozjpeg":
+            # macOS 下不支持 mozjpeg，直接返回 False
+            if platform.system() == "Darwin":
+                return False
             return self.mozjpeg_path.exists()
         elif tool_name == "pngquant":
             return self.pngquant_path.exists()
@@ -165,6 +169,23 @@ class ImageService:
             (是否成功, 消息)
         """
         try:
+            system = platform.system()
+            
+            # macOS 下跳过 mozjpeg，仅下载 pngquant
+            if system == "Darwin":
+                if progress_callback:
+                    progress_callback(0.0, "开始下载 pngquant...")
+                
+                success, message = self._download_pngquant(progress_callback)
+                if not success:
+                    return False, f"pngquant 安装失败: {message}"
+                
+                if progress_callback:
+                    progress_callback(1.0, "安装完成！")
+                
+                return True, "图片压缩工具安装成功！（macOS 下使用 Pillow 处理 JPEG）"
+            
+            # Windows 下载 mozjpeg 和 pngquant
             # 下载并安装 mozjpeg
             if progress_callback:
                 progress_callback(0.0, "开始下载 mozjpeg...")
@@ -297,24 +318,36 @@ class ImageService:
             (是否成功, 消息)
         """
         try:
+            import tarfile
+            
             temp_dir = self._get_temp_dir()
-            zip_path = temp_dir / "pngquant.zip"
+            system = platform.system()
+            
+            # 根据平台选择下载链接和文件格式
+            if system == "Darwin":
+                download_url = self.PNGQUANT_MACOS_URL
+                archive_path = temp_dir / "pngquant.tar.bz2"
+            else:  # Windows
+                download_url = self.PNGQUANT_WINDOWS_URL
+                archive_path = temp_dir / "pngquant.zip"
             
             # 下载
-            with httpx.stream("GET", self.PNGQUANT_DOWNLOAD_URL, follow_redirects=True, timeout=60.0) as response:
+            with httpx.stream("GET", download_url, follow_redirects=True, timeout=60.0) as response:
                 response.raise_for_status()
                 
                 total_size = int(response.headers.get('content-length', 0))
                 downloaded = 0
                 
-                with open(zip_path, 'wb') as f:
+                with open(archive_path, 'wb') as f:
                     for chunk in response.iter_bytes(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
                             
                             if progress_callback and total_size > 0:
-                                progress = 0.5 + (downloaded / total_size * 0.2)  # pngquant下载占20%进度，从50%开始
+                                # Windows 下从 50% 开始，macOS 下从 0% 开始
+                                progress_start = 0.5 if system == "Windows" else 0.0
+                                progress = progress_start + (downloaded / total_size * 0.2)
                                 size_mb = downloaded / (1024 * 1024)
                                 total_mb = total_size / (1024 * 1024)
                                 progress_callback(
@@ -323,7 +356,8 @@ class ImageService:
                                 )
             
             if progress_callback:
-                progress_callback(0.7, "pngquant 下载完成，开始解压...")
+                progress_val = 0.7 if system == "Windows" else 0.2
+                progress_callback(progress_val, "pngquant 下载完成，开始解压...")
             
             # 解压
             extract_dir = temp_dir / "pngquant_extracted"
@@ -331,26 +365,66 @@ class ImageService:
                 shutil.rmtree(extract_dir)
             extract_dir.mkdir(parents=True, exist_ok=True)
             
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
+            # 根据平台使用不同的解压方法
+            if system == "Darwin":
+                # macOS: 解压 tar.bz2
+                with tarfile.open(archive_path, 'r:bz2') as tar_ref:
+                    tar_ref.extractall(extract_dir)
+            else:
+                # Windows: 解压 zip
+                with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
             
             if progress_callback:
-                progress_callback(0.85, "pngquant 解压完成，正在安装...")
+                progress_val = 0.85 if system == "Windows" else 0.35
+                progress_callback(progress_val, "pngquant 解压完成，正在安装...")
             
-            # 获取解压后的目录
-            system = platform.system()
-            if system == "Windows":
-                # 使用数据目录
-                if self.config_service:
-                    tools_dir = self.config_service.get_data_dir() / "tools"
+            # 使用数据目录
+            if self.config_service:
+                tools_dir = self.config_service.get_data_dir() / "tools"
+            else:
+                tools_dir = get_app_root() / "bin" / ("windows" if system == "Windows" else system.lower())
+            
+            pngquant_dest = tools_dir / "pngquant"
+            pngquant_dest.mkdir(parents=True, exist_ok=True)
+            
+            if system == "Darwin":
+                # macOS: tar.bz2 解压后通常会有一个目录结构
+                # 查找 pngquant 可执行文件
+                import os
+                import stat
+                
+                pngquant_exe = None
+                for root, dirs, files in os.walk(extract_dir):
+                    for file in files:
+                        if file == "pngquant":
+                            file_path = Path(root) / file
+                            # 检查是否可执行
+                            if os.access(file_path, os.X_OK):
+                                pngquant_exe = file_path
+                                break
+                    if pngquant_exe:
+                        break
+                
+                if pngquant_exe:
+                    # 复制可执行文件到目标目录
+                    dest_file = pngquant_dest / "pngquant"
+                    shutil.copy2(pngquant_exe, dest_file)
+                    # 确保可执行权限
+                    dest_file.chmod(dest_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                 else:
-                    tools_dir = get_app_root() / "bin" / "windows"
-                pngquant_dest = tools_dir / "pngquant"
-                
-                # 创建目标目录
-                pngquant_dest.mkdir(parents=True, exist_ok=True)
-                
-                # pngquant解压后是一个pngquant文件夹
+                    # 如果找不到可执行文件，尝试编译（假设有 Makefile）
+                    # 这里简化处理：直接复制所有内容
+                    for item in extract_dir.iterdir():
+                        dest = pngquant_dest / item.name
+                        if item.is_dir():
+                            if dest.exists():
+                                shutil.rmtree(dest)
+                            shutil.copytree(item, dest)
+                        else:
+                            shutil.copy2(item, dest)
+            else:
+                # Windows: pngquant解压后是一个pngquant文件夹
                 pngquant_folder = extract_dir / "pngquant"
                 if pngquant_folder.exists():
                     dest_folder = pngquant_dest / "pngquant"
@@ -371,11 +445,12 @@ class ImageService:
                             shutil.copy2(item, dest)
             
             if progress_callback:
-                progress_callback(0.95, "pngquant 安装完成，清理临时文件...")
+                progress_val = 0.95 if system == "Windows" else 0.95
+                progress_callback(progress_val, "pngquant 安装完成，清理临时文件...")
             
             # 清理
             try:
-                zip_path.unlink()
+                archive_path.unlink()
                 shutil.rmtree(extract_dir)
             except Exception:
                 pass
@@ -1990,7 +2065,11 @@ class BackgroundRemover:
             elif 'DmlExecutionProvider' in available_providers:
                 providers.append('DmlExecutionProvider')
                 self.using_gpu = True
-            # 3. ROCm (AMD)
+            # 3. CoreML (macOS Apple Silicon)
+            elif 'CoreMLExecutionProvider' in available_providers:
+                providers.append('CoreMLExecutionProvider')
+                self.using_gpu = True
+            # 4. ROCm (AMD)
             elif 'ROCMExecutionProvider' in available_providers:
                 providers.append('ROCMExecutionProvider')
                 self.using_gpu = True
@@ -2258,6 +2337,9 @@ class ImageEnhancer:
             elif 'DmlExecutionProvider' in available_providers:
                 providers.append('DmlExecutionProvider')
                 self.using_gpu = True
+            elif 'CoreMLExecutionProvider' in available_providers:
+                providers.append('CoreMLExecutionProvider')
+                self.using_gpu = True
             elif 'ROCMExecutionProvider' in available_providers:
                 providers.append('ROCMExecutionProvider')
                 self.using_gpu = True
@@ -2336,6 +2418,7 @@ class ImageEnhancer:
         provider_map = {
             'CUDAExecutionProvider': 'CUDA GPU',
             'DmlExecutionProvider': 'DirectML GPU',
+            'CoreMLExecutionProvider': 'CoreML GPU',
             'ROCMExecutionProvider': 'ROCm GPU',
             'CPUExecutionProvider': 'CPU',
         }

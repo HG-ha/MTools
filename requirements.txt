@@ -4,10 +4,11 @@ Pillow==12.0.0
 chardet==5.2.0
 opencv-python-headless==4.11.0.86
 numpy==1.26.4
-# ONNX Runtime - 背景移除功能
-# GPU加速版本（可选，需要额外安装）：
-#   - Windows通用GPU: pip install onnxruntime-directml==1.22.0
-#   - NVIDIA CUDA: pip install onnxruntime-gpu==1.22.0 (需要CUDA Toolkit和cuDNN)
-onnxruntime-directml==1.22.0
+# ONNX Runtime - AI 功能 GPU 加速
+# 平台特定版本：
+#   - Windows (Intel/AMD/NVIDIA): onnxruntime-directml==1.22.0 (默认)
+#   - macOS (Apple Silicon): onnxruntime-silicon==1.22.0 (需手动替换)
+#   - NVIDIA CUDA: onnxruntime-gpu==1.22.0 (可选，需要CUDA Toolkit和cuDNN)
+onnxruntime-directml==1.22.0  # macOS 用户请改为 onnxruntime-silicon==1.22.0
 websockets==12.0  # 避免弃用警告，等待 flet 更新
 qrcode[pil]==7.4.2

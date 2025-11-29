@@ -30,6 +30,7 @@ tests/
 
 # Virtual Environment
 venv/
+.venv/
 ENV/
 env/
 

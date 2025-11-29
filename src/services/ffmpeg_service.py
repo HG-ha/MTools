@@ -5,6 +5,7 @@
 """
 
 import os
+import platform
 import subprocess
 import zipfile
 from pathlib import Path
@@ -28,8 +29,9 @@ class FFmpegService:
     - 安装到应用程序目录
     """
     
-    # FFmpeg Windows下载链接（使用gyan.dev提供的精简版本）
-    FFMPEG_DOWNLOAD_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    # FFmpeg 下载链接
+    FFMPEG_WINDOWS_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    FFMPEG_MACOS_URL = "https://evermeet.cx/ffmpeg/getrelease/zip"  # FFmpeg macOS 版本
     
     def __init__(self, config_service=None) -> None:
         """初始化FFmpeg服务。
@@ -45,15 +47,22 @@ class FFmpegService:
     @property
     def ffmpeg_dir(self) -> Path:
         """获取FFmpeg目录路径（动态读取）。"""
+        system = platform.system()
+        
         # 使用数据目录
         if self.config_service:
             data_dir = self.config_service.get_data_dir()
             new_dir = data_dir / "tools" / "ffmpeg"
             
             # 兼容性检查：如果旧路径存在ffmpeg而新路径没有，使用旧路径
-            old_dir = self.app_root / "bin" / "windows" / "ffmpeg"
-            old_exe = old_dir / "bin" / "ffmpeg.exe"
-            new_exe = new_dir / "bin" / "ffmpeg.exe"
+            if system == "Windows":
+                old_dir = self.app_root / "bin" / "windows" / "ffmpeg"
+                old_exe = old_dir / "bin" / "ffmpeg.exe"
+                new_exe = new_dir / "bin" / "ffmpeg.exe"
+            else:  # macOS
+                old_dir = self.app_root / "bin" / system.lower() / "ffmpeg"
+                old_exe = old_dir / "bin" / "ffmpeg"
+                new_exe = new_dir / "bin" / "ffmpeg"
             
             if old_exe.exists() and not new_exe.exists():
                 return old_dir
@@ -61,7 +70,10 @@ class FFmpegService:
             return new_dir
         else:
             # 回退到应用根目录
-            return self.app_root / "bin" / "windows" / "ffmpeg"
+            if system == "Windows":
+                return self.app_root / "bin" / "windows" / "ffmpeg"
+            else:
+                return self.app_root / "bin" / system.lower() / "ffmpeg"
     
     @property
     def ffmpeg_bin(self) -> Path:
@@ -71,12 +83,20 @@ class FFmpegService:
     @property
     def ffmpeg_exe(self) -> Path:
         """获取ffmpeg可执行文件路径（动态读取）。"""
-        return self.ffmpeg_bin / "ffmpeg.exe"
+        system = platform.system()
+        if system == "Windows":
+            return self.ffmpeg_bin / "ffmpeg.exe"
+        else:
+            return self.ffmpeg_bin / "ffmpeg"
     
     @property
     def ffprobe_exe(self) -> Path:
         """获取ffprobe可执行文件路径（动态读取）。"""
-        return self.ffmpeg_bin / "ffprobe.exe"
+        system = platform.system()
+        if system == "Windows":
+            return self.ffmpeg_bin / "ffprobe.exe"
+        else:
+            return self.ffmpeg_bin / "ffprobe"
     
     def _get_temp_dir(self) -> Path:
         """获取临时目录。
@@ -200,6 +220,13 @@ class FFmpegService:
         try:
             # 获取临时下载目录
             temp_dir = self._get_temp_dir()
+            system = platform.system()
+            
+            # 根据平台选择下载链接
+            if system == "Darwin":
+                download_url = self.FFMPEG_MACOS_URL
+            else:  # Windows
+                download_url = self.FFMPEG_WINDOWS_URL
             
             zip_path = temp_dir / "ffmpeg.zip"
             
@@ -207,7 +234,7 @@ class FFmpegService:
             if progress_callback:
                 progress_callback(0.0, "开始下载FFmpeg...")
             
-            with httpx.stream("GET", self.FFMPEG_DOWNLOAD_URL, follow_redirects=True) as response:
+            with httpx.stream("GET", download_url, follow_redirects=True) as response:
                 response.raise_for_status()
                 
                 total_size = int(response.headers.get('content-length', 0))
@@ -244,35 +271,88 @@ class FFmpegService:
             if progress_callback:
                 progress_callback(0.85, "解压完成，正在安装...")
             
-            # 查找解压后的ffmpeg目录（通常在一个子目录中）
-            ffmpeg_folders = list(extract_dir.glob("ffmpeg-*"))
-            if not ffmpeg_folders:
-                return False, "下载的文件格式不正确"
-            
-            source_dir = ffmpeg_folders[0]
-            
             # 创建目标目录
             self.ffmpeg_dir.mkdir(parents=True, exist_ok=True)
             
             # 复制文件到目标目录
             import shutil
+            import stat
             
-            # 复制 bin 目录
-            source_bin = source_dir / "bin"
-            if source_bin.exists():
+            if system == "Darwin":
+                # macOS: evermeet.cx 的 FFmpeg 直接包含可执行文件
+                # 创建 bin 目录
                 if self.ffmpeg_bin.exists():
                     shutil.rmtree(self.ffmpeg_bin)
-                shutil.copytree(source_bin, self.ffmpeg_bin)
-            
-            # 复制其他目录（可选）
-            for item in source_dir.iterdir():
-                if item.is_dir() and item.name not in ["bin"]:
-                    dest = self.ffmpeg_dir / item.name
-                    if dest.exists():
-                        shutil.rmtree(dest)
-                    shutil.copytree(item, dest)
-                elif item.is_file():
-                    shutil.copy2(item, self.ffmpeg_dir / item.name)
+                self.ffmpeg_bin.mkdir(parents=True, exist_ok=True)
+                
+                # 复制所有可执行文件到 bin 目录
+                for item in extract_dir.iterdir():
+                    if item.is_file():
+                        dest = self.ffmpeg_bin / item.name
+                        shutil.copy2(item, dest)
+                        # 确保可执行权限
+                        dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                
+                # 同时需要下载 ffprobe（如果包中没有的话）
+                # evermeet.cx 的 ffmpeg.zip 只包含 ffmpeg，需要单独下载 ffprobe
+                if not (self.ffmpeg_bin / "ffprobe").exists():
+                    try:
+                        if progress_callback:
+                            progress_callback(0.90, "下载 ffprobe...")
+                        
+                        ffprobe_url = "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+                        ffprobe_zip = temp_dir / "ffprobe.zip"
+                        
+                        with httpx.stream("GET", ffprobe_url, follow_redirects=True) as ffprobe_response:
+                            ffprobe_response.raise_for_status()
+                            with open(ffprobe_zip, 'wb') as f:
+                                for chunk in ffprobe_response.iter_bytes(chunk_size=8192):
+                                    if chunk:
+                                        f.write(chunk)
+                        
+                        # 解压 ffprobe
+                        ffprobe_extract = temp_dir / "ffprobe_extracted"
+                        ffprobe_extract.mkdir(parents=True, exist_ok=True)
+                        with zipfile.ZipFile(ffprobe_zip, 'r') as zip_ref:
+                            zip_ref.extractall(ffprobe_extract)
+                        
+                        # 复制 ffprobe
+                        for item in ffprobe_extract.iterdir():
+                            if item.is_file() and item.name == "ffprobe":
+                                dest = self.ffmpeg_bin / "ffprobe"
+                                shutil.copy2(item, dest)
+                                dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                        
+                        # 清理
+                        ffprobe_zip.unlink()
+                        shutil.rmtree(ffprobe_extract)
+                    except Exception as e:
+                        # ffprobe 下载失败不影响 ffmpeg 的安装
+                        pass
+            else:
+                # Windows: 查找解压后的ffmpeg目录（通常在一个子目录中）
+                ffmpeg_folders = list(extract_dir.glob("ffmpeg-*"))
+                if not ffmpeg_folders:
+                    return False, "下载的文件格式不正确"
+                
+                source_dir = ffmpeg_folders[0]
+                
+                # 复制 bin 目录
+                source_bin = source_dir / "bin"
+                if source_bin.exists():
+                    if self.ffmpeg_bin.exists():
+                        shutil.rmtree(self.ffmpeg_bin)
+                    shutil.copytree(source_bin, self.ffmpeg_bin)
+                
+                # 复制其他目录（可选）
+                for item in source_dir.iterdir():
+                    if item.is_dir() and item.name not in ["bin"]:
+                        dest = self.ffmpeg_dir / item.name
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(item, dest)
+                    elif item.is_file():
+                        shutil.copy2(item, self.ffmpeg_dir / item.name)
             
             if progress_callback:
                 progress_callback(0.95, "清理临时文件...")

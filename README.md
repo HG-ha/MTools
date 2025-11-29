@@ -10,6 +10,75 @@
 
 ---
 
+## 🚀 快速开始
+
+### 环境要求
+- **操作系统**: Windows 10/11 或 macOS (Apple Silicon)
+- **Python**: 3.11+
+- **包管理器**: [uv](https://github.com/astral-sh/uv) - 推荐使用的 Python 包管理器
+
+### 安装 uv（如果尚未安装）
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS/Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 一键安装依赖
+
+使用 uv 可以快速同步所有依赖（包括开发依赖）：
+
+```bash
+# 克隆仓库
+git clone <repository-url>
+cd mytools
+```
+
+**⚠️ macOS (Apple Silicon) 用户请先执行以下操作：**
+```bash
+# 更换为 macOS 专用的 ONNX Runtime
+uv remove onnxruntime-directml
+uv add onnxruntime-silicon==1.22.0
+```
+
+**所有用户继续执行：**
+```bash
+# 一键同步依赖（自动创建虚拟环境）
+uv sync
+
+# 激活虚拟环境
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
+# 运行项目
+flet run src
+```
+
+### 其他常用命令
+
+```bash
+# 添加新依赖
+uv add <package-name>
+
+# 添加开发依赖
+uv add --dev <package-name>
+
+# 更新依赖
+uv lock --upgrade
+
+# 移除依赖
+uv remove <package-name>
+```
+
+---
+
 ## ✨ 核心特性
 
 ### 🤖 AI 智能处理
@@ -57,12 +126,39 @@
 - GPU 加速可提速 **3-10 倍**
 
 **AI 人声分离**
-- 支持 NVIDIA CUDA、AMD DirectML
+- 支持 NVIDIA CUDA、AMD DirectML、Apple Silicon
 - 长音频处理速度提升显著
 
+### 平台特定说明
 
+#### AI 功能 (ONNX Runtime)
 
-> 💡 **提示**：程序会自动检测并使用可用的 GPU 加速，无需额外配置。如果没有 GPU，程序会自动回退到 CPU 模式。
+| 平台 | ONNX Runtime 版本 | GPU 支持 |
+|------|------------------|---------|
+| **Windows (Intel/AMD GPU)** | `onnxruntime-directml==1.22.0` | ✅ DirectML |
+| **Windows (NVIDIA GPU)** | `onnxruntime-directml==1.22.0` 或 `onnxruntime-gpu` | ✅ DirectML / CUDA |
+| **macOS (Apple Silicon)** | `onnxruntime-silicon==1.22.0` | ✅ CoreML |
+| **Linux** | `onnxruntime` 或 `onnxruntime-gpu` | ⚠️ CPU / CUDA |
+
+> 💡 **提示**：
+> - Windows 用户使用默认配置即可（已包含 `onnxruntime-directml==1.22.0`）
+> - macOS 用户需要手动更换为 `onnxruntime-silicon==1.22.0`（参见快速开始章节）
+> - 程序会自动检测并使用可用的 GPU 加速，无需额外配置
+> - 如果没有 GPU，程序会自动回退到 CPU 模式
+
+#### 图片压缩工具
+
+| 平台 | JPEG 压缩 | PNG 压缩 | 说明 |
+|------|----------|---------|------|
+| **Windows** | mozjpeg + Pillow | pngquant + Pillow | 支持自动下载安装 |
+| **macOS** | Pillow | pngquant + Pillow | mozjpeg 暂不支持，使用 Pillow 替代 |
+
+#### 音视频处理工具
+
+| 平台 | FFmpeg | 说明 |
+|------|--------|------|
+| **Windows** | ✅ 自动下载 | 使用 gyan.dev 提供的精简版 |
+| **macOS** | ✅ 自动下载 | 使用 evermeet.cx 提供的官方版本 |
 
 ---
 

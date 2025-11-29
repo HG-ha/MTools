@@ -183,6 +183,8 @@ class VocalSeparationService:
                 providers.insert(0, 'CUDAExecutionProvider')
             elif 'DmlExecutionProvider' in available:  # DirectML for Windows
                 providers.insert(0, 'DmlExecutionProvider')
+            elif 'CoreMLExecutionProvider' in available:  # CoreML for macOS Apple Silicon
+                providers.insert(0, 'CoreMLExecutionProvider')
         
         # 创建推理会话
         self.session = ort.InferenceSession(
