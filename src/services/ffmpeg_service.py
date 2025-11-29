@@ -911,3 +911,388 @@ class FFmpegService:
         except Exception as e:
             return False, f"速度调整失败: {str(e)}"
 
+    def adjust_audio_speed(
+        self,
+        input_path: Path,
+        output_path: Path,
+        speed: float,
+        progress_callback: Optional[Callable[[float, str, str], None]] = None
+    ) -> Tuple[bool, str]:
+        """调整音频播放速度。
+        
+        Args:
+            input_path: 输入音频路径
+            output_path: 输出音频路径
+            speed: 速度倍数（0.1-10.0），1.0为原速，2.0为2倍速
+            progress_callback: 进度回调 (progress, speed, remaining_time)
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        ffmpeg_path = self.get_ffmpeg_path()
+        if not ffmpeg_path:
+            return False, "未找到 FFmpeg"
+        
+        try:
+            # 获取音频时长
+            ffprobe_path = self.get_ffprobe_path()
+            if ffprobe_path:
+                try:
+                    probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
+                    duration = float(probe['format']['duration'])
+                except:
+                    duration = 0.0
+            else:
+                duration = 0.0
+            
+            # 构建输入流
+            stream = ffmpeg.input(str(input_path))
+            
+            # 音频滤镜：调整播放速度
+            # atempo只支持0.5-2.0倍速，需要链式调用来实现更大范围
+            audio_filters = []
+            remaining_speed = speed
+            
+            # 将速度分解为多个atempo滤镜
+            while remaining_speed > 2.0:
+                audio_filters.append("atempo=2.0")
+                remaining_speed /= 2.0
+            
+            while remaining_speed < 0.5:
+                audio_filters.append("atempo=0.5")
+                remaining_speed /= 0.5
+            
+            if remaining_speed != 1.0:
+                audio_filters.append(f"atempo={remaining_speed}")
+            
+            # 应用音频滤镜
+            audio_stream = stream.audio
+            for filter_str in audio_filters:
+                # 解析 atempo=value
+                tempo_value = filter_str.split("=")[1]
+                audio_stream = audio_stream.filter("atempo", tempo_value)
+            
+            # 输出参数
+            output_params = {
+                'acodec': 'libmp3lame',  # 使用MP3编码
+                'b:a': '192k',  # 比特率
+            }
+            
+            # 根据输出格式选择编码器
+            output_ext = output_path.suffix.lower()
+            if output_ext == '.aac' or output_ext == '.m4a':
+                output_params['acodec'] = 'aac'
+            elif output_ext == '.wav':
+                output_params['acodec'] = 'pcm_s16le'
+                output_params.pop('b:a', None)  # WAV不需要比特率
+            elif output_ext == '.flac':
+                output_params['acodec'] = 'flac'
+                output_params.pop('b:a', None)  # FLAC是无损格式
+            elif output_ext == '.ogg':
+                output_params['acodec'] = 'libvorbis'
+            
+            output_stream = ffmpeg.output(audio_stream, str(output_path), **output_params)
+            
+            # 添加全局参数
+            output_stream = output_stream.global_args('-stats', '-loglevel', 'info', '-progress', 'pipe:2')
+            
+            # 运行ffmpeg
+            process = ffmpeg.run_async(
+                output_stream,
+                cmd=ffmpeg_path,
+                pipe_stderr=True,
+                pipe_stdout=True,
+                overwrite_output=True
+            )
+            
+            # 实时读取进度
+            if progress_callback and duration > 0:
+                import threading
+                
+                def read_stderr():
+                    for line in iter(process.stderr.readline, b''):
+                        try:
+                            line_str = line.decode('utf-8', errors='ignore').strip()
+                            
+                            # 解析时间进度
+                            time_match = re.search(r"time=(\d{2}):(\d{2}):(\d{2})\.\d{2}", line_str)
+                            speed_match = re.search(r"speed=\s*([\d.]+)x", line_str)
+                            
+                            if time_match:
+                                hours = int(time_match.group(1))
+                                minutes = int(time_match.group(2))
+                                seconds = int(time_match.group(3))
+                                current_time = hours * 3600 + minutes * 60 + seconds
+                                
+                                # 调整后的时长
+                                adjusted_duration = duration / speed
+                                progress = min(current_time / adjusted_duration, 0.99) if adjusted_duration > 0 else 0
+                                
+                                speed_str = f"{speed_match.group(1)}x" if speed_match else "N/A"
+                                
+                                if speed_match and float(speed_match.group(1)) > 0:
+                                    remaining_seconds = (adjusted_duration - current_time) / float(speed_match.group(1))
+                                    remaining_time_str = f"{int(remaining_seconds // 60)}m {int(remaining_seconds % 60)}s"
+                                else:
+                                    remaining_time_str = "计算中..."
+                                
+                                progress_callback(progress, speed_str, remaining_time_str)
+                        except Exception:
+                            pass
+                    process.stderr.close()
+                
+                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+                stderr_thread.start()
+                
+                # 等待进程结束
+                process.wait()
+                stderr_thread.join(timeout=1)
+            else:
+                # 没有回调时直接等待
+                process.wait()
+            
+            # 检查返回码
+            if process.returncode != 0:
+                stderr_output = ""
+                try:
+                    if process.stderr:
+                        stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
+                except Exception:
+                    pass
+                return False, f"FFmpeg 执行失败，退出码: {process.returncode}\n{stderr_output}"
+            
+            return True, "速度调整成功"
+        
+        except ffmpeg.Error as e:
+            return False, f"FFmpeg 错误: {e.stderr.decode()}"
+        except Exception as e:
+            return False, f"音频速度调整失败: {str(e)}"
+
+    def repair_video(
+        self,
+        input_path: Path,
+        output_path: Path,
+        repair_mode: str = "auto",
+        progress_callback: Optional[Callable[[float, str, str], None]] = None
+    ) -> Tuple[bool, str]:
+        """修复损坏的视频文件。
+        
+        Args:
+            input_path: 输入视频路径
+            output_path: 输出视频路径
+            repair_mode: 修复模式 ("auto", "remux", "reencode", "aggressive")
+            progress_callback: 进度回调 (progress, speed, remaining_time)
+        
+        Returns:
+            (是否成功, 消息)
+        """
+        ffmpeg_path = self.get_ffmpeg_path()
+        if not ffmpeg_path:
+            return False, "未找到 FFmpeg"
+        
+        try:
+            # 获取视频时长（可能失败）
+            duration = 0.0
+            try:
+                duration = self.get_video_duration(input_path)
+            except:
+                pass
+            
+            # 构建输入流
+            input_args = [str(input_path)]
+            
+            # 根据修复模式设置不同的参数
+            if repair_mode == "remux":
+                # 仅重新封装，不重新编码（最快）
+                stream = ffmpeg.input(str(input_path))
+                output_params = {
+                    'vcodec': 'copy',
+                    'acodec': 'copy',
+                }
+                # 添加错误容忍参数
+                stream = stream.output(str(output_path), **output_params)
+                stream = stream.global_args(
+                    '-err_detect', 'ignore_err',
+                    '-fflags', '+genpts+igndts',
+                    '-avoid_negative_ts', 'make_zero'
+                )
+            
+            elif repair_mode == "reencode":
+                # 重新编码（中等速度，可修复更多问题）
+                stream = ffmpeg.input(str(input_path))
+                
+                # 检测GPU编码器
+                vcodec = 'libx264'
+                preset = 'medium'
+                gpu_encoder = self.get_preferred_gpu_encoder()
+                if gpu_encoder:
+                    vcodec = gpu_encoder
+                    if gpu_encoder.startswith("h264_nvenc") or gpu_encoder.startswith("hevc_nvenc"):
+                        preset = "p4"
+                    elif gpu_encoder.startswith("h264_amf") or gpu_encoder.startswith("hevc_amf"):
+                        preset = "balanced"
+                
+                output_params = {
+                    'vcodec': vcodec,
+                    'acodec': 'aac',
+                    'pix_fmt': 'yuv420p',
+                }
+                
+                # 根据编码器设置质量参数
+                if vcodec in ["libx264", "libx265"]:
+                    output_params['crf'] = 23
+                    output_params['preset'] = preset
+                elif vcodec.startswith("h264_nvenc") or vcodec.startswith("hevc_nvenc"):
+                    output_params['cq'] = 23
+                    output_params['preset'] = preset
+                elif vcodec.startswith("h264_amf") or vcodec.startswith("hevc_amf"):
+                    output_params['quality'] = preset
+                    output_params['rc'] = 'vbr_peak'
+                    output_params['qmin'] = 18
+                    output_params['qmax'] = 28
+                elif vcodec.startswith("h264_qsv") or vcodec.startswith("hevc_qsv"):
+                    output_params['global_quality'] = 23
+                    output_params['preset'] = preset
+                
+                stream = stream.output(str(output_path), **output_params)
+                stream = stream.global_args(
+                    '-err_detect', 'ignore_err',
+                    '-fflags', '+genpts',
+                )
+            
+            elif repair_mode == "aggressive":
+                # 激进模式，尝试恢复尽可能多的内容
+                stream = ffmpeg.input(str(input_path))
+                
+                vcodec = 'libx264'
+                preset = 'medium'
+                gpu_encoder = self.get_preferred_gpu_encoder()
+                if gpu_encoder:
+                    vcodec = gpu_encoder
+                    if gpu_encoder.startswith("h264_nvenc") or gpu_encoder.startswith("hevc_nvenc"):
+                        preset = "p4"
+                    elif gpu_encoder.startswith("h264_amf") or gpu_encoder.startswith("hevc_amf"):
+                        preset = "balanced"
+                
+                output_params = {
+                    'vcodec': vcodec,
+                    'acodec': 'aac',
+                    'pix_fmt': 'yuv420p',
+                }
+                
+                if vcodec in ["libx264", "libx265"]:
+                    output_params['crf'] = 23
+                    output_params['preset'] = preset
+                elif vcodec.startswith("h264_nvenc") or vcodec.startswith("hevc_nvenc"):
+                    output_params['cq'] = 23
+                    output_params['preset'] = preset
+                elif vcodec.startswith("h264_amf") or vcodec.startswith("hevc_amf"):
+                    output_params['quality'] = preset
+                    output_params['rc'] = 'vbr_peak'
+                    output_params['qmin'] = 18
+                    output_params['qmax'] = 28
+                elif vcodec.startswith("h264_qsv") or vcodec.startswith("hevc_qsv"):
+                    output_params['global_quality'] = 23
+                    output_params['preset'] = preset
+                
+                stream = stream.output(str(output_path), **output_params)
+                stream = stream.global_args(
+                    '-err_detect', 'ignore_err',
+                    '-fflags', '+genpts+igndts+discardcorrupt',
+                    '-avoid_negative_ts', 'make_zero',
+                    '-max_muxing_queue_size', '9999',
+                )
+            
+            else:  # auto
+                # 自动模式：先尝试remux，如果失败则reencode
+                # 这里我们使用remux策略
+                stream = ffmpeg.input(str(input_path))
+                output_params = {
+                    'vcodec': 'copy',
+                    'acodec': 'copy',
+                }
+                stream = stream.output(str(output_path), **output_params)
+                stream = stream.global_args(
+                    '-err_detect', 'ignore_err',
+                    '-fflags', '+genpts+igndts',
+                    '-avoid_negative_ts', 'make_zero'
+                )
+            
+            # 添加进度输出参数
+            stream = stream.global_args('-stats', '-loglevel', 'info', '-progress', 'pipe:2')
+            
+            # 运行ffmpeg
+            process = ffmpeg.run_async(
+                stream,
+                cmd=ffmpeg_path,
+                pipe_stderr=True,
+                pipe_stdout=True,
+                overwrite_output=True
+            )
+            
+            # 实时读取进度
+            if progress_callback and duration > 0:
+                import threading
+                
+                def read_stderr():
+                    for line in iter(process.stderr.readline, b''):
+                        try:
+                            line_str = line.decode('utf-8', errors='ignore').strip()
+                            
+                            # 解析时间进度
+                            time_match = re.search(r"time=(\d{2}):(\d{2}):(\d{2})\.\d{2}", line_str)
+                            speed_match = re.search(r"speed=\s*([\d.]+)x", line_str)
+                            
+                            if time_match:
+                                hours = int(time_match.group(1))
+                                minutes = int(time_match.group(2))
+                                seconds = int(time_match.group(3))
+                                current_time = hours * 3600 + minutes * 60 + seconds
+                                
+                                progress = min(current_time / duration, 0.99) if duration > 0 else 0
+                                
+                                speed_str = f"{speed_match.group(1)}x" if speed_match else "N/A"
+                                
+                                if speed_match and float(speed_match.group(1)) > 0:
+                                    remaining_seconds = (duration - current_time) / float(speed_match.group(1))
+                                    remaining_time_str = f"{int(remaining_seconds // 60)}m {int(remaining_seconds % 60)}s"
+                                else:
+                                    remaining_time_str = "计算中..."
+                                
+                                progress_callback(progress, speed_str, remaining_time_str)
+                        except Exception:
+                            pass
+                    process.stderr.close()
+                
+                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+                stderr_thread.start()
+                
+                # 等待进程结束
+                process.wait()
+                stderr_thread.join(timeout=1)
+            else:
+                # 没有回调时直接等待
+                process.wait()
+            
+            # 检查返回码
+            if process.returncode != 0:
+                stderr_output = ""
+                try:
+                    if process.stderr:
+                        stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
+                except Exception:
+                    pass
+                
+                # 如果是auto模式且remux失败，可以提示用户尝试重新编码模式
+                if repair_mode == "auto":
+                    return False, f"自动修复失败。建议尝试'重新编码'或'激进修复'模式\n详情: {stderr_output[:200]}"
+                
+                return False, f"FFmpeg 执行失败，退出码: {process.returncode}\n{stderr_output[:200]}"
+            
+            return True, f"视频修复成功（模式: {repair_mode}）"
+        
+        except ffmpeg.Error as e:
+            return False, f"FFmpeg 错误: {e.stderr.decode()[:200]}"
+        except Exception as e:
+            return False, f"视频修复失败: {str(e)}"
+

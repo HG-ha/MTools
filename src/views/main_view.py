@@ -288,6 +288,8 @@ class MainView(ft.Column):
                         self.media_view._open_view('audio_format')
                     elif tool_name == "compress":
                         self.media_view._open_view('audio_compress')
+                    elif tool_name == "speed":
+                        self.media_view._open_view('audio_speed')
                     elif tool_name == "vocal_extraction":
                         self.media_view._open_view('vocal_extraction')
                 elif category == "video":
@@ -297,6 +299,8 @@ class MainView(ft.Column):
                         self.media_view._open_view('video_convert')
                     elif tool_name == "extract_audio":
                         self.media_view._open_view('video_extract_audio')
+                    elif tool_name == "repair":
+                        self.media_view._open_view('video_repair')
                     elif tool_name == "speed":
                         self.media_view._open_view('video_speed')
                     elif tool_name == "vocal_separation":

@@ -180,6 +180,15 @@ def register_all_tools():
     )
     
     register_tool_manual(
+        name="音频倍速调整",
+        description="调整音频播放速度(0.1x-10x)",
+        category="媒体处理",
+        keywords=["音频", "倍速", "速度", "快进", "慢放", "加速", "减速", "调整", "audio", "speed", "slow", "fast", "playback", "tempo"],
+        icon="SPEED",
+        tool_id="audio.speed",
+    )
+    
+    register_tool_manual(
         name="人声提取",
         description="AI智能分离人声和伴奏",
         category="媒体处理",
@@ -240,6 +249,15 @@ def register_all_tools():
         keywords=["水印", "视频", "文字", "图片", "添加", "overlay", "logo", "stamp"],
         icon="BRANDING_WATERMARK",
         tool_id="video.watermark",
+    )
+    
+    register_tool_manual(
+        name="视频修复",
+        description="修复损坏、卡顿、无法播放的视频",
+        category="媒体处理",
+        keywords=["修复", "损坏", "卡顿", "无法播放", "视频", "恢复", "repair", "fix", "corrupted", "broken", "索引", "音画不同步"],
+        icon="HEALING",
+        tool_id="video.repair",
     )
     # ==================== 开发工具 ====================
     
