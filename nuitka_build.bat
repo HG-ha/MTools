@@ -1,27 +1,16 @@
 @REM conda activate mytoolsbuild
 
-python -m nuitka ^
+conda run -n mytoolsbuild python -m nuitka ^
     --standalone ^
     --windows-console-mode=disable ^
     --windows-icon-from-ico=src/assets/icon.ico ^
     --product-name="MyTools" ^
-    --file-version=0.1.0.0 ^
-    --product-version=0.1.0 ^
-    --file-description="Multi-functional desktop application" ^
-    --company-name="Flet" ^
-    --copyright="Copyright (C) 2025 by Flet" ^
+    --file-version=0.1.1.0 ^
+    --product-version=0.1.1 ^
+    --file-description="MyTools - Multi-functional desktop tool" ^
+    --company-name="HG-ha" ^
+    --copyright="Copyright (C) 2025 by HG-ha" ^
     --assume-yes-for-downloads ^
-    --include-data-dir=bin=bin ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/cjpeg.exe=bin/windows/mozjpeg/shared/Release/cjpeg.exe ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/djpeg.exe=bin/windows/mozjpeg/shared/Release/djpeg.exe ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/jpegtran.exe=bin/windows/mozjpeg/shared/Release/jpegtran.exe ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/rdjpgcom.exe=bin/windows/mozjpeg/shared/Release/rdjpgcom.exe ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/wrjpgcom.exe=bin/windows/mozjpeg/shared/Release/wrjpgcom.exe ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/jpeg62.dll=bin/windows/mozjpeg/shared/Release/jpeg62.dll ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/turbojpeg.dll=bin/windows/mozjpeg/shared/Release/turbojpeg.dll ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/libpng16.dll=bin/windows/mozjpeg/shared/Release/libpng16.dll ^
-    --include-data-files=bin/windows/mozjpeg/shared/Release/zlib1.dll=bin/windows/mozjpeg/shared/Release/zlib1.dll ^
-    --include-data-files=bin/windows/pngquant/pngquant/pngquant.exe=bin/windows/pngquant/pngquant/pngquant.exe ^
     --include-data-dir=src/assets=src/assets ^
     --follow-imports ^
     --nofollow-import-to=tkinter ^
@@ -42,3 +31,11 @@ python -m nuitka ^
     --python-flag=no_site ^
     --python-flag=no_warnings ^
     src/main.py
+
+@REM 重命名文件夹为MyTools_x64
+move dist\release\main.dist dist\release\MyTools_x64
+
+@REM 进入目录后打包zip，这样zip内部就不会有多余的路径层级
+cd dist\release
+zip -r MyTools_x64.zip MyTools_x64
+cd ..\..

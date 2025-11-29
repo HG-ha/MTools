@@ -40,13 +40,6 @@ env/
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Flet
-.flet/
-
 # 数据存储
 storage/data/*
 storage/temp/*

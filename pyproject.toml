@@ -1,6 +1,6 @@
 [project]
 name = "mytools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Multi-functional desktop application with media processing, encoding conversion, and more"
 readme = "README.md"
 requires-python = "==3.11.14"
@@ -10,13 +10,13 @@ authors = [
 # Don't hard-code the version, to avoid flet compilation issues.
 dependencies = [
   "flet==0.28.3",
-  "ffmpeg-python>=0.2.0",
-  "Pillow>=9.0.0",
-  "chardet",
-  "opencv-python",
+  "ffmpeg-python==0.2.0",
+  "Pillow==12.0.0",
+  "chardet==5.2.0",
+  "opencv-python-headless==4.11.0.86",
   "numpy==1.26.4",
-  "onnxruntime",
-  "websockets<=12.0",  # 避免弃用警告，等待 flet 更新
+  "onnxruntime-directml==1.22.0",
+  "websockets==12.0",  # 避免弃用警告，等待 flet 更新
 ]
 
 [tool.flet]

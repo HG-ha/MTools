@@ -9,7 +9,7 @@ from typing import Final
 
 # 应用基本信息
 APP_TITLE: Final[str] = "MyTools - 多功能工具箱"
-APP_VERSION: Final[str] = "0.1.0"
+APP_VERSION: Final[str] = "0.1.1"
 APP_DESCRIPTION: Final[str] = "集成音视频处理、图片处理、编码转换、代码格式化等功能"
 
 # 窗口配置
