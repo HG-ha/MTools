@@ -970,7 +970,7 @@ class JsonViewerView(ft.Container):
                     "全部展开",
                     icon=ft.Icons.UNFOLD_MORE,
                     on_click=self._on_expand_all_click,
-                    tooltip="展开所有树节点",
+                    tooltip="智能展开节点（大数据时限制深度以保证性能）",
                 ),
                 ft.ElevatedButton(
                     "全部收起",
@@ -1534,36 +1534,62 @@ class JsonViewerView(ft.Container):
     
     def _on_expand_all_click(self, e):
         """全部展开按钮点击事件。"""
-        self._toggle_all_nodes(True)
+        # 全部展开（不限制深度）
+        self._toggle_all_nodes(True, max_depth=None)
+        
+        # 隐藏可能存在的警告信息
+        if self.error_container.current:
+            self.error_container.current.visible = False
+        self.update()
     
     def _on_collapse_all_click(self, e):
         """全部收起按钮点击事件。"""
-        self._toggle_all_nodes(False)
+        # 收起时不需要深度限制
+        self._toggle_all_nodes(False, max_depth=None)
+        
+        # 隐藏可能存在的警告信息
+        if self.error_container.current:
+            self.error_container.current.visible = False
+        self.update()
     
-    def _toggle_all_nodes(self, expand: bool):
+    def _toggle_all_nodes(self, expand: bool, max_depth: int = None):
         """递归展开/收起所有节点。
         
         Args:
             expand: True 为展开，False 为收起
+            max_depth: 最大展开深度，None 表示无限制（性能优化）
         """
-        def toggle_recursive(controls):
+        def toggle_recursive(controls, current_depth=0):
             for control in controls:
                 if isinstance(control, JsonTreeNode):
-                    control.expanded = expand
+                    # 检查是否超过最大深度
+                    should_expand_this_level = expand
+                    if expand and max_depth is not None and current_depth >= max_depth:
+                        should_expand_this_level = False
+                    
+                    control.expanded = should_expand_this_level
                     if hasattr(control, 'icon_ref') and control.icon_ref.current:
                         control.icon_ref.current.name = (
-                            ft.Icons.KEYBOARD_ARROW_DOWN if expand 
+                            ft.Icons.KEYBOARD_ARROW_DOWN if should_expand_this_level 
                             else ft.Icons.KEYBOARD_ARROW_RIGHT
                         )
                     if hasattr(control, 'content_ref') and control.content_ref.current:
-                        control.content_ref.current.visible = expand
-                        toggle_recursive(control.content_ref.current.controls)
+                        # 如果要展开且子节点还未创建，先创建子节点
+                        if should_expand_this_level and not control.children_created:
+                            control._create_children()
+                        
+                        control.content_ref.current.visible = should_expand_this_level
+                        
+                        # 递归处理已创建的子节点（如果还在深度限制内）
+                        if control.content_ref.current.controls:
+                            if max_depth is None or current_depth < max_depth:
+                                toggle_recursive(control.content_ref.current.controls, current_depth + 1)
                     # 不要对单个控件调用 update，最后统一更新
                 elif hasattr(control, 'controls'):
-                    toggle_recursive(control.controls)
+                    toggle_recursive(control.controls, current_depth)
         
         if self.tree_view.current and self.tree_view.current.controls:
-            toggle_recursive(self.tree_view.current.controls)
+            toggle_recursive(self.tree_view.current.controls, 0)
             # 统一更新整个树形视图
             self.tree_view.current.update()
     
