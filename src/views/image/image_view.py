@@ -65,6 +65,7 @@ class ImageView(ft.Container):
         
         # 创建子视图（延迟创建）
         self.compress_view: Optional[ImageCompressView] = None
+        self.image_tools_install_view: Optional[object] = None  # 图片工具安装视图
         self.resize_view: Optional[ImageResizeView] = None
         self.format_view: Optional[ImageFormatView] = None
         self.background_view: Optional[ImageBackgroundView] = None
@@ -256,14 +257,20 @@ class ImageView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
+        # 检查工具是否已安装
+        tools_status = self.image_service.check_tools_installed()
+        if not tools_status["all_installed"]:
+            # 显示安装视图
+            self._show_image_tools_install_view()
+            return
+        
         # 创建压缩视图（如果还没创建）
         if not self.compress_view:
             self.compress_view = ImageCompressView(
                 self.page,
                 self.config_service,
                 self.image_service,
-                on_back=self._back_to_main,
-                parent_container=self.parent_container
+                on_back=self._back_to_main
             )
         
         # 记录当前子视图
@@ -272,6 +279,7 @@ class ImageView(ft.Container):
         
         # 切换到压缩视图
         self.parent_container.content = self.compress_view
+        
         self._safe_page_update()
     
     def _open_resize_dialog(self, e: ft.ControlEvent) -> None:
@@ -750,10 +758,10 @@ class ImageView(ft.Container):
         Args:
             e: 控件事件对象（可选）
         """
-        # 销毁当前子视图（而不是保留）
+        # 销毁当前子视图（除了压缩视图保留）
         if self.current_sub_view_type:
             view_map = {
-                "compress": "compress_view",
+                "compress": None,  # 保留压缩视图
                 "resize": "resize_view",
                 "format": "format_view",
                 "background": "background_view",
@@ -768,6 +776,7 @@ class ImageView(ft.Container):
                 "qrcode": "qrcode_view",
                 "watermark": "watermark_view",
                 "search": "search_view",
+                "image_tools_install": "image_tools_install_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
             if view_attr:
@@ -786,6 +795,31 @@ class ImageView(ft.Container):
         # 显示搜索按钮
         self._show_search_button()
     
+    def _show_image_tools_install_view(self) -> None:
+        """显示图片压缩工具安装视图。"""
+        from views.image.image_tools_install_view import ImageToolsInstallView
+        
+        if not self.image_tools_install_view:
+            self.image_tools_install_view = ImageToolsInstallView(
+                self.page,
+                self.image_service,
+                on_back=self._back_to_main,
+                on_installed=self._on_image_tools_installed
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.image_tools_install_view
+        self.current_sub_view_type = "image_tools_install"
+        
+        # 切换到安装视图
+        self.parent_container.content = self.image_tools_install_view
+        self._safe_page_update()
+    
+    def _on_image_tools_installed(self, e=None) -> None:
+        """图片工具安装完成回调。"""
+        # 返回主视图
+        self._back_to_main()
+    
     def restore_state(self) -> bool:
         """恢复视图状态（从其他页面切换回来时调用）。
         
@@ -795,6 +829,7 @@ class ImageView(ft.Container):
         if self.parent_container and self.current_sub_view:
             # 如果之前在子视图中，恢复到子视图
             self.parent_container.content = self.current_sub_view
+            
             self._safe_page_update()
             return True
         return False

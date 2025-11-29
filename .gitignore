@@ -22,6 +22,11 @@ wheels/
 .conda/
 storage/
 tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.pytest_cache/
 
 # Virtual Environment
 venv/
@@ -47,11 +52,3 @@ storage/data/*
 storage/temp/*
 !storage/data/.gitkeep
 !storage/temp/.gitkeep
-
-# 图片压缩工具（体积较大，不提交到 Git，由用户自行下载）
-bin/windows/mozjpeg/
-bin/windows/pngquant/
-bin/macos/mozjpeg/
-bin/macos/pngquant/
-bin/linux/mozjpeg/
-bin/linux/pngquant/

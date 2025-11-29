@@ -165,7 +165,12 @@ class ImageToolsInstallView(ft.Container):
                         color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
                     ft.Text(
-                        "• 安装完成后，这些工具将被保存到应用程序的 bin 目录",
+                        "• 安装完成后，这些工具将被保存到数据存储目录的 tools 文件夹",
+                        size=13,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                    ft.Text(
+                        "• 您可以在设置中查看和修改数据存储目录",
                         size=13,
                         color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
@@ -235,7 +240,8 @@ class ImageToolsInstallView(ft.Container):
                 time.sleep(1)
                 
                 if self.on_installed:
-                    self.page.run_task(lambda: self.on_installed())
+                    # 直接调用回调，不使用 run_task
+                    self.on_installed()
             else:
                 self.status_text.value = "❌ " + message
                 self.status_text.color = ft.Colors.RED

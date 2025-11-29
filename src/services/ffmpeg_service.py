@@ -42,11 +42,27 @@ class FFmpegService:
         # 获取应用程序根目录
         self.app_root = get_app_root()
         
-        # ffmpeg 本地安装目录
-        self.ffmpeg_dir = self.app_root / "bin" / "windows" / "ffmpeg"
+        # ffmpeg 本地安装目录 - 使用数据目录
+        if self.config_service:
+            data_dir = self.config_service.get_data_dir()
+            self.ffmpeg_dir = data_dir / "tools" / "ffmpeg"
+        else:
+            # 回退到应用根目录
+            self.ffmpeg_dir = self.app_root / "bin" / "windows" / "ffmpeg"
+        
         self.ffmpeg_bin = self.ffmpeg_dir / "bin"
         self.ffmpeg_exe = self.ffmpeg_bin / "ffmpeg.exe"
         self.ffprobe_exe = self.ffmpeg_bin / "ffprobe.exe"
+        
+        # 兼容性检查：如果旧路径存在ffmpeg，优先使用
+        old_ffmpeg_dir = self.app_root / "bin" / "windows" / "ffmpeg"
+        old_ffmpeg_exe = old_ffmpeg_dir / "bin" / "ffmpeg.exe"
+        if old_ffmpeg_exe.exists() and not self.ffmpeg_exe.exists():
+            # 如果旧路径有ffmpeg而新路径没有，使用旧路径
+            self.ffmpeg_dir = old_ffmpeg_dir
+            self.ffmpeg_bin = self.ffmpeg_dir / "bin"
+            self.ffmpeg_exe = self.ffmpeg_bin / "ffmpeg.exe"
+            self.ffprobe_exe = self.ffmpeg_bin / "ffprobe.exe"
     
     def _get_temp_dir(self) -> Path:
         """获取临时目录。

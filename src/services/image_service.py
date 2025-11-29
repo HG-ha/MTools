@@ -54,18 +54,33 @@ class ImageService:
         
         system = platform.system()
         
+        # 使用数据目录存储工具
+        if self.config_service:
+            data_dir = self.config_service.get_data_dir()
+            tools_dir = data_dir / "tools"
+        else:
+            # 回退到应用根目录
+            tools_dir = base_path / "bin" / "windows" if system == "Windows" else base_path / "bin" / system.lower()
+        
         if system == "Windows":
-            bin_dir = base_path / "bin" / "windows"
-            self.mozjpeg_path = bin_dir / "mozjpeg" / "shared" / "Release" / "cjpeg.exe"
-            self.pngquant_path = bin_dir / "pngquant" / "pngquant" / "pngquant.exe"
+            self.mozjpeg_path = tools_dir / "mozjpeg" / "shared" / "Release" / "cjpeg.exe"
+            self.pngquant_path = tools_dir / "pngquant" / "pngquant" / "pngquant.exe"
+            
+            # 兼容性检查：如果旧路径存在工具而新路径没有，使用旧路径
+            old_bin_dir = base_path / "bin" / "windows"
+            old_mozjpeg = old_bin_dir / "mozjpeg" / "shared" / "Release" / "cjpeg.exe"
+            old_pngquant = old_bin_dir / "pngquant" / "pngquant" / "pngquant.exe"
+            
+            if old_mozjpeg.exists() and not self.mozjpeg_path.exists():
+                self.mozjpeg_path = old_mozjpeg
+            if old_pngquant.exists() and not self.pngquant_path.exists():
+                self.pngquant_path = old_pngquant
         elif system == "Darwin":
-            bin_dir = base_path / "bin" / "macos"
-            self.mozjpeg_path = bin_dir / "mozjpeg" / "cjpeg"
-            self.pngquant_path = bin_dir / "pngquant" / "pngquant"
+            self.mozjpeg_path = tools_dir / "mozjpeg" / "cjpeg"
+            self.pngquant_path = tools_dir / "pngquant" / "pngquant"
         else:  # Linux
-            bin_dir = base_path / "bin" / "linux"
-            self.mozjpeg_path = bin_dir / "mozjpeg" / "cjpeg"
-            self.pngquant_path = bin_dir / "pngquant" / "pngquant"
+            self.mozjpeg_path = tools_dir / "mozjpeg" / "cjpeg"
+            self.pngquant_path = tools_dir / "pngquant" / "pngquant"
     
     def _is_tool_available(self, tool_name: str) -> bool:
         """检查压缩工具是否可用。
@@ -208,8 +223,12 @@ class ImageService:
             # 获取解压后的目录
             system = platform.system()
             if system == "Windows":
-                bin_dir = get_app_root() / "bin" / "windows"
-                mozjpeg_dest = bin_dir / "mozjpeg"
+                # 使用数据目录
+                if self.config_service:
+                    tools_dir = self.config_service.get_data_dir() / "tools"
+                else:
+                    tools_dir = get_app_root() / "bin" / "windows"
+                mozjpeg_dest = tools_dir / "mozjpeg"
                 
                 # 创建目标目录
                 mozjpeg_dest.mkdir(parents=True, exist_ok=True)
@@ -299,8 +318,12 @@ class ImageService:
             # 获取解压后的目录
             system = platform.system()
             if system == "Windows":
-                bin_dir = get_app_root() / "bin" / "windows"
-                pngquant_dest = bin_dir / "pngquant"
+                # 使用数据目录
+                if self.config_service:
+                    tools_dir = self.config_service.get_data_dir() / "tools"
+                else:
+                    tools_dir = get_app_root() / "bin" / "windows"
+                pngquant_dest = tools_dir / "pngquant"
                 
                 # 创建目标目录
                 pngquant_dest.mkdir(parents=True, exist_ok=True)
