@@ -2140,7 +2140,7 @@ class SettingsView(ft.Container):
                 ),
                 ft.TextButton(
                     "GIthub",
-                    on_click=lambda e: webbrowser.open("https://github.com/HG-ha"),
+                    on_click=lambda e: webbrowser.open("https://github.com/HG-ha/MTools"),
                     icon=ft.Icons.LINK,
                     tooltip="Github",
                 ),

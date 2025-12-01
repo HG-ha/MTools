@@ -17,6 +17,7 @@ class ToolMetadata:
     keywords: List[str]  # 搜索关键词
     icon: str  # 图标名称
     tool_id: str  # 工具ID
+    gradient_colors: tuple = ("#e0e0e0", "#f5f5f5")  # 渐变色（默认灰色）
     view_class: Optional[type] = None  # 视图类（用于延迟加载）
 
 
@@ -68,6 +69,7 @@ def register_tool_manual(
     keywords: List[str],
     icon: str,
     tool_id: str,
+    gradient_colors: tuple = ("#e0e0e0", "#f5f5f5"),
 ):
     """手动注册工具（不使用装饰器）。
     
@@ -80,6 +82,7 @@ def register_tool_manual(
         keywords=keywords,
         icon=icon,
         tool_id=tool_id,
+        gradient_colors=gradient_colors,
     )
     _TOOL_REGISTRY[tool_id] = metadata
 

@@ -61,17 +61,8 @@ class RecommendationsView(ft.Container):
         # 获取使用历史
         tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
         
-        # 标题
-        title_row = ft.Row(
-            controls=[
-                ft.Icon(ft.Icons.LIGHTBULB, size=32, color=ft.Colors.AMBER),
-                ft.Text("推荐工具", size=28, weight=ft.FontWeight.BOLD),
-            ],
-            spacing=PADDING_MEDIUM,
-        )
-        
-        # 推荐的工具卡片区域
-        recommended_cards_container = ft.Container()
+        # 推荐的工具卡片
+        recommended_cards = []
         
         if tool_usage_count:
             # 有使用历史，显示基于历史的推荐
@@ -87,52 +78,13 @@ class RecommendationsView(ft.Container):
                     recommended_tool_ids.append(tool_meta.tool_id)
             
             recommended_cards = self._build_tool_cards(recommended_tool_ids)
-            
-            recommended_cards_container.content = ft.Column(
-                controls=[
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.TRENDING_UP, size=20, color=ft.Colors.AMBER),
-                                        ft.Text("根据使用历史为您推荐", size=18, weight=ft.FontWeight.W_600),
-                                    ],
-                                    spacing=PADDING_SMALL,
-                                ),
-                                ft.Text(
-                                    "这些是您最常使用的工具",
-                                    size=13,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
-                                ),
-                            ],
-                            spacing=PADDING_SMALL // 2,
-                        ),
-                        padding=PADDING_MEDIUM,
-                        border=ft.border.all(1, ft.Colors.AMBER_200),
-                        border_radius=BORDER_RADIUS_MEDIUM,
-                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.AMBER),
-                    ),
-                    ft.Container(height=PADDING_MEDIUM),
-                    ft.Row(
-                        controls=recommended_cards if recommended_cards else [
-                            ft.Text("暂无推荐", color=ft.Colors.ON_SURFACE_VARIANT)
-                        ],
-                        wrap=True,
-                        spacing=PADDING_LARGE,
-                        run_spacing=PADDING_LARGE,
-                        alignment=ft.MainAxisAlignment.START,
-                    ),
-                ],
-                spacing=0,
-            )
         else:
             # 没有使用历史，显示智能推荐
             # 推荐一些常用工具
             smart_recommended = [
                 "image.compress",    # 图片压缩
                 "video.compress",    # 视频压缩
-                "video.format",      # 视频格式转换
+                "video.convert",     # 视频格式转换
                 "audio.format",      # 音频格式转换
                 "dev.json_viewer",   # JSON查看器
                 "dev.encoding",      # 编码转换
@@ -140,76 +92,24 @@ class RecommendationsView(ft.Container):
                 "video.speed",       # 视频倍速
             ]
             
-            smart_cards = self._build_tool_cards(smart_recommended)
-            
-            recommended_cards_container.content = ft.Column(
-                controls=[
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.TIPS_AND_UPDATES, size=24, color=ft.Colors.BLUE),
-                                        ft.Text("为您推荐", size=18, weight=ft.FontWeight.W_600),
-                                    ],
-                                    spacing=PADDING_SMALL,
-                                ),
-                                ft.Text(
-                                    "这些是最常用的工具，快来试试吧！",
-                                    size=13,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
-                                ),
-                            ],
-                            spacing=PADDING_SMALL // 2,
-                        ),
-                        padding=PADDING_MEDIUM,
-                        border=ft.border.all(1, ft.Colors.BLUE_200),
-                        border_radius=BORDER_RADIUS_MEDIUM,
-                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
-                    ),
-                    ft.Container(height=PADDING_MEDIUM),
-                    ft.Row(
-                        controls=smart_cards if smart_cards else [],
-                        wrap=True,
-                        spacing=PADDING_LARGE,
-                        run_spacing=PADDING_LARGE,
-                        alignment=ft.MainAxisAlignment.START,
-                    ),
-                ],
-                spacing=0,
-            )
+            recommended_cards = self._build_tool_cards(smart_recommended)
         
-        # 提示信息
-        tip_card = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=18, color=ft.Colors.BLUE),
-                    ft.Text(
-                        "💡 提示：使用工具后，系统会自动学习您的使用习惯，为您提供更精准的推荐",
-                        size=13,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    ),
-                ],
-                spacing=PADDING_SMALL,
-            ),
-            padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.BLUE_200),
-            border_radius=BORDER_RADIUS_MEDIUM,
-            bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
-            margin=ft.margin.only(top=PADDING_LARGE),
-        )
-        
-        # 组装内容
+        # 组装内容 - 只显示工具卡片
         self.content = ft.Column(
             controls=[
-                title_row,
-                ft.Divider(),
-                recommended_cards_container,
-                tip_card,
+                ft.Row(
+                    controls=recommended_cards if recommended_cards else [
+                        ft.Text("暂无推荐工具", color=ft.Colors.ON_SURFACE_VARIANT)
+                    ],
+                    wrap=True,
+                    spacing=PADDING_LARGE,
+                    run_spacing=PADDING_LARGE,
+                    alignment=ft.MainAxisAlignment.START,
+                ),
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
-            spacing=PADDING_MEDIUM,
+            spacing=0,
         )
     
     def _build_tool_cards(self, tool_ids: list) -> list:
@@ -230,8 +130,8 @@ class RecommendationsView(ft.Container):
             # 获取图标
             icon = getattr(ft.Icons, tool_meta.icon, ft.Icons.HELP_OUTLINE)
             
-            # 创建卡片（需要从分类获取渐变色）
-            gradient_colors = self._get_gradient_for_category(tool_meta.category)
+            # 使用工具自己的渐变色
+            gradient_colors = tool_meta.gradient_colors
             
             card = FeatureCard(
                 icon=icon,
