@@ -46,3 +46,5 @@ storage/data/*
 storage/temp/*
 !storage/data/.gitkeep
 !storage/temp/.gitkeep
+
+logs/
