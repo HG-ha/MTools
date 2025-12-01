@@ -10,6 +10,7 @@ import subprocess
 import warnings
 from pathlib import Path
 from typing import Callable, Optional
+from utils import logger
 
 import flet as ft
 from PIL import Image
@@ -873,7 +874,7 @@ class ImageCropView(ft.Container):
             self.page.update()
             
         except Exception as ex:
-            print(f"加载失败: {ex}")
+            logger.error(f"加载失败: {ex}")
     
     def _calculate_image_display_bounds(self) -> None:
         """计算图片在画布中的实际显示位置和大小。"""
@@ -1318,7 +1319,7 @@ class ImageCropView(ft.Container):
                     pass
                     
         except Exception as ex:
-            print(f"预览失败: {ex}")
+            logger.error(f"预览失败: {ex}")
     
     def _on_preview_click(self, e: ft.ControlEvent) -> None:
         """点击预览。"""
@@ -1368,7 +1369,7 @@ class ImageCropView(ft.Container):
                 allowed_extensions=allowed_extensions,
             )
         except Exception as ex:
-            print(f"保存失败: {ex}")
+            logger.error(f"保存失败: {ex}")
     
     def _on_save_file_selected(self, e: ft.FilePickerResultEvent) -> None:
         """保存文件选择完成。"""
@@ -1400,7 +1401,7 @@ class ImageCropView(ft.Container):
             snackbar.open = True
             self.page.update()
         except Exception as ex:
-            print(f"保存失败: {ex}")
+            logger.error(f"保存失败: {ex}")
             self._show_snackbar(f"保存失败: {str(ex)}", ft.Colors.RED)
     
     def _save_as_gif(self, output_path: Path) -> None:
@@ -1513,7 +1514,7 @@ class ImageCropView(ft.Container):
             
             self.page.update()
         except Exception as ex:
-            print(f"加载帧失败: {ex}")
+            logger.error(f"加载帧失败: {ex}")
     
     def _on_keyboard(self, e: ft.KeyboardEvent) -> None:
         """键盘事件处理（支持 WASD 精调裁剪框位置）。

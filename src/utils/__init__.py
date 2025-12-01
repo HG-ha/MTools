@@ -12,6 +12,16 @@ from .file_utils import (
     move_file,
 )
 from .gif_utils import GifUtils
+from .logger import (
+    logger,
+    debug,
+    info,
+    warning,
+    error,
+    critical,
+    exception,
+    log_print,
+)
 from .tool_metadata import (
     ToolMetadata,
     get_all_tools,
@@ -30,6 +40,14 @@ __all__ = [
     "get_file_extension",
     "list_files_by_extension",
     "GifUtils",
+    "logger",
+    "debug",
+    "info",
+    "warning",
+    "error",
+    "critical",
+    "exception",
+    "log_print",
     "ToolMetadata",
     "register_tool",
     "register_tool_manual",

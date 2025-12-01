@@ -8,6 +8,7 @@
 import sys
 import zipfile
 from pathlib import Path
+from utils import logger
 
 
 def _is_nuitka_compiled() -> bool:
@@ -123,8 +124,8 @@ def _disable_flet_auto_download() -> None:
                 patched = True
         
         if not patched:
-            print("[Nuitka Setup] ⚠️  Could not find download function to patch")
-            print(f"[Nuitka Setup] Available functions: {[x for x in dir(flet_desktop) if 'download' in x.lower()]}")
+            logger.error("[Nuitka Setup] ⚠️  Could not find download function to patch")
+            logger.error(f"[Nuitka Setup] Available functions: {[x for x in dir(flet_desktop) if 'download' in x.lower()]}")
             
     except ImportError:
         # flet_desktop 还未导入，使用 import hook

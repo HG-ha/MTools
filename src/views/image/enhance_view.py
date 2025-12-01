@@ -9,6 +9,7 @@ import threading
 import webbrowser
 from pathlib import Path
 from typing import Callable, List, Optional, Dict
+from utils import logger
 
 import flet as ft
 
@@ -1364,7 +1365,7 @@ class ImageEnhanceView(ft.Container):
                     success_count += 1
                     
                 except Exception as ex:
-                    print(f"处理失败 {file_path.name}: {ex}")
+                    logger.error(f"处理失败 {file_path.name}: {ex}")
             
             # 处理完成
             self._on_process_complete(success_count, total_files, output_dir)

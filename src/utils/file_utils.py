@@ -9,6 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import List, Optional
+from utils import logger
 
 
 def is_packaged_app() -> bool:
@@ -53,7 +54,7 @@ def ensure_dir(path: Path) -> bool:
         path.mkdir(parents=True, exist_ok=True)
         return True
     except Exception as e:
-        print(f"创建目录失败: {e}")
+        logger.error(f"创建目录失败: {e}")
         return False
 
 
@@ -112,7 +113,7 @@ def clean_temp_files(temp_dir: Path, max_age_days: int = 7) -> int:
                     file_path.unlink()
                     count += 1
     except Exception as e:
-        print(f"清理临时文件失败: {e}")
+        logger.error(f"清理临时文件失败: {e}")
     
     return count
 
@@ -131,7 +132,7 @@ def copy_file(src: Path, dst: Path) -> bool:
         shutil.copy2(src, dst)
         return True
     except Exception as e:
-        print(f"复制文件失败: {e}")
+        logger.error(f"复制文件失败: {e}")
         return False
 
 
@@ -149,7 +150,7 @@ def move_file(src: Path, dst: Path) -> bool:
         shutil.move(str(src), str(dst))
         return True
     except Exception as e:
-        print(f"移动文件失败: {e}")
+        logger.error(f"移动文件失败: {e}")
         return False
 
 
@@ -182,7 +183,7 @@ def list_files_by_extension(directory: Path, extensions: List[str]) -> List[Path
             pattern: str = f"*.{ext}"
             files.extend(directory.glob(pattern))
     except Exception as e:
-        print(f"列出文件失败: {e}")
+        logger.error(f"列出文件失败: {e}")
     
     return files
 

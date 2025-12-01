@@ -238,7 +238,7 @@ class MediaView(ft.Container):
         if view_name == 'audio_format':
             if not self.audio_format_view:
                 self.audio_format_view = AudioFormatView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.audio_service,
                     self.ffmpeg_service,
@@ -249,7 +249,7 @@ class MediaView(ft.Container):
         elif view_name == 'audio_compress':
             if not self.audio_compress_view:
                 self.audio_compress_view = AudioCompressView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -259,7 +259,7 @@ class MediaView(ft.Container):
         elif view_name == 'audio_speed':
             if not self.audio_speed_view:
                 self.audio_speed_view = AudioSpeedView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -270,7 +270,7 @@ class MediaView(ft.Container):
             if not self.vocal_extraction_view:
                 from views.media.vocal_extraction_view import VocalExtractionView
                 self.vocal_extraction_view = VocalExtractionView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -280,7 +280,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_compress':
             if not self.video_compress_view:
                 self.video_compress_view = VideoCompressView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -290,7 +290,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_convert':
             if not self.video_convert_view:
                 self.video_convert_view = VideoConvertView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -300,7 +300,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_extract_audio':
             if not self.video_extract_audio_view:
                 self.video_extract_audio_view = VideoExtractAudioView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -310,7 +310,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_speed':
             if not self.video_speed_view:
                 self.video_speed_view = VideoSpeedView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -320,7 +320,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_vocal_separation':
             if not self.video_vocal_separation_view:
                 self.video_vocal_separation_view = VideoVocalSeparationView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -330,7 +330,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_watermark':
             if not self.video_watermark_view:
                 self.video_watermark_view = VideoWatermarkView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -340,7 +340,7 @@ class MediaView(ft.Container):
         elif view_name == 'video_repair':
             if not self.video_repair_view:
                 self.video_repair_view = VideoRepairView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.ffmpeg_service,
                     on_back=self._back_to_main
@@ -351,7 +351,7 @@ class MediaView(ft.Container):
         """显示FFmpeg安装提示视图。"""
         if not self.ffmpeg_install_view:
             self.ffmpeg_install_view = FFmpegInstallView(
-                self.page,
+                self._saved_page,
                 self.ffmpeg_service,
                 on_back=self._back_to_main,
                 on_installed=self._on_ffmpeg_installed
@@ -375,7 +375,6 @@ class MediaView(ft.Container):
             view_type: 视图类型
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
             return
         
         # 记录当前子视图

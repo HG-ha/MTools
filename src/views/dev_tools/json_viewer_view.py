@@ -12,6 +12,7 @@ import flet as ft
 
 from constants import PADDING_MEDIUM, PADDING_SMALL
 from services import ConfigService
+from utils import logger
 
 
 class JsonTreeNode(ft.Container):
@@ -757,7 +758,7 @@ class JsonTreeNode(ft.Container):
             
             page.open(dialog)
         except Exception as ex:
-            print(f"右键菜单错误: {ex}")
+            logger.error(f"右键菜单错误: {ex}")
             import traceback
             traceback.print_exc()
 
@@ -776,7 +777,7 @@ class JsonTreeNode(ft.Container):
             snack_bar.open = True
             page.update()
         except Exception as ex:
-            print(f"复制失败: {ex}")
+            logger.error(f"复制失败: {ex}")
 
     def _copy_value_to_clipboard(self, page):
         """复制值到剪贴板。"""
@@ -789,7 +790,7 @@ class JsonTreeNode(ft.Container):
                 text = str(self.value)
             self._copy_to_clipboard(page, text)
         except Exception as ex:
-            print(f"复制值失败: {ex}")
+            logger.error(f"复制值失败: {ex}")
 
     def _close_dialog(self, page):
         """关闭对话框。"""
@@ -800,7 +801,7 @@ class JsonTreeNode(ft.Container):
                 page.dialog.open = False
                 page.update()
         except Exception as ex:
-            print(f"关闭对话框失败: {ex}")
+            logger.error(f"关闭对话框失败: {ex}")
 
 
 class JsonViewerView(ft.Container):

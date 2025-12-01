@@ -6,7 +6,7 @@
 
 from pathlib import Path
 from typing import List, Optional, Tuple
-
+from utils import logger
 from PIL import Image
 
 
@@ -102,7 +102,7 @@ class GifUtils:
             
             return frame
         except Exception as e:
-            print(f"提取帧失败: {e}")
+            logger.error(f"提取帧失败: {e}")
             return None
     
     @staticmethod
@@ -135,7 +135,7 @@ class GifUtils:
                 img.seek(0)
                 return img.convert('RGBA').copy(), 0
         except Exception as e:
-            print(f"获取第一个非空帧失败: {e}")
+            logger.error(f"获取第一个非空帧失败: {e}")
             return None, 0
     
     @staticmethod
@@ -162,7 +162,7 @@ class GifUtils:
                     except Exception:
                         continue
         except Exception as e:
-            print(f"提取所有帧失败: {e}")
+            logger.error(f"提取所有帧失败: {e}")
         
         return frames
     
@@ -190,7 +190,7 @@ class GifUtils:
                     except Exception:
                         durations.append(100)  # 默认值
         except Exception as e:
-            print(f"获取帧持续时间失败: {e}")
+            logger.error(f"获取帧持续时间失败: {e}")
         
         return durations
     
@@ -222,7 +222,7 @@ class GifUtils:
                     except Exception:
                         continue
         except Exception as exc:  # pragma: no cover - 日志输出
-            print(f"加载 GIF 元数据失败: {exc}")
+            logger.error(f"加载 GIF 元数据失败: {exc}")
         return frames, durations, loop
     
     @staticmethod
@@ -262,7 +262,7 @@ class GifUtils:
             )
             return True
         except Exception as exc:  # pragma: no cover - 日志输出
-            print(f"保存 GIF 失败: {exc}")
+            logger.error(f"保存 GIF 失败: {exc}")
             return False
     
     @staticmethod
@@ -308,7 +308,7 @@ class GifUtils:
             
             return True
         except Exception as e:
-            print(f"保存帧失败: {e}")
+            logger.error(f"保存帧失败: {e}")
             return False
     
     @staticmethod
@@ -344,6 +344,6 @@ class GifUtils:
             )
             return True
         except Exception as e:
-            print(f"创建 GIF 失败: {e}")
+            logger.error(f"创建 GIF 失败: {e}")
             return False
 

@@ -557,7 +557,6 @@ class ImageService:
             
             return True
         except Exception as e:
-            print(f"格式转换失败: {e}")
             return False
     
     def compress_image(
@@ -854,7 +853,6 @@ class ImageService:
             
             return True
         except Exception as e:
-            print(f"尺寸调整失败: {e}")
             return False
     
     def adjust_gif(
@@ -1471,7 +1469,6 @@ class ImageService:
             
             return None
         except Exception as e:
-            print(f"检测 Android Motion Photo 失败: {e}")
             return None
     
     def _detect_iphone_live_photo(self, image_path: Path, file_data: bytes) -> Optional[dict]:
@@ -1571,7 +1568,6 @@ class ImageService:
             
             return None
         except Exception as e:
-            print(f"检测 iPhone Live Photo 失败: {e}")
             return None
     
     def _detect_samsung_motion_photo(self, file_data: bytes) -> Optional[dict]:
@@ -1623,7 +1619,6 @@ class ImageService:
             
             return None
         except Exception as e:
-            print(f"检测 Samsung Motion Photo 失败: {e}")
             return None
     
     def debug_live_photo_detection(self, image_path: Path) -> dict:

@@ -1152,7 +1152,6 @@ class ImageWatermarkView(ft.Container):
                 try:
                     return ImageFont.truetype(str(self.custom_font_path), font_size)
                 except Exception as e:
-                    print(f"加载自定义字体失败: {e}")
                     # 加载失败，降级到微软雅黑
                     pass
             else:
@@ -1818,7 +1817,6 @@ class ImageWatermarkView(ft.Container):
                     success_count += 1
                 
                 except Exception as ex:
-                    print(f"处理文件 {file_path.name} 失败: {str(ex)}")
                     continue
             
             # 完成进度显示

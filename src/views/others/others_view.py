@@ -129,7 +129,7 @@ class OthersView(ft.Container):
         
         # 创建Windows更新视图
         windows_update_view = WindowsUpdateView(
-            page=self.page,
+            page=self._saved_page,
             on_back=lambda: self._restore_main_view(),
         )
         
@@ -154,7 +154,7 @@ class OthersView(ft.Container):
         
         # 创建图片转URL视图
         image_to_url_view = ImageToUrlView(
-            page=self.page,
+            page=self._saved_page,
             on_back=lambda: self._restore_main_view(),
         )
         
@@ -179,7 +179,7 @@ class OthersView(ft.Container):
         
         # 创建文件转URL视图
         file_to_url_view = FileToUrlView(
-            page=self.page,
+            page=self._saved_page,
             on_back=lambda: self._restore_main_view(),
         )
         

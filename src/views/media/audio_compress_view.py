@@ -19,7 +19,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, FFmpegService
-from utils import format_file_size
+from utils import format_file_size, logger
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -576,7 +576,6 @@ class AudioCompressView(ft.Container):
                     error_count += 1
                     
             except Exception as e:
-                print(f"压缩文件失败: {file_path}, 错误: {e}")
                 error_count += 1
         
         # 完成处理
@@ -637,10 +636,10 @@ class AudioCompressView(ft.Container):
             return True
             
         except ffmpeg.Error as e:
-            print(f"压缩音频失败: {e.stderr.decode() if e.stderr else str(e)}")
+            logger.error(f"压缩音频失败: {e.stderr.decode() if e.stderr else str(e)}")
             return False
         except Exception as e:
-            print(f"压缩音频失败: {e}")
+            logger.error(f"压缩音频失败: {e}")
             return False
     
     def _update_progress(self, value: float, text: str) -> None:

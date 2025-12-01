@@ -9,6 +9,7 @@ from typing import Callable, Optional, List, Dict
 import threading
 import time
 import shutil
+from utils import logger
 
 import flet as ft
 import httpx
@@ -120,6 +121,9 @@ class SettingsView(ft.Container):
         # 外观设置部分（透明度和背景图片）
         appearance_section: ft.Container = self._build_appearance_section()
         
+        # 界面设置部分
+        interface_section: ft.Container = self._build_interface_section()
+        
         # GPU加速设置部分
         gpu_acceleration_section: ft.Container = self._build_gpu_acceleration_section()
         
@@ -141,6 +145,8 @@ class SettingsView(ft.Container):
                 theme_color_section,
                 ft.Container(height=PADDING_LARGE),
                 appearance_section,
+                ft.Container(height=PADDING_LARGE),
+                interface_section,
                 ft.Container(height=PADDING_LARGE),
                 gpu_acceleration_section,
                 ft.Container(height=PADDING_LARGE),
@@ -984,7 +990,7 @@ class SettingsView(ft.Container):
                 page.update()
         except Exception as e:
             # 如果更新失败，至少确保不显示"加载中"
-            print(f"更新壁纸UI信息失败: {e}")
+            logger.error(f"更新壁纸UI信息失败: {e}")
             if hasattr(self, 'bg_image_text'):
                 # 如果更新失败，显示通用的"必应壁纸"
                 if "加载中" in self.bg_image_text.value or self.bg_image_text.value.startswith("http"):
@@ -1068,6 +1074,60 @@ class SettingsView(ft.Container):
         if self.auto_switch_timer:
             self.auto_switch_timer.cancel()
             self.auto_switch_timer = None
+    
+    def _build_interface_section(self) -> ft.Container:
+        """构建界面设置部分。
+        
+        Returns:
+            界面设置容器
+        """
+        section_title = ft.Text(
+            "界面设置",
+            size=20,
+            weight=ft.FontWeight.W_600,
+        )
+        
+        # 获取当前配置
+        show_recommendations = self.config_service.get_config_value("show_recommendations_page", True)
+        
+        # 推荐工具页面开关
+        self.recommendations_switch = ft.Switch(
+            label="显示推荐工具页面",
+            value=show_recommendations,
+            on_change=self._on_recommendations_switch_change,
+        )
+        
+        # 说明文字
+        info_text = ft.Text(
+            "关闭后，导航栏将不显示推荐工具页面，应用将直接打开图片处理页面",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.recommendations_switch,
+                    ft.Container(height=PADDING_SMALL),
+                    info_text,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _on_recommendations_switch_change(self, e: ft.ControlEvent) -> None:
+        """推荐工具页面开关改变事件。"""
+        enabled = e.control.value
+        if self.config_service.set_config_value("show_recommendations_page", enabled):
+            status = "已显示" if enabled else "已隐藏"
+            self._show_snackbar(f"推荐工具页面{status}，重启应用后生效", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("设置更新失败", ft.Colors.RED)
     
     def _build_gpu_acceleration_section(self) -> ft.Container:
         """构建GPU加速设置部分，包括高级参数配置。"""
@@ -2504,7 +2564,7 @@ class SettingsView(ft.Container):
                                 item.unlink()
                             deleted_count += 1
                         except Exception as e:
-                            print(f"删除 {item.name} 失败: {e}")
+                            logger.error(f"删除 {item.name} 失败: {e}")
                     
                     if deleted_count > 0:
                         self._show_snackbar(f"已删除 {deleted_count} 项旧数据（保留了 config.json）", ft.Colors.GREEN)
@@ -2720,11 +2780,11 @@ class SettingsView(ft.Container):
             except Exception:
                 # 如果 overlay 不可用或在后台线程中引发错误，则尝试安全地设置一个简单替代：
                 # 将消息打印到控制台（避免抛出未捕获异常）
-                print(f"Snackbar show failed: {message}")
+                logger.error(f"Snackbar show failed: {message}")
         except Exception:
             # 最后兜底，避免线程未捕获异常终止程序
             try:
-                print(f"_show_snackbar error: {message}")
+                logger.error(f"_show_snackbar error: {message}")
             except Exception:
                 pass
 

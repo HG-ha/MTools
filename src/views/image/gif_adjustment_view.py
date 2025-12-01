@@ -19,7 +19,7 @@ from constants import (
 )
 from models import GifAdjustmentOptions
 from services import ConfigService, ImageService, FFmpegService
-from utils import format_file_size, GifUtils
+from utils import format_file_size, GifUtils, logger
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -632,7 +632,6 @@ class GifAdjustmentView(ft.Container):
             file_path: GIF 文件路径
         """
         # 清除旧的预览任务
-        print(f"[_load_gif_file] 清除旧预览任务...")
         self._clear_preview_tasks()
         
         self.selected_file = file_path
@@ -640,7 +639,6 @@ class GifAdjustmentView(ft.Container):
         # 生成新的文件ID
         import time
         self.current_file_id = f"{file_path}_{time.time()}"
-        print(f"[_load_gif_file] 新文件ID: {self.current_file_id[:50]}...")
         
         # 检查是否为动态 GIF
         if not GifUtils.is_animated_gif(file_path):
@@ -706,19 +704,14 @@ class GifAdjustmentView(ft.Container):
         
         # 保存当前文件ID用于延迟预览
         saved_file_id = self.current_file_id
-        print(f"[_load_gif_file] 准备延迟显示第一帧，saved_file_id: {saved_file_id[:50]}...")
         
         # 延迟显示第一帧的预览（确保UI已更新）
         def delayed_preview():
             import time
             time.sleep(0.3)  # 等待300ms，确保清除和UI更新都完成
-            print(f"[delayed_preview] 延迟完成，检查文件ID: current={self.current_file_id[:50]}..., saved={saved_file_id[:50]}...")
             # 确认还是当前文件（双重检查）
             if self.current_file_id == saved_file_id:
-                print(f"[delayed_preview] 文件ID匹配，开始更新第一帧预览")
                 self._update_cover_preview(0, saved_file_id)
-            else:
-                print(f"[delayed_preview] 文件ID不匹配，跳过预览")
         
         thread = threading.Thread(target=delayed_preview, daemon=True)
         thread.start()
@@ -729,7 +722,6 @@ class GifAdjustmentView(ft.Container):
         Args:
             file_path: 实况图文件路径
         """
-        print(f"[_load_live_photo_file] 开始加载: {file_path}")
         
         # 清除旧的预览任务
         self._clear_preview_tasks()
@@ -740,35 +732,27 @@ class GifAdjustmentView(ft.Container):
         
         # 显示加载提示
         self._show_snackbar("正在检测实况图...", ft.Colors.BLUE)
-        print(f"[_load_live_photo_file] 开始后台处理...")
         
         # 在后台线程中处理，避免阻塞UI
         def process():
             try:
-                print(f"[process] 读取文件数据...")
                 # 读取文件数据
                 with open(file_path, 'rb') as f:
                     file_data = f.read()
                 
-                print(f"[process] 文件大小: {len(file_data)} 字节")
                 
                 # 检测实况图
-                print(f"[process] 开始检测实况图...")
                 live_info = self.image_service._detect_live_photo(file_path, file_data)
-                print(f"[process] 检测结果: {live_info}")
                 
                 if not live_info:
-                    print(f"[process] 不是实况图")
                     self._show_snackbar("所选文件不是实况图", ft.Colors.ORANGE)
                     return
                 
                 # 检查是否有可提取的视频
                 has_video = (live_info.get('has_embedded_video') or 
                            live_info.get('has_companion_video'))
-                print(f"[process] 有视频数据: {has_video}")
                 
                 if not has_video:
-                    print(f"[process] 不包含视频数据")
                     self._show_snackbar("此实况图不包含视频数据", ft.Colors.ORANGE)
                     return
                 
@@ -776,16 +760,12 @@ class GifAdjustmentView(ft.Container):
                 import tempfile
                 temp_dir = Path(tempfile.mkdtemp())
                 temp_video = temp_dir / "live_photo_video.mp4"
-                print(f"[process] 临时视频路径: {temp_video}")
                 
-                print(f"[process] 开始提取视频...")
                 success, message = self.image_service.extract_live_photo_video(
                     file_path, temp_video
                 )
-                print(f"[process] 提取结果: success={success}, message={message}")
                 
                 if not success:
-                    print(f"[process] 提取视频失败: {message}")
                     self._show_snackbar(f"提取视频失败: {message}", ft.Colors.RED)
                     return
                 
@@ -795,7 +775,6 @@ class GifAdjustmentView(ft.Container):
                 # 获取视频信息（使用 ffmpeg-python）
                 import ffmpeg
                 
-                print(f"[process] 开始获取视频信息...")
                 try:
                     # 设置 ffmpeg 环境
                     self._setup_ffmpeg_env()
@@ -810,7 +789,6 @@ class GifAdjustmentView(ft.Container):
                             video_stream = stream
                             break
                     
-                    print(f"[process] 找到视频流: {video_stream is not None}")
                     
                     if video_stream:
                         # 计算帧数和 FPS
@@ -828,7 +806,6 @@ class GifAdjustmentView(ft.Container):
                         except:
                             fps = 30.0
                         
-                        print(f"[process] 视频信息: r_frame_rate={r_frame_rate}, fps={fps:.2f}, duration={duration}, nb_frames={nb_frames}")
                         
                         if nb_frames == 0 and duration > 0:
                             nb_frames = int(duration * fps)
@@ -841,15 +818,12 @@ class GifAdjustmentView(ft.Container):
                         frame_duration = max(10, frame_duration)  # 至少 10ms
                         self.original_durations = [frame_duration] * self.frame_count
                         
-                        print(f"[process] 设置帧数: {self.frame_count}, 帧时长: {frame_duration}ms")
                     else:
                         # 默认值
-                        print(f"[process] 未找到视频流，使用默认值")
                         self.frame_count = 30
                         self.original_durations = [100] * self.frame_count
                         
                 except Exception as e:
-                    print(f"[process] 获取视频信息异常: {e}")
                     import traceback
                     traceback.print_exc()
                     # 使用默认值
@@ -857,17 +831,14 @@ class GifAdjustmentView(ft.Container):
                     self.original_durations = [100] * self.frame_count
                 
                 # 保存实况图信息
-                print(f"[process] 保存实况图信息...")
                 self.selected_file = file_path
                 self.is_live_photo = True
                 self.live_photo_info = live_info
                 self.original_loop = 0  # 实况图默认不循环
                 
-                print(f"[process] 准备更新UI...")
                 
                 # 更新UI（在主线程）
                 async def update_ui():
-                    print(f"[update_ui] 开始更新UI...")
                     # 更新文件信息
                     file_size = format_file_size(file_path.stat().st_size)
                     live_type = live_info.get('type', '实况图')
@@ -910,11 +881,8 @@ class GifAdjustmentView(ft.Container):
                     self._update_format_options(is_live_photo=True)
                     
                     self._show_snackbar("✓ 实况图加载成功", ft.Colors.GREEN)
-                    print(f"[update_ui] UI 更新完成")
                 
-                print(f"[process] 调用 page.run_task 更新UI...")
                 self.page.run_task(update_ui)
-                print(f"[process] 处理完成")
                 
                 # 保存当前文件ID用于延迟预览
                 saved_file_id = self.current_file_id
@@ -926,25 +894,19 @@ class GifAdjustmentView(ft.Container):
                     # 检查当前文件ID用于检查
                     current_id = self.current_file_id
                     if current_id == saved_file_id:  # 确保还是当前文件
-                        print(f"[delayed_preview] 开始显示第一帧预览，file_id={saved_file_id[:30]}...")
                         self._update_cover_preview(0, saved_file_id)
-                    else:
-                        print(f"[delayed_preview] 文件已切换，跳过预览")
                 
                 preview_thread = threading.Thread(target=delayed_preview, daemon=True)
                 preview_thread.start()
                 
             except Exception as e:
-                print(f"[process] 异常: {e}")
                 import traceback
                 traceback.print_exc()
                 self._show_snackbar(f"加载失败: {str(e)}", ft.Colors.RED)
         
         # 在后台线程运行
-        print(f"[_load_live_photo_file] 启动后台线程...")
         thread = threading.Thread(target=process, daemon=True)
         thread.start()
-        print(f"[_load_live_photo_file] 后台线程已启动")
     
     def _enable_controls(self) -> None:
         """启用所有控件。"""
@@ -1733,7 +1695,6 @@ class GifAdjustmentView(ft.Container):
     
     def _on_ffmpeg_installed(self) -> None:
         """FFmpeg 安装完成回调。"""
-        print("FFmpeg 安装完成，准备返回...")
         
         # 返回到 GIF 调整视图
         if self.parent_container:
@@ -1748,15 +1709,12 @@ class GifAdjustmentView(ft.Container):
             file_to_load = self.pending_file
             self.pending_file = None  # 清除待处理文件
             
-            print(f"检测到待处理文件: {file_to_load}")
             
             # 使用 Timer 延迟加载，让界面先更新
             def delayed_load():
-                print(f"开始自动加载实况图: {file_to_load}")
                 try:
                     self._load_live_photo_file(file_to_load)
                 except Exception as e:
-                    print(f"自动加载失败: {e}")
                     import traceback
                     traceback.print_exc()
                     self._show_snackbar(f"自动加载失败: {str(e)}", ft.Colors.RED)
@@ -1768,7 +1726,6 @@ class GifAdjustmentView(ft.Container):
     
     def _on_ffmpeg_installed_rebuild(self) -> None:
         """FFmpeg 安装完成后重建界面。"""
-        print("[_on_ffmpeg_installed_rebuild] FFmpeg 安装完成，重建界面...")
         
         # 重置 padding
         self.padding = ft.padding.only(
@@ -1786,10 +1743,8 @@ class GifAdjustmentView(ft.Container):
             self.parent_container.content = self
             try:
                 self.page.update()
-                print("[_on_ffmpeg_installed_rebuild] 界面重建成功")
                 self._show_snackbar("FFmpeg 安装成功！可以使用实况图功能了", ft.Colors.GREEN)
             except Exception as ex:
-                print(f"[_on_ffmpeg_installed_rebuild] 页面更新失败: {ex}")
                 import traceback
                 traceback.print_exc()
     
@@ -1799,17 +1754,13 @@ class GifAdjustmentView(ft.Container):
         Args:
             e: 控件事件对象（可选）
         """
-        print("[_on_ffmpeg_install_back] 返回按钮被点击")
         
         # 清除待处理文件
         self.pending_file = None
         
         # 直接返回到上一级（图片工具主界面）
         if self.on_back:
-            print("[_on_ffmpeg_install_back] 调用 on_back 回调")
             self.on_back()
-        else:
-            print("[_on_ffmpeg_install_back] 警告: on_back 回调未设置")
     
     def _clear_preview_tasks(self) -> None:
         """清除所有预览相关的任务。"""
@@ -1832,7 +1783,7 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.update()
                     self.cover_preview_placeholder.update()
                 except Exception as e:
-                    print(f"[_clear_preview_tasks] 清除UI失败: {e}")
+                    logger.error(f"[_clear_preview_tasks] 清除UI失败: {e}")
             
             try:
                 self.page.run_task(clear_preview_ui)
@@ -1879,7 +1830,6 @@ class GifAdjustmentView(ft.Container):
         """
         # 检查文件ID是否匹配（防止显示旧文件的帧）
         if file_id and file_id != self.current_file_id:
-            print(f"[_update_cover_preview] 文件ID不匹配，跳过 (request: {file_id[:20]}..., current: {self.current_file_id[:20]}...)")
             return
         
         if not self.selected_file:
@@ -1899,12 +1849,10 @@ class GifAdjustmentView(ft.Container):
                 
                 # 再次检查文件ID
                 if file_id and file_id != self.current_file_id:
-                    print(f"[extract_frame] 文件ID不匹配，跳过帧 {frame_index}")
                     return
                 
                 # 再次检查是否已经有更新的请求
                 if self.current_preview_frame != frame_index:
-                    print(f"[_update_cover_preview] 跳过帧 {frame_index}，已有更新请求")
                     return
                 
                 if self.is_live_photo and self.temp_video_path:
@@ -1915,7 +1863,6 @@ class GifAdjustmentView(ft.Container):
                     self._extract_frame_from_gif(frame_index, file_id)
                     
             except Exception as e:
-                print(f"[_update_cover_preview] 提取帧失败: {e}")
                 import traceback
                 traceback.print_exc()
         
@@ -1935,7 +1882,6 @@ class GifAdjustmentView(ft.Container):
             
             # 检查文件ID
             if file_id and file_id != self.current_file_id:
-                print(f"[_extract_frame_from_gif] 文件ID不匹配，跳过")
                 return
             
             # 检查是否已经有更新的请求
@@ -1982,7 +1928,6 @@ class GifAdjustmentView(ft.Container):
                 self.page.run_task(update_preview)
                 
         except Exception as e:
-            print(f"[_extract_frame_from_gif] 失败: {e}")
             import traceback
             traceback.print_exc()
     
@@ -1998,7 +1943,6 @@ class GifAdjustmentView(ft.Container):
             
             # 检查文件ID
             if file_id and file_id != self.current_file_id:
-                print(f"[_extract_frame_from_video] 文件ID不匹配，跳过")
                 return
             
             # 检查是否已经有更新的请求
@@ -2006,7 +1950,6 @@ class GifAdjustmentView(ft.Container):
                 return
             
             if not self.temp_video_path or not self.temp_video_path.exists():
-                print("[_extract_frame_from_video] 临时视频不存在")
                 return
             
             # 计算时间点（秒）
@@ -2039,7 +1982,6 @@ class GifAdjustmentView(ft.Container):
                 stream = ffmpeg.output(stream, str(temp_file), vframes=1)
                 ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
             except ffmpeg.Error as e:
-                print(f"[_extract_frame_from_video] ffmpeg 失败: {e}")
                 return
             
             # 最后一次检查
@@ -2061,11 +2003,8 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_placeholder.update()
                 
                 self.page.run_task(update_preview)
-            else:
-                print(f"[_extract_frame_from_video] 提取帧失败，文件不存在")
                 
         except Exception as e:
-            print(f"[_extract_frame_from_video] 失败: {e}")
             import traceback
             traceback.print_exc()
 

@@ -370,7 +370,6 @@ class CustomTitleBar(ft.Container):
             self.page.update()
             
         except Exception as e:
-            print(f"加载天气数据失败: {e}")
             self.weather_text.value = "加载失败"
             self.weather_icon.name = ft.Icons.ERROR_OUTLINE
             self.weather_container.tooltip = f"错误: {str(e)}"

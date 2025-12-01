@@ -9,6 +9,7 @@ import threading
 import webbrowser
 from pathlib import Path
 from typing import Callable, List, Optional, Dict
+from utils import logger
 
 import flet as ft
 
@@ -653,7 +654,7 @@ class ImageBackgroundView(ft.Container):
             error: 错误信息
         """
         self.is_model_loading = False
-        print(success,error)
+        logger.error(success,error)
         if success:
             # 获取设备信息
             device_info = "未知设备"
@@ -1401,7 +1402,7 @@ class ImageBackgroundView(ft.Container):
                     if is_gif:
                         image = GifUtils.extract_frame(file_path, frame_index)
                         if image is None:
-                            print(f"提取 GIF 帧失败: {file_path.name}")
+                            logger.error(f"提取 GIF 帧失败: {file_path.name}")
                             continue
                     else:
                         image = Image.open(file_path)
@@ -1423,7 +1424,7 @@ class ImageBackgroundView(ft.Container):
                     success_count += 1
                     
                 except Exception as ex:
-                    print(f"处理失败 {file_path.name}: {ex}")
+                    logger.error(f"处理失败 {file_path.name}: {ex}")
             
             # 处理完成
             self._on_process_complete(success_count, total_files, output_dir)

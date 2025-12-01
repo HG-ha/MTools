@@ -17,7 +17,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, ImageService
-from utils import format_file_size, GifUtils
+from utils import format_file_size, GifUtils, logger
 
 
 class ImageFormatView(ft.Container):
@@ -847,9 +847,9 @@ class ImageFormatView(ft.Container):
                         
                         success_count += 1
                     except Exception as ex:
-                        print(f"保存 GIF 帧失败: {ex}")
+                        logger.error(f"保存 GIF 帧失败: {ex}")
                 else:
-                    print(f"提取 GIF 帧失败: {input_path}")
+                    logger.error(f"提取 GIF 帧失败: {input_path}")
             else:
                 # 普通转换
                 success: bool = self.image_service.convert_format(

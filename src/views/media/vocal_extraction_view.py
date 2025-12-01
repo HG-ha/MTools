@@ -19,7 +19,7 @@ from constants import (
     VOCAL_SEPARATION_MODELS,
 )
 from services import ConfigService, VocalSeparationService, FFmpegService
-from utils import format_file_size
+from utils import format_file_size, logger
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -813,8 +813,8 @@ class VocalExtractionView(ft.Container):
                 except Exception as e:
                     import traceback
                     error_detail = traceback.format_exc()
-                    print(f"处理文件失败: {file_path.name}")
-                    print(error_detail)
+                    logger.error(f"处理文件失败: {file_path.name}")
+                    logger.error(error_detail)
                     self._show_snackbar(f"处理 {file_path.name} 失败: {e}", ft.Colors.ERROR)
                     continue
             

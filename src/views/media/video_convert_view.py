@@ -19,7 +19,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, FFmpegService
-from utils import format_file_size
+from utils import format_file_size, logger
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -706,10 +706,10 @@ class VideoConvertView(ft.Container):
                         if success:
                             success_count += 1
                         else:
-                            print(f"转换失败 {input_file.name}: {message}")
+                            logger.error(f"转换失败 {input_file.name}: {message}")
                     
                     except Exception as ex:
-                        print(f"处理失败 {input_file.name}: {ex}")
+                        logger.error(f"处理失败 {input_file.name}: {ex}")
                 
                 # 更新UI
                 self.is_converting = False

@@ -82,7 +82,6 @@ class ConfigService:
                     config: Dict[str, Any] = json.load(f)
                     return config
             except Exception as e:
-                print(f"加载配置文件失败: {e}")
                 return self._get_default_config()
         else:
             return self._get_default_config()
@@ -125,7 +124,6 @@ class ConfigService:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            print(f"保存配置文件失败: {e}")
             return False
     
     def get_data_dir(self) -> Path:
@@ -162,7 +160,6 @@ class ConfigService:
             self.config["use_custom_dir"] = is_custom
             return self.save_config()
         except Exception as e:
-            print(f"设置数据目录失败: {e}")
             return False
     
     def check_data_exists(self, directory: Path = None) -> bool:
@@ -245,7 +242,6 @@ class ConfigService:
                     
                     migrated_count += 1
                 except Exception as e:
-                    print(f"迁移 {item.name} 失败: {e}")
                     continue
             
             if progress_callback:

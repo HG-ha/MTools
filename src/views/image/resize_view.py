@@ -445,7 +445,6 @@ class ImageResizeView(ft.Container):
                 
                 return False
         except Exception as e:
-            print(f"调整 GIF 尺寸失败: {e}")
             return False
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
@@ -798,7 +797,6 @@ class ImageResizeView(ft.Container):
                     fail_count += 1
                 
             except Exception as e:
-                print(f"处理失败: {file_path.name}, 错误: {e}")
                 fail_count += 1
             
             # 更新进度

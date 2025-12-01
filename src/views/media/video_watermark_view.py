@@ -16,7 +16,7 @@ from constants import (
     PADDING_SMALL,
 )
 from services import ConfigService, FFmpegService
-
+from utils import logger
 
 class VideoWatermarkView(ft.Container):
     """视频添加水印视图类。
@@ -918,10 +918,10 @@ class VideoWatermarkView(ft.Container):
             
         except ffmpeg.Error as e:
             error_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)
-            print(f"FFmpeg错误: {error_msg}")
+            logger.error(f"FFmpeg错误: {error_msg}")
             return False, f"FFmpeg错误: {error_msg}"
         except Exception as e:
-            print(f"处理失败: {str(e)}")
+            logger.error(f"处理失败: {str(e)}")
             return False, str(e)
     
     def _on_process(self, e: ft.ControlEvent) -> None:
@@ -999,10 +999,10 @@ class VideoWatermarkView(ft.Container):
                     if success:
                         success_count += 1
                     else:
-                        print(f"处理文件 {file_path.name} 失败: {message}")
+                        logger.error(f"处理文件 {file_path.name} 失败: {message}")
                 
                 except Exception as ex:
-                    print(f"处理文件 {file_path.name} 失败: {str(ex)}")
+                    logger.error(f"处理文件 {file_path.name} 失败: {str(ex)}")
                     continue
             
             # 完成

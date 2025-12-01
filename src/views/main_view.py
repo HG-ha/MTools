@@ -76,6 +76,46 @@ class MainView(ft.Column):
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
+        # 检查是否显示推荐工具页面
+        show_recommendations = self.config_service.get_config_value("show_recommendations_page", True)
+        
+        # 构建导航栏目的地
+        destinations = []
+        
+        # 如果启用推荐工具页面，添加到导航栏
+        if show_recommendations:
+            destinations.append(
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.LIGHTBULB_OUTLINE,
+                    selected_icon=ft.Icons.LIGHTBULB,
+                    label="推荐工具",
+                )
+            )
+        
+        # 添加其他固定的导航项
+        destinations.extend([
+            ft.NavigationRailDestination(
+                icon=ft.Icons.IMAGE_OUTLINED,
+                selected_icon=ft.Icons.IMAGE_ROUNDED,
+                label="图片处理",
+            ),
+            ft.NavigationRailDestination(
+                icon=ft.Icons.PERM_MEDIA_OUTLINED,
+                selected_icon=ft.Icons.PERM_MEDIA_ROUNDED,
+                label="媒体处理",
+            ),
+            ft.NavigationRailDestination(
+                icon=ft.Icons.DEVELOPER_MODE_OUTLINED,
+                selected_icon=ft.Icons.DEVELOPER_MODE_ROUNDED,
+                label="开发工具",
+            ),
+            ft.NavigationRailDestination(
+                icon=ft.Icons.EXTENSION_OUTLINED,
+                selected_icon=ft.Icons.EXTENSION_ROUNDED,
+                label="其他工具",
+            ),
+        ])
+        
         # 创建导航栏
         self.navigation_rail: ft.NavigationRail = ft.NavigationRail(
             selected_index=0,
@@ -84,35 +124,12 @@ class MainView(ft.Column):
             min_extended_width=200,
             group_alignment=-0.9,
             expand=True,
-            destinations=[
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.LIGHTBULB_OUTLINE,
-                    selected_icon=ft.Icons.LIGHTBULB,
-                    label="推荐工具",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.IMAGE_OUTLINED,
-                    selected_icon=ft.Icons.IMAGE_ROUNDED,
-                    label="图片处理",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.PERM_MEDIA_OUTLINED,
-                    selected_icon=ft.Icons.PERM_MEDIA_ROUNDED,
-                    label="媒体处理",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.DEVELOPER_MODE_OUTLINED,
-                    selected_icon=ft.Icons.DEVELOPER_MODE_ROUNDED,
-                    label="开发工具",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.EXTENSION_OUTLINED,
-                    selected_icon=ft.Icons.EXTENSION_ROUNDED,
-                    label="其他工具",
-                ),
-            ],
+            destinations=destinations,
             on_change=self._on_navigation_change,
         )
+        
+        # 保存是否显示推荐页面的状态
+        self.show_recommendations = show_recommendations
         
         # 设置按钮（放在导航栏底部）
         self.settings_button_container: ft.Container = ft.Container(
@@ -194,8 +211,12 @@ class MainView(ft.Column):
             self.content_container,
         )
         
-        # 设置初始内容为推荐页
-        self.content_container.content = self.recommendations_view
+        # 设置初始内容（如果显示推荐页则使用推荐页，否则使用图片处理页）
+        show_recommendations = self.config_service.get_config_value("show_recommendations_page", True)
+        if show_recommendations:
+            self.content_container.content = self.recommendations_view
+        else:
+            self.content_container.content = self.image_view
         
         # 注册键盘快捷键
         self.page.on_keyboard_event = self._on_keyboard
@@ -240,12 +261,15 @@ class MainView(ft.Column):
         # 标记是否恢复了子视图
         restored = False
         
+        # 如果没有显示推荐页面，所有索引需要偏移
+        offset = 0 if self.show_recommendations else -1
+        
         # 根据选中的索引切换视图
-        if selected_index == 0:
+        if selected_index == 0 and self.show_recommendations:
             # 推荐
             view = self.recommendations_view
             self.content_container.content = view
-        elif selected_index == 1:
+        elif selected_index == 1 + offset:
             # 图片处理
             view = self.image_view
             # 尝试恢复图片处理页面的状态（如果之前在子视图中）
@@ -255,7 +279,7 @@ class MainView(ft.Column):
             # 如果没有恢复子视图，则显示主视图
             if not restored:
                 self.content_container.content = view
-        elif selected_index == 2:
+        elif selected_index == 2 + offset:
             # 媒体处理（统一视图）
             view = self.media_view
             # 尝试恢复媒体处理页面的状态
@@ -264,7 +288,7 @@ class MainView(ft.Column):
             
             if not restored:
                 self.content_container.content = view
-        elif selected_index == 3:
+        elif selected_index == 3 + offset:
             # 开发工具
             view = self.dev_tools_view
             # 尝试恢复开发工具页面的状态
@@ -273,7 +297,7 @@ class MainView(ft.Column):
             
             if not restored:
                 self.content_container.content = view
-        elif selected_index == 4:
+        elif selected_index == 4 + offset:
             # 其他工具
             view = self.others_view
             # 尝试恢复其他工具页面的状态
@@ -309,16 +333,19 @@ class MainView(ft.Column):
         category = parts[0]
         tool_name = ".".join(parts[1:])  # 支持多级，如 "puzzle.merge"
         
+        # 计算索引偏移（如果没有推荐页面，索引会减1）
+        offset = 0 if self.show_recommendations else -1
+        
         # 先切换到对应的分类
         if category == "image":
-            self.navigation_rail.selected_index = 1  # 图片处理现在是索引1
+            self.navigation_rail.selected_index = 1 + offset  # 图片处理
             self.content_container.content = self.image_view
             # 调用图片视图的方法打开子工具
             if hasattr(self.image_view, 'open_tool'):
                 self.image_view.open_tool(tool_name)
         elif category == "audio" or category == "video":
             # 音频和视频都属于媒体处理
-            self.navigation_rail.selected_index = 2  # 媒体处理现在是索引2
+            self.navigation_rail.selected_index = 2 + offset  # 媒体处理
             self.content_container.content = self.media_view
             # 媒体视图使用 _open_view 方法
             if hasattr(self.media_view, '_open_view'):
@@ -348,12 +375,12 @@ class MainView(ft.Column):
                     elif tool_name == "watermark":
                         self.media_view._open_view('video_watermark')
         elif category == "dev":
-            self.navigation_rail.selected_index = 3  # 开发工具现在是索引3
+            self.navigation_rail.selected_index = 3 + offset  # 开发工具
             self.content_container.content = self.dev_tools_view
             if hasattr(self.dev_tools_view, 'open_tool'):
                 self.dev_tools_view.open_tool(tool_name)
         elif category == "others":
-            self.navigation_rail.selected_index = 4  # 其他工具现在是索引4
+            self.navigation_rail.selected_index = 4 + offset  # 其他工具
             self.content_container.content = self.others_view
             if hasattr(self.others_view, 'open_tool'):
                 self.others_view.open_tool(tool_name)

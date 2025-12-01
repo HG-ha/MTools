@@ -139,7 +139,7 @@ class DevToolsView(ft.Container):
         
         if self.encoding_convert_view is None:
             self.encoding_convert_view = EncodingConvertView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.encoding_service,
                 on_back=self._back_to_main
@@ -160,7 +160,7 @@ class DevToolsView(ft.Container):
         from views.dev_tools.json_viewer_view import JsonViewerView
         
         json_viewer = JsonViewerView(
-            self.page,
+            self._saved_page,
             self.config_service,
             on_back=self._back_to_main
         )
@@ -180,7 +180,7 @@ class DevToolsView(ft.Container):
         if self.base64_to_image_view is None:
             from views.dev_tools.base64_to_image_view import Base64ToImageView
             self.base64_to_image_view = Base64ToImageView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 on_back=self._back_to_main
             )

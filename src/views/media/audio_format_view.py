@@ -18,7 +18,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import AudioService, ConfigService, FFmpegService
-from utils import format_file_size
+from utils import format_file_size, logger
 
 
 class AudioFormatView(ft.Container):
@@ -689,10 +689,10 @@ class AudioFormatView(ft.Container):
                     if success:
                         success_count += 1
                     else:
-                        print(f"转换失败 {file_path.name}: {message}")
+                        logger.error(f"转换失败 {file_path.name}: {message}")
                 
                 except Exception as ex:
-                    print(f"处理失败 {file_path.name}: {ex}")
+                    logger.error(f"处理失败 {file_path.name}: {ex}")
             
             # 处理完成
             self._on_process_complete(success_count, total_files, output_dir)

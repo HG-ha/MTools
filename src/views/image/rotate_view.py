@@ -1068,7 +1068,6 @@ class ImageRotateView(ft.Container):
                     success_count += 1
                 
                 except Exception as ex:
-                    print(f"处理文件 {file_path.name} 失败: {str(ex)}")
                     continue
             
             # 完成进度显示

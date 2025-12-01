@@ -7,6 +7,7 @@
 import httpx
 import json
 from typing import Dict, Optional, Tuple
+from utils import logger
 import asyncio
 
 
@@ -87,7 +88,7 @@ class WeatherService:
                                 'lon': location['geo']['longitude']
                             }
         except Exception as e:
-            print(f"Bing API 搜索失败: {e}")
+            logger.error(f"Bing API 搜索失败: {e}")
         
         try:
             # 备用方法：使用 OpenStreetMap
@@ -111,7 +112,7 @@ class WeatherService:
                         'lon': float(data[0]['lon'])
                     }
         except Exception as e:
-            print(f"OpenStreetMap 搜索失败: {e}")
+            logger.error(f"OpenStreetMap 搜索失败: {e}")
         
         return None
     
@@ -164,7 +165,7 @@ class WeatherService:
             if response.status_code == 200 and response.text.strip():
                 return response.json()
         except Exception as e:
-            print(f"获取天气数据失败: {e}")
+            logger.error(f"获取天气数据失败: {e}")
         
         return None
     
@@ -206,7 +207,7 @@ class WeatherService:
                 if location_name and latitude is not None and longitude is not None:
                     return (location_name, latitude, longitude)
         except Exception as e:
-            print(f"ipapi.co 获取位置信息失败: {e}")
+            logger.error(f"ipapi.co 获取位置信息失败: {e}")
         
         # 备用方案：尝试 ipwhois.app
         try:
@@ -232,7 +233,7 @@ class WeatherService:
                     if location_name and latitude is not None and longitude is not None:
                         return (location_name, latitude, longitude)
         except Exception as e:
-            print(f"ipwhois.app 获取位置信息失败: {e}")
+            logger.error(f"ipwhois.app 获取位置信息失败: {e}")
         
         return None
     
@@ -293,7 +294,7 @@ class WeatherService:
                         'humidity': current_data.get('rh')
                     }
         except Exception as e:
-            print(f"格式化天气数据失败: {e}")
+            logger.error(f"格式化天气数据失败: {e}")
         
         return None
     

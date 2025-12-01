@@ -15,6 +15,7 @@ from constants import (
     PADDING_XLARGE,
 )
 from services import ConfigService, ImageService
+from utils import logger
 from views.image.background_view import ImageBackgroundView
 from views.image.compress_view import ImageCompressView
 from views.image.crop_view import ImageCropView
@@ -251,7 +252,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -267,7 +268,7 @@ class ImageView(ft.Container):
         # 创建压缩视图（如果还没创建）
         if not self.compress_view:
             self.compress_view = ImageCompressView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -289,7 +290,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -298,7 +299,7 @@ class ImageView(ft.Container):
         # 创建尺寸调整视图（如果还没创建）
         if not self.resize_view:
             self.resize_view = ImageResizeView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -319,7 +320,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -328,7 +329,7 @@ class ImageView(ft.Container):
         # 创建格式转换视图（如果还没创建）
         if not self.format_view:
             self.format_view = ImageFormatView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -349,7 +350,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -362,7 +363,7 @@ class ImageView(ft.Container):
             # 创建背景移除视图（如果还没创建）
             if not self.background_view:
                 self.background_view = ImageBackgroundView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.image_service,
                     on_back=self._back_to_main
@@ -388,7 +389,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -400,7 +401,7 @@ class ImageView(ft.Container):
             # 创建图像增强视图（如果还没创建）
             if not self.enhance_view:
                 self.enhance_view = ImageEnhanceView(
-                    self.page,
+                    self._saved_page,
                     self.config_service,
                     self.image_service,
                     on_back=self._back_to_main
@@ -425,7 +426,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -434,7 +435,7 @@ class ImageView(ft.Container):
         # 创建切分视图（如果还没创建）
         if not self.split_view:
             self.split_view = ImagePuzzleSplitView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -455,7 +456,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -464,7 +465,7 @@ class ImageView(ft.Container):
         # 创建合并视图（如果还没创建）
         if not self.merge_view:
             self.merge_view = ImagePuzzleMergeView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -485,7 +486,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -494,7 +495,7 @@ class ImageView(ft.Container):
         # 创建裁剪视图（如果还没创建）
         if not self.crop_view:
             self.crop_view = ImageCropView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -515,7 +516,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -524,7 +525,7 @@ class ImageView(ft.Container):
         # 创建信息查看视图（如果还没创建）
         if not self.info_view:
             self.info_view = ImageInfoView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -545,7 +546,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -554,7 +555,7 @@ class ImageView(ft.Container):
         # 创建 GIF 调整视图（如果还没创建）
         if not self.gif_adjustment_view:
             self.gif_adjustment_view = GifAdjustmentView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main,
@@ -576,7 +577,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -586,7 +587,7 @@ class ImageView(ft.Container):
         if not self.to_base64_view:
             from views.image.to_base64_view import ImageToBase64View
             self.to_base64_view = ImageToBase64View(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -607,7 +608,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -617,7 +618,7 @@ class ImageView(ft.Container):
         if not self.rotate_view:
             from views.image.rotate_view import ImageRotateView
             self.rotate_view = ImageRotateView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -638,7 +639,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -648,7 +649,7 @@ class ImageView(ft.Container):
         if not self.remove_exif_view:
             from views.image.remove_exif_view import ImageRemoveExifView
             self.remove_exif_view = ImageRemoveExifView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -669,7 +670,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -679,7 +680,7 @@ class ImageView(ft.Container):
         if not self.qrcode_view:
             from views.image.qrcode_view import QRCodeGeneratorView
             self.qrcode_view = QRCodeGeneratorView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -700,7 +701,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -710,7 +711,7 @@ class ImageView(ft.Container):
         if not self.watermark_view:
             from views.image.watermark_view import ImageWatermarkView
             self.watermark_view = ImageWatermarkView(
-                self.page,
+                self._saved_page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -731,7 +732,7 @@ class ImageView(ft.Container):
             e: 控件事件对象
         """
         if not self.parent_container:
-            print("错误: 未设置父容器")
+            logger.error("错误: 未设置父容器")
             return
         
         # 隐藏搜索按钮
@@ -740,7 +741,7 @@ class ImageView(ft.Container):
         # 创建图片搜索视图（如果还没创建）
         if not self.search_view:
             self.search_view = ImageSearchView(
-                self.page,
+                self._saved_page,
                 on_back=self._back_to_main
             )
         
@@ -801,7 +802,7 @@ class ImageView(ft.Container):
         
         if not self.image_tools_install_view:
             self.image_tools_install_view = ImageToolsInstallView(
-                self.page,
+                self._saved_page,
                 self.image_service,
                 on_back=self._back_to_main,
                 on_installed=self._on_image_tools_installed

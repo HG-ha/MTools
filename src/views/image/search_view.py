@@ -17,6 +17,7 @@ from typing import Optional, Dict, List, Any, Callable
 
 from constants import PADDING_LARGE, PADDING_MEDIUM, PADDING_SMALL
 from services.sogou_search_service import SogouSearchService
+from utils import logger
 
 
 class ImageSearchView(ft.Container):
@@ -382,18 +383,18 @@ class ImageSearchView(ft.Container):
         
     async def _perform_search(self):
         """执行搜索"""
-        print("开始搜索...")  # 调试信息
+        logger.debug("开始搜索...")
         
         if not self.current_image_path:
-            print("错误: 未选择图片")
+            logger.error("错误: 未选择图片")
             self._show_error("请先上传图片")
             return
             
         if self.is_searching:
-            print("搜索中，跳过")
+            logger.debug("搜索中，跳过")
             return
             
-        print(f"准备搜索图片: {self.current_image_path}")
+        logger.debug(f"准备搜索图片: {self.current_image_path}")
         self.is_searching = True
         self.search_btn.disabled = True
         self.progress_container.visible = True
@@ -403,9 +404,9 @@ class ImageSearchView(ft.Container):
         
         try:
             # 上传图片
-            print("开始上传图片...")
+            logger.debug("开始上传图片...")
             result = await self.search_service.upload_image(self.current_image_path)
-            print(f"上传结果: {result}")
+            logger.debug(f"上传结果: {result}")
             
             if not self.search_service.is_upload_success(result):
                 self._show_error(f"图片上传失败: {result.get('message', '未知错误')}")
@@ -413,7 +414,7 @@ class ImageSearchView(ft.Container):
                 
             # 保存图片URL
             self.current_image_url = result["image_url"]
-            print(f"图片URL: {self.current_image_url}")
+            logger.debug(f"图片URL: {self.current_image_url}")
             
             # 重置分页
             self.current_page = 1
@@ -425,9 +426,7 @@ class ImageSearchView(ft.Container):
             await self._load_search_results()
             
         except Exception as e:
-            print(f"搜索异常: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"搜索异常: {type(e).__name__}: {str(e)}")
             self._show_error(f"搜索失败: {str(e)}")
         finally:
             self.is_searching = False
@@ -634,7 +633,7 @@ class ImageSearchView(ft.Container):
             )
             
         except Exception as e:
-            print(f"创建结果卡片失败: {str(e)}")
+            logger.error(f"创建结果卡片失败: {str(e)}")
             return None
             
     def _open_url(self, url: str):
