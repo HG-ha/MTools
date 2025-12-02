@@ -50,3 +50,7 @@ storage/temp/*
 # 日志文件
 logs/
 *.log
+
+# flet 客户端，在构建时自动打包（根据平台不同）
+src/assets/.flet.zip
+src/assets/.flet.tar.gz

@@ -1,261 +1,162 @@
 # -*- coding: utf-8 -*-
-"""Flet 下载加速设置。
+"""Nuitka 打包程序的初始化设置。
 
-该模块会在导入时自动执行，为中国用户启用 GitHub 镜像加速下载。
+该模块会在导入时自动执行，检测是否为 Nuitka 打包的程序，
+如果是且用户目录下没有 .flet 目录，则从打包的资源中解压。
 """
 
+import sys
+import zipfile
 from pathlib import Path
 from utils import logger
 
 
-def _show_system_notification(title: str, message: str) -> None:
-    """显示系统桌面通知（跨平台，不依赖 tkinter）。
+def _is_nuitka_compiled() -> bool:
+    """检测是否是 nuitka 打包的程序。
     
-    Args:
-        title: 通知标题
-        message: 通知内容
-    """
-    import platform
-    import subprocess
-    
-    system = platform.system()
-    
-    try:
-        if system == "Windows":
-            # Windows: 使用 PowerShell Toast 通知
-            try:
-                ps_script = f'''
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-
-$template = @"
-<toast>
-    <visual>
-        <binding template="ToastText02">
-            <text id="1">{title}</text>
-            <text id="2">{message}</text>
-        </binding>
-    </visual>
-</toast>
-"@
-
-$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml($template)
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("MTools")
-$notifier.Show($toast)
-'''
-                subprocess.Popen(
-                    ['powershell', '-WindowStyle', 'Hidden', '-Command', ps_script],
-                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-            except:
-                pass
-        
-        elif system == "Darwin":
-            # macOS: 使用 osascript 显示通知
-            subprocess.Popen(
-                ['osascript', '-e', f'display notification "{message}" with title "{title}"'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-        
-        elif system == "Linux":
-            # Linux: 使用 notify-send
-            subprocess.Popen(
-                ['notify-send', title, message],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-    except:
-        # 通知失败不影响主流程
-        pass
-
-
-def _is_china_user() -> bool:
-    """检测是否为中国用户。
-    
-    通过多种方式检测：
-    1. 系统时区
-    2. 系统语言
-    3. 环境变量
+    直接判断 sys.argv[0] 是否为 .exe 可执行文件。
     
     Returns:
-        bool: 如果可能是中国用户返回 True
+        bool: 如果是打包的程序返回 True，否则返回 False
     """
-    import locale
-    import time
-    import os
-    
-    try:
-        # 方法 1: 检查时区（检查中文字符串）
-        timezone = time.tzname
-        for tz in timezone:
-            # 检查是否包含中文或中国相关关键词
-            if '中国' in tz or 'China' in tz or 'CST' in tz or 'Asia/Shanghai' in tz:
-                return True
-        
-        # 方法 2: 检查系统语言
-        try:
-            # 使用新 API: locale.getlocale()
-            lang, encoding = locale.getlocale()
-            if lang:
-                lang_lower = lang.lower()
-                # 支持多种格式：
-                # - Windows: 'Chinese (Simplified)_China', 'Chinese_China'
-                # - Linux/macOS: 'zh_CN', 'zh_Hans'
-                if any(keyword in lang_lower for keyword in ['zh_cn', 'zh_hans', 'chinese', 'china']):
-                    return True
-        except:
-            pass
-        
-        # 方法 3: 检查环境变量（LANG, LC_ALL）
-        for env_var in ['LANG', 'LC_ALL', 'LANGUAGE']:
-            lang_env = os.environ.get(env_var, '').lower()
-            if 'zh_cn' in lang_env or 'zh_hans' in lang_env or 'chinese' in lang_env:
-                return True
-            
-    except Exception:
-        pass
-    
-    return False
+    # sys.argv[0] 为可执行文件的路径，扩展名是 .exe
+    exe_path = Path(sys.argv[0])
+    return exe_path.suffix.lower() == '.exe'
 
 
-def _patch_flet_download_for_china() -> None:
-    """为中国用户修改 flet 下载函数，使用 gh-proxy.org 加速。
+def _setup_flet_directory() -> None:
+    """设置 Flet 目录。
     
-    通过 monkey patch 的方式，将 GitHub releases 的下载链接
-    替换为 gh-proxy.org 代理链接，加速中国用户的下载，并显示桌面通知。
+    如果是 nuitka 打包的程序且用户目录下没有 .flet 目录，
+    则从打包的资源中解压到用户目录。
+    
+    支持的格式：
+    - Windows: .flet.zip
+    - macOS/Linux: .flet.tar.gz
     """
-    try:
-        import flet_desktop
-        import urllib.request
-        import tempfile
-        from pathlib import Path
+    is_compiled = _is_nuitka_compiled()
+    
+    if not is_compiled:
+        return
         
-        # 保存原始的下载函数
-        original_download = None
+    # 获取用户家目录
+    home_dir = Path.home()
+    flet_dir = home_dir / ".flet"
+    
+    # 如果 .flet 目录已存在，不需要做任何操作
+    if flet_dir.exists():
+        logger.info("[Flet Setup] .flet 目录已存在，跳过解压")
+        return
         
-        # 查找原始函数
-        possible_names = [
-            '__download_flet_client',
+    # 获取打包后程序的目录
+    # 直接使用 sys.argv[0]，因为 Nuitka 打包不设置 sys.frozen
+    app_dir = Path(sys.argv[0]).parent
+    
+    # 根据平台确定文件名和路径
+    import platform as plat
+    system = plat.system()
+    
+    if system == "Windows":
+        file_names = [".flet.zip"]
+        use_tar = False
+    elif system in ["Darwin", "Linux"]:
+        file_names = [".flet.tar.gz"]
+        use_tar = True
+    else:
+        logger.warning(f"[Flet Setup] 不支持的平台: {system}")
+        return
+    
+    # 尝试多个可能的位置
+    flet_archive_path = None
+    for file_name in file_names:
+        possible_paths = [
+            app_dir / "src" / "assets" / file_name,  # 标准路径
+            app_dir / "assets" / file_name,  # 可能被提升到根目录
+            app_dir / file_name,  # 直接在应用目录
         ]
         
-        for func_name in possible_names:
-            if hasattr(flet_desktop, func_name):
-                original_download = getattr(flet_desktop, func_name)
+        for path in possible_paths:
+            if path.exists():
+                flet_archive_path = path
+                logger.info(f"[Flet Setup] 找到 Flet 打包文件: {path}")
                 break
         
-        if not original_download:
-            logger.warning("[Flet Patch] 未找到原始下载函数，跳过 patch")
-            return
+        if flet_archive_path:
+            break
+    
+    if flet_archive_path is None:
+        logger.warning("[Flet Setup] 未找到 Flet 打包文件，将从网络下载")
+        return
+    
+    try:
+        # 显示解压提示
+        print("\n" + "="*60)
+        print("🚀 MTools 首次启动 - 正在初始化 UI 引擎")
+        print("="*60)
+        print(f"📦 正在解压 Flet 客户端...")
+        print(f"📂 目标位置: {flet_dir}")
+        print("="*60)
         
-        # 定义替代下载函数
-        def china_accelerated_download(file_name):
-            """使用 gh-proxy.org 加速下载 flet 客户端（带桌面通知和进度）"""
-            import flet_desktop.version
-            
-            ver = flet_desktop.version.version
-            if not ver:
-                import flet.version
-                from flet.version import update_version
-                ver = flet.version.version or update_version()
-            
-            temp_arch = Path(tempfile.gettempdir()).joinpath(file_name)
-            
-            # 原始 GitHub URL
-            original_url = f"https://github.com/flet-dev/flet/releases/download/v{ver}/{file_name}"
-            
-            # 使用 gh-proxy.org 代理（中国加速）
-            proxy_url = f"https://gh-proxy.org/{original_url}"
-            
-            # 显示开始通知
-            _show_system_notification(
-                "MTools - 首次启动",
-                f"正在下载 UI 引擎 (v{ver})，预计 30-60 秒\n下载后将缓存，后续启动秒开"
-            )
-            
-            logger.info(f"[Flet Download] 正在下载 Flet v{ver}")
-            logger.info(f"[Flet Download] 使用中国镜像加速: {proxy_url}")
-            
-            # 控制台进度提示
-            print("\n" + "="*60)
-            print(f"🚀 MTools 首次启动 - 正在下载 UI 引擎 (v{ver})")
-            print("="*60)
-            print("💡 这是首次启动的一次性操作，下载后将缓存到系统")
-            print("⏱️  预计时间：30-60 秒（使用中国镜像加速）")
-            print("="*60)
-            
-            # 进度显示函数
-            def show_progress(block_count, block_size, total_size):
-                if total_size > 0:
-                    downloaded = block_count * block_size
-                    percent = min(100, downloaded * 100 / total_size)
-                    downloaded_mb = downloaded / (1024 * 1024)
-                    total_mb = total_size / (1024 * 1024)
-                    
-                    # 每隔一段时间更新一次（避免刷新太频繁）
-                    if block_count % 20 == 0 or percent >= 100:
-                        bar_length = 40
-                        filled = int(bar_length * percent / 100)
-                        bar = '█' * filled + '░' * (bar_length - filled)
-                        print(f"\r📥 [{bar}] {percent:.1f}% ({downloaded_mb:.1f}/{total_mb:.1f}MB)", end='', flush=True)
-            
-            try:
-                # 首先尝试使用代理下载
-                urllib.request.urlretrieve(proxy_url, temp_arch, reporthook=show_progress)
-                print("\n" + "="*60)
-                print("✅ 下载完成！正在启动程序...")
-                print("="*60 + "\n")
-                logger.info(f"[Flet Download] ✅ 下载成功（使用镜像加速）")
-                
-                # 显示完成通知
-                _show_system_notification(
-                    "MTools - 下载完成",
-                    "UI 引擎下载完成，正在启动程序..."
-                )
-                
-            except Exception as e:
-                # 如果代理失败，回退到原始 URL
-                print(f"\n⚠️  镜像下载失败，尝试直连 GitHub...\n")
-                logger.warning(f"[Flet Download] ⚠️  镜像下载失败: {e}")
-                logger.info(f"[Flet Download] 尝试直接下载: {original_url}")
-                
-                urllib.request.urlretrieve(original_url, temp_arch, reporthook=show_progress)
-                print("\n" + "="*60)
-                print("✅ 下载完成！正在启动程序...")
-                print("="*60 + "\n")
-                logger.info(f"[Flet Download] ✅ 下载成功（直接下载）")
-                
-                # 显示完成通知
-                _show_system_notification(
-                    "MTools - 下载完成",
-                    "UI 引擎下载完成，正在启动程序..."
-                )
-            
-            return str(temp_arch)
+        logger.info(f"[Flet Setup] 开始解压 {flet_archive_path} 到 {flet_dir}")
         
-        # 替换下载函数
-        for func_name in possible_names:
-            if hasattr(flet_desktop, func_name):
-                setattr(flet_desktop, func_name, china_accelerated_download)
-                logger.info(f"[Flet Patch] ✅ 已为中国用户启用下载加速 (gh-proxy.org)")
-                break
+        # 创建 .flet 目录
+        flet_dir.mkdir(parents=True, exist_ok=True)
+        
+        if use_tar:
+            # 解压 tar.gz 文件（macOS/Linux）
+            import tarfile
+            with tarfile.open(flet_archive_path, 'r:gz') as tar_ref:
+                # 获取文件总数
+                members = tar_ref.getmembers()
+                total_files = len(members)
+                print(f"⏳ 解压中... (共 {total_files} 个文件)")
                 
-    except ImportError:
-        # flet_desktop 还未导入，稍后会在实际使用时自动触发
-        logger.info("[Flet Patch] flet_desktop 尚未导入，将在首次使用时应用加速")
+                # 解压所有文件
+                for i, member in enumerate(members, 1):
+                    tar_ref.extract(member, flet_dir)
+                    # 每解压 100 个文件显示一次进度
+                    if i % 100 == 0 or i == total_files:
+                        percent = i * 100 / total_files
+                        print(f"\r📥 进度: {percent:.1f}% ({i}/{total_files})", end='', flush=True)
+                
+                print("\n")
+        else:
+            # 解压 zip 文件（Windows）
+            with zipfile.ZipFile(flet_archive_path, 'r') as zip_ref:
+                # 获取文件总数
+                total_files = len(zip_ref.namelist())
+                print(f"⏳ 解压中... (共 {total_files} 个文件)")
+                
+                # 解压所有文件
+                for i, member in enumerate(zip_ref.namelist(), 1):
+                    zip_ref.extract(member, flet_dir)
+                    # 每解压 100 个文件显示一次进度
+                    if i % 100 == 0 or i == total_files:
+                        percent = i * 100 / total_files
+                        print(f"\r📥 进度: {percent:.1f}% ({i}/{total_files})", end='', flush=True)
+                
+                print("\n")
+        
+        print("="*60)
+        print("✅ Flet 客户端解压完成！")
+        print("="*60 + "\n")
+        
+        logger.info(f"[Flet Setup] 解压完成")
+        
     except Exception as e:
-        logger.error(f"[Flet Patch] ⚠️  Patch 失败: {e}")
+        logger.error(f"[Flet Setup] 解压失败: {e}")
         import traceback
         traceback.print_exc()
+        
+        # 如果解压失败，删除不完整的 .flet 目录
+        if flet_dir.exists():
+            try:
+                import shutil
+                shutil.rmtree(flet_dir)
+                logger.info("[Flet Setup] 已清理不完整的 .flet 目录")
+            except:
+                pass
 
-# 模块导入时自动执行：为中国用户启用 GitHub 下载加速
-if _is_china_user():
-    try:
-        _patch_flet_download_for_china()
-    except Exception as e:
-        logger.warning(f"[Flet Patch] 启用下载加速失败: {e}")
 
+# 模块导入时自动执行初始化
+_setup_flet_directory()

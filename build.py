@@ -346,6 +346,228 @@ def check_onnxruntime_version():
         print(f"⚠️  检查 onnxruntime 版本时出错: {e}")
         return True
 
+def pack_flet_client():
+    """打包 Flet 客户端
+    
+    从虚拟环境的 flet_desktop 包中提取客户端文件。
+    根据平台使用不同的打包格式：
+    - Windows: .zip
+    - macOS: .tar.gz  
+    - Linux: .tar.gz
+    
+    Returns:
+        bool: 打包成功返回 True
+    """
+    system = platform.system()
+    
+    # 根据平台确定输出文件名和格式
+    if system == "Windows":
+        output_file = ASSETS_DIR / ".flet.zip"
+        use_zip = True
+    elif system == "Darwin":
+        output_file = ASSETS_DIR / ".flet.tar.gz"
+        use_zip = False
+    elif system == "Linux":
+        output_file = ASSETS_DIR / ".flet.tar.gz"
+        use_zip = False
+    else:
+        print(f"❌ 不支持的平台: {system}")
+        return False
+    
+    print("\n" + "="*60)
+    print(f"📦 打包 Flet 客户端 ({system})")
+    print("="*60)
+    
+    # 查找 flet_desktop 包的位置
+    try:
+        import flet_desktop
+        flet_desktop_path = Path(flet_desktop.__file__).parent
+        
+        # Windows 的客户端在 app/flet/ 目录下
+        # macOS 和 Linux 也在 app/ 下，但可能是 .app 或其他格式
+        if system == "Windows":
+            flet_client_dir = flet_desktop_path / "app" / "flet"
+        else:
+            # macOS 和 Linux: 检查 app/ 目录
+            flet_client_dir = flet_desktop_path / "app"
+        
+        if not flet_client_dir.exists():
+            print("❌ 错误: 未找到 Flet 客户端目录")
+            print(f"   预期位置: {flet_client_dir}")
+            print("\n请先安装依赖：")
+            print("   uv sync")
+            return False
+        
+        # 检查客户端目录是否有内容
+        if not any(flet_client_dir.iterdir()):
+            print("❌ 错误: Flet 客户端目录为空")
+            return False
+        
+        print(f"源目录: {flet_client_dir}")
+        print(f"目标文件: {output_file}")
+        print("="*60)
+        
+    except ImportError:
+        print("❌ 错误: 未找到 flet_desktop 模块")
+        print("\n请先安装依赖：")
+        print("   uv sync")
+        return False
+    
+    # 确保 assets 目录存在
+    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # 如果目标文件已存在，先删除
+    if output_file.exists():
+        output_file.unlink()
+        print(f"   已删除旧的 {output_file.name}")
+    
+    try:
+        # 获取 flet 版本
+        import flet.version
+        import tarfile
+        flet_version = flet.version.version
+        print(f"   Flet 版本: {flet_version}")
+        
+        # 遍历 flet 客户端目录
+        all_files = list(flet_client_dir.rglob('*'))
+        total_files = len([f for f in all_files if f.is_file()])
+        
+        print(f"⏳ 正在打包... (共 {total_files} 个文件)")
+        
+        processed = 0
+        
+        if use_zip:
+            # Windows: 使用 ZIP 格式
+            with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as archive:
+                for file_path in all_files:
+                    if file_path.is_file():
+                        # Windows 路径结构：bin/flet-{version}/flet/...
+                        rel_path = file_path.relative_to(flet_client_dir)
+                        arcname = f"bin/flet-{flet_version}/flet/{rel_path}"
+                        archive.write(file_path, arcname)
+                        
+                        processed += 1
+                        if processed % 50 == 0 or processed == total_files:
+                            percent = processed * 100 / total_files
+                            print(f"\r📥 进度: {percent:.1f}% ({processed}/{total_files})", end='', flush=True)
+        else:
+            # macOS/Linux: 使用 TAR.GZ 格式
+            with tarfile.open(output_file, 'w:gz') as archive:
+                for file_path in all_files:
+                    if file_path.is_file():
+                        # 计算相对路径
+                        # macOS: bin/flet-{version}/*.app/...
+                        # Linux: bin/flet-{version}/flet/...
+                        if system == "Darwin":
+                            # macOS: 保持 .app 结构
+                            rel_path = file_path.relative_to(flet_client_dir.parent)
+                            arcname = f"bin/flet-{flet_version}/{rel_path}"
+                        else:
+                            # Linux: flet/ 子目录
+                            rel_path = file_path.relative_to(flet_client_dir.parent)
+                            arcname = f"bin/flet-{flet_version}/{rel_path}"
+                        
+                        archive.add(file_path, arcname=arcname)
+                        
+                        processed += 1
+                        if processed % 50 == 0 or processed == total_files:
+                            percent = processed * 100 / total_files
+                            print(f"\r📥 进度: {percent:.1f}% ({processed}/{total_files})", end='', flush=True)
+        
+        print("\n")
+        
+        # 显示文件大小
+        file_size_mb = output_file.stat().st_size / (1024 * 1024)
+        
+        print("="*60)
+        print("✅ Flet 客户端打包完成！")
+        print("="*60)
+        print(f"文件: {output_file}")
+        print(f"大小: {file_size_mb:.2f} MB")
+        print(f"格式: {'ZIP' if use_zip else 'TAR.GZ'}")
+        print("="*60 + "\n")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ 打包失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def check_and_pack_flet_client():
+    """检查并自动打包 Flet 客户端
+    
+    如果 Flet 客户端文件不存在或版本不匹配，自动重新打包。
+    根据平台检查不同的文件格式：
+    - Windows: .flet.zip
+    - macOS/Linux: .flet.tar.gz
+    
+    Returns:
+        bool: 成功返回 True
+    """
+    system = platform.system()
+    
+    # 根据平台确定文件名
+    if system == "Windows":
+        flet_file = ASSETS_DIR / ".flet.zip"
+        is_zip = True
+    elif system in ["Darwin", "Linux"]:
+        flet_file = ASSETS_DIR / ".flet.tar.gz"
+        is_zip = False
+    else:
+        print(f"❌ 不支持的平台: {system}")
+        return False
+    
+    # 检查是否需要打包
+    need_pack = False
+    
+    if not flet_file.exists():
+        print(f"⚠️  未找到 Flet 客户端打包文件 ({flet_file.name})，将自动打包")
+        need_pack = True
+    else:
+        # 检查版本是否匹配
+        try:
+            import flet.version
+            import tarfile
+            current_version = flet.version.version
+            
+            # 尝试读取打包文件中的版本信息
+            expected_prefix = f"bin/flet-{current_version}/"
+            
+            if is_zip:
+                # ZIP 格式（Windows）
+                with zipfile.ZipFile(flet_file, 'r') as archive:
+                    if not any(name.startswith(expected_prefix) for name in archive.namelist()):
+                        print(f"⚠️  Flet 版本已更新 (当前: {current_version})，将重新打包")
+                        need_pack = True
+                    else:
+                        file_size_mb = flet_file.stat().st_size / (1024 * 1024)
+                        print(f"✅ 找到 Flet 客户端: {flet_file.name} ({file_size_mb:.2f} MB, v{current_version})")
+            else:
+                # TAR.GZ 格式（macOS/Linux）
+                with tarfile.open(flet_file, 'r:gz') as archive:
+                    if not any(name.startswith(expected_prefix) for name in archive.getnames()):
+                        print(f"⚠️  Flet 版本已更新 (当前: {current_version})，将重新打包")
+                        need_pack = True
+                    else:
+                        file_size_mb = flet_file.stat().st_size / (1024 * 1024)
+                        print(f"✅ 找到 Flet 客户端: {flet_file.name} ({file_size_mb:.2f} MB, v{current_version})")
+        except Exception as e:
+            print(f"⚠️  检查 Flet 版本失败: {e}，将重新打包")
+            need_pack = True
+    
+    # 如果需要打包，自动执行
+    if need_pack:
+        print("\n🔄 自动打包 Flet 客户端...")
+        if not pack_flet_client():
+            print("\n❌ Flet 客户端打包失败")
+            return False
+    
+    return True
+
+
 def check_dependencies():
     """检查并同步依赖"""
     print("🔍 检查依赖环境...")
@@ -701,12 +923,19 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  python build.py                           # 默认 release 模式
+  python build.py                           # 默认 release 模式（自动打包 Flet）
   python build.py --mode dev                # 开发模式（快速编译）
   python build.py --mode release --upx      # release 模式 + UPX 压缩
   python build.py --upx --upx-path "C:\\upx\\upx.exe"  # 指定 UPX 路径
   python build.py --jobs 4                  # 使用 4 个并行任务编译
+  python build.py --pack-flet               # 仅打包 Flet 客户端（通常无需手动执行）
         """
+    )
+    
+    parser.add_argument(
+        "--pack-flet",
+        action="store_true",
+        help="仅打包 Flet 客户端，不进行编译（通常无需手动执行，构建时会自动打包）"
     )
     
     parser.add_argument(
@@ -760,9 +989,22 @@ def main():
         print(f"🔨 {APP_NAME} v{VERSION} 构建工具")
         print("=" * 50)
         
+        # 如果指定了 --pack-flet，只执行打包操作
+        if args.pack_flet:
+            if pack_flet_client():
+                sys.exit(0)
+            else:
+                sys.exit(1)
+        
         # 检查依赖（包括 onnxruntime 版本检查）
         if not check_dependencies():
             print("\n❌ 依赖检查失败，已取消构建")
+            sys.exit(1)
+        
+        # 自动检查并打包 Flet 客户端
+        print("\n🔍 检查 Flet 客户端...")
+        if not check_and_pack_flet_client():
+            print("❌ Flet 客户端准备失败，已取消构建")
             sys.exit(1)
         
         if run_build(mode=args.mode, enable_upx=args.upx, upx_path=args.upx_path, jobs=args.jobs, mingw64=args.mingw64):
