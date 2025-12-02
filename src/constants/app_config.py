@@ -10,7 +10,7 @@ from typing import Final
 # 应用基本信息
 APP_TITLE: Final[str] = "MTools - 多功能工具箱"
 APP_VERSION: Final[str] = "0.1.1"
-APP_DESCRIPTION: Final[str] = "集成音视频处理、图片处理、编码转换、代码格式化等功能"
+APP_DESCRIPTION: Final[str] = "一个多功能工具箱，集成了图片处理、音视频处理、编码转换、代码格式化等功能"
 
 # 窗口配置
 WINDOW_WIDTH: Final[int] = 1070

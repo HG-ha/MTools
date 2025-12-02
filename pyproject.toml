@@ -15,7 +15,9 @@ dependencies = [
   "chardet==5.2.0",
   "opencv-python-headless==4.11.0.86",
   "numpy==1.26.4",
-  "onnxruntime-directml==1.22.0",  # Windows 专用。macOS 用户请运行: uv remove onnxruntime-directml && uv add onnxruntime-silicon
+  # ONNX Runtime - 自动根据平台选择合适的版本
+  "onnxruntime-directml==1.22.0 ; sys_platform == 'win32'",  # Windows DirectML 加速
+  "onnxruntime==1.22.0 ; sys_platform == 'linux' or sys_platform == 'darwin'",  # macOS (内置 CoreML) / Linux
   "websockets==12.0",  # 避免弃用警告，等待 flet 更新
   "qrcode[pil]==7.4.2",
 ]
@@ -38,8 +40,8 @@ copyright = "Copyright (C) 2025 by Flet"
 [tool.flet.app]
 path = "src"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "flet[all]==0.28.3",
     "nuitka>=2.5.0",
 ]

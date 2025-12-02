@@ -1,6 +1,8 @@
 # MTools 编译指南
 
-本指南将帮助您使用 Nuitka 编译 MTools 项目，生成独立的可执行文件。
+本指南将帮助您使用 Nuitka 编译 MTools 项目，生成独立的可执行文件，我们不使用 **flet build** 打包，等官方有更好的优化版本再接入。
+## 须知
+1. 当前flet版本在打包后，每次启动时都会检测当前用户目录下是否存在.flet目录，如果不存在则自动下载，这一步会大大减慢运行速度。这个包是flet-desktop，目前的解决方法是内部拦截，然后手动解压，目前只适配了Windows，似乎也只有Windows需要适配。
 
 ## 📋 前置要求
 
@@ -20,10 +22,27 @@
    pip install uv
    ```
 
-3. **C 编译器**
-   - **Windows**: 安装 Visual Studio Build Tools 或完整的 Visual Studio
+3. **C 编译器**（Windows 用户可跳过，Nuitka 会自动下载）
+   - **Windows**: 
+     
+     🎯 **自动安装（推荐，无需手动操作）**
+     - Nuitka 会在首次编译时自动下载 MinGW
+     - 无需任何配置，开箱即用
+     - 编译器缓存在 Nuitka 数据目录，后续编译无需重复下载
+     
+     **手动安装（可选，编译速度可能更快）**
+     
+     *方案 1: MinGW (轻量级，~100MB)*
+     - 下载 [WinLibs MinGW](https://winlibs.com/)
+     - 选择 GCC 13+ 版本 (UCRT runtime)
+     - 解压到 `C:\mingw64`
+     - 添加 `C:\mingw64\bin` 到系统 PATH
+     - 验证: `gcc --version`
+     
+     *方案 2: Visual Studio Build Tools (~6GB)*
      - [下载地址](https://visualstudio.microsoft.com/downloads/)
-     - 选择 "Desktop development with C++" 工作负载
+     - 勾选 "Desktop development with C++"
+   
    - **Linux**: GCC (`sudo apt install build-essential`)
    - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 
@@ -35,17 +54,22 @@
 
 ## 🚀 快速开始
 
+> 💡 **Windows 用户提示**：无需手动安装 C 编译器！Nuitka 会在首次编译时自动下载 MinGW（约 100MB）。
+
 ### 1. 安装依赖
 
 ```bash
 # 克隆项目
-cd H:\Workspace\PythonProjects\mytools
+git clone https://github.com/HG-ha/MTools.git
+cd MTools
 
 # 同步依赖（包括 Nuitka）
 uv sync
 ```
 
 ### 2. 基础编译
+
+> ⏱️ **首次编译提示**：Windows 用户首次编译时，Nuitka 会自动下载编译器，整个过程可能需要额外 5-10 分钟。后续编译无需重复下载。
 
 **Release 模式（生产环境）**
 ```bash
@@ -73,10 +97,11 @@ python build.py --upx
 ```
 - 自动检测系统 PATH 中的 UPX
 - 进一步减小文件体积（约 30-50%）
+- 可能会使启动速度变慢
 
 **指定 UPX 路径**
 ```bash
-python build.py --upx --upx-path "C:\tools\upx\upx.exe"
+python build.py --upx --upx-path "upx.exe"
 ```
 
 **调整并行任务数**
@@ -86,6 +111,15 @@ python build.py --jobs 4
 
 # 使用 1 个任务（最安全，系统配置低时推荐）
 python build.py --jobs 1
+```
+
+**指定 MinGW 路径** (Windows)
+```bash
+# 如果 MinGW 安装在非标准位置
+python build.py --mingw64 "D:\Tools\mingw64"
+
+# 临时使用特定版本的 MinGW
+python build.py --mingw64 "C:\mingw-gcc14" --jobs 4
 ```
 
 **组合使用**
@@ -108,6 +142,29 @@ python build.py --mode dev --jobs 1
 | **启动速度** | 较慢 | 较快 |
 | **适用场景** | 开发测试 | 正式发布 |
 | **Python 标志** | `no_site` | `-O`, `no_site`, `no_warnings` |
+
+## 🛠️ C 编译器对比 (Windows)
+
+| 特性 | Nuitka 自动下载 (推荐) | 手动安装 MinGW | MSVC |
+|------|---------------------|------------|------|
+| **安装大小** | ~100MB | ~100MB 🎯 | ~6GB 💾 |
+| **安装方式** | 完全自动 🚀 | 解压即用 ✅ | 需要安装器 ⚙️ |
+| **首次编译** | 稍慢（需下载） | 正常速度 ⚡ | 正常速度 |
+| **后续编译** | 正常速度 | 正常速度 ⚡ | 较慢 🐢 |
+| **配置复杂度** | 零配置 ✨ | 需配置 PATH | 需安装器 |
+| **开源** | ✅ 是 | ✅ 是 | ❌ 否 |
+| **推荐场景** | 快速开始，零配置 | 频繁编译 | 企业级、深度优化 |
+
+**编译器选择逻辑**：
+1. ✅ 优先使用系统已安装的 MinGW（如果在 PATH 中）
+2. ✅ 其次使用 MSVC（如果已安装 Visual Studio）
+3. ✅ 最后由 Nuitka 自动下载 MinGW（首次编译时）
+
+**手动指定**（可选）：
+```bash
+# 使用特定 MinGW 版本
+python build.py --mingw64 "C:\mingw64"
+```
 
 ## ⚙️ 命令行参数详解
 
@@ -139,6 +196,16 @@ python build.py --help
   - 低配置电脑: `1`
   - 中等配置: `2-4`
   - 高配置: `4-8` (不要超过 CPU 核心数)
+
+### `--mingw64 PATH`
+- **平台**: Windows only
+- **说明**: 指定 MinGW64 安装路径
+- **示例**: `--mingw64 "C:\mingw64"` 或 `--mingw64 "D:\Tools\mingw-w64"`
+- **用途**: 
+  - 使用非标准路径的 MinGW
+  - 临时使用特定版本的 GCC
+  - 强制使用 MinGW 而非 MSVC
+- **注意**: 路径应包含 `bin` 子目录（如 `C:\mingw64\bin\gcc.exe`）
 
 ## 🗂️ 输出结构
 
@@ -231,9 +298,45 @@ python build.py --upx --upx-path "C:\path\to\upx.exe"
 ### Q4: 找不到 C 编译器
 
 **Windows 解决方案**:
-1. 安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
+
+**🎯 方案 0: 什么都不做（推荐）**
+- Nuitka 会在首次编译时自动下载 MinGW
+- 无需任何手动操作
+- 直接运行 `python build.py` 即可
+
+首次编译时会看到类似提示：
+```
+ℹ️  未检测到系统已安装的 C 编译器
+🎯 好消息：Nuitka 会在首次编译时自动下载 MinGW！
+
+构建过程中会：
+   1. 自动下载 MinGW-w64 编译器（约 100MB）
+   2. 缓存到 Nuitka 数据目录，后续编译无需重复下载
+   3. 自动配置编译环境
+
+✅ 继续构建，Nuitka 将自动处理编译器下载...
+```
+
+**方案 1: 手动安装 MinGW（可选，频繁编译推荐）**
+1. 下载 [WinLibs MinGW](https://winlibs.com/)
+2. 下载 GCC 13+ 版本（UCRT runtime, posix threads）
+3. 解压到 `C:\mingw64`
+4. 添加环境变量:
+   - 右键"此电脑" → "属性" → "高级系统设置"
+   - "环境变量" → "系统变量" → "Path" → "编辑"
+   - 新建: `C:\mingw64\bin`
+5. 重启终端，验证: `gcc --version`
+
+**方案 2: 安装 Visual Studio Build Tools**
+1. 下载 [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
 2. 勾选 "Desktop development with C++"
-3. 重启终端
+3. 等待安装完成（约 6GB）
+4. 重启终端
+
+**指定 MinGW 路径**（如果安装在其他位置）:
+```bash
+python build.py --mingw64 "D:\Tools\mingw64"
+```
 
 **Linux 解决方案**:
 ```bash
@@ -278,23 +381,7 @@ Nuitka 官方文档: https://nuitka.net/doc/user-manual.html
 
 在对应平台上运行 `python build.py` 即可。
 
-### CI/CD 集成
-
-```yaml
-# GitHub Actions 示例
-- name: Build with Nuitka
-  run: |
-    uv sync
-    python build.py --mode release --jobs 2
-```
-
-## 📞 获取帮助
-
-- **项目 Issue**: 提交到项目 GitHub Issues
-- **Nuitka 文档**: https://nuitka.net/
-- **UPX 文档**: https://upx.github.io/
 
 ---
 
-**最后更新**: 2025-12-01
-
+**最后更新**: 2025-12-02

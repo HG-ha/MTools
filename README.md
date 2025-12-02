@@ -13,7 +13,7 @@
 ## 🚀 快速开始
 
 ### 环境要求
-- **操作系统**: Windows 10/11、macOS (Apple Silicon) 或 Linux
+- **操作系统**: Windows 10/11、macOS (实验性支持) 或 Linux
 - **Python**: 3.11+
 - **包管理器**: [uv](https://github.com/astral-sh/uv) - 推荐使用的 Python 包管理器
 
@@ -25,31 +25,19 @@
 # 克隆仓库
 git clone https://github.com/HG-ha/MTools
 cd MTools
-```
 
-**⚠️ macOS (Apple Silicon) 用户请先执行以下操作：**
-```bash
-# 更换为 macOS 专用的 ONNX Runtime
-uv remove onnxruntime-directml
-uv add onnxruntime-silicon==1.22.0
-```
-
-**⚠️ Linux 用户请先执行以下操作：**
-```bash
-# 更换为 CUDA 专用的 ONNX Runtime
-# Windows也可以执行这一步，但需要自行配置CUDA加速环境
-uv remove onnxruntime-directml
-uv add onnxruntime-gpu==1.22.0
-```
-
-
-**所有用户继续执行：**
-```bash
 # 一键同步依赖（自动创建虚拟环境）
 uv sync
 
 # 运行程序
 uv run flet run
+```
+
+**⚠️ Linux 用户（可选 GPU 加速）：**
+```bash
+# 如需 CUDA 加速，可更换为 GPU 版本（需要 NVIDIA GPU 和 CUDA 环境）
+uv remove onnxruntime-directml onnxruntime
+uv add onnxruntime-gpu==1.22.0
 ```
 
 ---
@@ -138,12 +126,14 @@ python build.py --help
 |------|------------------|---------|
 | **Windows (Intel/AMD GPU)** | `onnxruntime-directml==1.22.0` | ✅ DirectML |
 | **Windows (NVIDIA GPU)** | `onnxruntime-directml==1.22.0` 或 `onnxruntime-gpu` | ✅ DirectML / CUDA |
-| **macOS (Apple Silicon)** | `onnxruntime-silicon==1.22.0` | ✅ CoreML |
-| **Linux** | `onnxruntime` 或 `onnxruntime-gpu` | ⚠️ CPU / CUDA |
+| **macOS (Apple Silicon)** | `onnxruntime==1.22.0` | ✅ CoreML (内置) |
+| **macOS (Intel)** | `onnxruntime==1.22.0` | ⚠️ CPU |
+| **Linux** | `onnxruntime==1.22.0` 或 `onnxruntime-gpu` | ⚠️ CPU / CUDA |
 
 > 💡 **提示**：
-> - Windows 用户使用默认配置即可（已包含 `onnxruntime-directml==1.22.0`）
-> - macOS 用户需要手动更换为 `onnxruntime-silicon==1.22.0`（参见快速开始章节）
+> - **Windows 用户**：使用默认配置即可（已包含 `onnxruntime-directml==1.22.0`），自动支持 DirectML GPU 加速
+> - **macOS 用户**：使用默认配置即可（已包含 `onnxruntime==1.22.0`），Apple Silicon 自动支持 CoreML 加速
+> - **Linux 用户**：默认 CPU 模式，如需 GPU 加速请安装 `onnxruntime-gpu`（需要 NVIDIA GPU 和 CUDA 环境）
 > - 程序会自动检测并使用可用的 GPU 加速，无需额外配置
 > - 如果没有 GPU，程序会自动回退到 CPU 模式
 

@@ -179,11 +179,11 @@ class VocalSeparationService:
         providers = ['CPUExecutionProvider']
         if ort.get_available_providers():
             available = ort.get_available_providers()
-            if 'CUDAExecutionProvider' in available:
+            if 'CUDAExecutionProvider' in available:  # CUDA (NVIDIA GPU)
                 providers.insert(0, 'CUDAExecutionProvider')
-            elif 'DmlExecutionProvider' in available:  # DirectML for Windows
+            elif 'DmlExecutionProvider' in available:  # DirectML (Windows 通用 GPU)
                 providers.insert(0, 'DmlExecutionProvider')
-            elif 'CoreMLExecutionProvider' in available:  # CoreML for macOS Apple Silicon
+            elif 'CoreMLExecutionProvider' in available:  # CoreML (macOS Apple Silicon，onnxruntime 内置)
                 providers.insert(0, 'CoreMLExecutionProvider')
         
         # 创建推理会话

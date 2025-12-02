@@ -39,7 +39,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_1.4_quantized": ModelInfo(
         name="rmbg_1.4_quantized",
         display_name="RMBG 1.4 量化版（推荐）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/1.4/model_quantized.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/1.4/model_quantized.onnx",
         size_mb=44,
         quality="中等质量",
         performance="速度快、内存占用低",
@@ -49,7 +49,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_1.4_fp16": ModelInfo(
         name="rmbg_1.4_fp16",
         display_name="RMBG 1.4 半精度",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/1.4/model_fp16.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/1.4/model_fp16.onnx",
         size_mb=88,
         quality="良好质量",
         performance="速度较快、内存适中",
@@ -59,7 +59,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_1.4_standard": ModelInfo(
         name="rmbg_1.4_standard",
         display_name="RMBG 1.4 标准版",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/1.4/model.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/1.4/model.onnx",
         size_mb=176,
         quality="高质量",
         performance="速度中等、内存占用中",
@@ -69,7 +69,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_2.0_q4": ModelInfo(
         name="rmbg_2.0_q4",
         display_name="RMBG 2.0 Q4",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_q4.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_q4.onnx",
         size_mb=350,
         quality="优秀质量",
         performance="速度较快、内存占用适中",
@@ -79,7 +79,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_2.0_q4f16": ModelInfo(
         name="rmbg_2.0_q4f16",
         display_name="RMBG 2.0 Q4F16",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_q4f16.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_q4f16.onnx",
         size_mb=234,
         quality="优秀质量",
         performance="速度较慢、内存占用高",
@@ -89,7 +89,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_2.0_int8": ModelInfo(
         name="rmbg_2.0_int8",
         display_name="RMBG 2.0 INT8",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_int8.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/2.0/model_int8.onnx",
         size_mb=366,
         quality="极高质量",
         performance="速度慢、内存占用很高",
@@ -99,7 +99,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "rmbg_2.0_standard": ModelInfo(
         name="rmbg_2.0_standard",
         display_name="RMBG 2.0 标准版（最佳质量）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/RMBG/2.0/model.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/RMBG/2.0/model.onnx",
         size_mb=1024,
         quality="最佳质量",
         performance="速度很慢、内存占用非常高",
@@ -109,7 +109,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "birefnet_fp16": ModelInfo(
         name="birefnet_fp16",
         display_name="BiRefNet FP16（高精度）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/birefnet/1.0/model_fp16.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/birefnet/1.0/model_fp16.onnx",
         size_mb=490,
         quality="极高质量",
         performance="速度较慢、内存占用高",
@@ -119,7 +119,7 @@ BACKGROUND_REMOVAL_MODELS: Final[dict[str, ModelInfo]] = {
     "birefnet_standard": ModelInfo(
         name="birefnet_standard",
         display_name="BiRefNet 标准版（顶级质量）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/background_removal/birefnet/1.0/model.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/background_removal/birefnet/1.0/model.onnx",
         size_mb=973,
         quality="顶级质量",
         performance="速度很慢、内存占用极高",
@@ -137,7 +137,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "kim_vocal_2": ModelInfo(
         name="kim_vocal_2",
         display_name="Kim Vocal 2（推荐）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/Kim_Vocal_2.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/Kim_Vocal_2.onnx",
         size_mb=50,
         quality="高质量人声分离 - 专为人声优化",
         performance="速度快、人声清晰、乐器残留少",
@@ -147,7 +147,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_voc_ft": ModelInfo(
         name="uvr_mdx_net_voc_ft",
         display_name="UVR MDX-NET Voc FT",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR_MDXNET_KARA_2.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR_MDXNET_KARA_2.onnx",
         size_mb=50,
         quality="高质量卡拉OK伴奏制作",
         performance="适合提取清晰人声、制作卡拉OK",
@@ -158,7 +158,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_main": ModelInfo(
         name="uvr_mdx_net_inst_main",
         display_name="UVR MDX-NET Main",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR_MDXNET_Main.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR_MDXNET_Main.onnx",
         size_mb=50,
         quality="通用场景 - 稳定可靠",
         performance="适合各类音乐风格、兼容性强、不易出错",
@@ -168,7 +168,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_1": ModelInfo(
         name="uvr_mdx_net_inst_1",
         display_name="UVR MDX-NET Inst 1",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_1.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_1.onnx",
         size_mb=50,
         quality="纯伴奏提取 - 保留乐器细节",
         performance="伴奏质量高、适合音乐制作",
@@ -179,7 +179,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_2": ModelInfo(
         name="uvr_mdx_net_inst_2",
         display_name="UVR MDX-NET Inst 2",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_2.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_2.onnx",
         size_mb=50,
         quality="伴奏提取 - 平衡版",
         performance="人声与伴奏分离均衡",
@@ -190,7 +190,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_3": ModelInfo(
         name="uvr_mdx_net_inst_3",
         display_name="UVR MDX-NET Inst 3",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_3.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_3.onnx",
         size_mb=50,
         quality="伴奏提取 - 增强版",
         performance="更干净的伴奏分离",
@@ -201,7 +201,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_hq_1": ModelInfo(
         name="uvr_mdx_net_inst_hq_1",
         display_name="UVR MDX-NET Inst HQ 1",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_1.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_1.onnx",
         size_mb=50,
         quality="高质量伴奏提取",
         performance="HQ版本、音质更佳",
@@ -212,7 +212,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_hq_2": ModelInfo(
         name="uvr_mdx_net_inst_hq_2",
         display_name="UVR MDX-NET Inst HQ 2",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_2.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_2.onnx",
         size_mb=50,
         quality="高质量伴奏提取 - 改进版",
         performance="比 HQ 1 更好的分离效果",
@@ -223,7 +223,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "uvr_mdx_net_inst_hq_3": ModelInfo(
         name="uvr_mdx_net_inst_hq_3",
         display_name="UVR MDX-NET Inst HQ 3（高质量）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_3.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/UVR-MDX-NET-Inst_HQ_3.onnx",
         size_mb=50,
         quality="顶级伴奏提取质量",
         performance="最佳音质、伴奏最干净",
@@ -234,7 +234,7 @@ VOCAL_SEPARATION_MODELS: Final[dict[str, ModelInfo]] = {
     "kim_inst": ModelInfo(
         name="kim_inst",
         display_name="Kim Inst",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/vocal_separation/Kim_Inst.onnx",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/vocal_separation/Kim_Inst.onnx",
         size_mb=50,
         quality="Kim系列 - 伴奏专用",
         performance="与Kim Vocal 2配套使用",
@@ -273,8 +273,8 @@ IMAGE_ENHANCE_MODELS: Final[dict[str, ImageEnhanceModelInfo]] = {
     "realesrgan_x4plus": ImageEnhanceModelInfo(
         name="realesrgan_x4plus",
         display_name="Real-ESRGAN x4 Plus（推荐）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.onnx",
-        data_url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.data",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.data",
         size_mb=67,
         quality="高质量图像超分辨率",
         performance="4倍放大、适合真实照片、通用场景",
@@ -289,8 +289,8 @@ IMAGE_ENHANCE_MODELS: Final[dict[str, ImageEnhanceModelInfo]] = {
     "realesrgan_x4_v3": ImageEnhanceModelInfo(
         name="realesrgan_x4_v3",
         display_name="Real-ESRGAN x4 V3（动漫）",
-        url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.onnx",
-        data_url="https://www.modelscope.cn/models/yiminger/MTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.data",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.data",
         size_mb=5,
         quality="动漫/插画专用超分辨率",
         performance="4倍放大、针对动漫和插画优化",

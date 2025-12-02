@@ -2051,7 +2051,7 @@ class BackgroundRemover:
             available_providers = ort.get_available_providers()
             
             # 按优先级尝试GPU提供者
-            # 1. CUDA (NVIDIA)
+            # 1. CUDA (NVIDIA GPU)
             if 'CUDAExecutionProvider' in available_providers:
                 providers.append(('CUDAExecutionProvider', {
                     'device_id': gpu_device_id,
@@ -2061,11 +2061,11 @@ class BackgroundRemover:
                     'do_copy_in_default_stream': True,
                 }))
                 self.using_gpu = True
-            # 2. DirectML (Windows通用GPU)
+            # 2. DirectML (Windows 通用 GPU)
             elif 'DmlExecutionProvider' in available_providers:
                 providers.append('DmlExecutionProvider')
                 self.using_gpu = True
-            # 3. CoreML (macOS Apple Silicon)
+            # 3. CoreML (macOS Apple Silicon，onnxruntime 内置)
             elif 'CoreMLExecutionProvider' in available_providers:
                 providers.append('CoreMLExecutionProvider')
                 self.using_gpu = True
@@ -2324,7 +2324,8 @@ class ImageEnhancer:
         if use_gpu:
             available_providers = ort.get_available_providers()
             
-            # 按优先级尝试GPU提供者
+            # 按优先级尝试 GPU 提供者
+            # 1. CUDA (NVIDIA GPU)
             if 'CUDAExecutionProvider' in available_providers:
                 providers.append(('CUDAExecutionProvider', {
                     'device_id': gpu_device_id,
@@ -2334,12 +2335,15 @@ class ImageEnhancer:
                     'do_copy_in_default_stream': True,
                 }))
                 self.using_gpu = True
+            # 2. DirectML (Windows 通用 GPU)
             elif 'DmlExecutionProvider' in available_providers:
                 providers.append('DmlExecutionProvider')
                 self.using_gpu = True
+            # 3. CoreML (macOS Apple Silicon，onnxruntime 内置)
             elif 'CoreMLExecutionProvider' in available_providers:
                 providers.append('CoreMLExecutionProvider')
                 self.using_gpu = True
+            # 4. ROCm (AMD GPU)
             elif 'ROCMExecutionProvider' in available_providers:
                 providers.append('ROCMExecutionProvider')
                 self.using_gpu = True
