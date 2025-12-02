@@ -19,9 +19,43 @@ import atexit
 
 # 路径配置
 PROJECT_ROOT = Path(__file__).parent.absolute()
-DIST_DIR = PROJECT_ROOT / "dist" / "release"
 ASSETS_DIR = PROJECT_ROOT / "src" / "assets"
 APP_CONFIG_FILE = PROJECT_ROOT / "src" / "constants" / "app_config.py"
+
+def get_dist_dir(mode="release"):
+    """根据构建模式获取输出目录
+    
+    Args:
+        mode: 构建模式 ('release' 或 'dev')
+        
+    Returns:
+        Path: 输出目录路径
+    """
+    return PROJECT_ROOT / "dist" / mode
+
+
+def get_platform_name():
+    """获取平台相关的输出名称（统一目录和 zip 命名）
+    
+    Returns:
+        str: 平台名称，例如 "Windows_amd64", "macOS_arm64", "Linux_x86_64"
+    """
+    system = platform.system()
+    machine = platform.machine().upper()
+    
+    # 统一机器架构名称
+    arch_map = {
+        'X86_64': 'amd64',  # Linux/macOS 常用
+        'AMD64': 'amd64',   # Windows 常用
+        'ARM64': 'arm64',   # Apple Silicon
+        'AARCH64': 'arm64', # Linux ARM64
+        'I386': 'x86',
+        'I686': 'x86',
+    }
+    
+    arch = arch_map.get(machine, machine)
+    
+    return f"{system}_{arch}"
 
 # 全局状态标记
 _build_interrupted = False
@@ -108,30 +142,38 @@ COMPANY_NAME = "HG-ha"
 COPYRIGHT = f"Copyright (C) 2025 by {COMPANY_NAME}"
 DESCRIPTION = APP_CONFIG["APP_DESCRIPTION"]
 
-OUTPUT_DIR = DIST_DIR / f"{APP_NAME}_x64"
-
-def clean_dist():
-    """清理构建目录"""
-    print("🧹 清理旧的构建文件...")
-    if DIST_DIR.exists():
+def clean_dist(mode="release"):
+    """清理构建目录
+    
+    Args:
+        mode: 构建模式 ('release' 或 'dev')
+    """
+    dist_dir = get_dist_dir(mode)
+    print(f"🧹 清理旧的构建文件 ({mode} 模式)...")
+    if dist_dir.exists():
         try:
-            shutil.rmtree(DIST_DIR)
-            print(f"   已删除: {DIST_DIR}")
+            shutil.rmtree(dist_dir)
+            print(f"   已删除: {dist_dir}")
         except Exception as e:
             print(f"   ❌ 清理失败: {e}")
 
-def cleanup_incomplete_build():
-    """清理未完成的构建文件"""
+def cleanup_incomplete_build(mode="release"):
+    """清理未完成的构建文件
+    
+    Args:
+        mode: 构建模式 ('release' 或 'dev')
+    """
+    dist_dir = get_dist_dir(mode)
     try:
         # 清理 .dist 临时目录
-        if DIST_DIR.exists():
-            for item in DIST_DIR.glob("*.dist"):
+        if dist_dir.exists():
+            for item in dist_dir.glob("*.dist"):
                 if item.is_dir():
                     print(f"   清理临时目录: {item.name}")
                     shutil.rmtree(item)
             
             # 清理 .build 临时目录
-            for item in DIST_DIR.glob("*.build"):
+            for item in dist_dir.glob("*.build"):
                 if item.is_dir():
                     print(f"   清理临时目录: {item.name}")
                     shutil.rmtree(item)
@@ -397,9 +439,11 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         upx_path: UPX 工具路径（可选）
         jobs: 并行编译进程数（默认 2）
     """
+    dist_dir = get_dist_dir(mode)
     system = platform.system()
     print(f"🖥️  检测到操作系统: {system}")
     print(f"📦 构建模式: {mode.upper()}")
+    print(f"📂 输出目录: {dist_dir}")
     print(f"⚙️  并行任务数: {jobs}")
     
     # Windows 上检查编译器
@@ -427,7 +471,7 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
     cmd = executable_cmd + [
         "-m", "nuitka",
         "--standalone",
-        f"--output-dir={DIST_DIR}",
+        f"--output-dir={dist_dir}",
         "--assume-yes-for-downloads",
         "--follow-imports",
         # 资源控制 - 防止系统卡死
@@ -525,10 +569,10 @@ def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=N
         jobs: 并行编译进程数（默认 2）
         mingw64: MinGW64 安装路径（可选）
     """
-    clean_dist()
+    clean_dist(mode)
     
-    # 注册清理处理器
-    register_cleanup_handler(cleanup_incomplete_build)
+    # 注册清理处理器（使用 lambda 捕获 mode）
+    register_cleanup_handler(lambda: cleanup_incomplete_build(mode))
     
     # 设置 MinGW 环境变量（如果指定）
     env = os.environ.copy()
@@ -561,17 +605,26 @@ def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=N
         print(f"\n❌ 发生错误: {e}")
         return False
 
-def organize_output():
-    """整理输出文件"""
+def organize_output(mode="release"):
+    """整理输出文件
+    
+    Args:
+        mode: 构建模式 ('release' 或 'dev')
+    """
+    dist_dir = get_dist_dir(mode)
+    platform_name = get_platform_name()
+    output_dir = dist_dir / f"{APP_NAME}_{platform_name}"
+    
     print("\n📦 整理输出文件...")
+    print(f"   目标目录: {output_dir.name}")
     
     # Nuitka standalone 模式通常会生成 main.dist 文件夹（或类似名称）
     # 我们需要找到生成的文件夹并重命名
     
-    dist_content = list(DIST_DIR.glob("*.dist"))
+    dist_content = list(dist_dir.glob("*.dist"))
     if not dist_content:
         # 可能是 macOS app bundle
-        app_bundles = list(DIST_DIR.glob("*.app"))
+        app_bundles = list(dist_dir.glob("*.app"))
         if app_bundles:
             print(f"   发现应用包: {app_bundles[0].name}")
             return True
@@ -582,49 +635,57 @@ def organize_output():
     source_dist = dist_content[0]
     
     # 如果目标目录已存在，先删除
-    if OUTPUT_DIR.exists():
-        shutil.rmtree(OUTPUT_DIR)
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
         
     # 重命名/移动到目标目录
     try:
-        shutil.move(str(source_dist), str(OUTPUT_DIR))
-        print(f"   已重命名: {source_dist.name} -> {OUTPUT_DIR.name}")
+        shutil.move(str(source_dist), str(output_dir))
+        print(f"   已重命名: {source_dist.name} -> {output_dir.name}")
         return True
     except Exception as e:
         print(f"   ❌ 整理失败: {e}")
         return False
 
-def compress_output():
-    """压缩输出目录"""
+def compress_output(mode="release"):
+    """压缩输出目录
+    
+    Args:
+        mode: 构建模式 ('release' 或 'dev')
+    """
+    dist_dir = get_dist_dir(mode)
+    platform_name = get_platform_name()
+    output_dir = dist_dir / f"{APP_NAME}_{platform_name}"
+    
     print("\n🗜️  正在压缩...")
     
-    zip_filename = DIST_DIR / f"{APP_NAME}_{platform.system()}_{platform.machine()}.zip"
+    zip_filename = dist_dir / f"{APP_NAME}_{platform_name}.zip"
     
     try:
         # 如果是 macOS app bundle
-        if platform.system() == "Darwin" and list(DIST_DIR.glob("*.app")):
-            app_path = list(DIST_DIR.glob("*.app"))[0]
+        if platform.system() == "Darwin" and list(dist_dir.glob("*.app")):
+            app_path = list(dist_dir.glob("*.app"))[0]
             # macOS 上通常使用 shutil.make_archive 或 tar 命令
             # 这里为了简单使用 zip
             with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(app_path):
                     for file in files:
                         file_path = Path(root) / file
-                        arcname = file_path.relative_to(DIST_DIR)
+                        arcname = file_path.relative_to(dist_dir)
                         zipf.write(file_path, arcname)
         else:
             # Windows/Linux 目录压缩
-            if not OUTPUT_DIR.exists():
+            if not output_dir.exists():
                 print("   ❌ 找不到要压缩的目录")
                 return
                 
             with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 # 遍历目录并添加到 zip，保持相对路径结构
-                for root, _, files in os.walk(OUTPUT_DIR):
+                for root, _, files in os.walk(output_dir):
                     for file in files:
                         file_path = Path(root) / file
                         # 计算在压缩包中的相对路径（例如 MTools_x64/MTools.exe）
-                        arcname = file_path.relative_to(DIST_DIR)
+                        arcname = file_path.relative_to(dist_dir)
                         zipf.write(file_path, arcname)
                         
         print(f"   ✅ 压缩完成: {zip_filename}")
@@ -706,14 +767,14 @@ def main():
         
         if run_build(mode=args.mode, enable_upx=args.upx, upx_path=args.upx_path, jobs=args.jobs, mingw64=args.mingw64):
             if platform.system() != "Darwin":  # macOS app bundle 不需要重命名步骤
-                if not organize_output():
+                if not organize_output(args.mode):
                     print("\n❌ 构建未完成")
                     sys.exit(1)
             
-            compress_output()
+            compress_output(args.mode)
             
             print("\n" + "=" * 50)
-            print("🎉 全部完成！构建文件位于 dist/release 目录")
+            print(f"🎉 全部完成！构建文件位于 dist/{args.mode} 目录")
             print("=" * 50)
             sys.exit(0)
         else:

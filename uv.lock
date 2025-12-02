@@ -425,7 +425,8 @@ dependencies = [
     { name = "ffmpeg-python" },
     { name = "flet" },
     { name = "numpy" },
-    { name = "onnxruntime-directml" },
+    { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
     { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "qrcode", extra = ["pil"] },
@@ -444,7 +445,8 @@ requires-dist = [
     { name = "ffmpeg-python", specifier = "==0.2.0" },
     { name = "flet", specifier = "==0.28.3" },
     { name = "numpy", specifier = "==1.26.4" },
-    { name = "onnxruntime-directml", specifier = "==1.22.0" },
+    { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'", specifier = "==1.22.0" },
+    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = "==1.22.0" },
     { name = "opencv-python-headless", specifier = "==4.11.0.86" },
     { name = "pillow", specifier = "==12.0.0" },
     { name = "qrcode", extras = ["pil"], specifier = "==7.4.2" },
@@ -493,7 +495,7 @@ wheels = [
 ]
 
 [[package]]
-name = "onnxruntime-directml"
+name = "onnxruntime"
 version = "1.22.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
@@ -503,6 +505,24 @@ dependencies = [
     { name = "packaging" },
     { name = "protobuf" },
     { name = "sympy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/08/c008711d1b92ff1272f4fea0fbee57723171f161d42e5c680625535280af/onnxruntime-1.22.0-cp311-cp311-macosx_13_0_universal2.whl", hash = "sha256:8d6725c5b9a681d8fe72f2960c191a96c256367887d076b08466f52b4e0991df", size = 34282151, upload-time = "2025-05-09T20:25:59.246Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/8b/22989f6b59bc4ad1324f07a945c80b9ab825f0a581ad7a6064b93716d9b7/onnxruntime-1.22.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:fef17d665a917866d1f68f09edc98223b9a27e6cb167dec69da4c66484ad12fd", size = 14446302, upload-time = "2025-05-09T20:25:44.299Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/d5/aa83d084d05bc8f6cf8b74b499c77431ffd6b7075c761ec48ec0c161a47f/onnxruntime-1.22.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b978aa63a9a22095479c38371a9b359d4c15173cbb164eaad5f2cd27d666aa65", size = 16393496, upload-time = "2025-05-09T20:26:11.588Z" },
+]
+
+[[package]]
+name = "onnxruntime-directml"
+version = "1.22.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "coloredlogs", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "flatbuffers", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "packaging", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "protobuf", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "sympy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dd/8b/98c5c977e12c24f4150de954e0b37fa9b39ab93036946846413663c72ac2/onnxruntime_directml-1.22.0-cp311-cp311-win_amd64.whl", hash = "sha256:4c611cb4b8588356eef4c02552e0a50117d558223dcfbdfe1b30b413e9a6feb0", size = 24433471, upload-time = "2025-05-09T19:31:28.511Z" },
