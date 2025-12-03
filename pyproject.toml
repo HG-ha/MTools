@@ -43,6 +43,7 @@ path = "src"
 [dependency-groups]
 dev = [
     "flet[all]==0.28.3",
+    "flet-desktop==0.28.3",
     "nuitka>=2.5.0",
 ]
 
