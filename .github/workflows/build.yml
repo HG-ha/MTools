@@ -85,7 +85,7 @@ jobs:
           print(f'Version: {version}')
 
       - name: Build with Nuitka
-        run: python build.py --mode release --jobs 4
+        run: uv run python build.py --mode release --jobs 4
         env:
           PYTHONIOENCODING: utf-8
 
