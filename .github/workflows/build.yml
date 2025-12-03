@@ -63,7 +63,7 @@ jobs:
           version: "latest"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --all-groups
 
       - name: Get version from app_config.py
         id: version
