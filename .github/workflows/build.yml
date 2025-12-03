@@ -86,6 +86,8 @@ jobs:
 
       - name: Build with Nuitka
         run: python build.py --mode release --jobs 4
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Get artifact name
         id: artifact

@@ -7,6 +7,12 @@ MTools 跨平台构建脚本
 
 import os
 import sys
+
+# 设置 stdout/stderr 编码为 UTF-8（解决 Windows CI 环境的编码问题）
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import shutil
 import platform
 import subprocess
@@ -602,10 +608,10 @@ def check_dependencies():
         return True
 
     try:
-        # 尝试使用 uv sync 同步依赖
+        # 尝试使用 uv sync 同步依赖（包含 dev 依赖以获取 flet_desktop 和 nuitka）
         # 这会确保环境与 uv.lock/pyproject.toml 一致
-        print("   执行 uv sync...")
-        subprocess.check_call(["uv", "sync"], cwd=PROJECT_ROOT)
+        print("   执行 uv sync --all-groups...")
+        subprocess.check_call(["uv", "sync", "--all-groups"], cwd=PROJECT_ROOT)
         print("✅ 依赖已同步")
     except FileNotFoundError:
         print("⚠️  未找到 uv 命令，请确保已安装 uv (https://github.com/astral-sh/uv)")
