@@ -270,33 +270,116 @@ class ImageEnhanceModelInfo(ModelInfo):
 
 
 IMAGE_ENHANCE_MODELS: Final[dict[str, ImageEnhanceModelInfo]] = {
-    "realesrgan_x4plus": ImageEnhanceModelInfo(
-        name="realesrgan_x4plus",
-        display_name="Real-ESRGAN x4 Plus（推荐）",
-        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.onnx",
-        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4-plus/model.data",
+    # Real-ESRGAN x4 系列
+    "RealESRGAN_x4plus": ImageEnhanceModelInfo(
+        name="RealESRGAN_x4plus",
+        display_name="Real-ESRGAN x4plus（推荐）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x4plus.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x4plus.onnx.data",
         size_mb=67,
-        quality="高质量图像超分辨率",
+        quality="高质量真实照片超分辨率",
         performance="4倍放大、适合真实照片、通用场景",
-        filename="model.onnx",
-        data_filename="model.data",
+        filename="RealESRGAN_x4plus.onnx",
+        data_filename="RealESRGAN_x4plus.onnx.data",
         version="x4plus",
         scale=4,
         min_scale=1.0,
         max_scale=4.0,
         support_custom_scale=True
     ),
-    "realesrgan_x4_v3": ImageEnhanceModelInfo(
-        name="realesrgan_x4_v3",
-        display_name="Real-ESRGAN x4 V3（动漫）",
-        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.onnx",
-        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/Real-ESRGAN/x4_v3_float/model.data",
-        size_mb=5,
+    "RealESRGAN_x4plus_anime_6B": ImageEnhanceModelInfo(
+        name="RealESRGAN_x4plus_anime_6B",
+        display_name="Real-ESRGAN x4plus Anime（动漫专用）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x4plus_anime_6B.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x4plus_anime_6B.onnx.data",
+        size_mb=18,
         quality="动漫/插画专用超分辨率",
         performance="4倍放大、针对动漫和插画优化",
-        filename="model.onnx",
-        data_filename="model.data",
-        version="x4_v3",
+        filename="RealESRGAN_x4plus_anime_6B.onnx",
+        data_filename="RealESRGAN_x4plus_anime_6B.onnx.data",
+        version="x4plus_anime",
+        scale=4,
+        min_scale=1.0,
+        max_scale=4.0,
+        support_custom_scale=True
+    ),
+    # "RealESRGAN_x2plus": ImageEnhanceModelInfo(
+    #     name="RealESRGAN_x2plus",
+    #     display_name="Real-ESRGAN x2plus（2倍）",
+    #     url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x2plus.onnx",
+    #     data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRGAN_x2plus.onnx.data",
+    #     size_mb=67,
+    #     quality="2倍高质量超分辨率（暂时禁用：输入通道不兼容）",
+    #     performance="2倍放大、速度更快、适合轻度增强",
+    #     filename="RealESRGAN_x2plus.onnx",
+    #     data_filename="RealESRGAN_x2plus.onnx.data",
+    #     version="x2plus",
+    #     scale=2,
+    #     min_scale=1.0,
+    #     max_scale=2.0,
+    #     support_custom_scale=True
+    # ),
+    "RealESRNet_x4plus": ImageEnhanceModelInfo(
+        name="RealESRNet_x4plus",
+        display_name="Real-ESRNet x4plus（无GAN）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRNet_x4plus.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/RealESRNet_x4plus.onnx.data",
+        size_mb=67,
+        quality="4倍超分辨率（无GAN锐化）",
+        performance="4倍放大、更自然柔和、适合保守增强",
+        filename="RealESRNet_x4plus.onnx",
+        data_filename="RealESRNet_x4plus.onnx.data",
+        version="esrnet_x4plus",
+        scale=4,
+        min_scale=1.0,
+        max_scale=4.0,
+        support_custom_scale=True
+    ),
+    
+    # Real-ESRGAN V3 系列（轻量级）
+    "realesr-general-x4v3": ImageEnhanceModelInfo(
+        name="realesr-general-x4v3",
+        display_name="Real-ESRGAN General x4 V3（通用）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-general-x4v3.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-general-x4v3.onnx.data",
+        size_mb=5,
+        quality="通用4倍超分辨率（轻量）",
+        performance="4倍放大、速度快、体积小、通用场景",
+        filename="realesr-general-x4v3.onnx",
+        data_filename="realesr-general-x4v3.onnx.data",
+        version="general_x4v3",
+        scale=4,
+        min_scale=1.0,
+        max_scale=4.0,
+        support_custom_scale=True
+    ),
+    "realesr-general-wdn-x4v3": ImageEnhanceModelInfo(
+        name="realesr-general-wdn-x4v3",
+        display_name="Real-ESRGAN General WDN x4 V3（降噪）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-general-wdn-x4v3.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-general-wdn-x4v3.onnx.data",
+        size_mb=5,
+        quality="通用4倍超分+降噪（轻量）",
+        performance="4倍放大、降噪处理、适合有噪点的图片",
+        filename="realesr-general-wdn-x4v3.onnx",
+        data_filename="realesr-general-wdn-x4v3.onnx.data",
+        version="general_wdn_x4v3",
+        scale=4,
+        min_scale=1.0,
+        max_scale=4.0,
+        support_custom_scale=True
+    ),
+    "realesr-animevideov3": ImageEnhanceModelInfo(
+        name="realesr-animevideov3",
+        display_name="Real-ESRGAN Anime Video V3（动漫视频）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-animevideov3.onnx",
+        data_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/upscayl/realesr-animevideov3.onnx.data",
+        size_mb=3,
+        quality="动漫视频专用（超轻量）",
+        performance="4倍放大、针对动漫视频优化、极速处理",
+        filename="realesr-animevideov3.onnx",
+        data_filename="realesr-animevideov3.onnx.data",
+        version="animevideov3",
         scale=4,
         min_scale=1.0,
         max_scale=4.0,
@@ -305,5 +388,5 @@ IMAGE_ENHANCE_MODELS: Final[dict[str, ImageEnhanceModelInfo]] = {
 }
 
 # 默认图像增强模型
-DEFAULT_ENHANCE_MODEL_KEY: Final[str] = "realesrgan_x4plus"
+DEFAULT_ENHANCE_MODEL_KEY: Final[str] = "RealESRGAN_x4plus"
 

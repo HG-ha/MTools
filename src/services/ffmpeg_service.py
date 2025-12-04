@@ -30,6 +30,7 @@ class FFmpegService:
     """
     
     # FFmpeg 下载链接
+    # essentials 版本已包含 NVIDIA GPU 硬件加速支持（NVENC/NVDEC/CUVID）
     FFMPEG_WINDOWS_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
     FFMPEG_MACOS_URL = "https://evermeet.cx/ffmpeg/getrelease/zip"  # FFmpeg macOS 版本
     FFMPEG_LINUX_URL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"  # FFmpeg Linux 版本
@@ -421,6 +422,63 @@ class FFmpegService:
         except Exception as e:
             return False, f"安装失败: {str(e)}"
 
+    def safe_probe(self, file_path: str) -> Optional[dict]:
+        """安全地获取视频信息（处理编码问题）。
+        
+        Args:
+            file_path: 视频文件路径
+            
+        Returns:
+            包含视频信息的字典，如果失败则返回None
+        """
+        ffprobe_path = self.get_ffprobe_path()
+        if not ffprobe_path:
+            return None
+            
+        try:
+            # 构建命令
+            cmd = [
+                ffprobe_path,
+                '-show_format',
+                '-show_streams',
+                '-of', 'json',
+                '-v', 'quiet',
+                str(file_path)
+            ]
+            
+            # 使用 subprocess 并手动处理解码
+            # 注意：虽然我们尽量避免在业务层使用 subprocess，但这里是为了解决
+            # ffmpeg-python 库内置 probe 函数在 Windows 下处理非 UTF-8 编码时的崩溃问题
+            process = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if process.returncode != 0:
+                return None
+                
+            # 尝试解码输出
+            stdout_data = process.stdout
+            
+            # 1. 尝试 utf-8
+            try:
+                json_str = stdout_data.decode('utf-8')
+            except UnicodeDecodeError:
+                # 2. 尝试 gbk (Windows 常见)
+                try:
+                    json_str = stdout_data.decode('gbk')
+                except UnicodeDecodeError:
+                    # 3. 强制忽略错误
+                    json_str = stdout_data.decode('utf-8', errors='ignore')
+            
+            import json
+            return json.loads(json_str)
+            
+        except Exception:
+            return None
+
     def get_video_duration(self, video_path: Path) -> float:
         """获取视频时长（秒）。"""
         ffprobe_path = self.get_ffprobe_path()
@@ -778,6 +836,44 @@ class FFmpegService:
             }
         except Exception:
             return {"available": False, "encoders": []}
+
+    def detect_hw_accels(self) -> list:
+        """检测可用的硬件加速方法。
+        
+        Returns:
+            硬件加速方法列表 (如 ['cuda', 'dxva2', 'qsv', 'd3d11va'])
+        """
+        ffmpeg_path = self.get_ffmpeg_path()
+        if not ffmpeg_path:
+            return []
+            
+        try:
+            # 获取 FFmpeg 支持的硬件加速列表
+            result = subprocess.run(
+                [ffmpeg_path, '-hwaccels'],
+                capture_output=True,
+                encoding='utf-8',
+                errors='replace',  # 防止编码错误
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            
+            if result.returncode != 0:
+                return []
+                
+            # 解析输出
+            output = result.stdout.lower()
+            hwaccels = []
+            
+            for accel in ['cuda', 'dxva2', 'qsv', 'd3d11va', 'videotoolbox', 'vaapi']:
+                if accel in output:
+                    hwaccels.append(accel)
+                    
+            return hwaccels
+            
+        except Exception:
+            return []
+
     
     def get_preferred_gpu_encoder(self) -> Optional[str]:
         """获取首选的GPU编码器。

@@ -654,7 +654,12 @@ class ImageBackgroundView(ft.Container):
             error: 错误信息
         """
         self.is_model_loading = False
-        logger.error(success,error)
+        
+        if not success:
+            logger.error(f"模型加载失败: {error}")
+        else:
+            logger.info("模型加载成功")
+        
         if success:
             # 获取设备信息
             device_info = "未知设备"

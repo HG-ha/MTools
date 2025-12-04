@@ -4,6 +4,7 @@
 提供Windows更新禁用/恢复功能的用户界面。
 """
 
+import platform
 import re
 import subprocess
 import tempfile
@@ -71,6 +72,9 @@ class WindowsUpdateView(ft.Container):
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
+        # 检测系统类型
+        is_windows = platform.system() == "Windows"
+        
         # 顶部：标题和返回按钮
         header = ft.Row(
             controls=[
@@ -83,6 +87,52 @@ class WindowsUpdateView(ft.Container):
             ],
             spacing=PADDING_MEDIUM,
         )
+        
+        # 如果不是 Windows 系统，显示提示信息
+        if not is_windows:
+            self.content = ft.Column(
+                controls=[
+                    header,
+                    ft.Divider(),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.DESKTOP_WINDOWS_OUTLINED,
+                                    size=64,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                ),
+                                ft.Container(height=PADDING_LARGE),
+                                ft.Text(
+                                    "此功能仅限 Windows 系统",
+                                    size=20,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.ON_SURFACE,
+                                ),
+                                ft.Container(height=PADDING_MEDIUM),
+                                ft.Text(
+                                    f"当前系统：{platform.system()} {platform.release()}",
+                                    size=14,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                ),
+                                ft.Container(height=PADDING_MEDIUM // 2),
+                                ft.Text(
+                                    "Windows更新管理功能仅适用于 Windows 10/11 系统",
+                                    size=13,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        expand=True,
+                        alignment=ft.alignment.center,
+                    ),
+                ],
+                spacing=0,
+            )
+            return
         
         # 年份设置区域
         self.year_input = ft.TextField(
@@ -310,6 +360,11 @@ class WindowsUpdateView(ft.Container):
     
     def _on_check_status(self, e: ft.ControlEvent) -> None:
         """检查当前Windows更新状态。"""
+        # 检测系统
+        if platform.system() != "Windows":
+            self._show_message("此功能仅限 Windows 系统", ft.Colors.ORANGE)
+            return
+        
         try:
             # 使用reg query命令查询注册表
             result = subprocess.run(
@@ -346,6 +401,11 @@ class WindowsUpdateView(ft.Container):
     
     def _on_disable_update(self, e: ft.ControlEvent) -> None:
         """禁用Windows更新。"""
+        # 检测系统
+        if platform.system() != "Windows":
+            self._show_message("此功能仅限 Windows 系统", ft.Colors.ORANGE)
+            return
+        
         try:
             # 验证年份输入
             try:
@@ -397,6 +457,11 @@ class WindowsUpdateView(ft.Container):
     
     def _on_restore_update(self, e: ft.ControlEvent) -> None:
         """恢复Windows更新。"""
+        # 检测系统
+        if platform.system() != "Windows":
+            self._show_message("此功能仅限 Windows 系统", ft.Colors.ORANGE)
+            return
+        
         try:
             # 创建临时注册表文件
             with tempfile.NamedTemporaryFile(mode='w', suffix='.reg', delete=False, encoding='utf-8') as f:

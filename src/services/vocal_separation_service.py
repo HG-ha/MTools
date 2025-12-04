@@ -158,12 +158,24 @@ class VocalSeparationService:
                 model_path.unlink()
             raise RuntimeError(f"下载模型失败: {e}")
     
-    def load_model(self, model_path: Path, invert_output: bool = False) -> None:
+    def load_model(
+        self, 
+        model_path: Path, 
+        invert_output: bool = False,
+        use_gpu: bool = True,
+        gpu_device_id: int = 0,
+        gpu_memory_limit: int = 2048,
+        enable_memory_arena: bool = True
+    ) -> None:
         """加载 ONNX 模型。
         
         Args:
             model_path: 模型文件路径
             invert_output: 是否反转输出 (True=模型输出伴奏, False=模型输出人声)
+            use_gpu: 是否使用GPU加速
+            gpu_device_id: GPU设备ID
+            gpu_memory_limit: GPU内存限制（MB）
+            enable_memory_arena: 是否启用内存池优化
         """
         if not model_path.exists():
             raise FileNotFoundError(f"模型文件不存在: {model_path}")
@@ -171,20 +183,58 @@ class VocalSeparationService:
         # 设置是否反转输出
         self.invert_output = invert_output
         
-        # 配置 ONNX Runtime
+        # 配置 ONNX Runtime 会话选项，启用内存优化
         sess_options = ort.SessionOptions()
+        sess_options.enable_mem_pattern = True
+        sess_options.enable_mem_reuse = True
+        sess_options.enable_cpu_mem_arena = enable_memory_arena
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.log_severity_level = 3  # ERROR级别，减少日志输出
         
-        # 尝试使用 GPU
-        providers = ['CPUExecutionProvider']
-        if ort.get_available_providers():
-            available = ort.get_available_providers()
-            if 'CUDAExecutionProvider' in available:  # CUDA (NVIDIA GPU)
-                providers.insert(0, 'CUDAExecutionProvider')
-            elif 'DmlExecutionProvider' in available:  # DirectML (Windows 通用 GPU)
-                providers.insert(0, 'DmlExecutionProvider')
-            elif 'CoreMLExecutionProvider' in available:  # CoreML (macOS Apple Silicon，onnxruntime 内置)
-                providers.insert(0, 'CoreMLExecutionProvider')
+        # 配置执行提供者（GPU或CPU）
+        providers = []
+        self.using_gpu = False
+        
+        if use_gpu:
+            available_providers = ort.get_available_providers()
+            
+            # 按优先级尝试 GPU 提供者
+            # 1. CUDA (NVIDIA GPU) - 性能最好
+            if 'CUDAExecutionProvider' in available_providers:
+                providers.append(('CUDAExecutionProvider', {
+                    'device_id': gpu_device_id,
+                    'arena_extend_strategy': 'kNextPowerOfTwo',
+                    'gpu_mem_limit': gpu_memory_limit * 1024 * 1024,
+                    'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                    'do_copy_in_default_stream': True,
+                }))
+                self.using_gpu = True
+                from utils import logger
+                logger.info(f"人声分离使用 CUDA GPU (设备 {gpu_device_id}，内存限制 {gpu_memory_limit}MB)")
+            # 2. DirectML (Windows 通用 GPU)
+            elif 'DmlExecutionProvider' in available_providers:
+                providers.append('DmlExecutionProvider')
+                self.using_gpu = True
+                from utils import logger
+                logger.info("人声分离使用 DirectML GPU 加速")
+            # 3. CoreML (macOS Apple Silicon)
+            elif 'CoreMLExecutionProvider' in available_providers:
+                providers.append('CoreMLExecutionProvider')
+                self.using_gpu = True
+                from utils import logger
+                logger.info("人声分离使用 CoreML GPU 加速")
+            # 4. ROCm (AMD GPU)
+            elif 'ROCMExecutionProvider' in available_providers:
+                providers.append('ROCMExecutionProvider')
+                self.using_gpu = True
+                from utils import logger
+                logger.info("人声分离使用 ROCm GPU 加速")
+        
+        # CPU作为后备
+        providers.append('CPUExecutionProvider')
+        if not self.using_gpu:
+            from utils import logger
+            logger.info("人声分离使用 CPU 处理")
         
         # 创建推理会话
         self.session = ort.InferenceSession(
@@ -193,6 +243,11 @@ class VocalSeparationService:
             providers=providers
         )
         self.current_model = model_path.name
+        
+        # 获取实际使用的执行提供者
+        actual_providers = self.session.get_providers()
+        from utils import logger
+        logger.info(f"人声分离模型已加载: {model_path.name}, 执行提供者: {actual_providers[0]}")
         
         # 从模型输入获取参数
         input_shape = self.session.get_inputs()[0].shape
@@ -857,4 +912,31 @@ class VocalSeparationService:
         self.current_model = None
         self.model_channels = 0
         self.model_freq_bins = 0
+    
+    def get_device_info(self) -> str:
+        """获取当前使用的设备信息。
+        
+        Returns:
+            设备信息字符串
+        """
+        if not self.session:
+            return "未加载"
+        
+        providers = self.session.get_providers()
+        if not providers:
+            return "未知设备"
+        
+        provider = providers[0]
+        if provider == 'CUDAExecutionProvider':
+            return "NVIDIA GPU (CUDA)"
+        elif provider == 'DmlExecutionProvider':
+            return "DirectML GPU"
+        elif provider == 'CoreMLExecutionProvider':
+            return "Apple Neural Engine"
+        elif provider == 'ROCMExecutionProvider':
+            return "AMD GPU (ROCm)"
+        elif provider == 'CPUExecutionProvider':
+            return "CPU"
+        else:
+            return provider
 

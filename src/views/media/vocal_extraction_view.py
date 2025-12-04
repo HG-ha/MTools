@@ -729,11 +729,22 @@ class VocalExtractionView(ft.Container):
             if need_load:
                 self._update_progress("正在加载模型...", 0.0)
                 try:
+                    # 从配置中获取GPU相关设置
+                    use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                    gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                    gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+                    enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+                    
                     self.vocal_service.load_model(
                         model_path,
-                        invert_output=model_info.invert_output
+                        invert_output=model_info.invert_output,
+                        use_gpu=use_gpu,
+                        gpu_device_id=gpu_device_id,
+                        gpu_memory_limit=gpu_memory_limit,
+                        enable_memory_arena=enable_memory_arena
                     )
-                    message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                    device_info = self.vocal_service.get_device_info()
+                    message = f"{model_info.display_name} 已加载 ({device_info})"
                     self._update_model_status("ready", message)
                 except Exception as e:
                     self._show_snackbar(f"模型加载失败: {e}", ft.Colors.ERROR)
@@ -899,11 +910,22 @@ class VocalExtractionView(ft.Container):
 
         def load_thread():
             try:
+                # 从配置中获取GPU相关设置
+                use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+                
                 self.vocal_service.load_model(
                     model_path,
                     invert_output=model_info.invert_output,
+                    use_gpu=use_gpu,
+                    gpu_device_id=gpu_device_id,
+                    gpu_memory_limit=gpu_memory_limit,
+                    enable_memory_arena=enable_memory_arena
                 )
-                message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                device_info = self.vocal_service.get_device_info()
+                message = f"{model_info.display_name} 已加载 ({device_info})"
                 self._update_model_status("ready", message)
             except Exception as exc:
                 self._update_model_status("error", f"自动加载失败: {exc}")
@@ -1064,13 +1086,24 @@ class VocalExtractionView(ft.Container):
 
         def load_thread():
             try:
+                # 从配置中获取GPU相关设置
+                use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+                
                 self.vocal_service.load_model(
                     model_path,
                     invert_output=model_info.invert_output,
+                    use_gpu=use_gpu,
+                    gpu_device_id=gpu_device_id,
+                    gpu_memory_limit=gpu_memory_limit,
+                    enable_memory_arena=enable_memory_arena
                 )
-                message = f"{model_info.display_name} 已加载 ({model_info.size_mb}MB)"
+                device_info = self.vocal_service.get_device_info()
+                message = f"{model_info.display_name} 已加载 ({device_info})"
                 self._update_model_status("ready", message)
-                self._show_snackbar("模型加载完成", ft.Colors.GREEN)
+                self._show_snackbar(f"模型加载完成，使用: {device_info}", ft.Colors.GREEN)
             except Exception as exc:
                 self._update_model_status("error", f"加载失败: {exc}")
                 self._show_snackbar(f"模型加载失败: {exc}", ft.Colors.ERROR)

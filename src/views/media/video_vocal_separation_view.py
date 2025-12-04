@@ -646,10 +646,22 @@ class VideoVocalSeparationView(ft.Container):
             self._update_progress("正在加载模型...", 0.0)
             
             try:
+                # 从配置中获取GPU相关设置
+                use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+                
                 self.vocal_service.load_model(
                     model_path, 
-                    invert_output=model_info.invert_output
+                    invert_output=model_info.invert_output,
+                    use_gpu=use_gpu,
+                    gpu_device_id=gpu_device_id,
+                    gpu_memory_limit=gpu_memory_limit,
+                    enable_memory_arena=enable_memory_arena
                 )
+                device_info = self.vocal_service.get_device_info()
+                logger.info(f"视频人声分离模型已加载，使用: {device_info}")
             except Exception as e:
                 self._show_snackbar(f"模型加载失败: {e}", ft.Colors.ERROR)
                 self._reset_ui()

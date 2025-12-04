@@ -20,6 +20,7 @@ from views.media.audio_speed_view import AudioSpeedView
 from views.media.ffmpeg_install_view import FFmpegInstallView
 from views.media.video_compress_view import VideoCompressView
 from views.media.video_convert_view import VideoConvertView
+from views.media.video_enhance_view import VideoEnhanceView
 from views.media.video_extract_audio_view import VideoExtractAudioView
 from views.media.video_repair_view import VideoRepairView
 from views.media.video_speed_view import VideoSpeedView
@@ -81,6 +82,7 @@ class MediaView(ft.Container):
         # 创建视频子视图（延迟创建）
         self.video_compress_view: Optional[VideoCompressView] = None
         self.video_convert_view: Optional[VideoConvertView] = None
+        self.video_enhance_view: Optional[VideoEnhanceView] = None
         self.video_extract_audio_view: Optional[VideoExtractAudioView] = None
         self.video_repair_view: Optional[VideoRepairView] = None
         self.video_speed_view: Optional[VideoSpeedView] = None
@@ -149,6 +151,13 @@ class MediaView(ft.Container):
             ),
             # 视频处理
             FeatureCard(
+                icon=ft.Icons.AUTO_AWESOME,
+                title="视频增强",
+                description="AI视频超分辨率和补帧，提升画质和流畅度",
+                on_click=lambda e: self._open_view('video_enhance'),
+                gradient_colors=("#fa709a", "#fee140"),
+            ),
+            FeatureCard(
                 icon=ft.Icons.COMPRESS,
                 title="视频压缩",
                 description="减小视频文件大小，支持CRF和分辨率调整",
@@ -195,7 +204,7 @@ class MediaView(ft.Container):
                 title="视频修复",
                 description="修复损坏、卡顿、无法播放的视频",
                 on_click=lambda e: self._open_view('video_repair'),
-                gradient_colors=("#fa709a", "#fee140"),
+                gradient_colors=("#30cfd0", "#330867"),
             ),
             # 工具类
             FeatureCard(
@@ -299,6 +308,16 @@ class MediaView(ft.Container):
                     on_back=self._back_to_main
                 )
             self._switch_to_sub_view(self.video_convert_view, 'video_convert')
+            
+        elif view_name == 'video_enhance':
+            if not self.video_enhance_view:
+                self.video_enhance_view = VideoEnhanceView(
+                    self._saved_page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+            self._switch_to_sub_view(self.video_enhance_view, 'video_enhance')
             
         elif view_name == 'video_extract_audio':
             if not self.video_extract_audio_view:
@@ -409,6 +428,7 @@ class MediaView(ft.Container):
                 "vocal_extraction": "vocal_extraction_view",
                 "video_compress": "video_compress_view",
                 "video_convert": "video_convert_view",
+                "video_enhance": "video_enhance_view",
                 "video_extract_audio": "video_extract_audio_view",
                 "video_repair": "video_repair_view",
                 "video_speed": "video_speed_view",

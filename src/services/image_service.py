@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image
 
 from models import GifAdjustmentOptions
-from utils import GifUtils
+from utils import GifUtils, logger
 from utils.file_utils import get_app_root
 
 
@@ -2506,6 +2506,55 @@ class ImageEnhancer:
         
         return result
     
+    def _process_tiles_batch(self, tiles: list[np.ndarray], batch_size: int = 4) -> list[np.ndarray]:
+        """批量处理多个图像块（性能优化）。
+        
+        Args:
+            tiles: 输入图像块列表 [(H, W, C), ...]，BGR格式
+            batch_size: 批量大小，默认4（可根据GPU显存调整）
+        
+        Returns:
+            处理后的图像块列表 [(H*scale, W*scale, C), ...]
+        """
+        if not tiles:
+            return []
+        
+        results = []
+        total_tiles = len(tiles)
+        
+        # 分批处理
+        for i in range(0, total_tiles, batch_size):
+            batch_tiles = tiles[i:i + batch_size]
+            actual_batch_size = len(batch_tiles)
+            
+            # 预处理整个批次
+            batch_tensors = []
+            for tile in batch_tiles:
+                tensor = self._preprocess_image(tile)
+                batch_tensors.append(tensor)
+            
+            # 堆叠成批量输入 (batch_size, C, H, W)
+            batch_input = np.concatenate(batch_tensors, axis=0)
+            
+            # 批量推理 - 关键优化点！
+            try:
+                batch_output = self.sess.run([self.output_name], {self.input_name: batch_input})[0]
+            except Exception as e:
+                # 如果批量推理失败（可能是显存不足），回退到逐个处理
+                logger.warning(f"批量推理失败({actual_batch_size}个tile)，回退到逐个处理: {e}")
+                for tile in batch_tiles:
+                    result = self._process_tile(tile)
+                    results.append(result)
+                continue
+            
+            # 后处理每个输出
+            for j in range(actual_batch_size):
+                output_single = batch_output[j:j+1]  # 保持维度
+                result = self._postprocess_image(output_single)
+                results.append(result)
+        
+        return results
+    
     def _split_into_tiles(self, image: np.ndarray) -> list[tuple[np.ndarray, int, int, int, int]]:
         """将大图像分割成小块。
         
@@ -2641,12 +2690,24 @@ class ImageEnhancer:
                 result_np = result_np[:h * self.model_scale, :w * self.model_scale]
             else:
                 # 大图像需要分块处理
-                tiles = self._split_into_tiles(image_np)
+                tiles_with_pos = self._split_into_tiles(image_np)
                 
-                # 处理每个tile
+                # ⚡ 性能优化：使用批量推理
+                # 分离tile数据和位置信息
+                tiles_only = [tile for tile, _, _, _, _ in tiles_with_pos]
+                positions = [(y_start, y_end, x_start, x_end) for _, y_start, y_end, x_start, x_end in tiles_with_pos]
+                
+                # 批量处理所有tiles（关键优化！）
+                # batch_size根据GPU显存自动调整：
+                # - 小tile(512): batch=8
+                # - 中tile(1024): batch=4  
+                # - 大tile(2048): batch=2
+                batch_size = max(2, min(8, 4096 // self.tile_size))
+                processed_tiles_list = self._process_tiles_batch(tiles_only, batch_size=batch_size)
+                
+                # 重新组合tile和位置信息
                 processed_tiles = []
-                for tile, y_start, y_end, x_start, x_end in tiles:
-                    processed_tile = self._process_tile(tile)
+                for processed_tile, (y_start, y_end, x_start, x_end) in zip(processed_tiles_list, positions):
                     processed_tiles.append((processed_tile, y_start, y_end, x_start, x_end))
                 
                 # 合并tiles（使用模型原生倍率）
@@ -2671,7 +2732,7 @@ class ImageEnhancer:
             self._clear_memory()
     
     def enhance_image_batch(self, images: list[Image.Image]) -> list[Image.Image]:
-        """批量增强多张图像。
+        """批量增强多张图像（真正的批量推理优化）。
         
         Args:
             images: 输入的PIL图像列表
@@ -2679,16 +2740,180 @@ class ImageEnhancer:
         Returns:
             增强后的PIL图像列表
         """
-        results = []
+        if not images:
+            return []
+        
+        # 检查所有图像是否尺寸相同（视频帧通常尺寸相同）
+        first_size = images[0].size
+        all_same_size = all(img.size == first_size for img in images)
+        
+        # 如果尺寸相同且较小，可以真正批量处理
+        if all_same_size and first_size[0] <= self.tile_size and first_size[1] <= self.tile_size:
+            return self._enhance_batch_small_images(images)
+        elif all_same_size:
+            # 🔥 关键优化：尺寸相同的大图像，使用批量tile处理
+            return self._enhance_batch_large_images(images)
+        else:
+            # 尺寸不同，逐个处理（但tile级别仍用批量推理）
+            results = []
+            try:
+                for img in images:
+                    result = self.enhance_image(img)
+                    results.append(result)
+                    if len(results) % 2 == 0:
+                        gc.collect()
+            finally:
+                self._clear_memory()
+            return results
+    
+    def _enhance_batch_large_images(self, images: list[Image.Image]) -> list[Image.Image]:
+        """批量处理尺寸相同的大图像（tile级批量推理）。
+        
+        Args:
+            images: 尺寸相同的PIL图像列表
+        
+        Returns:
+            增强后的PIL图像列表
+        """
         try:
+            import cv2
+            
+            # 转换所有图像为numpy数组（BGR）
+            image_arrays = []
             for img in images:
-                # 直接使用 enhance_image 方法（已包含tile处理）
-                result = self.enhance_image(img)
-                results.append(result)
+                if img.mode not in ('RGB', 'L'):
+                    img = img.convert('RGB')
                 
-                # 每处理一张图片后清理
-                gc.collect()
+                image_np = np.array(img)
+                if len(image_np.shape) == 2:
+                    image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2BGR)
+                else:
+                    image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+                
+                image_arrays.append(image_np)
+            
+            h, w = image_arrays[0].shape[:2]
+            
+            # 对每个图像分割tiles
+            all_tiles_with_pos = []
+            for image_np in image_arrays:
+                tiles_with_pos = self._split_into_tiles(image_np)
+                all_tiles_with_pos.append(tiles_with_pos)
+            
+            num_frames = len(image_arrays)
+            num_tiles_per_frame = len(all_tiles_with_pos[0])
+            
+            logger.info(f"批量处理 {num_frames} 帧，每帧 {num_tiles_per_frame} 个tiles")
+            
+            # 🚀 关键：按tile位置批量处理
+            # 即：所有帧的第1个tile一起处理，所有帧的第2个tile一起处理...
+            all_processed_tiles = [[] for _ in range(num_frames)]
+            
+            for tile_idx in range(num_tiles_per_frame):
+                # 收集所有帧的当前位置的tile
+                tiles_to_process = []
+                positions = []
+                
+                for frame_idx in range(num_frames):
+                    tile, y_start, y_end, x_start, x_end = all_tiles_with_pos[frame_idx][tile_idx]
+                    tiles_to_process.append(tile)
+                    positions.append((y_start, y_end, x_start, x_end))
+                
+                # 批量处理这些tiles
+                batch_size = min(num_frames, 4)  # 最多4帧一起
+                processed_tiles = self._process_tiles_batch(tiles_to_process, batch_size=batch_size)
+                
+                # 分配回各帧
+                for frame_idx in range(num_frames):
+                    y_start, y_end, x_start, x_end = positions[frame_idx]
+                    all_processed_tiles[frame_idx].append((
+                        processed_tiles[frame_idx],
+                        y_start, y_end, x_start, x_end
+                    ))
+            
+            # 合并所有帧的tiles
+            results = []
+            output_h = h * self.model_scale
+            output_w = w * self.model_scale
+            
+            for frame_idx in range(num_frames):
+                result_np = self._merge_tiles(all_processed_tiles[frame_idx], output_h, output_w)
+                
+                # 如果需要自定义缩放
+                if abs(self.current_scale - self.model_scale) > 0.01:
+                    target_h = int(h * self.current_scale)
+                    target_w = int(w * self.current_scale)
+                    result_np = cv2.resize(result_np, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
+                
+                # 转换回PIL
+                result_rgb = cv2.cvtColor(result_np, cv2.COLOR_BGR2RGB)
+                result_image = Image.fromarray(result_rgb)
+                results.append(result_image)
+            
+            logger.info(f"✓ 批量处理完成，返回 {len(results)} 帧")
+            return results
+        except Exception as e:
+            logger.error(f"批量处理大图像失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 回退到逐个处理
+            return [self.enhance_image(img) for img in images]
         finally:
             self._clear_memory()
+    
+    def _enhance_batch_small_images(self, images: list[Image.Image]) -> list[Image.Image]:
+        """批量处理尺寸相同的小图像（真正的帧级批量推理）。
         
-        return results
+        Args:
+            images: 尺寸相同的PIL图像列表
+        
+        Returns:
+            增强后的PIL图像列表
+        """
+        try:
+            # 转换所有图像为numpy数组（BGR）
+            image_arrays = []
+            for img in images:
+                if img.mode not in ('RGB', 'L'):
+                    img = img.convert('RGB')
+                
+                image_np = np.array(img)
+                if len(image_np.shape) == 2:
+                    image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2BGR)
+                else:
+                    image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+                
+                image_arrays.append(image_np)
+            
+            h, w = image_arrays[0].shape[:2]
+            
+            # Padding到tile_size
+            padded_arrays = []
+            for image_np in image_arrays:
+                padded = np.zeros((self.tile_size, self.tile_size, 3), dtype=image_np.dtype)
+                padded[:h, :w] = image_np
+                padded_arrays.append(padded)
+            
+            # 🚀 关键：批量推理所有帧！
+            processed_arrays = self._process_tiles_batch(padded_arrays, batch_size=len(padded_arrays))
+            
+            # 裁剪和缩放
+            results = []
+            for result_np in processed_arrays:
+                # 裁剪到实际输出尺寸
+                result_np = result_np[:h * self.model_scale, :w * self.model_scale]
+                
+                # 如果需要自定义缩放
+                if abs(self.current_scale - self.model_scale) > 0.01:
+                    target_h = int(h * self.current_scale)
+                    target_w = int(w * self.current_scale)
+                    result_np = cv2.resize(result_np, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
+                
+                # 转换回PIL
+                result_rgb = cv2.cvtColor(result_np, cv2.COLOR_BGR2RGB)
+                result_image = Image.fromarray(result_rgb)
+                results.append(result_image)
+            
+            return results
+        finally:
+            self._clear_memory()
