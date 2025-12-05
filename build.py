@@ -815,9 +815,12 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         upx_available, upx_cmd = check_upx(upx_path)
         if upx_available:
             cmd.append("--enable-plugin=upx")
+            # 禁用 onefile 内置压缩，避免与 UPX 双重压缩
+            # 参考: https://nuitka.net/doc/user-manual.html#upx-binary-compression
+            cmd.append("--onefile-no-compression")
             if upx_path:
                 cmd.append(f"--upx-binary={upx_cmd}")
-            print("   UPX 压缩: 已启用")
+            print("   UPX 压缩: 已启用（已禁用 onefile 内置压缩以避免双重压缩）")
         else:
             print("   UPX 压缩: 跳过（UPX 不可用）")
     else:
@@ -831,6 +834,69 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
     ]
     for pkg in excluded_packages:
         cmd.append(f"--nofollow-import-to={pkg}")
+    
+    # 检查 CUDA FULL 版本，包含 nvidia DLL
+    cuda_variant = os.environ.get('CUDA_VARIANT', 'none').lower()
+    if cuda_variant == 'cuda_full':
+        print("   🎯 检测到 CUDA FULL 变体，正在包含 NVIDIA 库...")
+        
+        # 获取 site-packages 路径
+        try:
+            import site
+            site_packages = site.getsitepackages()
+            
+            # 查找 nvidia 目录
+            nvidia_found = False
+            total_packages = 0
+            total_dlls = 0
+            
+            for site_pkg in site_packages:
+                nvidia_dir = Path(site_pkg) / "nvidia"
+                if nvidia_dir.exists():
+                    print(f"   ✅ 找到 NVIDIA 库: {nvidia_dir}")
+                    
+                    # 动态查找所有 nvidia 子包（排除 __pycache__ 等）
+                    nvidia_packages = [
+                        d.name for d in nvidia_dir.iterdir() 
+                        if d.is_dir() and not d.name.startswith('_') and not d.name.startswith('.')
+                    ]
+                    
+                    if not nvidia_packages:
+                        print("   ⚠️  警告: nvidia 目录为空")
+                        break
+                    
+                    print(f"   📦 发现 {len(nvidia_packages)} 个 NVIDIA 子包:")
+                    
+                    for pkg in nvidia_packages:
+                        pkg_dir = nvidia_dir / pkg
+                        if pkg_dir.exists():
+                            # 包含整个包目录（包括 bin 目录下的 DLL）
+                            cmd.append(f"--include-package-data=nvidia.{pkg}")
+                            
+                            # 统计 DLL 数量
+                            bin_dir = pkg_dir / "bin"
+                            dll_count = 0
+                            if bin_dir.exists():
+                                dll_count = len(list(bin_dir.glob("*.dll")))
+                                total_dlls += dll_count
+                            
+                            total_packages += 1
+                            dll_info = f" ({dll_count} DLLs)" if dll_count > 0 else ""
+                            print(f"      • nvidia.{pkg}{dll_info}")
+                    
+                    nvidia_found = True
+                    print(f"   ✅ 已包含 {total_packages} 个包，共 {total_dlls} 个 DLL 文件")
+                    break
+            
+            if not nvidia_found:
+                print("   ⚠️  警告: 未找到 NVIDIA 库，CUDA FULL 版本可能无法正常运行")
+                print("      请确保已安装: uv add 'onnxruntime-gpu[cuda,cudnn]==1.22.0'")
+                print("      或: pip install 'onnxruntime-gpu[cuda,cudnn]==1.22.0'")
+        except Exception as e:
+            print(f"   ⚠️  检查 NVIDIA 库时出错: {e}")
+            import traceback
+            if mode == "dev":
+                traceback.print_exc()
     
     # Windows 特定配置
     if system == "Windows":
