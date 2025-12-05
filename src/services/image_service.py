@@ -2101,6 +2101,15 @@ class BackgroundRemover:
         # 记录实际使用的执行提供者
         self.device_info = self.sess.get_providers()[0]
     
+    def __del__(self):
+        """析构函数：确保对象销毁时清理 ONNX Runtime 会话。"""
+        try:
+            if hasattr(self, 'sess') and self.sess is not None:
+                del self.sess
+        except Exception:
+            # 忽略析构时的任何错误（包括日志管理器错误）
+            pass
+    
     def is_using_gpu(self) -> bool:
         """返回是否正在使用GPU加速。
         
@@ -2370,6 +2379,9 @@ class ImageEnhancer:
         self.model_scale: int = scale  # 模型的原生放大倍率
         self.current_scale: float = float(scale)  # 当前实际使用的放大倍率（可自定义）
         
+        # 记录实际使用的执行提供者
+        self.device_info = self.sess.get_providers()[0]
+        
         # 获取模型的输入尺寸要求
         input_shape = self.sess.get_inputs()[0].shape
         # 通常是 [batch, channels, height, width]，但有些模型可能是动态的
@@ -2383,6 +2395,15 @@ class ImageEnhancer:
         
         # 记录实际使用的执行提供者
         self.device_info = self.sess.get_providers()[0]
+    
+    def __del__(self):
+        """析构函数：确保对象销毁时清理 ONNX Runtime 会话。"""
+        try:
+            if hasattr(self, 'sess') and self.sess is not None:
+                del self.sess
+        except Exception:
+            # 忽略析构时的任何错误（包括日志管理器错误）
+            pass
     
     def set_scale(self, scale: float) -> None:
         """设置自定义放大倍率。

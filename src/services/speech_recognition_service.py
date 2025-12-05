@@ -43,68 +43,8 @@ class SpeechRecognitionService:
         self.sample_rate: int = 16000  # Whisper 固定使用 16kHz
         self.current_provider: str = "未加载"
         
-        # 设置 ONNX Runtime DLL 搜索路径（解决 sherpa-onnx 版本冲突）
-        self._setup_onnxruntime_path()
-        
         # 设置 FFmpeg 环境
         self._setup_ffmpeg_env()
-    
-    def _setup_onnxruntime_path(self) -> None:
-        """设置 ONNX Runtime 库搜索路径。
-        
-        解决 sherpa-onnx 可能使用错误版本 ONNX Runtime 的问题。
-        通过设置 DLL 搜索路径，让系统优先加载项目依赖的 ONNX Runtime。
-        """
-        import sys
-        import platform
-        
-        system = platform.system()
-        
-        try:
-            import onnxruntime
-            onnxruntime_path = Path(onnxruntime.__file__).parent
-            
-            # 查找库文件目录
-            lib_path = onnxruntime_path / "capi"
-            if not lib_path.exists():
-                lib_path = onnxruntime_path
-            
-            if not lib_path.exists():
-                return
-            
-            if system == "Windows":
-                # Windows: 设置 DLL 搜索路径
-                # Python 3.8+ 推荐使用 os.add_dll_directory
-                if sys.version_info >= (3, 8):
-                    try:
-                        os.add_dll_directory(str(lib_path))
-                        logger.info(f"ONNX Runtime DLL 目录已添加: {lib_path}")
-                    except Exception as e:
-                        logger.warning(f"添加 DLL 目录失败: {e}")
-                
-                # 同时设置 PATH 环境变量（兼容旧版本 Python）
-                if str(lib_path) not in os.environ.get('PATH', ''):
-                    os.environ['PATH'] = str(lib_path) + os.pathsep + os.environ.get('PATH', '')
-                    logger.debug(f"ONNX Runtime 已添加到 PATH: {lib_path}")
-            
-            elif system == "Linux":
-                # Linux: 设置 LD_LIBRARY_PATH
-                ld_path = os.environ.get('LD_LIBRARY_PATH', '')
-                if str(lib_path) not in ld_path:
-                    os.environ['LD_LIBRARY_PATH'] = str(lib_path) + os.pathsep + ld_path
-                    logger.info(f"ONNX Runtime 已添加到 LD_LIBRARY_PATH: {lib_path}")
-            
-            elif system == "Darwin":
-                # macOS: 设置 DYLD_LIBRARY_PATH
-                dyld_path = os.environ.get('DYLD_LIBRARY_PATH', '')
-                if str(lib_path) not in dyld_path:
-                    os.environ['DYLD_LIBRARY_PATH'] = str(lib_path) + os.pathsep + dyld_path
-                    logger.info(f"ONNX Runtime 已添加到 DYLD_LIBRARY_PATH: {lib_path}")
-        
-        except ImportError:
-            logger.debug("onnxruntime 未安装，跳过路径设置")
-        except Exception as e:
-            logger.warning(f"设置 ONNX Runtime 路径时出错: {e}")
     
     def _setup_ffmpeg_env(self) -> None:
         """设置 FFmpeg 环境变量（如果使用本地 FFmpeg）。"""
@@ -362,6 +302,7 @@ class SpeechRecognitionService:
                 if 'CUDAExecutionProvider' in available_providers:
                     provider = "cuda"
                     logger.info(f"语音识别使用 CUDA GPU (设备 {gpu_device_id})")
+                    logger.warning("⚠️ 由于 sherpa-onnx 适配问题，当前工具使用 CUDA 后，可能需要重启程序才能正常使用其他 ONNX 模型")
                 elif 'CoreMLExecutionProvider' in available_providers and platform.system() == 'Darwin':
                     provider = "coreml"
                     logger.info("语音识别使用 CoreML (Apple Silicon)")
@@ -524,8 +465,22 @@ class SpeechRecognitionService:
     def cleanup(self) -> None:
         """清理资源。"""
         if self.recognizer:
-            del self.recognizer
-            self.recognizer = None
+            try:
+                # 尝试正常删除
+                del self.recognizer
+            except Exception:
+                # 忽略销毁时的任何错误（包括日志管理器错误）
+                pass
+            finally:
+                self.recognizer = None
+    
+    def __del__(self):
+        """析构函数：确保对象销毁时清理资源。"""
+        try:
+            self.cleanup()
+        except Exception:
+            # 忽略析构时的任何错误
+            pass
     
     def unload_model(self) -> None:
         """卸载当前模型并释放推理会话。"""

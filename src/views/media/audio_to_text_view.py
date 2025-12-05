@@ -722,6 +722,10 @@ class AudioToTextView(ft.Container):
             
             logger.info(f"Whisper模型加载完成, 设备: {device_info}")
             
+            # 如果使用了 CUDA，显示警告提示
+            if "CUDA" in device_info.upper() or self.speech_service.current_provider == "cuda":
+                self._show_cuda_warning()
+            
         except Exception as e:
             logger.error(f"加载模型失败: {e}")
             self.model_status_icon.name = ft.Icons.ERROR
@@ -1153,6 +1157,64 @@ class AudioToTextView(ft.Container):
         )
         self.page.overlay.append(dialog)
         dialog.open = True
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _show_cuda_warning(self) -> None:
+        """显示 CUDA 使用警告。"""
+        warning_dialog = ft.AlertDialog(
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.WARNING_AMBER, color=ft.Colors.ORANGE, size=24),
+                    ft.Text("重要提示", size=18, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            "您已使用 CUDA GPU 加速加载了语音识别模型。",
+                            size=14,
+                        ),
+                        ft.Container(height=10),
+                        ft.Text(
+                            "⚠️ 由于 sherpa-onnx 的适配性问题：",
+                            size=14,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.ORANGE,
+                        ),
+                        ft.Container(height=5),
+                        ft.Text(
+                            "• 使用 CUDA 后，其他 AI 功能（智能抠图、人声分离等）可能无法正常工作",
+                            size=13,
+                        ),
+                        ft.Text(
+                            "• 如需使用其他 AI 功能，建议重启程序",
+                            size=13,
+                        ),
+                        ft.Container(height=10),
+                        ft.Text(
+                            "💡 建议：如果需要频繁切换使用不同功能，可考虑使用 CPU 模式或 DirectML。",
+                            size=13,
+                            italic=True,
+                            color=ft.Colors.BLUE_GREY_700,
+                        ),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                padding=10,
+            ),
+            actions=[
+                ft.TextButton("我知道了", on_click=lambda e: self._close_dialog(warning_dialog)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.overlay.append(warning_dialog)
+        warning_dialog.open = True
         try:
             self.page.update()
         except:

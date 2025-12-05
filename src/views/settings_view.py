@@ -460,39 +460,45 @@ class SettingsView(ft.Container):
             import onnxruntime as ort
             available_providers = ort.get_available_providers()
             
+            # 检测可用的加速方案
+            gpu_types = []
             if 'CUDAExecutionProvider' in available_providers:
-                # CUDA支持多GPU，但需要nvidia-smi来获取详细信息
-                # 打包后可能没有nvidia-smi，所以提供通用选项
-                gpu_options = [
-                    ft.dropdown.Option("0", "🎮 GPU 0 - NVIDIA CUDA (主GPU)"),
-                    ft.dropdown.Option("1", "GPU 1 - NVIDIA CUDA"),
-                    ft.dropdown.Option("2", "GPU 2 - NVIDIA CUDA"),
-                    ft.dropdown.Option("3", "GPU 3 - NVIDIA CUDA"),
-                ]
-                return gpu_options
-            elif 'DmlExecutionProvider' in available_providers:
-                # DirectML通常只能访问默认GPU
-                gpu_options = [
-                    ft.dropdown.Option("0", "🎮 GPU 0 - DirectML (默认GPU)"),
-                ]
-                return gpu_options
-            elif 'ROCMExecutionProvider' in available_providers:
-                # AMD ROCm支持多GPU
-                gpu_options = [
-                    ft.dropdown.Option("0", "🎮 GPU 0 - AMD ROCm (主GPU)"),
-                    ft.dropdown.Option("1", "GPU 1 - AMD ROCm"),
-                    ft.dropdown.Option("2", "GPU 2 - AMD ROCm"),
-                ]
+                gpu_types.append("CUDA")
+            if 'DmlExecutionProvider' in available_providers:
+                gpu_types.append("DirectML")
+            if 'ROCMExecutionProvider' in available_providers:
+                gpu_types.append("ROCm")
+            if 'CoreMLExecutionProvider' in available_providers:
+                gpu_types.append("CoreML")
+            
+            if gpu_types:
+                # 构建通用的GPU选项
+                provider_text = "/".join(gpu_types)
+                
+                # CUDA 和 ROCm 支持多GPU，DirectML 和 CoreML 通常只支持单GPU
+                if 'CUDAExecutionProvider' in available_providers or 'ROCMExecutionProvider' in available_providers:
+                    # 支持多GPU的情况
+                    gpu_options = [
+                        ft.dropdown.Option("0", f"🎮 GPU 0 ({provider_text})"),
+                        ft.dropdown.Option("1", f"GPU 1 ({provider_text})"),
+                        ft.dropdown.Option("2", f"GPU 2 ({provider_text})"),
+                        ft.dropdown.Option("3", f"GPU 3 ({provider_text})"),
+                    ]
+                else:
+                    # 只支持单GPU的情况（DirectML/CoreML）
+                    gpu_options = [
+                        ft.dropdown.Option("0", f"🎮 GPU 0 ({provider_text})"),
+                    ]
                 return gpu_options
         except Exception:
             pass
         
         # 方法2: 默认选项（如果ONNX Runtime未检测到GPU）
         return [
-            ft.dropdown.Option("0", "🎮 GPU 0 - 默认GPU"),
-            ft.dropdown.Option("1", "GPU 1"),
-            ft.dropdown.Option("2", "GPU 2"),
-            ft.dropdown.Option("3", "GPU 3"),
+            ft.dropdown.Option("0", "🎮 GPU 0 (通用)"),
+            ft.dropdown.Option("1", "GPU 1 (通用)"),
+            ft.dropdown.Option("2", "GPU 2 (通用)"),
+            ft.dropdown.Option("3", "GPU 3 (通用)"),
         ]
     
     def _build_appearance_section(self) -> ft.Container:

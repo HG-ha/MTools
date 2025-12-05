@@ -840,52 +840,91 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
     if cuda_variant == 'cuda_full':
         print("   🎯 检测到 CUDA FULL 变体，正在包含 NVIDIA 库...")
         
-        # 获取 site-packages 路径
+        # 定义需要包含的 NVIDIA CUDA 包列表（对应 pip 包名）
+        # 这些包安装后会在 site-packages/nvidia/ 目录下创建子目录
+        nvidia_cuda_packages = [
+            'nvidia-cublas-cu12',
+            'nvidia-cuda-nvrtc-cu12',
+            'nvidia-cuda-runtime-cu12',
+            'nvidia-cudnn-cu12',
+            'nvidia-cufft-cu12',
+            'nvidia-curand-cu12',
+            'nvidia-nvjitlink-cu12',
+        ]
+        
+        # 根据平台确定库文件扩展名
+        system = platform.system()
+        if system == "Windows":
+            lib_pattern = "*.dll"
+            lib_type = "DLL"
+        elif system == "Linux":
+            lib_pattern = "*.so*"  # 匹配 .so 和 .so.12 等
+            lib_type = "SO"
+        elif system == "Darwin":
+            lib_pattern = "*.dylib"
+            lib_type = "DYLIB"
+        else:
+            print(f"   ⚠️  不支持的平台: {system}")
+            lib_pattern = None
+            lib_type = "LIB"
+        
         try:
             import site
             site_packages = site.getsitepackages()
             
-            # 查找 nvidia 目录
             nvidia_found = False
             total_packages = 0
-            total_dlls = 0
+            total_libs = 0
             
             for site_pkg in site_packages:
                 nvidia_dir = Path(site_pkg) / "nvidia"
                 if nvidia_dir.exists():
                     print(f"   ✅ 找到 NVIDIA 库: {nvidia_dir}")
                     
-                    # 动态查找所有 nvidia 子包（排除 __pycache__ 等）
-                    nvidia_packages = [
-                        d.name for d in nvidia_dir.iterdir() 
-                        if d.is_dir() and not d.name.startswith('_') and not d.name.startswith('.')
-                    ]
+                    print(f"   📦 包含 NVIDIA CUDA 包:")
                     
-                    if not nvidia_packages:
-                        print("   ⚠️  警告: nvidia 目录为空")
-                        break
-                    
-                    print(f"   📦 发现 {len(nvidia_packages)} 个 NVIDIA 子包:")
-                    
-                    for pkg in nvidia_packages:
-                        pkg_dir = nvidia_dir / pkg
+                    # 遍历每个 NVIDIA 包
+                    for pip_pkg_name in nvidia_cuda_packages:
+                        # pip 包名转换为目录名：nvidia-cublas-cu12 -> cublas
+                        # 规则：去掉 nvidia- 前缀和 -cu12 后缀
+                        dir_name = pip_pkg_name.replace('nvidia-', '').replace('-cu12', '').replace('-', '_')
+                        pkg_dir = nvidia_dir / dir_name
+                        
                         if pkg_dir.exists():
-                            # 包含整个包目录（包括 bin 目录下的 DLL）
-                            cmd.append(f"--include-package-data=nvidia.{pkg}")
+                            # 包含 bin 目录下的所有库文件（Windows: DLL, Linux: SO, macOS: DYLIB）
+                            bin_dir = pkg_dir / "bin" if system == "Windows" else pkg_dir / "lib"
+                            lib_count = 0
                             
-                            # 统计 DLL 数量
-                            bin_dir = pkg_dir / "bin"
-                            dll_count = 0
-                            if bin_dir.exists():
-                                dll_count = len(list(bin_dir.glob("*.dll")))
-                                total_dlls += dll_count
+                            # 如果 bin 目录不存在，尝试 lib 目录（跨平台兼容）
+                            if not bin_dir.exists():
+                                alt_dir = pkg_dir / "lib" if system == "Windows" else pkg_dir / "bin"
+                                if alt_dir.exists():
+                                    bin_dir = alt_dir
+                            
+                            if bin_dir.exists() and lib_pattern:
+                                # 逐个包含库文件，避免 Nuitka 过滤
+                                lib_files = list(bin_dir.glob(lib_pattern))
+                                for lib_file in lib_files:
+                                    if lib_file.is_file():  # 确保是文件而不是符号链接的目标
+                                        # --include-data-files=源文件=目标路径
+                                        target_subdir = "bin" if system == "Windows" else "lib"
+                                        cmd.append(f"--include-data-files={lib_file}=nvidia/{dir_name}/{target_subdir}/{lib_file.name}")
+                                lib_count = len(lib_files)
+                                total_libs += lib_count
+                            
+                            # 包含 include 目录（头文件）- 使用 data-dir 即可
+                            include_dir = pkg_dir / "include"
+                            if include_dir.exists():
+                                cmd.append(f"--include-data-dir={include_dir}=nvidia/{dir_name}/include")
                             
                             total_packages += 1
-                            dll_info = f" ({dll_count} DLLs)" if dll_count > 0 else ""
-                            print(f"      • nvidia.{pkg}{dll_info}")
+                            lib_info = f" ({lib_count} {lib_type}s)" if lib_count > 0 else ""
+                            print(f"      • {pip_pkg_name} -> nvidia/{dir_name}{lib_info}")
+                        else:
+                            print(f"      ⚠️  未找到: {pip_pkg_name} (预期目录: {dir_name})")
                     
                     nvidia_found = True
-                    print(f"   ✅ 已包含 {total_packages} 个包，共 {total_dlls} 个 DLL 文件")
+                    print(f"   ✅ 已包含 {total_packages}/{len(nvidia_cuda_packages)} 个包，共 {total_libs} 个 {lib_type} 文件")
                     break
             
             if not nvidia_found:
