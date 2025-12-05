@@ -218,6 +218,16 @@ def register_all_tools():
     )
     
     register_tool_manual(
+        name="音视频转文字",
+        description="AI语音识别，音视频转文字字幕",
+        category="媒体处理",
+        keywords=["语音识别", "转文字", "字幕", "语音", "文字", "Whisper", "AI", "识别", "speech", "recognition", "subtitle", "srt", "转录", "音频", "视频", "转文本"],
+        icon="TRANSCRIBE",
+        tool_id="audio.to_text",
+        gradient_colors=("#a8c0ff", "#3f2b96"),
+    )
+    
+    register_tool_manual(
         name="视频压缩",
         description="减小视频文件大小，支持CRF和分辨率调整",
         category="媒体处理",
@@ -285,6 +295,26 @@ def register_all_tools():
         icon="HEALING",
         tool_id="video.repair",
         gradient_colors=("#fa709a", "#fee140"),
+    )
+
+    register_tool_manual(
+        name="视频增强",
+        description="AI视频超分辨率增强，提升画质清晰度",
+        category="媒体处理",
+        keywords=["视频", "增强", "超分辨率", "清晰度", "AI", "Real-ESRGAN", "upscale", "enhance", "画质"],
+        icon="AUTO_AWESOME",
+        tool_id="video.enhance",
+        gradient_colors=("#30CFD0", "#330867"),
+    )
+    
+    register_tool_manual(
+        name="视频插帧",
+        description="AI帧率提升，让视频更流畅",
+        category="媒体处理",
+        keywords=["视频", "插帧", "帧率", "提升", "流畅", "AI", "RIFE", "interpolation", "smooth", "frame", "rate"],
+        icon="SLOW_MOTION_VIDEO",
+        tool_id="video.interpolation",
+        gradient_colors=("#667eea", "#764ba2"),
     )
     # ==================== 开发工具 ====================
     

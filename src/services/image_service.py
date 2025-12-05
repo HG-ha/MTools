@@ -2820,7 +2820,12 @@ class ImageEnhancer:
                     positions.append((y_start, y_end, x_start, x_end))
                 
                 # 批量处理这些tiles
-                batch_size = min(num_frames, 4)  # 最多4帧一起
+                # 🔥 增大批量以提高GPU利用率（根据显存自动调整）
+                # 小tile(512): 最多16帧
+                # 中tile(1024): 最多8帧
+                # 大tile(2048): 最多4帧
+                max_batch = max(4, min(16, 8192 // self.tile_size))
+                batch_size = min(num_frames, max_batch)
                 processed_tiles = self._process_tiles_batch(tiles_to_process, batch_size=batch_size)
                 
                 # 分配回各帧

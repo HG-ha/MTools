@@ -29,30 +29,70 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Windows 标准版（DirectML）
           - os: windows-latest
             platform: Windows
             arch: amd64
             artifact_ext: .zip
             jobs: 2  # MSVC 编译器内存占用较高，使用较少的并行任务
             upx: true
+            cuda_variant: none
+          # Windows CUDA 版（需要额外安装 CUDA）
+          - os: windows-latest
+            platform: Windows
+            arch: amd64
+            artifact_ext: .zip
+            jobs: 2
+            upx: true
+            cuda_variant: cuda
+          # Windows CUDA Full 版（内置 CUDA 和 cuDNN）
+          - os: windows-latest
+            platform: Windows
+            arch: amd64
+            artifact_ext: .zip
+            jobs: 2
+            upx: true
+            cuda_variant: cuda_full
+          # macOS (Apple Silicon)
           - os: macos-latest
             platform: Darwin
             arch: arm64
             artifact_ext: .tar.gz
             jobs: 4
             upx: false  # UPX 不支持 macOS Mach-O 格式
+            cuda_variant: none
+          # macOS (Intel)
           - os: macos-13
             platform: Darwin
             arch: amd64
             artifact_ext: .tar.gz
             jobs: 4
             upx: false  # UPX 不支持 macOS Mach-O 格式
+            cuda_variant: none
+          # Linux 标准版（CPU）
           - os: ubuntu-22.04  # GLIBC 2.35，兼容 Ubuntu 22.04+, Debian 12+
             platform: Linux
             arch: amd64
             artifact_ext: .tar.gz
             jobs: 4
             upx: true
+            cuda_variant: none
+          # Linux CUDA 版（需要额外安装 CUDA）
+          - os: ubuntu-22.04
+            platform: Linux
+            arch: amd64
+            artifact_ext: .tar.gz
+            jobs: 4
+            upx: true
+            cuda_variant: cuda
+          # Linux CUDA Full 版（内置 CUDA 和 cuDNN）
+          - os: ubuntu-22.04
+            platform: Linux
+            arch: amd64
+            artifact_ext: .tar.gz
+            jobs: 4
+            upx: true
+            cuda_variant: cuda_full
 
     runs-on: ${{ matrix.os }}
     
@@ -84,6 +124,25 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      - name: Replace onnxruntime for CUDA builds
+        if: matrix.cuda_variant != 'none'
+        shell: bash
+        run: |
+          # 移除默认的 onnxruntime
+          if [ "${{ matrix.platform }}" == "Windows" ]; then
+            uv remove onnxruntime-directml || true
+          fi
+          uv remove onnxruntime || true
+          
+          # 安装对应的 CUDA 版本
+          if [ "${{ matrix.cuda_variant }}" == "cuda" ]; then
+            echo "Installing onnxruntime-gpu (CUDA version, requires external CUDA installation)"
+            uv add onnxruntime-gpu==1.22.0
+          elif [ "${{ matrix.cuda_variant }}" == "cuda_full" ]; then
+            echo "Installing onnxruntime-gpu with bundled CUDA and cuDNN"
+            uv add "onnxruntime-gpu[cuda,cudnn]==1.22.0"
+          fi
+
       - name: Get version from app_config.py
         id: version
         shell: python
@@ -107,12 +166,20 @@ jobs:
         run: uv run python build.py --mode release --jobs ${{ matrix.jobs }} ${{ matrix.upx && '--upx' || '' }}
         env:
           PYTHONIOENCODING: utf-8
+          CUDA_VARIANT: ${{ matrix.cuda_variant }}
 
       - name: Get artifact name
         id: artifact
         shell: bash
         run: |
-          ARTIFACT_NAME="MTools_${{ matrix.platform }}_${{ matrix.arch }}"
+          CUDA_SUFFIX=""
+          if [ "${{ matrix.cuda_variant }}" == "cuda" ]; then
+            CUDA_SUFFIX="_CUDA"
+          elif [ "${{ matrix.cuda_variant }}" == "cuda_full" ]; then
+            CUDA_SUFFIX="_CUDA_FULL"
+          fi
+          
+          ARTIFACT_NAME="MTools_${{ matrix.platform }}_${{ matrix.arch }}${CUDA_SUFFIX}"
           echo "name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
           echo "Artifact name: ${ARTIFACT_NAME}"
 
@@ -120,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
-          path: dist/release/MTools_${{ matrix.platform }}_${{ matrix.arch }}${{ matrix.artifact_ext }}
+          path: dist/release/${{ steps.artifact.outputs.name }}${{ matrix.artifact_ext }}
           if-no-files-found: error
           retention-days: 7
 

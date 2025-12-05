@@ -9,6 +9,7 @@ from typing import Optional
 import flet as ft
 
 from components import FeatureCard
+from utils.logger import logger
 from constants import (
     PADDING_LARGE,
     PADDING_MEDIUM,
@@ -17,6 +18,7 @@ from services import AudioService, ConfigService, FFmpegService
 from views.media.audio_compress_view import AudioCompressView
 from views.media.audio_format_view import AudioFormatView
 from views.media.audio_speed_view import AudioSpeedView
+from views.media.audio_to_text_view import AudioToTextView
 from views.media.ffmpeg_install_view import FFmpegInstallView
 from views.media.video_compress_view import VideoCompressView
 from views.media.video_convert_view import VideoConvertView
@@ -79,6 +81,7 @@ class MediaView(ft.Container):
         self.audio_compress_view: Optional[AudioCompressView] = None
         self.audio_speed_view: Optional[AudioSpeedView] = None
         self.vocal_extraction_view = None  # 人声提取视图
+        self.audio_to_text_view: Optional[AudioToTextView] = None  # 音视频转文字视图
         
         # 创建视频子视图（延迟创建）
         self.video_compress_view: Optional[VideoCompressView] = None
@@ -151,10 +154,17 @@ class MediaView(ft.Container):
                 on_click=lambda e: self._open_view('vocal_extraction'),
                 gradient_colors=("#ffecd2", "#fcb69f"),
             ),
+            FeatureCard(
+                icon=ft.Icons.TRANSCRIBE,
+                title="音视频转文字",
+                description="AI语音识别，音视频转文字字幕",
+                on_click=lambda e: self._open_view('audio_to_text'),
+                gradient_colors=("#a8c0ff", "#3f2b96"),
+            ),
             # 视频处理
             FeatureCard(
                 icon=ft.Icons.AUTO_AWESOME,
-                title="视频超分辨率",
+                title="视频增强",
                 description="AI视频超分辨率增强，提升画质清晰度",
                 on_click=lambda e: self._open_view('video_enhance'),
                 gradient_colors=("#fa709a", "#fee140"),
@@ -162,7 +172,7 @@ class MediaView(ft.Container):
             FeatureCard(
                 icon=ft.Icons.SLOW_MOTION_VIDEO,
                 title="视频插帧",
-                description="AI帧率提升，让视频更流畅（RIFE补帧）",
+                description="AI帧率提升，让视频更流畅",
                 on_click=lambda e: self._open_view('video_interpolation'),
                 gradient_colors=("#667eea", "#764ba2"),
             ),
@@ -249,6 +259,21 @@ class MediaView(ft.Container):
         Args:
             view_name: 视图名称
         """
+        # 记录工具使用次数
+        from utils import get_tool
+        # 将view_name转换为tool_id格式 (如 "audio_format" -> "audio.format")
+        if view_name.startswith("audio_"):
+            tool_id = "audio." + view_name.replace("audio_", "")
+        elif view_name.startswith("video_"):
+            tool_id = "video." + view_name.replace("video_", "")
+        else:
+            tool_id = None
+        
+        if tool_id:
+            tool_meta = get_tool(tool_id)
+            if tool_meta:
+                self.config_service.record_tool_usage(tool_meta.name)
+        
         # 检查FFmpeg是否可用
         is_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_available:
@@ -297,6 +322,16 @@ class MediaView(ft.Container):
                     on_back=self._back_to_main
                 )
             self._switch_to_sub_view(self.vocal_extraction_view, 'vocal_extraction')
+            
+        elif view_name == 'audio_to_text':
+            if not self.audio_to_text_view:
+                self.audio_to_text_view = AudioToTextView(
+                    self._saved_page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+            self._switch_to_sub_view(self.audio_to_text_view, 'audio_to_text')
             
         elif view_name == 'video_compress':
             if not self.video_compress_view:
@@ -445,6 +480,7 @@ class MediaView(ft.Container):
                 "audio_compress": "audio_compress_view",
                 "audio_speed": "audio_speed_view",
                 "vocal_extraction": "vocal_extraction_view",
+                "audio_to_text": "audio_to_text_view",
                 "video_compress": "video_compress_view",
                 "video_convert": "video_convert_view",
                 "video_enhance": "video_enhance_view",

@@ -237,6 +237,13 @@ class DevToolsView(ft.Container):
         Args:
             tool_name: 工具名称，如 "encoding", "json_viewer", "base64_to_image" 等
         """
+        # 记录工具使用次数
+        from utils import get_tool
+        tool_id = f"dev.{tool_name}"
+        tool_meta = get_tool(tool_id)
+        if tool_meta:
+            self.config_service.record_tool_usage(tool_meta.name)
+        
         # 工具名称到方法的映射
         tool_map = {
             "encoding": self._open_encoding_convert,

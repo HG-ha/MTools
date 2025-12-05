@@ -523,3 +523,157 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
 
 # 默认插帧模型
 DEFAULT_INTERPOLATION_MODEL_KEY: Final[str] = "rife49_fast"
+
+
+@dataclass
+class WhisperModelInfo:
+    """Whisper 模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        encoder_url: 编码器模型下载链接
+        decoder_url: 解码器模型下载链接
+        config_url: tokens.txt 下载链接
+        size_mb: 总文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        encoder_filename: 编码器文件名
+        decoder_filename: 解码器文件名
+        config_filename: 配置文件名（通常是 tokens.txt）
+        language_support: 支持的语言
+        version: 版本号
+        precision: 精度类型（fp32/int8）
+        encoder_weights_url: 编码器外部权重文件URL（可选，用于 large-v3 等）
+        decoder_weights_url: 解码器外部权重文件URL（可选，用于 large-v3 等）
+        encoder_weights_filename: 编码器外部权重文件名（可选）
+        decoder_weights_filename: 解码器外部权重文件名（可选）
+    """
+    name: str
+    display_name: str
+    encoder_url: str
+    decoder_url: str
+    config_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    encoder_filename: str
+    decoder_filename: str
+    config_filename: str = "tokens.txt"
+    language_support: str = "99种语言（中文、英文等）"
+    version: str = "large-v3"
+    precision: str = "int8"
+    encoder_weights_url: str = ""
+    decoder_weights_url: str = ""
+    encoder_weights_filename: str = ""
+    decoder_weights_filename: str = ""
+
+
+# 所有可用的 Whisper 语音识别模型
+# 使用 sherpa-onnx 推理引擎，兼容 opset <= 10 的模型
+# 官方模型下载: https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
+WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
+    "whisper_tiny": WhisperModelInfo(
+        name="whisper_tiny",
+        display_name="Whisper Tiny（推荐，轻量）",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-tiny/tiny-encoder.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-tiny/tiny-decoder.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-tiny/tiny-tokens.txt",
+        size_mb=75,
+        quality="⭐⭐⭐ 基础质量",
+        performance="⚡⚡⚡⚡⚡ 极速 | 内存占用 ~390MB",
+        encoder_filename="tiny-encoder.onnx",
+        decoder_filename="tiny-decoder.onnx",
+        config_filename="tiny-tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="tiny",
+        precision="fp32"
+    ),
+    "whisper_base": WhisperModelInfo(
+        name="whisper_base",
+        display_name="Whisper Base（平衡推荐）",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-base/base-encoder.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-base/base-decoder.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-base/base-tokens.txt",
+        size_mb=145,
+        quality="⭐⭐⭐⭐ 良好质量",
+        performance="⚡⚡⚡⚡ 快速 | 内存占用 ~500MB",
+        encoder_filename="base-encoder.onnx",
+        decoder_filename="base-decoder.onnx",
+        config_filename="base-tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="base",
+        precision="fp32"
+    ),
+    "whisper_small": WhisperModelInfo(
+        name="whisper_small",
+        display_name="Whisper Small（高质量）",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-small/small-encoder.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-small/small-decoder.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-small/small-tokens.txt",
+        size_mb=466,
+        quality="⭐⭐⭐⭐⭐ 优秀质量",
+        performance="⚡⚡⚡ 中速 | 内存占用 ~1.5GB",
+        encoder_filename="small-encoder.onnx",
+        decoder_filename="small-decoder.onnx",
+        config_filename="small-tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="small",
+        precision="fp32"
+    ),
+    "whisper_medium": WhisperModelInfo(
+        name="whisper_medium",
+        display_name="Whisper Medium（专业质量）",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-medium/medium-encoder.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-medium/medium-decoder.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-medium/medium-tokens.txt",
+        size_mb=1464,
+        quality="⭐⭐⭐⭐⭐ 顶级质量",
+        performance="⚡⚡ 较慢 | 内存占用 ~3GB",
+        encoder_filename="medium-encoder.onnx",
+        decoder_filename="medium-decoder.onnx",
+        config_filename="medium-tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="medium",
+        precision="fp32"
+    ),
+    "whisper_large_v3": WhisperModelInfo(
+        name="whisper_large_v3",
+        display_name="Whisper Large V3",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-encoder.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-decoder.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/tokens.txt",
+        size_mb=6800,
+        quality="⭐⭐⭐⭐⭐⭐ 最高质量",
+        performance="⚡ 很慢 | 内存占用 ~10GB",
+        encoder_filename="large-v3-encoder.onnx",
+        decoder_filename="large-v3-decoder.onnx",
+        config_filename="tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="large-v3",
+        precision="fp32",
+        encoder_weights_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-encoder.weights",
+        decoder_weights_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-decoder.weights",
+        encoder_weights_filename="large-v3-encoder.weights",
+        decoder_weights_filename="large-v3-decoder.weights"
+    ),
+    "whisper_large_v3_int8": WhisperModelInfo(
+        name="whisper_large_v3_int8",
+        display_name="Whisper Large V3 INT8（量化）",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-encoder.int8.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-decoder.int8.onnx",
+        config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/tokens.txt",
+        size_mb=1777,
+        quality="⭐⭐⭐⭐⭐ 极高质量",
+        performance="⚡⚡ 较慢 | 内存占用 ~3GB",
+        encoder_filename="large-v3-encoder.int8.onnx",
+        decoder_filename="large-v3-decoder.int8.onnx",
+        config_filename="tokens.txt",
+        language_support="99种语言（中文、英文等）",
+        version="large-v3",
+        precision="int8"
+    ),
+}
+
+# 默认 Whisper 模型（推荐使用 Tiny，轻量且支持多语言）
+DEFAULT_WHISPER_MODEL_KEY: Final[str] = "whisper_tiny"

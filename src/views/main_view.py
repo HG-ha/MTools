@@ -278,7 +278,12 @@ class MainView(ft.Column):
         if selected_index == 0 and self.show_recommendations:
             # 推荐
             view = self.recommendations_view
-            self.content_container.content = view
+            # 刷新推荐列表（获取最新的使用统计）
+            if hasattr(view, 'refresh'):
+                view.refresh()
+            # 确保内容已设置
+            if self.content_container.content != view:
+                self.content_container.content = view
         elif selected_index == 1 + offset:
             # 图片处理
             view = self.image_view
@@ -335,6 +340,12 @@ class MainView(ft.Column):
         Args:
             tool_id: 工具ID，格式如 "image.compress", "audio.format"
         """
+        # 记录工具使用次数
+        from utils import get_tool
+        tool_meta = get_tool(tool_id)
+        if tool_meta:
+            self.config_service.record_tool_usage(tool_meta.name)
+        
         # 解析工具ID
         parts = tool_id.split(".")
         if len(parts) < 2:
@@ -369,6 +380,8 @@ class MainView(ft.Column):
                         self.media_view._open_view('audio_speed')
                     elif tool_name == "vocal_extraction":
                         self.media_view._open_view('vocal_extraction')
+                    elif tool_name == "to_text":
+                        self.media_view._open_view('audio_to_text')
                 elif category == "video":
                     if tool_name == "compress":
                         self.media_view._open_view('video_compress')
@@ -384,6 +397,10 @@ class MainView(ft.Column):
                         self.media_view._open_view('video_vocal_separation')
                     elif tool_name == "watermark":
                         self.media_view._open_view('video_watermark')
+                    elif tool_name == "enhance":
+                        self.media_view._open_view('video_enhance')
+                    elif tool_name == "interpolation":
+                        self.media_view._open_view('video_interpolation')
         elif category == "dev":
             self.navigation_rail.selected_index = 3 + offset  # 开发工具
             self.content_container.content = self.dev_tools_view
@@ -524,6 +541,9 @@ class MainView(ft.Column):
         if show:
             # 显示推荐页面
             if not is_in_settings:
+                # 刷新推荐列表
+                if hasattr(self.recommendations_view, 'refresh'):
+                    self.recommendations_view.refresh()
                 self._switch_content_with_animation(self.recommendations_view)
         else:
             # 隐藏推荐页面

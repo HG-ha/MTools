@@ -434,6 +434,7 @@ dependencies = [
     { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "qrcode", extra = ["pil"] },
+    { name = "sherpa-onnx" },
     { name = "websockets" },
 ]
 
@@ -455,6 +456,7 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = "==4.11.0.86" },
     { name = "pillow", specifier = "==12.0.0" },
     { name = "qrcode", extras = ["pil"], specifier = "==7.4.2" },
+    { name = "sherpa-onnx", specifier = "==1.12.18" },
     { name = "websockets", specifier = "==12.0" },
 ]
 
@@ -796,6 +798,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fb/d2/8920e102050a0de7bfabeb4c4614a49248cf8d5d7a8d01885fbb24dc767a/rich-14.2.0.tar.gz", hash = "sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4", size = 219990, upload-time = "2025-10-09T14:16:53.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/7a/b0178788f8dc6cafce37a212c99565fa1fe7872c70c6c9c1e1a372d9d88f/rich-14.2.0-py3-none-any.whl", hash = "sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd", size = 243393, upload-time = "2025-10-09T14:16:51.245Z" },
+]
+
+[[package]]
+name = "sherpa-onnx"
+version = "1.12.18"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/d1/8be52d4b936f4f19b983d6196f8b177eba7cc153263137fdf08fc0e1017d/sherpa_onnx-1.12.18.tar.gz", hash = "sha256:56d1028789f6c4e90eef58199f4530ec66973ef5ec73c109ea127513eed6adec", size = 645585, upload-time = "2025-11-28T02:14:32.32Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/6c/afca8679dd8b426d7cc077e6b5da674b4946cf77544ce5ca953c726f8004/sherpa_onnx-1.12.18-cp311-cp311-linux_armv7l.whl", hash = "sha256:bde48ca822725381445b6f02c26fab262b1aa8a47d92cd9fc71cea4ed63c1b3f", size = 18221098, upload-time = "2025-11-28T03:42:02.384Z" },
+    { url = "https://files.pythonhosted.org/packages/99/39/e07ebc55ef794c6fdbe2d265a7510f4b1bcd189e6cecd757e8aea64a04c9/sherpa_onnx-1.12.18-cp311-cp311-macosx_10_15_universal2.whl", hash = "sha256:53e6812f6b4be67c427f15ec445e3ecb84d2251e37e3a44d396a210cb36a65d4", size = 3885393, upload-time = "2025-11-28T02:53:40.395Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/84/832c2f4cd87111bb2269fee80d5cd8a36d2e62a3eaf9c1022e839f0c3468/sherpa_onnx-1.12.18-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:9174a19be290e6feb2b172c24a9f5b83cbb9f0458e10808dcee5044839499a12", size = 2053867, upload-time = "2025-11-28T01:46:20.686Z" },
+    { url = "https://files.pythonhosted.org/packages/99/17/6548396ef42882499586284975b52fa2998b7e78b763334ed4f64859fa0a/sherpa_onnx-1.12.18-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8be828ee8beb03cfa043d6f06510c320ddc00edbdd6b1edab5e40d2e6dc6326a", size = 1859793, upload-time = "2025-11-28T01:46:40.804Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/b3/9ebf6f47d4003dc37bb68b28d7f15581addbb03f243203b03d76b92a0a81/sherpa_onnx-1.12.18-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f5187621c63aabfb396bfeaf2dc9a8ba83c576effa8eff8d228f6a8405e08b88", size = 3929297, upload-time = "2025-11-28T02:31:12.319Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/bf/36a04e97c90c4a43cf8f6284bcc646678c074f832cdd3db67739728d296e/sherpa_onnx-1.12.18-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:35aa84b8e80c8c1e131574b73fb6da44de7934f2510e0052963802b2eeb1dca2", size = 4107512, upload-time = "2025-11-28T01:52:47.673Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/48/0c8a8b2b8de39162ac985933125a3b1eabab9364ec9cce74ec372d233554/sherpa_onnx-1.12.18-cp311-cp311-win32.whl", hash = "sha256:053dbd1b93aa7dd4a356d3fca28408922c70634b2c3cb3a3fe5e6d8b531bebf9", size = 1642738, upload-time = "2025-11-28T02:40:11.605Z" },
+    { url = "https://files.pythonhosted.org/packages/28/dd/25c9183d66e443e0ba8b8b8cd91f12becfb7ba40f6aed0f7c881b653d59e/sherpa_onnx-1.12.18-cp311-cp311-win_amd64.whl", hash = "sha256:375a9d18f3e7495539cba5c6d56d08cb6b454d4cbc41d71d399ee4b6c8cd13b0", size = 1943053, upload-time = "2025-11-28T02:50:17.164Z" },
 ]
 
 [[package]]

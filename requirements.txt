@@ -21,9 +21,11 @@ numpy==1.26.4
 
 # ONNX Runtime - AI 功能 GPU 加速
 # 使用平台标记自动选择合适的版本
+# 注意: 使用 1.16.1 版本以兼容 sherpa-onnx
 onnxruntime-directml==1.22.0 ; sys_platform == 'win32'  # Windows DirectML 加速
 onnxruntime==1.22.0 ; sys_platform == 'linux' or sys_platform == 'darwin'  # macOS (内置 CoreML) / Linux (可手动改为 onnxruntime-gpu)
-# 完整加速独立环境，无需用户手动配置cuda和cudnn，直接使用onnxruntime-gpu[cuda,cudnn]==1.22.0即可，但是会导致依赖包体积增大，不推荐使用
+# 完整加速独立环境，无需用户手动配置cuda和cudnn，直接使用onnxruntime-gpu[cuda,cudnn]==1.16.1即可，但是会导致依赖包体积增大，不推荐使用
 
 websockets==12.0  # 避免弃用警告，等待 flet 更新
 qrcode[pil]==7.4.2
+sherpa-onnx==1.12.18  # 语音识别

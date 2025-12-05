@@ -59,12 +59,15 @@ from .model_config import (
     DEFAULT_INTERPOLATION_MODEL_KEY,
     DEFAULT_MODEL_KEY,
     DEFAULT_VOCAL_MODEL_KEY,
+    DEFAULT_WHISPER_MODEL_KEY,
     FRAME_INTERPOLATION_MODELS,
     FrameInterpolationModelInfo,
     IMAGE_ENHANCE_MODELS,
     ImageEnhanceModelInfo,
     ModelInfo,
     VOCAL_SEPARATION_MODELS,
+    WHISPER_MODELS,
+    WhisperModelInfo,
 )
 
 __all__ = [
@@ -123,11 +126,14 @@ __all__ = [
     "DEFAULT_VOCAL_MODEL_KEY",
     "DEFAULT_ENHANCE_MODEL_KEY",
     "DEFAULT_INTERPOLATION_MODEL_KEY",
+    "DEFAULT_WHISPER_MODEL_KEY",
     "FRAME_INTERPOLATION_MODELS",
     "FrameInterpolationModelInfo",
     "IMAGE_ENHANCE_MODELS",
     "ImageEnhanceModelInfo",
     "ModelInfo",
     "VOCAL_SEPARATION_MODELS",
+    "WHISPER_MODELS",
+    "WhisperModelInfo",
 ]
 

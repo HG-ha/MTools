@@ -164,8 +164,58 @@ class RecommendationsView(ft.Container):
             self.on_tool_click_handler(tool_id)
     
     def refresh(self) -> None:
-        """刷新界面。"""
-        self._build_ui()
-        if self.page:
-            self.page.update()
+        """刷新推荐列表。"""
+        # 重新获取使用历史
+        tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
+        
+        # 推荐的工具卡片
+        recommended_cards = []
+        
+        if tool_usage_count:
+            # 有使用历史，显示基于历史的推荐
+            # 获取最常用的8个工具
+            sorted_tools = sorted(tool_usage_count.items(), key=lambda x: x[1], reverse=True)
+            recommended_tool_names = [name for name, count in sorted_tools[:8]]
+            
+            # 根据工具名称找到对应的tool_id
+            all_tools_meta = get_all_tools()
+            recommended_tool_ids = []
+            for tool_meta in all_tools_meta:
+                if tool_meta.name in recommended_tool_names:
+                    recommended_tool_ids.append(tool_meta.tool_id)
+            
+            recommended_cards = self._build_tool_cards(recommended_tool_ids)
+        else:
+            # 没有使用历史，显示智能推荐
+            smart_recommended = [
+                "image.compress",    # 图片压缩
+                "video.compress",    # 视频压缩
+                "video.convert",     # 视频格式转换
+                "audio.format",      # 音频格式转换
+                "dev.json_viewer",   # JSON查看器
+                "dev.encoding",      # 编码转换
+                "image.format",      # 图片格式转换
+                "video.speed",       # 视频倍速
+            ]
+            
+            recommended_cards = self._build_tool_cards(smart_recommended)
+        
+        # 更新内容
+        if hasattr(self, 'content') and self.content and isinstance(self.content, ft.Column):
+            # 获取现有的 Column 中的 Row
+            if len(self.content.controls) > 0:
+                row = self.content.controls[0]
+                if isinstance(row, ft.Row):
+                    # 更新 Row 中的卡片
+                    row.controls = recommended_cards if recommended_cards else [
+                        ft.Text("暂无推荐工具", color=ft.Colors.ON_SURFACE_VARIANT)
+                    ]
+                    
+                    # 更新页面
+                    try:
+                        if self.page:
+                            self.page.update()
+                    except Exception:
+                        # 如果更新失败，静默处理
+                        pass
 

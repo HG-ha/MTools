@@ -8,6 +8,7 @@ from .encoding_service import EncodingService
 from .ffmpeg_service import FFmpegService
 from .image_service import ImageService
 from .vocal_separation_service import VocalSeparationService
+from .speech_recognition_service import SpeechRecognitionService
 from .weather_service import WeatherService
 from .update_service import UpdateService, UpdateInfo, UpdateStatus
 
@@ -19,6 +20,7 @@ __all__ = [
     "FFmpegService",
     "ImageService",
     "VocalSeparationService",
+    "SpeechRecognitionService",
     "WeatherService",
     "UpdateService",
     "UpdateInfo",

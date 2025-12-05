@@ -291,6 +291,22 @@ class ConfigService:
         self.config[key] = value
         return self.save_config()
     
+    def record_tool_usage(self, tool_name: str) -> None:
+        """记录工具使用次数。
+        
+        Args:
+            tool_name: 工具名称
+        """
+        tool_usage_count = self.get_config_value("tool_usage_count", {})
+        
+        if tool_name not in tool_usage_count:
+            tool_usage_count[tool_name] = 0
+        
+        tool_usage_count[tool_name] += 1
+        
+        # 保存
+        self.set_config_value("tool_usage_count", tool_usage_count)
+    
     def get_temp_dir(self) -> Path:
         """获取临时文件目录。
         

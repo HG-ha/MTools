@@ -121,6 +121,12 @@ class OthersView(ft.Container):
     
     def _open_windows_update_view(self) -> None:
         """打开Windows更新管理视图。"""
+        # 记录工具使用次数
+        from utils import get_tool
+        tool_meta = get_tool("others.windows_update")
+        if tool_meta:
+            self.config_service.record_tool_usage(tool_meta.name)
+        
         # 隐藏搜索按钮
         self._hide_search_button()
         
@@ -146,6 +152,12 @@ class OthersView(ft.Container):
     
     def _open_image_to_url_view(self) -> None:
         """打开图片转URL视图。"""
+        # 记录工具使用次数
+        from utils import get_tool
+        tool_meta = get_tool("others.image_to_url")
+        if tool_meta:
+            self.config_service.record_tool_usage(tool_meta.name)
+        
         # 隐藏搜索按钮
         self._hide_search_button()
         
@@ -171,6 +183,12 @@ class OthersView(ft.Container):
     
     def _open_file_to_url_view(self) -> None:
         """打开文件转URL视图。"""
+        # 记录工具使用次数
+        from utils import get_tool
+        tool_meta = get_tool("others.file_to_url")
+        if tool_meta:
+            self.config_service.record_tool_usage(tool_meta.name)
+        
         # 隐藏搜索按钮
         self._hide_search_button()
         
@@ -193,6 +211,23 @@ class OthersView(ft.Container):
         # 切换到子视图
         self.parent_container.content = file_to_url_view
         self._safe_page_update()
+    
+    def open_tool(self, tool_name: str) -> None:
+        """根据工具名称打开对应的工具。
+        
+        Args:
+            tool_name: 工具名称，如 "windows_update", "image_to_url", "file_to_url" 等
+        """
+        # 工具名称到方法的映射
+        tool_map = {
+            "windows_update": self._open_windows_update_view,
+            "image_to_url": self._open_image_to_url_view,
+            "file_to_url": self._open_file_to_url_view,
+        }
+        
+        # 查找并调用对应的方法
+        if tool_name in tool_map:
+            tool_map[tool_name]()
     
     def _restore_main_view(self) -> None:
         """恢复到主视图。"""

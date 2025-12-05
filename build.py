@@ -43,8 +43,13 @@ def get_dist_dir(mode="release"):
 def get_platform_name():
     """获取平台相关的输出名称（统一目录和 zip 命名）
     
+    支持通过环境变量 CUDA_VARIANT 指定 CUDA 版本后缀：
+    - 无环境变量或 'none': 标准版本，无后缀
+    - 'cuda': CUDA 版本，添加 '_CUDA' 后缀
+    - 'cuda_full': CUDA Full 版本，添加 '_CUDA_FULL' 后缀
+    
     Returns:
-        str: 平台名称，例如 "Windows_amd64", "macOS_arm64", "Linux_x86_64"
+        str: 平台名称，例如 "Windows_amd64", "Windows_amd64_CUDA", "Linux_amd64_CUDA_FULL"
     """
     system = platform.system()
     machine = platform.machine().upper()
@@ -60,8 +65,16 @@ def get_platform_name():
     }
     
     arch = arch_map.get(machine, machine)
+    base_name = f"{system}_{arch}"
     
-    return f"{system}_{arch}"
+    # 检查 CUDA 变体环境变量
+    cuda_variant = os.environ.get('CUDA_VARIANT', 'none').lower()
+    if cuda_variant == 'cuda':
+        return f"{base_name}_CUDA"
+    elif cuda_variant == 'cuda_full':
+        return f"{base_name}_CUDA_FULL"
+    else:
+        return base_name
 
 # 全局状态标记
 _build_interrupted = False
@@ -927,8 +940,9 @@ def organize_output(mode="release"):
         app_bundles = list(dist_dir.glob("*.app"))
         if app_bundles:
             print(f"   发现应用包: {app_bundles[0].name}")
-            # macOS app bundle 也需要清理
+            # macOS app bundle 清理资源文件
             cleanup_assets_in_output(app_bundles[0])
+            # 不再需要复制库文件，程序启动时自动设置路径
             return True
             
         print("❌ 未找到构建输出目录 (.dist)")
@@ -947,6 +961,9 @@ def organize_output(mode="release"):
         
         # 清理多余的资源文件
         cleanup_assets_in_output(output_dir)
+        
+        # 注意：不再需要复制 ONNX Runtime 库文件
+        # 程序启动时会通过 _setup_onnxruntime_path() 自动设置 DLL 搜索路径
         
         return True
     except Exception as e:
@@ -994,6 +1011,94 @@ def cleanup_assets_in_output(output_dir: Path):
     
     if removed_count > 0:
         print(f"   ✅ 清理完成，共删除 {removed_count} 个文件")
+
+
+def copy_onnxruntime_libs(output_dir: Path):
+    """[已弃用] 复制 ONNX Runtime 库文件到 sherpa-onnx 目录
+    
+    注意：此函数已不再使用。现在通过运行时设置 DLL 搜索路径来解决版本冲突。
+    详见 SpeechRecognitionService._setup_onnxruntime_path()
+    
+    保留此函数以供参考或特殊情况下使用。
+    
+    Args:
+        output_dir: 输出目录路径
+    """
+    print("   ℹ️  跳过 ONNX Runtime 库复制（使用运行时路径设置）")
+    return
+    
+    # 以下代码已禁用，如需使用请移除上面的 return
+    # ===================================================
+    """
+    system = platform.system()
+    
+    print("   📦 复制 ONNX Runtime 库文件...")
+    
+    # 查找虚拟环境中的 onnxruntime 库文件
+    venv_onnxruntime = None
+    lib_files = []
+    
+    try:
+        import onnxruntime
+        onnxruntime_path = Path(onnxruntime.__file__).parent
+        
+        if system == "Windows":
+            # Windows: onnxruntime.dll
+            lib_files = list((onnxruntime_path / "capi").glob("onnxruntime*.dll"))
+            if not lib_files:
+                # 也检查根目录
+                lib_files = list(onnxruntime_path.glob("onnxruntime*.dll"))
+        
+        elif system == "Darwin":
+            # macOS: libonnxruntime.dylib
+            lib_files = list((onnxruntime_path / "capi").glob("libonnxruntime*.dylib"))
+            if not lib_files:
+                lib_files = list(onnxruntime_path.glob("libonnxruntime*.dylib"))
+        
+        elif system == "Linux":
+            # Linux: libonnxruntime.so
+            lib_files = list((onnxruntime_path / "capi").glob("libonnxruntime*.so*"))
+            if not lib_files:
+                lib_files = list(onnxruntime_path.glob("libonnxruntime*.so*"))
+        
+        if not lib_files:
+            print(f"      ⚠️ 未找到 ONNX Runtime 库文件")
+            return
+        
+        # 目标目录：sherpa_onnx/lib
+        target_dir = output_dir / "sherpa_onnx" / "lib"
+        
+        if not target_dir.exists():
+            print(f"      ⚠️ 目标目录不存在: {target_dir}")
+            print(f"      提示: sherpa-onnx 可能未正确打包，或目录结构已变更")
+            return
+        
+        # 复制所有找到的库文件
+        copied_count = 0
+        for lib_file in lib_files:
+            target_file = target_dir / lib_file.name
+            
+            try:
+                # 如果目标文件已存在，先删除
+                if target_file.exists():
+                    target_file.unlink()
+                
+                shutil.copy2(lib_file, target_file)
+                file_size_mb = lib_file.stat().st_size / (1024 * 1024)
+                print(f"      ✅ 已复制: {lib_file.name} ({file_size_mb:.2f} MB)")
+                copied_count += 1
+            except Exception as e:
+                print(f"      ❌ 复制 {lib_file.name} 失败: {e}")
+        
+        if copied_count > 0:
+            print(f"   ✅ ONNX Runtime 库文件复制完成，共 {copied_count} 个文件")
+        
+    except ImportError:
+        print("      ⚠️ onnxruntime 未安装，跳过库文件复制")
+    except Exception as e:
+        print(f"      ⚠️ 复制过程出错: {e}")
+        import traceback
+        traceback.print_exc()
 
 def compress_output(mode="release"):
     """压缩输出目录

@@ -7,7 +7,6 @@
 """
 
 import gc
-import shutil
 import tempfile
 import threading
 from pathlib import Path
@@ -1688,29 +1687,29 @@ class VideoEnhanceView(ft.Container):
             logger.info(f"原始帧大小: {frame_size_mb:.2f} MB, 增强后: {enhanced_frame_size_mb:.2f} MB")
             
             # 🔥 关键优化：计算帧批量大小和队列深度
-            # 根据分辨率和显存自动调整
+            # 根据分辨率和显存自动调整 - 增大批量以提高GPU利用率
             if enhanced_frame_size_mb > 50:  # 8K+
-                frame_batch_size = 1
-                queue_depth = 3  # 队列深度：允许3个批次在流水线中
+                frame_batch_size = 2  # 从1增加到2
+                queue_depth = 4  # 从3增加到4
                 logger.warning("⚠️  超高分辨率，小批量+浅队列")
                 gc_interval = 10
                 flush_interval = 5
             elif enhanced_frame_size_mb > 20:  # 4K
-                frame_batch_size = 2
-                queue_depth = 4  # 2批在队列，1批在推理，1批在编码
-                logger.info("⚡ 4K分辨率，批量=2, 队列深度=4")
+                frame_batch_size = 4  # 从2增加到4
+                queue_depth = 6  # 从4增加到6
+                logger.info("⚡ 4K分辨率，批量=4, 队列深度=6")
                 gc_interval = 20
                 flush_interval = 10
             elif enhanced_frame_size_mb > 8:  # 1440p
-                frame_batch_size = 4
-                queue_depth = 6
-                logger.info("⚡ 2K分辨率，批量=4, 队列深度=6")
+                frame_batch_size = 8  # 从4增加到8
+                queue_depth = 10  # 从6增加到10
+                logger.info("⚡ 2K分辨率，批量=8, 队列深度=10")
                 gc_interval = 30
                 flush_interval = 15
             else:  # 1080p及以下
-                frame_batch_size = 6
-                queue_depth = 8
-                logger.info("✓ 1080p及以下，批量=6, 队列深度=8")
+                frame_batch_size = 12  # 从6增加到12
+                queue_depth = 16  # 从8增加到16
+                logger.info("✓ 1080p及以下，批量=12, 队列深度=16")
                 gc_interval = 40
                 flush_interval = 20
             
