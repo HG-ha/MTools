@@ -151,8 +151,10 @@
 ### 🤖 AI 智能处理
 
 - **🎨 AI 智能抠图** - 一键移除图片背景，支持人像、动漫、通用场景等多种模型，GPU 加速提速 3-10 倍
-- **🎵 AI 人声分离** - 专业级人声/伴奏分离，支持 UVR MDX-Net 模型，轻松制作卡拉OK伴奏
-- **🎬 视频人声分离** - 直接处理视频，分离人声或背景音，保留原画面
+- **🎵 AI 音视频人声分离** - 专业级人声/伴奏分离，支持 UVR MDX-Net 模型，轻松制作卡拉OK伴奏
+- **🎬 AI 音视频转文字** - 直接处理视频或音频，从中提取字幕，支持输出字幕文件
+- **🎬 AI 视频插帧** - 将低帧率视频进行补帧，提高视频流畅度
+- **🎬 AI 图片、视频超分** - 支持对图片、视频进行修复和放大，例如720p修复到2k
 
 ### 📷 图片工具箱
 
@@ -173,6 +175,8 @@
 - **编码转换** - 自动检测文件编码，一键解决乱码问题
 - **Base64 工具** - 图片与 Base64 互转
 - **代码格式化** - JSON/XML/SQL 美化与验证
+
+### 更多工具请自行查看
 
 ---
 
@@ -225,34 +229,12 @@ uv add onnxruntime-gpu==1.22.0
 # uv add onnxruntime-gpu[cuda,cudnn]==1.22.0
 ```
 
----
+> 📘 **版本说明**：
+> - **普通版本**：支持NVIDIA、AMD、Intel显卡加速，支持coreml加速，对 NVIDIA GPU 的性能释放可能不如CUDA系列
+> - **CUDA 版本**：使用系统安装的 CUDA 和 cuDNN，体积小但需要预先配置 CUDA 环境（CUDA 12.x + cuDNN 9.x）
+> - **CUDA_FULL 版本**：内置完整的 CUDA 和 cuDNN 运行时库，无需额外配置，开箱即用，但体积较大（+2GB）
 
-## 📦 打包编译
-
-如需将项目编译为独立的可执行文件（无需 Python 环境即可运行）：
-
-📘 **[完整编译指南](./docs/build_guide.md)**
-
-### 快速编译
-
-```bash
-# Release 模式（生产环境，无控制台）
-python build.py
-
-# Dev 模式（开发测试，保留控制台）
-python build.py --mode dev
-
-# 启用 UPX 压缩（减小体积）
-python build.py --upx
-
-# 自定义并行任务数（加速编译）
-python build.py --jobs 4
-
-# 查看所有选项
-python build.py --help
-```
-
-编译完成后，可执行文件位于 `dist/release/` 目录。
+> 💡 **编译和版本说明**：如需将项目编译为独立可执行文件，请参考 📘 **[完整编译指南](./docs/build_guide.md)**
 
 ---
 
@@ -260,12 +242,7 @@ python build.py --help
 
 ### 🚀 GPU 加速支持
 
-本项目的 AI 功能支持 GPU 加速，可大幅提升处理速度：
-
-| 功能 | CPU 模式 | GPU 模式 | 提速倍数 |
-|------|---------|---------|---------|
-| AI 智能抠图 | ⚠️ 较慢 | ✅ 快速 | **3-10x** |
-| AI 人声分离 | ⚠️ 较慢 | ✅ 快速 | **5-15x** |
+本项目的 AI 功能支持 GPU 加速，可大幅提升处理速度，并且提供 `CUDA` 以及 `CUDA_FULL` 编译版本
 
 ### 🎯 平台特定说明
 
@@ -278,31 +255,7 @@ python build.py --help
 | **macOS (Intel)** | `onnxruntime==1.22.0` | ⚠️ CPU | 无 GPU 加速 |
 | **Linux** | `onnxruntime==1.22.0` | ⚠️ CPU | 可选 `onnxruntime-gpu` (CUDA) |
 
-> 💡 **提示**：
-> - **Windows 用户**：使用默认配置即可，自动支持 GPU 加速
-> - **macOS 用户**：Apple Silicon 自动启用 CoreML 加速
-> - **Linux 用户**：默认 CPU，如需 GPU 请安装 `onnxruntime-gpu`
-> - 程序会自动检测并使用可用的 GPU，无需额外配置
-
-#### 图片压缩工具
-
-| 平台 | JPEG 压缩 | PNG 压缩 |
-|------|----------|---------|
-| **Windows** | ✅ mozjpeg + Pillow | ✅ pngquant + Pillow |
-| **macOS** | ⚠️ Pillow | ✅ pngquant + Pillow |
-| **Linux** | ⚠️ Pillow | ✅ pngquant + Pillow |
-
-> 📝 mozjpeg 和 pngquant 会在首次使用时自动下载安装
-
-#### 音视频处理（FFmpeg）
-
-| 平台 | 支持 | 说明 |
-|------|-----|------|
-| **Windows** | ✅ | 使用 gyan.dev 提供的精简版 |
-| **macOS** | ✅ | 使用 evermeet.cx 提供的官方版本 |
-| **Linux** | ✅ | 使用 johnvansickle.com 静态编译版 |
-
-> 📝 FFmpeg 会在首次使用时自动下载安装
+> 💡 **提示**：程序会自动检测并使用可用的 GPU，无需额外配置。
 
 ---
 
@@ -314,38 +267,6 @@ python build.py --help
 - 🎭 **自定义主题** - 支持多种主题颜色和字体选择
 - 🔍 **全局搜索** - `Ctrl+K` 快速查找任何功能
 - 📦 **批量处理** - 所有功能均支持批量操作
-
----
-
-## 📝 常见问题
-
-<details>
-<summary><b>Q: 为什么推荐使用 uv 而不是 pip？</b></summary>
-
-A: uv 是新一代 Python 包管理器，相比 pip 有以下优势：
-- ⚡ **速度快** - 比 pip 快 10-100 倍
-- 🔒 **可靠** - 锁定依赖版本，确保可重现构建
-- 🎯 **简单** - 自动管理虚拟环境，一键安装所有依赖
-- 🌍 **全局缓存** - 节省磁盘空间
-</details>
-
-<details>
-<summary><b>Q: AI 功能需要联网吗？</b></summary>
-
-A: 首次使用时需要联网下载模型文件（约 30-200 MB），下载后会缓存到本地，后续使用无需联网。
-</details>
-
-<details>
-<summary><b>Q: 为什么没有 macOS 的 mozjpeg 支持？</b></summary>
-
-A: mozjpeg 官方未提供 macOS 预编译版本。macOS 用户可以使用 Pillow 的 JPEG 压缩功能，质量也很不错。
-</details>
-
-<details>
-<summary><b>Q: 如何切换主题？</b></summary>
-
-A: 点击右上角的设置按钮 ⚙️，在"外观设置"中可以选择浅色/深色/自动模式，还可以自定义主题色和背景。
-</details>
 
 ---
 
@@ -379,7 +300,7 @@ A: 点击右上角的设置按钮 ⚙️，在"外观设置"中可以选择浅�
 
 👨‍💻 **作者**：[HG-ha](https://github.com/HG-ha)
 
-[GitHub](https://github.com/HG-ha) · [更多项目](https://github.com/HG-ha?tab=repositories) · [加入Q群 1029212047](https://qm.qq.com/q/vxxxgHGELu)
+[GitHub](https://github.com/HG-ha) · [更多项目](https://github.com/HG-ha?tab=repositories) · [加入Q群 1029212047](https://qm.qq.com/q/gHf7f0R3zy)
 
 **如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
 
