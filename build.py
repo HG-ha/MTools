@@ -966,12 +966,21 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         
     # macOS 特定配置
     elif system == "Darwin":
+        # 检测目标架构（Intel 或 Apple Silicon）
+        import platform as platform_module
+        machine = platform_module.machine()  # 'x86_64' 或 'arm64'
+        
         cmd.extend([
             "--macos-create-app-bundle",
             f"--macos-app-icon={ASSETS_DIR / 'icon.icns'}",  # 需要 .icns 格式
             f"--macos-app-name={APP_NAME}",
             f"--macos-app-version={VERSION}",
             f"--output-filename={APP_NAME}",
+            # 自动检测目标架构
+            f"--macos-target-arch={machine}",
+            # 禁用 Nuitka 自动处理 dylib 以避免路径问题
+            # (我们会手动处理库文件)
+            "--noinclude-pytest-mode=auto",
         ])
     
     cmd.append(MAIN_SCRIPT)
@@ -983,10 +992,15 @@ def cleanup_sherpa_onnx_libs():
     sherpa-onnx 包自带了旧版本的 onnxruntime 动态库（1.17.1），
     与系统安装的新版本（1.22.0）冲突，导致 Nuitka 打包时出现路径解析错误。
     
+    macOS 上的特殊问题：
+    - sherpa_onnx/lib 目录包含 libonnxruntime.1.17.1.dylib 等文件
+    - Nuitka 无法正确处理这些旧版本库文件的路径引用
+    - 必须完全删除这些库，让程序使用系统安装的新版本
+    
     需要删除的文件：
-    - Windows: sherpa_onnx/lib/onnxruntime.dll
-    - Linux: sherpa_onnx/lib/libonnxruntime.so.*
-    - macOS: sherpa_onnx/lib/libonnxruntime.*.dylib
+    - Windows: sherpa_onnx/lib/onnxruntime.dll, onnxruntime_*.dll
+    - Linux: sherpa_onnx/lib/libonnxruntime.so*
+    - macOS: sherpa_onnx/lib/libonnxruntime*.dylib (包括 libonnxruntime.1.17.1.dylib)
     """
     system = platform.system()
     
@@ -1009,17 +1023,23 @@ def cleanup_sherpa_onnx_libs():
             elif system == "Linux":
                 patterns = ["libonnxruntime.so*"]
             elif system == "Darwin":
-                patterns = ["libonnxruntime.*.dylib"]
+                # macOS: 使用更宽松的模式来匹配所有 libonnxruntime 变体
+                # libonnxruntime.dylib, libonnxruntime.1.dylib, libonnxruntime.1.17.1.dylib 等
+                patterns = ["libonnxruntime*dylib"]
             
             deleted_files = []
             for pattern in patterns:
-                for lib_file in sherpa_lib_dir.glob(pattern):
-                    if lib_file.is_file():
-                        try:
-                            lib_file.unlink()
-                            deleted_files.append(lib_file.name)
-                        except Exception as e:
-                            print(f"   ⚠️  无法删除 {lib_file.name}: {e}")
+                try:
+                    for lib_file in sherpa_lib_dir.glob(pattern):
+                        # 过滤掉非库文件的相关项
+                        if lib_file.is_file() or lib_file.is_symlink():
+                            try:
+                                lib_file.unlink()
+                                deleted_files.append(lib_file.name)
+                            except Exception as e:
+                                print(f"   ⚠️  无法删除 {lib_file.name}: {e}")
+                except Exception as e:
+                    print(f"   ⚠️  搜索模式 {pattern} 时出错: {e}")
             
             if deleted_files:
                 print(f"   ✅ 已删除 sherpa-onnx 自带的 onnxruntime 库:")

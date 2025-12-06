@@ -43,6 +43,9 @@ uv remove onnxruntime-directml
 uv add "onnxruntime-gpu[cuda,cudnn]==1.22.0"
 
 # 3. 编译
+# Windows (Command Prompt)
+set CUDA_VARIANT=cuda_full
+
 # Windows (PowerShell)
 $env:CUDA_VARIANT="cuda_full"
 python build.py
@@ -191,6 +194,9 @@ uv remove onnxruntime           # Linux/macOS
 uv add onnxruntime-gpu==1.22.0
 
 # 2. 设置环境变量并编译
+# Windows (Command Prompt)
+set CUDA_VARIANT=cuda
+
 # Windows (PowerShell)
 $env:CUDA_VARIANT="cuda"
 python build.py
@@ -216,6 +222,9 @@ uv remove onnxruntime           # Linux/macOS
 uv add "onnxruntime-gpu[cuda,cudnn]==1.22.0"
 
 # 2. 设置环境变量并编译
+# Windows (Command Prompt)
+set CUDA_VARIANT=cuda_full
+
 # Windows (PowerShell)
 $env:CUDA_VARIANT="cuda_full"
 python build.py
@@ -582,6 +591,9 @@ uv remove onnxruntime-gpu
 uv add "onnxruntime-gpu[cuda,cudnn]==1.22.0"
 
 # 3. 设置环境变量并重新编译
+# Windows (Command Prompt)
+set CUDA_VARIANT=cuda_full
+
 # Windows (PowerShell)
 $env:CUDA_VARIANT="cuda_full"
 python build.py
@@ -637,6 +649,80 @@ print(ort.get_available_providers())
 **方法 3: 运行 AI 功能并观察性能**
 - CUDA 加速: 处理速度明显更快
 - CPU 模式: 处理速度较慢，CPU 占用高
+
+### Q10: macOS 打包失败 - sherpa-onnx 库冲突
+
+**症状**:
+编译时出现错误：
+```
+FATAL: Error, failed to find path @rpath/libonnxruntime.1.17.1.dylib
+(resolved DLL to ...site-packages/sherpa_onnx/lib/libonnxruntime.1.17.1.dylib)
+for ...site-packages/sherpa_onnx/lib/_sherpa_onnx.cpython-311-darwin.so
+```
+
+**根本原因**:
+- sherpa-onnx 包自带了旧版本的 ONNX Runtime 库（1.17.1）
+- 与系统安装的新版本（1.22.0）冲突
+- macOS 上的符号链接处理导致 Nuitka 无法正确解析库路径
+
+**自动修复**（推荐）:
+```bash
+# 使用最新的 build.py，已自动处理清理
+# 只需重新运行构建
+python build.py
+```
+
+新版本 `build.py` 会在编译前自动清理冲突的库文件：
+```
+🔍 检查 sherpa-onnx 库文件冲突...
+   目录: ...site-packages/sherpa_onnx/lib
+   ✅ 已删除 sherpa-onnx 自带的 onnxruntime 库:
+      • libonnxruntime.1.17.1.dylib
+      • libonnxruntime.dylib
+   💡 这些库与系统安装的 onnxruntime 冲突，已自动清理
+```
+
+**手动修复**（如果自动修复失败）:
+```bash
+# 找到 sherpa-onnx 库目录
+python -c "import site; import sys; 
+sp = site.getsitepackages()[0]; 
+print(sp + '/sherpa_onnx/lib')"
+
+# 手动删除冲突的库文件（macOS）
+rm -f ~/.venv/lib/python3.11/site-packages/sherpa_onnx/lib/libonnxruntime*.dylib
+
+# 或使用 find 命令查找
+find ~/.venv/lib/python3.11/site-packages/sherpa_onnx/lib -name "libonnxruntime*.dylib" -type f
+
+# 删除找到的文件
+find ~/.venv/lib/python3.11/site-packages/sherpa_onnx/lib -name "libonnxruntime*.dylib" -type f -delete
+```
+
+**升级 sherpa-onnx**（根本解决）:
+```bash
+# 检查当前版本
+uv pip list | grep sherpa-onnx
+
+# 升级到最新版本
+uv add sherpa-onnx --upgrade
+
+# 然后重新编译
+python build.py
+```
+
+**验证修复**:
+```bash
+# 检查库文件是否已清理
+ls ~/.venv/lib/python3.11/site-packages/sherpa_onnx/lib/
+
+# 应该不再包含 libonnxruntime* 文件
+```
+
+**预防措施**:
+- 定期更新依赖包: `uv sync --upgrade`
+- 使用 Python 3.11+ (推荐使用 3.11+)
+- 在 macOS 上编译前，确保有足够的磁盘空间和内存
 
 ## 📚 进阶主题
 
