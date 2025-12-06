@@ -9,7 +9,7 @@ from typing import Final
 
 # 应用基本信息
 APP_TITLE: Final[str] = "MTools - 多功能工具箱"
-APP_VERSION: Final[str] = "0.0.1-beta"
+APP_VERSION: Final[str] = "0.0.2-beta"
 APP_DESCRIPTION: Final[str] = "MTools 是一个功能强大的全能桌面应用程序，集成了音视频处理、图片编辑、文本操作和编码工具。旨在简化您的工作流程，提升生产效率。"
 
 # GitHub 仓库配置

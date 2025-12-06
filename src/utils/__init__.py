@@ -38,6 +38,11 @@ from .network_utils import (
     contains_cjk,
     LocationInfo,
 )
+from .subtitle_utils import (
+    segments_to_srt,
+    segments_to_vtt,
+    segments_to_txt,
+)
 
 __all__ = [
     "ensure_dir",
@@ -69,5 +74,8 @@ __all__ = [
     "get_location_by_ip",
     "contains_cjk",
     "LocationInfo",
+    "segments_to_srt",
+    "segments_to_vtt",
+    "segments_to_txt",
 ]
 

@@ -19,7 +19,7 @@ from constants import (
     WHISPER_MODELS,
 )
 from services import ConfigService, SpeechRecognitionService, FFmpegService
-from utils import format_file_size, logger
+from utils import format_file_size, logger, segments_to_srt, segments_to_vtt, segments_to_txt
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -326,14 +326,14 @@ class AudioToTextView(ft.Container):
                 ft.dropdown.Option(key="srt", text="SRT 字幕文件"),
                 ft.dropdown.Option(key="vtt", text="VTT 字幕文件"),
             ],
-            width=200,
+            width=180,
             dense=True,
         )
         
         # 语言选择
         saved_language = self.config_service.get_config_value("whisper_language", "zh")
         self.language_dropdown = ft.Dropdown(
-            label="输出语言",
+            label="音频语言",
             hint_text="选择音频语言",
             value=saved_language,
             options=[
@@ -390,6 +390,7 @@ class AudioToTextView(ft.Container):
             padding=ft.padding.only(left=28),  # 对齐 checkbox
         )
         
+        # 输出设置 - 横向布局
         settings_row = ft.Row(
             controls=[
                 self.output_format_dropdown,
@@ -402,8 +403,24 @@ class AudioToTextView(ft.Container):
                     spacing=4,
                 ),
             ],
-            spacing=PADDING_MEDIUM,
+            spacing=PADDING_LARGE,
             wrap=True,
+        )
+        
+        # 格式说明
+        format_hint = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.BLUE),
+                    ft.Text(
+                        "提示：SRT/VTT 格式会自动添加时间戳，适合制作视频字幕",
+                        size=12,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                ],
+                spacing=6,
+            ),
+            margin=ft.margin.only(top=PADDING_SMALL),
         )
         
         output_section = ft.Container(
@@ -411,6 +428,7 @@ class AudioToTextView(ft.Container):
                 controls=[
                     ft.Text("输出设置", size=14, weight=ft.FontWeight.W_500),
                     settings_row,
+                    format_hint,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -419,13 +437,23 @@ class AudioToTextView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
-        # 处理按钮区域
+        # 处理按钮区域 - 优化为大按钮样式
         self.process_button = ft.Container(
             content=ft.ElevatedButton(
-                "开始识别",
-                icon=ft.Icons.PLAY_ARROW,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.PLAY_ARROW, size=24),
+                        ft.Text("开始识别", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
                 on_click=self._on_process,
                 disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
             alignment=ft.alignment.center,
         )
@@ -692,8 +720,10 @@ class AudioToTextView(ft.Container):
             gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
             enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
             
-            # 获取选择的语言
-            language = self.config_service.get_config_value("whisper_language", "zh")
+            # 获取选择的语言，默认自动检测
+            language = self.config_service.get_config_value("whisper_language", "auto")
+            # 如果是 auto，传递给 sherpa-onnx 时使用 "en"（sherpa 不支持 auto，默认英文）
+            sherpa_language = "en" if language == "auto" else language
             
             # 加载模型
             self.speech_service.load_model(
@@ -704,7 +734,7 @@ class AudioToTextView(ft.Container):
                 gpu_device_id=gpu_device_id,
                 gpu_memory_limit=gpu_memory_limit,
                 enable_memory_arena=enable_memory_arena,
-                language=language,  # 使用用户选择的语言
+                language=sherpa_language,  # 使用用户选择的语言
             )
             
             self.model_loaded = True
@@ -1068,15 +1098,32 @@ class AudioToTextView(ft.Container):
                         except:
                             pass
                     
-                    # 识别语音
-                    text = self.speech_service.recognize(file_path, progress_callback)
+                    # 获取输出格式
+                    output_format = self.output_format_dropdown.value
+                    
+                    # 根据输出格式选择识别方法
+                    if output_format in ['srt', 'vtt']:
+                        # 使用带时间戳的识别方法
+                        segments = self.speech_service.recognize_with_timestamps(
+                            file_path, 
+                            progress_callback=progress_callback
+                        )
+                        
+                        # 转换为对应的字幕格式
+                        if output_format == 'srt':
+                            content = segments_to_srt(segments)
+                        else:  # vtt
+                            content = segments_to_vtt(segments)
+                    else:
+                        # txt 格式，使用普通识别方法
+                        text = self.speech_service.recognize(file_path, progress_callback=progress_callback)
+                        content = text
                     
                     # 保存结果
-                    output_format = self.output_format_dropdown.value
                     output_path = file_path.with_suffix(f".{output_format}")
                     
                     with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(text)
+                        f.write(content)
                     
                     logger.info(f"识别完成: {file_path} -> {output_path}")
                     

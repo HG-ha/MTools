@@ -6,7 +6,7 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, TYPE_CHECKING, List, Dict, Any
 from utils import logger
 import numpy as np
 
@@ -312,7 +312,7 @@ class SpeechRecognitionService:
                 logger.warning("onnxruntime 未安装，使用 CPU")
         
         # 将语言代码转换为 sherpa-onnx 支持的格式
-        lang_code = language if language != "auto" else "en"  # 默认英文
+        lang_code = language if language != "auto" else "zh"  # 默认英文
         
         # 创建识别器
         try:
@@ -461,6 +461,179 @@ class SpeechRecognitionService:
             
         except Exception as e:
             raise RuntimeError(f"识别失败: {e}")
+    
+    def recognize_with_timestamps(
+        self,
+        audio_path: Path,
+        language: str = "zh",
+        task: str = "transcribe",
+        progress_callback: Optional[Callable[[str, float], None]] = None
+    ) -> List[Dict[str, Any]]:
+        """识别音频中的语音并返回带时间戳的分段结果。
+        
+        Args:
+            audio_path: 输入音频文件路径
+            language: （已弃用）语言代码，请在 load_model 时指定
+            task: （已弃用）任务类型，请在 load_model 时指定
+            progress_callback: 进度回调函数 (状态消息, 进度0-1)
+            
+        Returns:
+            分段结果列表，每个元素包含：
+            {
+                'text': str,        # 文本内容
+                'start': float,     # 开始时间（秒）
+                'end': float,       # 结束时间（秒）
+            }
+        """
+        if self.recognizer is None:
+            raise RuntimeError("模型未加载，请先调用 load_model()")
+        
+        # 检查 FFmpeg 是否可用
+        if self.ffmpeg_service:
+            is_available, _ = self.ffmpeg_service.is_ffmpeg_available()
+            if not is_available:
+                raise RuntimeError(
+                    "FFmpeg 未安装或不可用。\n"
+                    "请在 媒体处理 -> FFmpeg终端 中安装 FFmpeg。"
+                )
+        
+        # 加载音频
+        if progress_callback:
+            progress_callback("正在加载音频...", 0.2)
+        
+        audio = self._load_audio_ffmpeg(audio_path)
+        
+        # 创建音频流
+        if progress_callback:
+            progress_callback("正在识别语音...", 0.5)
+        
+        try:
+            import sherpa_onnx
+            
+            # 创建离线音频流
+            stream = self.recognizer.create_stream()
+            
+            # 接受音频样本
+            stream.accept_waveform(self.sample_rate, audio)
+            
+            # 解码
+            self.recognizer.decode_stream(stream)
+            
+            # 获取结果
+            result = stream.result
+            
+            # sherpa-onnx 的 Whisper 离线识别器目前不提供详细的时间戳信息
+            # 我们需要通过其他方式估算时间戳
+            # 这里使用一个简单的策略：根据句子长度和音频总长度估算
+            
+            text = result.text.strip()
+            
+            if not text or text == "[未识别到语音内容]":
+                if progress_callback:
+                    progress_callback("完成!", 1.0)
+                return []
+            
+            # 计算音频总时长（秒）
+            audio_duration = len(audio) / self.sample_rate
+            
+            # 将文本分割成句子（简单分割）
+            segments = self._split_into_segments(text, audio_duration)
+            
+            if progress_callback:
+                progress_callback("完成!", 1.0)
+            
+            return segments
+            
+        except Exception as e:
+            raise RuntimeError(f"识别失败: {e}")
+    
+    def _split_into_segments(
+        self, 
+        text: str, 
+        audio_duration: float,
+        max_segment_length: int = 80
+    ) -> List[Dict[str, Any]]:
+        """将长文本分割成带时间戳的段落。
+        
+        Args:
+            text: 识别的完整文本
+            audio_duration: 音频总时长（秒）
+            max_segment_length: 每段的最大字符数
+            
+        Returns:
+            分段结果列表
+        """
+        # 按标点符号分割
+        import re
+        
+        # 中文和英文标点符号
+        sentence_endings = r'[。！？!?\n]+'
+        
+        # 分割句子，保留分隔符
+        sentences = re.split(f'({sentence_endings})', text)
+        
+        # 合并句子和标点
+        merged_sentences = []
+        i = 0
+        while i < len(sentences):
+            if i + 1 < len(sentences) and re.match(sentence_endings, sentences[i + 1]):
+                merged_sentences.append(sentences[i] + sentences[i + 1])
+                i += 2
+            else:
+                if sentences[i].strip():
+                    merged_sentences.append(sentences[i])
+                i += 1
+        
+        if not merged_sentences:
+            merged_sentences = [text]
+        
+        # 进一步分割过长的句子
+        final_segments = []
+        for sentence in merged_sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            if len(sentence) <= max_segment_length:
+                final_segments.append(sentence)
+            else:
+                # 按逗号或空格分割
+                parts = re.split(r'([，,\s]+)', sentence)
+                current_part = ""
+                for part in parts:
+                    if len(current_part + part) <= max_segment_length:
+                        current_part += part
+                    else:
+                        if current_part.strip():
+                            final_segments.append(current_part.strip())
+                        current_part = part
+                if current_part.strip():
+                    final_segments.append(current_part.strip())
+        
+        # 为每个段落分配时间戳
+        # 简单策略：根据字符数按比例分配时间
+        total_chars = sum(len(seg) for seg in final_segments)
+        
+        segments = []
+        current_time = 0.0
+        
+        for segment_text in final_segments:
+            # 根据字符数占比计算段落时长
+            char_ratio = len(segment_text) / total_chars if total_chars > 0 else 1.0
+            segment_duration = audio_duration * char_ratio
+            
+            # 确保每段至少 0.5 秒，最多不超过音频剩余时长
+            segment_duration = max(0.5, min(segment_duration, audio_duration - current_time))
+            
+            segments.append({
+                'text': segment_text,
+                'start': current_time,
+                'end': current_time + segment_duration,
+            })
+            
+            current_time += segment_duration
+        
+        return segments
     
     def cleanup(self) -> None:
         """清理资源。"""
