@@ -31,3 +31,4 @@ qrcode[pil]==7.4.2
 sherpa-onnx==1.12.18  # 语音识别
 pyclipper==1.4.0  # OCR 文本框扩展
 shapely==2.1.2  # OCR 几何运算
+httpx==0.28.1

@@ -357,6 +357,16 @@ def register_all_tools():
         tool_id="dev.json_viewer",
         gradient_colors=("#FA8BFF", "#2BD2FF"),
     )
+    
+    register_tool_manual(
+        name="HTTP 客户端",
+        description="发送 HTTP 请求，测试 API 接口",
+        category="开发工具",
+        keywords=["HTTP", "API", "请求", "测试", "客户端", "REST", "POST", "GET", "接口", "调试", "request", "client", "debug", "postman", "curl"],
+        icon="HTTP",
+        tool_id="dev.http_client",
+        gradient_colors=("#F093FB", "#F5576C"),
+    )
 
     # ==================== 其他工具 ====================
     register_tool_manual(

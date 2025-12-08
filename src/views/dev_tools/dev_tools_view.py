@@ -59,6 +59,7 @@ class DevToolsView(ft.Container):
         # 创建子视图（延迟创建）
         self.encoding_convert_view: Optional[EncodingConvertView] = None
         self.base64_to_image_view: Optional[ft.Container] = None
+        self.http_client_view: Optional[ft.Container] = None
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -112,6 +113,14 @@ class DevToolsView(ft.Container):
                     description="Base64转图片，自动识别格式",
                     gradient_colors=("#4FACFE", "#00F2FE"),
                     on_click=self._open_base64_to_image,
+                ),
+                # HTTP 客户端
+                FeatureCard(
+                    icon=ft.Icons.HTTP,
+                    title="HTTP 客户端",
+                    description="发送 HTTP 请求，测试 API 接口",
+                    gradient_colors=("#F093FB", "#F5576C"),
+                    on_click=self._open_http_client,
                 ),
             ],
             wrap=True,
@@ -194,6 +203,26 @@ class DevToolsView(ft.Container):
             self.parent_container.content = self.base64_to_image_view
         self._safe_page_update()
     
+    def _open_http_client(self, e: ft.ControlEvent) -> None:
+        """打开 HTTP 客户端。"""
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
+        if self.http_client_view is None:
+            from views.dev_tools.http_client_view import HttpClientView
+            self.http_client_view = HttpClientView(
+                self._saved_page,
+                self.config_service,
+                on_back=self._back_to_main
+            )
+        
+        # 切换到 HTTP 客户端视图
+        if self.parent_container:
+            self.current_sub_view = self.http_client_view
+            self.current_sub_view_type = "http_client"
+            self.parent_container.content = self.http_client_view
+        self._safe_page_update()
+    
     def _back_to_main(self) -> None:
         """返回主界面。"""
         # 销毁当前子视图（而不是保留）
@@ -201,6 +230,7 @@ class DevToolsView(ft.Container):
             view_map = {
                 "encoding_convert": "encoding_convert_view",
                 "base64_to_image": "base64_to_image_view",
+                "http_client": "http_client_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
             if view_attr:
@@ -235,7 +265,7 @@ class DevToolsView(ft.Container):
         """根据工具名称打开对应的工具。
         
         Args:
-            tool_name: 工具名称，如 "encoding", "json_viewer", "base64_to_image" 等
+            tool_name: 工具名称，如 "encoding", "json_viewer", "base64_to_image", "http_client" 等
         """
         # 记录工具使用次数
         from utils import get_tool
@@ -249,6 +279,7 @@ class DevToolsView(ft.Container):
             "encoding": self._open_encoding_convert,
             "json_viewer": self._open_json_viewer,
             "base64_to_image": self._open_base64_to_image,
+            "http_client": self._open_http_client,
         }
         
         # 查找并调用对应的方法

@@ -24,6 +24,7 @@ dependencies = [
   "sherpa-onnx==1.12.18",
   "pyclipper==1.4.0",
   "shapely==2.1.2",
+  "httpx==0.28.1",
 ]
 
 [tool.flet]

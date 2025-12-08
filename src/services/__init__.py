@@ -6,6 +6,7 @@ from .sogou_search_service import SogouSearchService
 from .config_service import ConfigService
 from .encoding_service import EncodingService
 from .ffmpeg_service import FFmpegService
+from .http_service import HttpService
 from .image_service import ImageService
 from .ocr_service import OCRService
 from .vocal_separation_service import VocalSeparationService
@@ -19,6 +20,7 @@ __all__ = [
     "ConfigService", 
     "EncodingService",
     "FFmpegService",
+    "HttpService",
     "ImageService",
     "OCRService",
     "VocalSeparationService",
