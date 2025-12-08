@@ -35,12 +35,18 @@ class HttpService:
         self.client: Optional[httpx.Client] = None
         self.timeout = 30.0  # 默认超时 30 秒
     
-    def _get_client(self, follow_redirects: bool = True, timeout: float = None) -> httpx.Client:
+    def _get_client(
+        self,
+        follow_redirects: bool = True,
+        timeout: float = None,
+        proxies: Optional[Dict[str, str]] = None
+    ) -> httpx.Client:
         """获取或创建 HTTP 客户端。
         
         Args:
             follow_redirects: 是否跟随重定向
             timeout: 超时时间（秒）
+            proxies: 代理配置字典
             
         Returns:
             httpx.Client 实例
@@ -48,11 +54,17 @@ class HttpService:
         if timeout is None:
             timeout = self.timeout
         
-        return httpx.Client(
-            follow_redirects=follow_redirects,
-            timeout=timeout,
-            verify=False,  # 允许不验证 SSL 证书
-        )
+        client_kwargs = {
+            "follow_redirects": follow_redirects,
+            "timeout": timeout,
+            "verify": False,  # 允许不验证 SSL 证书
+        }
+        
+        # 添加代理配置
+        if proxies:
+            client_kwargs["proxies"] = proxies
+        
+        return httpx.Client(**client_kwargs)
     
     def parse_headers(self, headers_text: str) -> Dict[str, str]:
         """解析请求头文本。
@@ -100,6 +112,39 @@ class HttpService:
         
         return params
     
+    def parse_proxy(self, proxy_text: str) -> Optional[Dict[str, str]]:
+        """解析代理配置。
+        
+        Args:
+            proxy_text: 代理文本，格式如:
+                - http://proxy.example.com:8080
+                - socks5://127.0.0.1:1080
+                - http://user:pass@proxy.com:8080
+            
+        Returns:
+            代理配置字典，如 {"http://": "...", "https://": "..."}
+            如果为空则返回 None
+        """
+        if not proxy_text or not proxy_text.strip():
+            return None
+        
+        proxy_url = proxy_text.strip()
+        
+        # 支持的代理协议
+        if proxy_url.startswith(('http://', 'https://', 'socks5://', 'socks5h://')):
+            # httpx 的代理格式：对所有请求使用相同代理
+            return {
+                "http://": proxy_url,
+                "https://": proxy_url,
+            }
+        else:
+            # 如果没有协议前缀，假定为 http 代理
+            proxy_url = f"http://{proxy_url}"
+            return {
+                "http://": proxy_url,
+                "https://": proxy_url,
+            }
+    
     def send_request(
         self,
         method: str,
@@ -109,6 +154,7 @@ class HttpService:
         body: Optional[str] = None,
         body_type: str = "raw",
         files: Optional[Dict[str, str]] = None,
+        proxy: Optional[str] = None,
         follow_redirects: bool = True,
         timeout: float = None,
     ) -> Tuple[bool, Dict[str, Any]]:
@@ -122,6 +168,7 @@ class HttpService:
             body: 请求体内容
             body_type: 请求体类型（raw, json, form）
             files: 文件字典 {field_name: file_path}
+            proxy: 代理地址（如 http://127.0.0.1:8080 或 socks5://127.0.0.1:1080）
             follow_redirects: 是否跟随重定向
             timeout: 超时时间（秒）
             
@@ -212,8 +259,11 @@ class HttpService:
                     else:  # raw
                         request_kwargs["content"] = body.encode('utf-8')
             
+            # 解析代理配置
+            proxies = self.parse_proxy(proxy) if proxy else None
+            
             # 创建客户端并发送请求
-            with self._get_client(follow_redirects=follow_redirects, timeout=timeout) as client:
+            with self._get_client(follow_redirects=follow_redirects, timeout=timeout, proxies=proxies) as client:
                 import time
                 start_time = time.time()
                 

@@ -52,6 +52,7 @@ class HttpClientView(ft.Container):
         # 控件引用
         self.method_dropdown = ft.Ref[ft.Dropdown]()
         self.url_input = ft.Ref[ft.TextField]()
+        self.proxy_input = ft.Ref[ft.TextField]()
         self.headers_input = ft.Ref[ft.TextField]()
         self.params_input = ft.Ref[ft.TextField]()
         # 分离三种请求体的 Ref
@@ -207,23 +208,39 @@ class HttpClientView(ft.Container):
             height=20,
         )
         
+        # 代理输入框
+        proxy_field = ft.TextField(
+            ref=self.proxy_input,
+            label="代理 (可选)",
+            hint_text="http://127.0.0.1:8080 或 socks5://127.0.0.1:1080",
+            width=350,
+            dense=True,
+            text_size=13,
+        )
+        
         # 组合请求栏：下拉框 + 输入框 + 按钮
-        request_bar = ft.Row(
+        request_bar = ft.Column(
             controls=[
-                ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            method_selector,
-                            url_field,
-                            send_button,
-                        ],
-                        spacing=0,
-                    ),
-                    expand=True,
+                ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Row(
+                                controls=[
+                                    method_selector,
+                                    url_field,
+                                    send_button,
+                                ],
+                                spacing=0,
+                            ),
+                            expand=True,
+                        ),
+                        loading_ring,
+                    ],
+                    spacing=PADDING_SMALL,
                 ),
-                loading_ring,
+                proxy_field,
             ],
-            spacing=PADDING_SMALL,
+            spacing=5,
         )
         
         # 左侧：请求配置
@@ -685,6 +702,7 @@ class HttpClientView(ft.Container):
         # 获取参数
         method = self.method_dropdown.current.value
         url = self.url_input.current.value
+        proxy = self.proxy_input.current.value
         headers_text = self.headers_input.current.value
         params_text = self.params_input.current.value
         
@@ -743,6 +761,7 @@ class HttpClientView(ft.Container):
             body=body,
             body_type=body_type if body_type != "multipart" else "form", # Multipart 模式下 body 是 form 格式
             files=files,
+            proxy=proxy,
         )
         
         # 隐藏加载状态
@@ -870,23 +889,39 @@ class HttpClientView(ft.Container):
 **基本用法：**
 1. 选择 HTTP 方法（GET, POST 等）
 2. 输入请求 URL
-3. 在左侧面板配置请求（头、参数、体）
-4. 点击"发送"
-5. 在右侧面板查看响应
+3. 可选：配置代理
+4. 在左侧面板配置请求（Params, Headers, Body）
+5. 点击"发送"
+6. 在右侧面板查看响应
+
+**代理配置：**
+支持多种代理协议：
+```
+http://127.0.0.1:8080
+https://proxy.example.com:3128
+socks5://127.0.0.1:1080
+http://user:pass@proxy.com:8080
+```
+
+**请求体类型：**
+- **Raw**: 纯文本、XML 等
+- **JSON**: 自动设置 Content-Type，支持格式化
+- **Form**: URL 编码表单（key=value）
+- **Multipart**: 文件上传 + 表单字段
+
+**Multipart 文件上传：**
+1. 在 Form 标签页输入文本字段（如 `reqtype=fileupload`）
+2. 切换到 Multipart 标签页
+3. 点击"添加文件"，输入字段名，选择文件
+4. 发送请求（会自动使用 multipart/form-data）
 
 **特色功能：**
-- 拖动中间分隔条调整左右宽度
-- 顶部紧凑的地址栏设计
-- 支持 Raw/JSON/Form 请求体
-- JSON 格式化和压缩
-- 响应状态码颜色提示
-- 一键生成 cURL 命令
-
-**请求头示例：**
-```
-Content-Type: application/json
-Authorization: Bearer token
-```
+- ✅ 拖动中间分隔条调整左右宽度
+- ✅ 支持 HTTP/HTTPS/SOCKS5 代理
+- ✅ 文件上传支持
+- ✅ JSON 格式化和压缩
+- ✅ 响应状态码颜色提示
+- ✅ 一键生成 cURL 命令
         """
         
         dialog = ft.AlertDialog(

@@ -12,6 +12,7 @@ from .ocr_service import OCRService
 from .vocal_separation_service import VocalSeparationService
 from .speech_recognition_service import SpeechRecognitionService
 from .weather_service import WeatherService
+from .websocket_service import WebSocketService
 from .update_service import UpdateService, UpdateInfo, UpdateStatus
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "VocalSeparationService",
     "SpeechRecognitionService",
     "WeatherService",
+    "WebSocketService",
     "UpdateService",
     "UpdateInfo",
     "UpdateStatus",

@@ -367,6 +367,106 @@ def register_all_tools():
         tool_id="dev.http_client",
         gradient_colors=("#F093FB", "#F5576C"),
     )
+    
+    register_tool_manual(
+        name="WebSocket 客户端",
+        description="连接 WebSocket，实时收发消息",
+        category="开发工具",
+        keywords=["WebSocket", "WS", "实时", "连接", "消息", "客户端", "测试", "调试", "socket", "realtime", "chat", "ws", "wss"],
+        icon="CABLE",
+        tool_id="dev.websocket_client",
+        gradient_colors=("#A8EDEA", "#FED6E3"),
+    )
+    
+    register_tool_manual(
+        name="编码/解码",
+        description="Base64、URL、HTML、Unicode 编解码",
+        category="开发工具",
+        keywords=["编码", "解码", "Base64", "URL", "HTML", "Unicode", "encode", "decode", "转换", "加密", "解密", "urlencode", "urldecode"],
+        icon="LOCK_OPEN",
+        tool_id="dev.encoder_decoder",
+        gradient_colors=("#FFD89B", "#19547B"),
+    )
+    
+    register_tool_manual(
+        name="正则表达式测试器",
+        description="实时测试正则表达式，可视化匹配结果",
+        category="开发工具",
+        keywords=["正则", "正则表达式", "regex", "regexp", "匹配", "测试", "验证", "pattern", "match", "test"],
+        icon="PATTERN",
+        tool_id="dev.regex_tester",
+        gradient_colors=("#FC466B", "#3F5EFB"),
+    )
+    
+    register_tool_manual(
+        name="时间工具",
+        description="时间戳转换、时间计算、格式转换",
+        category="开发工具",
+        keywords=["时间", "时间戳", "timestamp", "日期", "date", "转换", "计算", "unix", "格式化", "timezone", "时区"],
+        icon="ACCESS_TIME",
+        tool_id="dev.timestamp_tool",
+        gradient_colors=("#11998E", "#38EF7D"),
+    )
+    
+    register_tool_manual(
+        name="JWT 工具",
+        description="解析 JWT Token，查看头部和载荷",
+        category="开发工具",
+        keywords=["JWT", "Token", "解析", "验证", "认证", "授权", "Bearer", "decode", "parse", "auth"],
+        icon="KEY",
+        tool_id="dev.jwt_tool",
+        gradient_colors=("#00C9FF", "#92FE9D"),
+    )
+    
+    register_tool_manual(
+        name="UUID/随机数生成器",
+        description="生成 UUID、随机字符串、随机密码",
+        category="开发工具",
+        keywords=["UUID", "GUID", "随机", "random", "密码", "password", "生成", "generate", "字符串", "string"],
+        icon="FINGERPRINT",
+        tool_id="dev.uuid_generator",
+        gradient_colors=("#F857A6", "#FF5858"),
+    )
+    
+    register_tool_manual(
+        name="颜色工具",
+        description="颜色格式转换、图片取色器、调色板",
+        category="开发工具",
+        keywords=["颜色", "color", "HEX", "RGB", "HSL", "转换", "convert", "调色板", "palette", "色值", "取色", "吸管", "pick", "eyedropper", "图片"],
+        icon="PALETTE",
+        tool_id="dev.color_tool",
+        gradient_colors=("#FF9A9E", "#FAD0C4"),
+    )
+    
+    register_tool_manual(
+        name="Markdown 预览器",
+        description="实时预览 Markdown，导出 HTML",
+        category="开发工具",
+        keywords=["Markdown", "MD", "预览", "preview", "HTML", "格式化", "编辑器", "editor", "文档"],
+        icon="DESCRIPTION",
+        tool_id="dev.markdown_viewer",
+        gradient_colors=("#A8CABA", "#5D4E6D"),
+    )
+    
+    register_tool_manual(
+        name="DNS 查询",
+        description="多种记录类型查询、反向查询、批量查询、指定服务器",
+        category="开发工具",
+        keywords=["DNS", "域名", "domain", "解析", "查询", "lookup", "IP", "反向", "批量", "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "记录", "服务器"],
+        icon="DNS",
+        tool_id="dev.dns_lookup",
+        gradient_colors=("#4CA1AF", "#C4E0E5"),
+    )
+    
+    register_tool_manual(
+        name="端口扫描",
+        description="端口检测、批量端口、常用端口、范围扫描",
+        category="开发工具",
+        keywords=["端口", "port", "扫描", "scan", "检测", "check", "网络", "HTTP", "SSH", "MySQL", "批量"],
+        icon="ROUTER",
+        tool_id="dev.port_scanner",
+        gradient_colors=("#FC466B", "#3F5EFB"),
+    )
 
     # ==================== 其他工具 ====================
     register_tool_manual(
