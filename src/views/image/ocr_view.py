@@ -9,7 +9,9 @@ import threading
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
+import cv2
 import flet as ft
+import numpy as np
 
 from constants import (
     BORDER_RADIUS_MEDIUM,
@@ -284,11 +286,20 @@ class OCRView(ft.Container):
             on_change=self._on_output_format_change,
         )
         
+        # 输出可视化结果图
+        output_image = self.config_service.get_config_value("ocr_output_image", False)
+        self.output_image_checkbox = ft.Checkbox(
+            label="识别结果图",
+            value=output_image,
+            on_change=self._on_output_image_change,
+        )
+        
         output_format_row = ft.Row(
             controls=[
                 ft.Text("输出格式:", size=13, weight=ft.FontWeight.W_500),
                 self.output_txt_checkbox,
                 self.output_json_checkbox,
+                self.output_image_checkbox,
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -344,7 +355,7 @@ class OCRView(ft.Container):
                 controls=[
                     ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.BLUE),
                     ft.Text(
-                        "提示：使用GPU可显著提升识别速度",
+                        "加载模型后将显示实际使用的加速类型（DirectML/CUDA/CPU等）",
                         size=11,
                         color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
@@ -721,9 +732,12 @@ class OCRView(ft.Container):
             )
             
             if success:
+                # 获取设备信息
+                device_info = self.ocr_service.get_device_info()
+                
                 self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
                 self.model_status_icon.color = ft.Colors.BLUE
-                self.model_status_text.value = "已加载"
+                self.model_status_text.value = f"已加载 ({device_info})"
                 self.load_model_button.visible = False
                 self.unload_model_button.visible = True
                 
@@ -754,8 +768,8 @@ class OCRView(ft.Container):
         if self.output_json_checkbox.value:
             selected_formats.append("json")
         
-        # 至少选择一种格式
-        if not selected_formats:
+        # 至少选择一种格式（如果没有勾选图片输出的话）
+        if not selected_formats and not self.output_image_checkbox.value:
             # 如果用户取消了所有选择，恢复到TXT
             self.output_txt_checkbox.value = True
             selected_formats = ["txt"]
@@ -767,6 +781,11 @@ class OCRView(ft.Container):
         
         # 保存配置
         self.config_service.set_config_value("ocr_output_formats", selected_formats)
+        self.config_service.save_config()
+    
+    def _on_output_image_change(self, e: ft.ControlEvent) -> None:
+        """输出识别结果图选项改变。"""
+        self.config_service.set_config_value("ocr_output_image", e.control.value)
         self.config_service.save_config()
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
@@ -870,12 +889,15 @@ class OCRView(ft.Container):
             self.model_progress_text.visible = False
             
             if success:
+                # 获取设备信息
+                device_info = self.ocr_service.get_device_info()
+                
                 self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
                 self.model_status_icon.color = ft.Colors.BLUE
-                self.model_status_text.value = "已加载"
+                self.model_status_text.value = f"已加载 ({device_info})"
                 self.load_model_button.visible = False
                 self.unload_model_button.visible = True
-                self._show_snackbar("模型加载成功！", ft.Colors.GREEN)
+                self._show_snackbar(f"模型加载成功，使用设备: {device_info}", ft.Colors.GREEN)
             else:
                 self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
             
@@ -989,7 +1011,15 @@ class OCRView(ft.Container):
                         progress_callback=load_progress_callback
                     )
                     
-                    if not success:
+                    if success:
+                        # 更新模型状态显示
+                        device_info = self.ocr_service.get_device_info()
+                        self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
+                        self.model_status_icon.color = ft.Colors.BLUE
+                        self.model_status_text.value = f"已加载 ({device_info})"
+                        self.load_model_button.visible = False
+                        self.unload_model_button.visible = True
+                    else:
                         self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
                         self.recognize_button.content.disabled = False
                         self.progress_bar.visible = False
@@ -1056,6 +1086,8 @@ class OCRView(ft.Container):
                     format_desc.append("TXT")
                 if self.output_json_checkbox.value:
                     format_desc.append("JSON")
+                if self.output_image_checkbox.value:
+                    format_desc.append("图片")
                 format_str = "+".join(format_desc) if format_desc else "TXT"
                 
                 if fail_count == 0:
@@ -1180,10 +1212,234 @@ class OCRView(ft.Container):
                 logger.info(f"JSON结果已保存: {json_path}")
                 success_count += 1
             
+            # 保存识别结果图
+            if self.output_image_checkbox.value:
+                image_path = self._get_output_path(input_file, "png")
+                if self._draw_ocr_result(input_file, results, image_path):
+                    logger.info(f"识别结果图已保存: {image_path}")
+                    total_formats += 1
+                    success_count += 1
+            
             return success_count == total_formats
             
         except Exception as ex:
             logger.error(f"保存结果失败: {input_file.name}, 错误: {ex}")
+            return False
+    
+    def _draw_ocr_result(self, input_file: Path, results: List[Tuple[List, str, float]], output_path: Path) -> bool:
+        """绘制OCR识别结果对比图（左边检测框标注，右边识别文字）。
+        
+        Args:
+            input_file: 输入图片路径
+            results: OCR结果列表
+            output_path: 输出图片路径
+        
+        Returns:
+            是否成功
+        """
+        try:
+            # 读取原图
+            image = cv2.imdecode(np.fromfile(str(input_file), dtype=np.uint8), cv2.IMREAD_COLOR)
+            if image is None:
+                logger.error(f"无法读取图像: {input_file}")
+                return False
+            
+            h, w = image.shape[:2]
+            
+            # 左侧：原图 + 检测框标注
+            left_image = image.copy()
+            
+            # 右侧：白色背景 + 识别文字（按原位置排版）
+            right_image = np.ones((h, w, 3), dtype=np.uint8) * 255  # 白色背景
+            
+            # 按位置排序
+            sorted_results = sorted(
+                results,
+                key=lambda x: (min(pt[1] for pt in x[0]), min(pt[0] for pt in x[0]))
+            )
+            
+            # 定义颜色（BGR格式）
+            box_color = (0, 255, 0)  # 绿色框
+            number_bg_color = (0, 200, 0)  # 深绿色背景（序号）
+            number_color = (255, 255, 255)  # 白色文字（序号）
+            text_color = (0, 0, 0)  # 黑色文字（右侧文本）
+            
+            for idx, (box, text, confidence) in enumerate(sorted_results, 1):
+                box_array = np.array(box, dtype=np.int32)
+                
+                # 左侧：绘制检测框和序号
+                cv2.polylines(left_image, [box_array], True, box_color, 2)
+                
+                # 计算框的左上角位置（用于放置序号）
+                min_x = int(min(pt[0] for pt in box))
+                min_y = int(min(pt[1] for pt in box))
+                
+                # 将序号放在框的左上角外侧（不遮挡内容）
+                circle_radius = 15
+                # 序号圆圈位置：左上角的左上方
+                circle_x = max(circle_radius, min_x - 5)
+                circle_y = max(circle_radius, min_y - 5)
+                
+                # 绘制序号（圆形背景）
+                cv2.circle(left_image, (circle_x, circle_y), circle_radius, number_bg_color, -1)
+                cv2.circle(left_image, (circle_x, circle_y), circle_radius, box_color, 2)
+                
+                # 绘制序号文字
+                number_text = str(idx)
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6
+                thickness = 2
+                (text_width, text_height), _ = cv2.getTextSize(number_text, font, font_scale, thickness)
+                text_x = circle_x - text_width // 2
+                text_y = circle_y + text_height // 2
+                cv2.putText(
+                    left_image,
+                    number_text,
+                    (text_x, text_y),
+                    font,
+                    font_scale,
+                    number_color,
+                    thickness,
+                    cv2.LINE_AA
+                )
+                
+                # 右侧：绘制识别出的文字（按原位置）
+                # 计算文本框的左上角位置
+                text_x = int(min(pt[0] for pt in box))
+                text_y = int(min(pt[1] for pt in box))
+                
+                # 绘制浅色参考框（虚线效果）
+                cv2.polylines(right_image, [box_array], True, (200, 200, 200), 1, cv2.LINE_AA)
+                
+                # 绘制序号
+                number_with_colon = f"{idx}."
+                cv2.putText(
+                    right_image,
+                    number_with_colon,
+                    (text_x, text_y - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (100, 100, 100),  # 灰色序号
+                    1,
+                    cv2.LINE_AA
+                )
+                
+                # 尝试使用PIL绘制中文文字（如果文本包含中文）
+                # 由于OpenCV不支持中文，这里先绘制简化版本
+                # 如果包含中文，显示文字内容（简化处理）
+                display_text = text if text else ""
+                
+                # 计算合适的字体大小（基于框的高度）
+                box_height = int(max(
+                    np.linalg.norm(box_array[0] - box_array[3]),
+                    np.linalg.norm(box_array[1] - box_array[2])
+                ))
+                text_font_scale = min(box_height / 40.0, 1.0)
+                
+                # 对于纯ASCII文本，使用OpenCV绘制
+                if display_text.isascii():
+                    cv2.putText(
+                        right_image,
+                        display_text,
+                        (text_x + 5, text_y + box_height // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        text_font_scale,
+                        text_color,
+                        2,
+                        cv2.LINE_AA
+                    )
+                else:
+                    # 对于中文，使用PIL绘制
+                    from PIL import Image, ImageDraw, ImageFont
+                    
+                    # 转换为PIL图像
+                    right_pil = Image.fromarray(cv2.cvtColor(right_image, cv2.COLOR_BGR2RGB))
+                    draw = ImageDraw.Draw(right_pil)
+                    
+                    # 使用系统字体（Windows）
+                    try:
+                        font_size = max(int(box_height * 0.8), 12)
+                        # Windows 中文字体
+                        pil_font = ImageFont.truetype("msyh.ttc", font_size)  # 微软雅黑
+                    except:
+                        try:
+                            pil_font = ImageFont.truetype("simhei.ttf", font_size)  # 黑体
+                        except:
+                            pil_font = ImageFont.load_default()
+                    
+                    # 绘制文字
+                    draw.text(
+                        (text_x + 5, text_y + 5),
+                        display_text,
+                        font=pil_font,
+                        fill=(0, 0, 0)  # 黑色
+                    )
+                    
+                    # 转换回OpenCV格式
+                    right_image = cv2.cvtColor(np.array(right_pil), cv2.COLOR_RGB2BGR)
+            
+            # 在左侧图左上角添加总结信息
+            summary_text = f"Detected: {len(results)} texts"
+            cv2.rectangle(left_image, (5, 5), (280, 45), (0, 0, 0), -1)
+            cv2.putText(
+                left_image,
+                summary_text,
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA
+            )
+            
+            # 创建对比图：左边检测框，右边文字
+            separator_width = 4
+            separator = np.ones((h, separator_width, 3), dtype=np.uint8) * 128  # 灰色分割线
+            
+            # 水平拼接
+            comparison_image = np.hstack([left_image, separator, right_image])
+            
+            # 在顶部添加标题
+            title_height = 40
+            title_bar = np.ones((title_height, comparison_image.shape[1], 3), dtype=np.uint8) * 50
+            
+            # 绘制标题文字
+            cv2.putText(
+                title_bar,
+                "Detection",
+                (w // 2 - 70, 28),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA
+            )
+            cv2.putText(
+                title_bar,
+                "Recognition",
+                (w + separator_width + w // 2 - 90, 28),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA
+            )
+            
+            # 垂直拼接标题栏和对比图
+            final_image = np.vstack([title_bar, comparison_image])
+            
+            # 保存图片（支持中文路径）
+            is_success, buffer = cv2.imencode('.png', final_image)
+            if is_success:
+                with open(output_path, 'wb') as f:
+                    f.write(buffer)
+                return True
+            else:
+                logger.error(f"编码图像失败: {output_path}")
+                return False
+            
+        except Exception as ex:
+            logger.error(f"绘制识别结果图失败: {ex}")
             return False
     
     def _show_snackbar(self, message: str, color: str) -> None:

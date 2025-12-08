@@ -532,15 +532,14 @@ class OCRService:
             # 识别
             texts = self.recognize_text(image, boxes)
             
-            # 组合结果（参考官方main.py:64-70）
-            # 官方在最后统一过滤 score >= 0.5
+            # 在最后统一过滤 score >= 0.5
             all_results = []
             filtered_results = []
             
             for box, (text, conf) in zip(boxes, texts):
                 all_results.append((box.tolist(), text, conf))
                 
-                # 最终过滤：score >= 0.5（官方标准）
+                # 最终过滤：score >= 0.5
                 if conf >= 0.5:
                     filtered_results.append((box.tolist(), text, conf))
                     logger.debug(f"✓ '{text}' (置信度: {conf:.3f})")
@@ -578,7 +577,6 @@ class OCRService:
         if target_w < 32:
             target_w = 32
         
-        # 限制最大尺寸（与官方一致）
         max_size = 960
         if target_h > max_size:
             target_h = max_size
@@ -626,7 +624,7 @@ class OCRService:
         - max_candidates: 1000 (最大候选框数)
         - unclip_ratio: 1.5 (框扩展比例)
         """
-        # 二值化阈值（PaddleOCR官方参数）
+        # 二值化阈值
         thresh = 0.3  # 二值化阈值
         box_thresh = 0.6  # 框置信度阈值
         unclip_ratio = 1.5  # 框扩展比例
@@ -650,7 +648,7 @@ class OCRService:
             if len(contour) < 4:
                 continue
             
-            # 获取最小外接矩形和点（官方get_mini_boxes方法）
+            # 获取最小外接矩形和点
             points, sside = self._get_mini_boxes(contour)
             
             # 最小尺寸过滤
@@ -659,19 +657,18 @@ class OCRService:
             
             points = np.array(points)
             
-            # 计算框的得分（使用官方box_score_fast方法）
+            # 计算框的得分
             score = self._box_score_fast(pred, points.reshape(-1, 2))
             
             # 置信度过滤
             if score < box_thresh:
                 continue
             
-            # 框扩展（unclip）- PaddleOCR官方方法
+            # 框扩展（unclip）
             try:
                 from shapely.geometry import Polygon
                 import pyclipper
                 
-                # 官方标准unclip方法
                 poly = Polygon(points)
                 distance = poly.area * unclip_ratio / poly.length
                 
@@ -699,7 +696,7 @@ class OCRService:
                 logger.debug(f"Unclip失败: {e}，使用原始框")
                 box = points
             
-            # 坐标clip和round（官方标准）
+            # 坐标clip和round
             box = np.array(box)
             box[:, 0] = np.clip(np.round(box[:, 0]), 0, pred.shape[1])
             box[:, 1] = np.clip(np.round(box[:, 1]), 0, pred.shape[0])
@@ -723,7 +720,7 @@ class OCRService:
         return boxes
     
     def _crop_text_region(self, image: np.ndarray, box: np.ndarray) -> Optional[np.ndarray]:
-        """裁剪文本区域（参考PaddleOCR官方实现）。
+        """裁剪文本区域。
         
         Args:
             image: 原始图像
@@ -922,7 +919,7 @@ class OCRService:
         # BGR -> RGB 转换（PaddleOCR标准）
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        # 模型输入尺寸（PaddleOCR官方标准）
+        # 模型输入尺寸
         imgC, imgH, imgW = 3, 80, 160
         
         h, w = image.shape[:2]
@@ -960,7 +957,7 @@ class OCRService:
         return cv2.rotate(image, cv2.ROTATE_180)
     
     def _get_mini_boxes(self, contour: np.ndarray) -> Tuple[list, float]:
-        """获取最小外接矩形的点（PaddleOCR官方方法）。
+        """获取最小外接矩形的点。
         
         对点进行特定的排序，确保一致性。
         
@@ -993,7 +990,7 @@ class OCRService:
         return box, min(bounding_box[1])
     
     def _box_score_fast(self, bitmap: np.ndarray, box: np.ndarray) -> float:
-        """快速计算框的得分（PaddleOCR官方方法）。
+        """快速计算框的得分。
         
         使用bbox的平均得分作为总得分
         """
