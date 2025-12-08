@@ -22,6 +22,8 @@ dependencies = [
   "websockets==12.0", # 避免弃用警告，等待 flet 更新
   "qrcode[pil]==7.4.2",
   "sherpa-onnx==1.12.18",
+  "pyclipper==1.4.0",
+  "shapely==2.1.2",
 ]
 
 [tool.flet]

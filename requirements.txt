@@ -29,3 +29,5 @@ onnxruntime==1.22.0 ; sys_platform == 'linux' or sys_platform == 'darwin'  # mac
 websockets==12.0  # 避免弃用警告，等待 flet 更新
 qrcode[pil]==7.4.2
 sherpa-onnx==1.12.18  # 语音识别
+pyclipper==1.4.0  # OCR 文本框扩展
+shapely==2.1.2  # OCR 几何运算

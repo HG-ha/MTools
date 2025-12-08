@@ -24,7 +24,7 @@ Flet 在首次启动时需要 UI 客户端（约 95MB）。我们采用**预打�
 
 ## 🚀 快速参考
 
-### 标准版本（自适应NVIDIA、AMD、Intel GPU 以及 MacOS 加速，但性能不如 CUDA）
+### 标准版本（推荐）
 ```bash
 # 1. 安装依赖
 uv sync
@@ -32,8 +32,11 @@ uv sync
 # 2. 编译
 python build.py
 ```
+- ✅ 自适应 NVIDIA、AMD、Intel GPU 以及 macOS 加速
+- ✅ 无需安装 CUDA 环境
+- ✅ 体积小，兼容性好
 
-### CUDA FULL 版本（完全释放 NVIDIA GPU性能，无需手动安装cuda环境）
+### CUDA FULL 版本（NVIDIA GPU 最佳性能）
 ```bash
 # 1. 安装依赖
 uv sync
@@ -54,22 +57,11 @@ python build.py
 export CUDA_VARIANT=cuda_full
 python build.py
 ```
+- ✅ 完全释放 NVIDIA GPU 性能
+- ✅ 无需手动安装 CUDA 环境
+- ⚠️ 体积较大（~700-800MB）
 
-### 验证 CUDA FULL 编译成功
-编译时应该看到：
-```
-🎯 检测到 CUDA FULL 变体，正在包含 NVIDIA 库...
-✅ 找到 NVIDIA 库: ...\site-packages\nvidia
-📦 发现 7 个 NVIDIA 子包:
-   • nvidia.cublas (3 DLLs)
-   • nvidia.cuda_nvrtc (3 DLLs)
-   • nvidia.cuda_runtime (1 DLLs)
-   • nvidia.cudnn (8 DLLs)
-   • nvidia.cufft (2 DLLs)
-   • nvidia.curand (1 DLLs)
-   • nvidia.nvjitlink (1 DLLs)
-✅ 已包含 7 个包，共 21 个 DLL 文件
-```
+> 💡 详细说明请参考下方的 [CUDA 版本](#cuda-版本nvidia-gpu-加速) 章节
 
 ## 📋 前置要求
 

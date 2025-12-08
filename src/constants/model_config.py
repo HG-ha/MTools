@@ -417,8 +417,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.9 快速版（推荐）",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife49_ensembleFalse_op18_fp16_clamp_sim.onnx",
         size_mb=11,
-        quality="⭐⭐⭐⭐ 高质量",
-        performance="⚡⚡⚡⚡⚡ 极速 | 显存占用低",
+        quality="高质量",
+        performance="极速 | 显存占用低",
         filename="rife49_ensembleFalse_op18_fp16_clamp_sim.onnx",
         version="v4.9",
         precision="fp16",
@@ -432,8 +432,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.9 标准版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife49_ensembleFalse_op18_clamp_sim.onnx",
         size_mb=21,
-        quality="⭐⭐⭐⭐ 高质量",
-        performance="⚡⚡⚡⚡ 快速 | 显存占用中等",
+        quality="高质量",
+        performance="快速 | 显存占用中等",
         filename="rife49_ensembleFalse_op18_clamp_sim.onnx",
         version="v4.9",
         precision="fp32",
@@ -447,8 +447,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.9 高质量版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife49_ensembleTrue_op18_clamp_sim.onnx",
         size_mb=21,
-        quality="⭐⭐⭐⭐⭐ 极致质量",
-        performance="⚡⚡⚡ 较快 | 显存占用中等",
+        quality="极致质量",
+        performance="较快 | 显存占用中等",
         filename="rife49_ensembleTrue_op18_clamp_sim.onnx",
         version="v4.9",
         precision="fp32",
@@ -462,8 +462,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.9 高质量FP16版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife49_ensembleTrue_op18_fp16_clamp_sim.onnx",
         size_mb=11,
-        quality="⭐⭐⭐⭐⭐ 极致质量",
-        performance="⚡⚡⚡⚡ 快速 | 显存占用低",
+        quality="极致质量",
+        performance="快速 | 显存占用低",
         filename="rife49_ensembleTrue_op18_fp16_clamp_sim.onnx",
         version="v4.9",
         precision="fp16",
@@ -479,8 +479,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.8 动漫快速版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife48_ensembleFalse_op18_fp16_clamp_sim.onnx",
         size_mb=11,
-        quality="⭐⭐⭐⭐ 高质量",
-        performance="⚡⚡⚡⚡⚡ 极速 | 显存占用低",
+        quality="高质量",
+        performance="极速 | 显存占用低",
         filename="rife48_ensembleFalse_op18_fp16_clamp_sim.onnx",
         version="v4.8",
         precision="fp16",
@@ -494,8 +494,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.8 动漫标准版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife48_ensembleFalse_op18_clamp_sim.onnx",
         size_mb=21,
-        quality="⭐⭐⭐⭐ 高质量",
-        performance="⚡⚡⚡⚡ 快速 | 显存占用中等",
+        quality="高质量",
+        performance="快速 | 显存占用中等",
         filename="rife48_ensembleFalse_op18_clamp_sim.onnx",
         version="v4.8",
         precision="fp32",
@@ -509,8 +509,8 @@ FRAME_INTERPOLATION_MODELS: Final[dict[str, FrameInterpolationModelInfo]] = {
         display_name="RIFE 4.8 动漫高质量版",
         url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/RIFE/rife48_ensembleTrue_op18_clamp_sim.onnx",
         size_mb=21,
-        quality="⭐⭐⭐⭐⭐ 极致质量",
-        performance="⚡⚡⚡ 较快 | 显存占用中等",
+        quality="极致质量",
+        performance="较快 | 显存占用中等",
         filename="rife48_ensembleTrue_op18_clamp_sim.onnx",
         version="v4.8",
         precision="fp32",
@@ -580,8 +580,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-tiny/tiny-decoder.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-tiny/tiny-tokens.txt",
         size_mb=75,
-        quality="⭐⭐⭐ 基础质量",
-        performance="⚡⚡⚡⚡⚡ 极速 | 内存占用 ~390MB",
+        quality="基础质量",
+        performance="极速 | 内存占用 ~390MB",
         encoder_filename="tiny-encoder.onnx",
         decoder_filename="tiny-decoder.onnx",
         config_filename="tiny-tokens.txt",
@@ -596,8 +596,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-base/base-decoder.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-base/base-tokens.txt",
         size_mb=145,
-        quality="⭐⭐⭐⭐ 良好质量",
-        performance="⚡⚡⚡⚡ 快速 | 内存占用 ~500MB",
+        quality="良好质量",
+        performance="快速 | 内存占用 ~500MB",
         encoder_filename="base-encoder.onnx",
         decoder_filename="base-decoder.onnx",
         config_filename="base-tokens.txt",
@@ -612,8 +612,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-small/small-decoder.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-small/small-tokens.txt",
         size_mb=466,
-        quality="⭐⭐⭐⭐⭐ 优秀质量",
-        performance="⚡⚡⚡ 中速 | 内存占用 ~1.5GB",
+        quality="优秀质量",
+        performance="中速 | 内存占用 ~1.5GB",
         encoder_filename="small-encoder.onnx",
         decoder_filename="small-decoder.onnx",
         config_filename="small-tokens.txt",
@@ -628,8 +628,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-medium/medium-decoder.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-medium/medium-tokens.txt",
         size_mb=1464,
-        quality="⭐⭐⭐⭐⭐ 顶级质量",
-        performance="⚡⚡ 较慢 | 内存占用 ~3GB",
+        quality="顶级质量",
+        performance="较慢 | 内存占用 ~3GB",
         encoder_filename="medium-encoder.onnx",
         decoder_filename="medium-decoder.onnx",
         config_filename="medium-tokens.txt",
@@ -644,8 +644,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-decoder.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/tokens.txt",
         size_mb=6800,
-        quality="⭐⭐⭐⭐⭐⭐ 最高质量",
-        performance="⚡ 很慢 | 内存占用 ~10GB",
+        quality="最高质量",
+        performance="很慢 | 内存占用 ~10GB",
         encoder_filename="large-v3-encoder.onnx",
         decoder_filename="large-v3-decoder.onnx",
         config_filename="tokens.txt",
@@ -664,8 +664,8 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
         decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/large-v3-decoder.int8.onnx",
         config_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/sherpa-onnx-whisper-large-v3/tokens.txt",
         size_mb=1777,
-        quality="⭐⭐⭐⭐⭐ 极高质量",
-        performance="⚡⚡ 较慢 | 内存占用 ~3GB",
+        quality="极高质量",
+        performance="较慢 | 内存占用 ~3GB",
         encoder_filename="large-v3-encoder.int8.onnx",
         decoder_filename="large-v3-decoder.int8.onnx",
         config_filename="tokens.txt",
@@ -677,3 +677,69 @@ WHISPER_MODELS: Final[dict[str, WhisperModelInfo]] = {
 
 # 默认 Whisper 模型（推荐使用 Tiny，轻量且支持多语言）
 DEFAULT_WHISPER_MODEL_KEY: Final[str] = "whisper_tiny"
+
+
+# OCR 模型配置（PaddleOCR v5）
+@dataclass
+class OCRModelInfo:
+    """OCR 模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        det_url: 检测模型下载链接
+        rec_url: 识别模型下载链接
+        dict_url: 字典文件下载链接
+        cls_url: 方向分类模型下载链接（可选）
+        size_mb: 总文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        det_filename: 检测模型文件名
+        rec_filename: 识别模型文件名
+        dict_filename: 字典文件名
+        cls_filename: 方向分类模型文件名（可选）
+        language_support: 支持的语言
+        version: 版本号
+        use_angle_cls: 是否使用方向分类
+    """
+    name: str
+    display_name: str
+    det_url: str
+    rec_url: str
+    dict_url: str
+    cls_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    det_filename: str
+    rec_filename: str
+    dict_filename: str
+    cls_filename: str
+    language_support: str = "中文、英文、数字、符号"
+    version: str = "v5"
+    use_angle_cls: bool = True
+
+
+OCR_MODELS: Final[dict[str, OCRModelInfo]] = {
+    "ppocr_v5": OCRModelInfo(
+        name="ppocr_v5",
+        display_name="PaddleOCR v5",
+        det_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/PPOCR-v5/PP-OCRv5_server_det.onnx",
+        rec_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/PPOCR-v5/PP-OCRv5_server_rec.onnx",
+        dict_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/PPOCR-v5/PP-OCRv5_server_dict.txt",
+        cls_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/PPOCR-v5/PP-OCRv5_server_cls.onnx",
+        size_mb=171,
+        quality="高精度",
+        performance="支持简体中文、繁体中文、英文、日文",
+        det_filename="PP-OCRv5_server_det.onnx",
+        rec_filename="PP-OCRv5_server_rec.onnx",
+        dict_filename="PP-OCRv5_server_dict.txt",
+        cls_filename="PP-OCRv5_server_cls.onnx",
+        language_support="中文、英文、数字、标点符号",
+        version="v5",
+        use_angle_cls=True
+    ),
+}
+
+# 默认 OCR 模型
+DEFAULT_OCR_MODEL_KEY: Final[str] = "ppocr_v5"

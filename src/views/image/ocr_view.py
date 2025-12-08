@@ -1,0 +1,1200 @@
+# -*- coding: utf-8 -*-
+"""OCR视图模块。
+
+提供图片文字识别功能的用户界面。
+"""
+
+import json
+import threading
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
+
+import flet as ft
+
+from constants import (
+    BORDER_RADIUS_MEDIUM,
+    DEFAULT_OCR_MODEL_KEY,
+    OCR_MODELS,
+    OCRModelInfo,
+    PADDING_LARGE,
+    PADDING_MEDIUM,
+    PADDING_SMALL,
+)
+from services import ConfigService, OCRService
+from utils import format_file_size, logger
+
+
+class OCRView(ft.Container):
+    """OCR视图类。
+    
+    提供图片文字识别功能，包括：
+    - 图片选择（支持批量）
+    - 模型选择和下载
+    - 文字识别
+    - 结果展示和导出
+    """
+
+    def __init__(
+        self,
+        page: ft.Page,
+        config_service: ConfigService,
+        on_back: Optional[Callable] = None
+    ) -> None:
+        """初始化OCR视图。
+        
+        Args:
+            page: Flet页面对象
+            config_service: 配置服务实例
+            on_back: 返回按钮回调函数
+        """
+        super().__init__()
+        self.page: ft.Page = page
+        self.config_service: ConfigService = config_service
+        self.on_back: Optional[Callable] = on_back
+        
+        self.ocr_service: OCRService = OCRService(config_service)
+        self.selected_files: List[Path] = []
+        # 存储每个文件的OCR结果: {文件路径: 结果列表}
+        self.ocr_results: Dict[str, List[Tuple[List, str, float]]] = {}
+        self.is_processing: bool = False
+        
+        # 当前选择的模型
+        saved_model_key = self.config_service.get_config_value("ocr_model_key", DEFAULT_OCR_MODEL_KEY)
+        if saved_model_key not in OCR_MODELS:
+            saved_model_key = DEFAULT_OCR_MODEL_KEY
+        self.current_model_key: str = saved_model_key
+        self.current_model: OCRModelInfo = OCR_MODELS[self.current_model_key]
+        
+        self.expand: bool = True
+        # 不需要外层padding，内部header和content已经设置了padding
+        # self.padding = ft.padding.all(0)
+        
+        # 构建界面
+        self._build_ui()
+    
+    def _build_ui(self) -> None:
+        """构建用户界面。"""
+        # 顶部：标题和返回按钮
+        header = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="返回",
+                        on_click=self._on_back_click,
+                    ),
+                    ft.Text("OCR 文字识别", size=28, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=PADDING_MEDIUM,
+            ),
+            padding=ft.padding.only(
+                left=PADDING_MEDIUM,
+                right=PADDING_MEDIUM,
+                top=PADDING_MEDIUM,
+                bottom=PADDING_SMALL,
+            ),
+        )
+        
+        # 文件选择区域
+        self.file_list_view = ft.Column(
+            spacing=PADDING_MEDIUM // 2,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        file_select_area = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
+                        ft.ElevatedButton(
+                            "选择文件",
+                            icon=ft.Icons.FILE_UPLOAD,
+                            on_click=self._on_select_files,
+                        ),
+                        ft.ElevatedButton(
+                            "选择文件夹",
+                            icon=ft.Icons.FOLDER_OPEN,
+                            on_click=self._on_select_folder,
+                        ),
+                        ft.TextButton(
+                            "清空列表",
+                            icon=ft.Icons.CLEAR_ALL,
+                            on_click=self._on_clear_files,
+                        ),
+                    ],
+                    spacing=PADDING_MEDIUM,
+                ),
+                # 支持格式说明
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text(
+                                "支持格式: JPG, PNG, WebP, BMP, TIFF 等",
+                                size=12,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=8,
+                    ),
+                    margin=ft.margin.only(left=4, bottom=4),
+                ),
+                ft.Container(
+                    content=self.file_list_view,
+                    height=280,  # 文件列表高度
+                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border_radius=BORDER_RADIUS_MEDIUM,
+                    padding=PADDING_MEDIUM,
+                ),
+            ],
+            spacing=PADDING_MEDIUM,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+        
+        # 模型设置区域
+        model_options = []
+        for key, model_info in OCR_MODELS.items():
+            option_text = f"{model_info.display_name}  |  {model_info.size_mb}MB  |  {model_info.language_support}"
+            model_options.append(
+                ft.dropdown.Option(key=key, text=option_text)
+            )
+        
+        self.model_dropdown = ft.Dropdown(
+            label="选择模型",
+            hint_text="选择OCR识别模型",
+            options=model_options,
+            value=self.current_model_key,
+            on_change=self._on_model_change,
+            width=600,
+            dense=True,
+            text_size=13,
+        )
+        
+        # 模型信息
+        self.model_info_text = ft.Text(
+            f"{self.current_model.quality} | {self.current_model.performance}",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 模型状态图标和文本
+        self.model_status_icon = ft.Icon(
+            ft.Icons.HOURGLASS_EMPTY,
+            size=20,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        self.model_status_text = ft.Text(
+            "正在初始化...",
+            size=13,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 下载模型按钮
+        self.download_model_button = ft.ElevatedButton(
+            "下载模型",
+            icon=ft.Icons.DOWNLOAD,
+            on_click=self._on_download_model,
+            visible=False,
+        )
+        
+        # 加载模型按钮
+        self.load_model_button = ft.ElevatedButton(
+            "加载模型",
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_load_model,
+            visible=False,
+        )
+        
+        # 卸载模型按钮
+        self.unload_model_button = ft.IconButton(
+            icon=ft.Icons.POWER_SETTINGS_NEW,
+            icon_color=ft.Colors.ORANGE,
+            tooltip="卸载模型（释放内存）",
+            on_click=self._on_unload_model,
+            visible=False,
+        )
+        
+        # 删除模型按钮
+        self.delete_model_button = ft.IconButton(
+            icon=ft.Icons.DELETE_OUTLINE,
+            icon_color=ft.Colors.ERROR,
+            tooltip="删除模型文件（如果模型损坏，可删除后重新下载）",
+            on_click=self._on_delete_model,
+            visible=False,
+        )
+        
+        model_status_row = ft.Row(
+            controls=[
+                self.model_status_icon,
+                self.model_status_text,
+                self.download_model_button,
+                self.load_model_button,
+                self.unload_model_button,
+                self.delete_model_button,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        # 自动加载模型选项
+        auto_load_model = self.config_service.get_config_value("ocr_auto_load_model", True)
+        self.auto_load_checkbox = ft.Checkbox(
+            label="自动加载模型",
+            value=auto_load_model,
+            on_change=self._on_auto_load_change,
+        )
+        
+        # 模型下载/加载进度显示（在模型区域内）
+        self.model_progress_bar = ft.ProgressBar(visible=False)
+        self.model_progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
+        
+        model_section = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("模型设置", size=14, weight=ft.FontWeight.W_500),
+                    self.model_dropdown,
+                    self.model_info_text,
+                    ft.Container(height=PADDING_SMALL),
+                    model_status_row,
+                    self.auto_load_checkbox,
+                    # 模型操作进度条
+                    self.model_progress_bar,
+                    self.model_progress_text,
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+        
+        # 输出设置区域
+        # 输出格式选择（复选框）
+        saved_formats = self.config_service.get_config_value("ocr_output_formats", ["txt", "json"])
+        
+        self.output_txt_checkbox = ft.Checkbox(
+            label="TXT 文本文件",
+            value="txt" in saved_formats,
+            on_change=self._on_output_format_change,
+        )
+        
+        self.output_json_checkbox = ft.Checkbox(
+            label="JSON 结构化数据",
+            value="json" in saved_formats,
+            on_change=self._on_output_format_change,
+        )
+        
+        output_format_row = ft.Row(
+            controls=[
+                ft.Text("输出格式:", size=13, weight=ft.FontWeight.W_500),
+                self.output_txt_checkbox,
+                self.output_json_checkbox,
+            ],
+            spacing=PADDING_MEDIUM,
+        )
+        
+        # 输出模式
+        self.output_mode_radio = ft.RadioGroup(
+            content=ft.Column(
+                controls=[
+                    ft.Radio(value="same", label="保存到原文件目录"),
+                    ft.Radio(value="custom", label="自定义输出目录"),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            value="same",
+            on_change=self._on_output_mode_change,
+        )
+        
+        # 文件后缀
+        self.file_suffix = ft.TextField(
+            label="文件后缀",
+            value="_ocr",
+            hint_text="例如: _ocr, _text, _result",
+            width=200,
+            dense=True,
+        )
+        
+        # 输出目录
+        self.custom_output_dir = ft.TextField(
+            label="输出目录",
+            value=str(self.config_service.get_output_dir()),
+            disabled=True,
+            expand=True,
+            dense=True,
+        )
+        
+        self.browse_output_button = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN,
+            tooltip="浏览",
+            on_click=self._on_browse_output,
+            disabled=True,
+        )
+        
+        # GPU加速设置
+        gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
+        self.gpu_checkbox = ft.Checkbox(
+            label="启用 GPU 加速 (ONNX)",
+            value=gpu_enabled,
+            on_change=self._on_gpu_change,
+        )
+        
+        gpu_hint = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.BLUE),
+                    ft.Text(
+                        "提示：使用GPU可显著提升识别速度",
+                        size=11,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                ],
+                spacing=4,
+            ),
+            padding=ft.padding.only(left=28),
+        )
+        
+        output_section = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("输出设置", size=14, weight=ft.FontWeight.W_500),
+                    output_format_row,
+                    ft.Container(height=PADDING_SMALL),
+                    self.file_suffix,
+                    ft.Container(height=PADDING_SMALL),
+                    self.output_mode_radio,
+                    ft.Row(
+                        controls=[
+                            self.custom_output_dir,
+                            self.browse_output_button,
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                    ft.Container(height=PADDING_SMALL),
+                    ft.Column(
+                        controls=[
+                            self.gpu_checkbox,
+                            gpu_hint,
+                        ],
+                        spacing=4,
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+        
+        # 进度显示
+        self.progress_bar = ft.ProgressBar(visible=False)
+        self.progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
+        
+        # 处理按钮区域 - 大号按钮样式
+        self.recognize_button = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.TEXT_FIELDS, size=24),
+                        ft.Text("开始识别", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._on_recognize,
+                disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
+            ),
+            alignment=ft.alignment.center,
+        )
+        
+        # 可滚动内容区域
+        scrollable_content = ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            file_select_area,
+                            ft.Container(height=PADDING_MEDIUM),
+                            model_section,
+                            ft.Container(height=PADDING_MEDIUM),
+                            output_section,
+                            ft.Container(height=PADDING_MEDIUM),
+                            # 操作按钮区域
+                            self.recognize_button,
+                            ft.Container(height=PADDING_SMALL),
+                            self.progress_bar,
+                            self.progress_text,
+                            ft.Container(height=PADDING_LARGE),  # 底部间距
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                    padding=ft.padding.only(
+                        left=PADDING_MEDIUM,
+                        right=PADDING_MEDIUM,
+                        top=PADDING_SMALL,
+                        bottom=PADDING_MEDIUM,
+                    ),
+                ),
+            ],
+            scroll=ft.ScrollMode.HIDDEN,  # 隐藏滚动条，但仍可滚动
+            expand=True,
+        )
+        
+        # 组装主界面 - 标题固定，分隔线固定，内容可滚动
+        self.content = ft.Column(
+            controls=[
+                header,  # 固定在顶部
+                ft.Divider(),  # 固定的分隔线
+                scrollable_content,  # 可滚动内容
+            ],
+            spacing=0,  # 取消间距，让布局更紧凑
+        )
+        
+        # 初始化模型状态
+        self._init_model_status()
+        
+        # 如果设置了自动加载，尝试自动加载模型
+        if auto_load_model:
+            self._try_auto_load_model()
+        
+        # 初始化空文件列表状态
+        self._init_empty_state()
+    
+    def _init_empty_state(self) -> None:
+        """初始化空文件列表状态。"""
+        self.file_list_view.controls.clear()
+        self.file_list_view.controls.append(
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(
+                            ft.Icons.IMAGE_OUTLINED,
+                            size=48,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                        ft.Text(
+                            "未选择文件",
+                            size=14,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                        ft.Text(
+                            "点击此处选择图片",
+                            size=12,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_SMALL,
+                ),
+                height=232,  # 280 - 2*24(padding) = 232
+                alignment=ft.alignment.center,
+                on_click=self._on_empty_area_click,
+                ink=True,
+            )
+        )
+    
+    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+        """点击空白区域，触发选择文件。"""
+        self._on_select_files(e)
+    
+    def _on_back_click(self, e: ft.ControlEvent) -> None:
+        """返回按钮点击事件。"""
+        if self.on_back:
+            self.on_back()
+    
+    def _on_select_files(self, e: ft.ControlEvent) -> None:
+        """选择文件事件。"""
+        file_picker = ft.FilePicker(on_result=self._on_files_selected)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        
+        file_picker.pick_files(
+            allowed_extensions=["jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"],
+            dialog_title="选择图片",
+            allow_multiple=True,
+        )
+    
+    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹事件。"""
+        file_picker = ft.FilePicker(on_result=self._on_folder_selected)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        
+        file_picker.get_directory_path(dialog_title="选择文件夹")
+    
+    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
+        """文件选择完成。"""
+        if e.files:
+            for file in e.files:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+    
+    def _on_folder_selected(self, e: ft.FilePickerResultEvent) -> None:
+        """文件夹选择完成。"""
+        if e.path:
+            folder_path = Path(e.path)
+            # 支持的图片格式
+            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+            
+            # 遍历文件夹中的所有图片文件
+            for ext in image_extensions:
+                for file_path in folder_path.glob(f"*{ext}"):
+                    if file_path.is_file() and file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+                # 大写扩展名
+                for file_path in folder_path.glob(f"*{ext.upper()}"):
+                    if file_path.is_file() and file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            
+            self._update_file_list()
+    
+    def _on_clear_files(self, e: ft.ControlEvent) -> None:
+        """清空文件列表。"""
+        self.selected_files.clear()
+        self.ocr_results.clear()
+        self._update_file_list()
+        self.page.update()
+    
+    def _update_file_list(self) -> None:
+        """更新文件列表显示。"""
+        self.file_list_view.controls.clear()
+        
+        if not self.selected_files:
+            # 空列表时显示可点击的占位区域
+            self.file_list_view.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.IMAGE_OUTLINED,
+                                size=48,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                            ft.Text(
+                                "未选择文件",
+                                size=14,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                            ft.Text(
+                                "点击此处选择图片",
+                                size=12,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=PADDING_SMALL,
+                    ),
+                    height=232,  # 280 - 2*24(padding) = 232
+                    alignment=ft.alignment.center,
+                    on_click=self._on_empty_area_click,
+                    ink=True,
+                )
+            )
+            self.recognize_button.content.disabled = True
+        else:
+            for i, file_path in enumerate(self.selected_files):
+                # 获取文件状态标识
+                status_icon = ft.Icons.IMAGE
+                status_color = ft.Colors.ON_SURFACE
+                
+                # 如果已经识别过，显示不同的图标
+                if str(file_path) in self.ocr_results:
+                    status_icon = ft.Icons.CHECK_CIRCLE
+                    status_color = ft.Colors.GREEN
+                
+                file_row = ft.Row(
+                    controls=[
+                        ft.Icon(status_icon, size=20, color=status_color),
+                        ft.Text(
+                            f"{file_path.name}",
+                            size=12,
+                            expand=True,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_size=16,
+                            tooltip="移除",
+                            on_click=lambda e, idx=i: self._remove_file(idx),
+                        ),
+                    ],
+                    spacing=PADDING_SMALL,
+                )
+                self.file_list_view.controls.append(file_row)
+            
+            self.recognize_button.content.disabled = False
+        
+        self.page.update()
+    
+    def _remove_file(self, index: int) -> None:
+        """移除指定索引的文件。"""
+        if 0 <= index < len(self.selected_files):
+            file_path = self.selected_files[index]
+            self.selected_files.pop(index)
+            
+            # 同时移除对应的OCR结果
+            if str(file_path) in self.ocr_results:
+                del self.ocr_results[str(file_path)]
+            
+            self._update_file_list()
+    
+    def _on_model_change(self, e: ft.ControlEvent) -> None:
+        """模型选择改变事件。"""
+        self.current_model_key = e.control.value
+        self.current_model = OCR_MODELS[self.current_model_key]
+        
+        # 更新模型信息
+        self.model_info_text.value = (
+            f"质量: {self.current_model.quality} | "
+            f"性能: {self.current_model.performance}"
+        )
+        
+        # 保存配置
+        self.config_service.set_config_value("ocr_model_key", self.current_model_key)
+        self.config_service.save_config()
+        
+        # 重新检查模型状态
+        self._check_model_status()
+        
+        self.page.update()
+    
+    def _check_all_model_files_exist(self) -> bool:
+        """检查当前模型的所有文件是否存在。"""
+        model_dir = self.ocr_service.get_model_dir(self.current_model_key)
+        det_path = model_dir / self.current_model.det_filename
+        rec_path = model_dir / self.current_model.rec_filename
+        dict_path = model_dir / self.current_model.dict_filename
+        
+        return det_path.exists() and rec_path.exists() and dict_path.exists()
+    
+    def _init_model_status(self) -> None:
+        """初始化模型状态显示。"""
+        all_exist = self._check_all_model_files_exist()
+        
+        if all_exist:
+            # 模型已下载
+            self.model_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.model_status_icon.color = ft.Colors.GREEN
+            self.model_status_text.value = f"已下载 ({self.current_model.size_mb}MB)"
+            self.download_model_button.visible = False
+            self.load_model_button.visible = True
+            self.delete_model_button.visible = True
+            self.unload_model_button.visible = False  # 只有加载后才显示
+        else:
+            # 模型未下载
+            self.model_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
+            self.model_status_icon.color = ft.Colors.ORANGE
+            self.model_status_text.value = "未下载"
+            self.download_model_button.visible = True
+            self.load_model_button.visible = False
+            self.delete_model_button.visible = False
+            self.unload_model_button.visible = False
+        
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _try_auto_load_model(self) -> None:
+        """尝试自动加载模型。"""
+        if not self._check_all_model_files_exist():
+            return
+        
+        def auto_load_thread():
+            def progress_callback(progress: float, message: str):
+                pass  # 自动加载时不显示进度
+            
+            use_gpu = self.gpu_checkbox.value
+            success, message = self.ocr_service.load_model(
+                self.current_model_key,
+                use_gpu=use_gpu,
+                progress_callback=progress_callback
+            )
+            
+            if success:
+                self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
+                self.model_status_icon.color = ft.Colors.BLUE
+                self.model_status_text.value = "已加载"
+                self.load_model_button.visible = False
+                self.unload_model_button.visible = True
+                
+                try:
+                    self.page.update()
+                except:
+                    pass
+        
+        thread = threading.Thread(target=auto_load_thread, daemon=True)
+        thread.start()
+    
+    def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
+        """自动加载选项改变。"""
+        self.config_service.set_config_value("ocr_auto_load_model", e.control.value)
+        self.config_service.save_config()
+    
+    def _on_gpu_change(self, e: ft.ControlEvent) -> None:
+        """GPU加速选项改变。"""
+        self.config_service.set_config_value("gpu_acceleration", e.control.value)
+        self.config_service.save_config()
+    
+    def _on_output_format_change(self, e: ft.ControlEvent) -> None:
+        """输出格式选项改变。"""
+        # 获取当前选中的格式
+        selected_formats = []
+        if self.output_txt_checkbox.value:
+            selected_formats.append("txt")
+        if self.output_json_checkbox.value:
+            selected_formats.append("json")
+        
+        # 至少选择一种格式
+        if not selected_formats:
+            # 如果用户取消了所有选择，恢复到TXT
+            self.output_txt_checkbox.value = True
+            selected_formats = ["txt"]
+            self._show_snackbar("至少需要选择一种输出格式", ft.Colors.ORANGE)
+            try:
+                self.page.update()
+            except:
+                pass
+        
+        # 保存配置
+        self.config_service.set_config_value("ocr_output_formats", selected_formats)
+        self.config_service.save_config()
+    
+    def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
+        """输出模式变化事件。"""
+        mode = e.control.value
+        is_custom = mode == "custom"
+        
+        self.custom_output_dir.disabled = not is_custom
+        self.browse_output_button.disabled = not is_custom
+        
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+        """浏览输出目录按钮点击事件。"""
+        def on_result(result: ft.FilePickerResultEvent) -> None:
+            if result.path:
+                self.custom_output_dir.value = result.path
+                try:
+                    self.page.update()
+                except:
+                    pass
+        
+        picker = ft.FilePicker(on_result=on_result)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.get_directory_path(dialog_title="选择输出目录")
+    
+    def _on_download_model(self, e: ft.ControlEvent) -> None:
+        """下载模型。"""
+        # 禁用按钮
+        self.download_model_button.disabled = True
+        self.load_model_button.disabled = True
+        self.model_progress_bar.visible = True
+        self.model_progress_text.visible = True
+        self.page.update()
+        
+        def download_thread():
+            def progress_callback(progress: float, message: str):
+                self.model_progress_bar.value = progress
+                self.model_progress_text.value = message
+                try:
+                    self.page.update()
+                except:
+                    pass
+            
+            success, message = self.ocr_service.download_model(
+                self.current_model_key,
+                progress_callback=progress_callback
+            )
+            
+            # 更新UI
+            self.download_model_button.disabled = False
+            self.load_model_button.disabled = False
+            self.model_progress_bar.visible = False
+            self.model_progress_text.visible = False
+            
+            if success:
+                self._init_model_status()
+                self._show_snackbar("模型下载成功！", ft.Colors.GREEN)
+            else:
+                self._show_snackbar(f"模型下载失败: {message}", ft.Colors.RED)
+            
+            try:
+                self.page.update()
+            except:
+                pass
+        
+        thread = threading.Thread(target=download_thread, daemon=True)
+        thread.start()
+    
+    def _on_load_model(self, e: ft.ControlEvent) -> None:
+        """加载模型。"""
+        # 禁用按钮
+        self.load_model_button.disabled = True
+        self.model_progress_bar.visible = True
+        self.model_progress_text.visible = True
+        self.page.update()
+        
+        def load_thread():
+            def progress_callback(progress: float, message: str):
+                self.model_progress_bar.value = progress
+                self.model_progress_text.value = message
+                try:
+                    self.page.update()
+                except:
+                    pass
+            
+            use_gpu = self.gpu_checkbox.value
+            success, message = self.ocr_service.load_model(
+                self.current_model_key,
+                use_gpu=use_gpu,
+                progress_callback=progress_callback
+            )
+            
+            # 更新UI
+            self.load_model_button.disabled = False
+            self.model_progress_bar.visible = False
+            self.model_progress_text.visible = False
+            
+            if success:
+                self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
+                self.model_status_icon.color = ft.Colors.BLUE
+                self.model_status_text.value = "已加载"
+                self.load_model_button.visible = False
+                self.unload_model_button.visible = True
+                self._show_snackbar("模型加载成功！", ft.Colors.GREEN)
+            else:
+                self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
+            
+            try:
+                self.page.update()
+            except:
+                pass
+        
+        thread = threading.Thread(target=load_thread, daemon=True)
+        thread.start()
+    
+    def _on_unload_model(self, e: ft.ControlEvent) -> None:
+        """卸载模型。"""
+        try:
+            self.ocr_service.unload_model()
+            
+            self.model_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.model_status_icon.color = ft.Colors.GREEN
+            self.model_status_text.value = f"已下载 ({self.current_model.size_mb}MB)"
+            self.load_model_button.visible = True
+            self.unload_model_button.visible = False
+            
+            self._show_snackbar("模型已卸载", ft.Colors.GREEN)
+            self.page.update()
+        except Exception as ex:
+            logger.error(f"卸载模型失败: {ex}")
+            self._show_snackbar(f"卸载失败: {str(ex)}", ft.Colors.RED)
+    
+    def _on_delete_model(self, e: ft.ControlEvent) -> None:
+        """删除模型文件。"""
+        def confirm_delete(confirmed: bool):
+            if not confirmed:
+                return
+            
+            try:
+                # 先卸载模型
+                if self.ocr_service.det_session or self.ocr_service.rec_session:
+                    self.ocr_service.unload_model()
+                
+                # 删除模型文件
+                model_dir = self.ocr_service.get_model_dir(self.current_model_key)
+                det_path = model_dir / self.current_model.det_filename
+                rec_path = model_dir / self.current_model.rec_filename
+                dict_path = model_dir / self.current_model.dict_filename
+                
+                if det_path.exists():
+                    det_path.unlink()
+                if rec_path.exists():
+                    rec_path.unlink()
+                if dict_path.exists():
+                    dict_path.unlink()
+                
+                # 更新状态
+                self._init_model_status()
+                self._show_snackbar("模型文件已删除", ft.Colors.GREEN)
+            except Exception as ex:
+                logger.error(f"删除模型失败: {ex}")
+                self._show_snackbar(f"删除失败: {str(ex)}", ft.Colors.RED)
+        
+        # 显示确认对话框
+        dialog = ft.AlertDialog(
+            title=ft.Text("确认删除"),
+            content=ft.Text(f"确定要删除模型 {self.current_model.display_name} 吗？\n删除后需要重新下载才能使用。"),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self.page.update()),
+                ft.TextButton("删除", on_click=lambda _: (setattr(dialog, 'open', False), confirm_delete(True), self.page.update())),
+            ],
+        )
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def _on_recognize(self, e: ft.ControlEvent) -> None:
+        """开始识别。"""
+        if not self.selected_files:
+            self._show_snackbar("请先选择图片", ft.Colors.ORANGE)
+            return
+        
+        if self.is_processing:
+            self._show_snackbar("正在处理中，请稍候", ft.Colors.ORANGE)
+            return
+        
+        # 禁用按钮
+        self.is_processing = True
+        self.recognize_button.content.disabled = True
+        self.progress_bar.visible = True
+        self.progress_bar.value = None  # 显示不确定进度
+        self.progress_text.visible = True
+        self.page.update()
+        
+        def recognize_thread():
+            total_files = len(self.selected_files)
+            success_count = 0
+            fail_count = 0
+            
+            try:
+                # 如果模型未加载，先加载
+                if not self.ocr_service.det_session or not self.ocr_service.rec_session:
+                    def load_progress_callback(progress: float, message: str):
+                        self.progress_bar.value = progress * 0.1  # 加载占10%进度
+                        self.progress_text.value = f"正在加载模型: {message}"
+                        try:
+                            self.page.update()
+                        except:
+                            pass
+                    
+                    use_gpu = self.gpu_checkbox.value
+                    success, message = self.ocr_service.load_model(
+                        self.current_model_key,
+                        use_gpu=use_gpu,
+                        progress_callback=load_progress_callback
+                    )
+                    
+                    if not success:
+                        self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
+                        self.recognize_button.content.disabled = False
+                        self.progress_bar.visible = False
+                        self.progress_text.visible = False
+                        self.is_processing = False
+                        try:
+                            self.page.update()
+                        except:
+                            pass
+                        return
+                
+                # 逐个处理文件
+                for i, file_path in enumerate(self.selected_files):
+                    def file_progress_callback(progress: float, message: str):
+                        # 计算总进度（加载10% + 文件处理90%）
+                        file_base_progress = 0.1 + (i / total_files) * 0.9
+                        file_delta_progress = (progress / total_files) * 0.9
+                        total_progress = file_base_progress + file_delta_progress
+                        
+                        self.progress_bar.value = total_progress
+                        self.progress_text.value = f"正在处理 {i+1}/{total_files}: {file_path.name} - {message}"
+                        try:
+                            self.page.update()
+                        except:
+                            pass
+                    
+                    # 执行OCR
+                    success, results = self.ocr_service.ocr(
+                        str(file_path),
+                        progress_callback=file_progress_callback
+                    )
+                    
+                    if success:
+                        self.ocr_results[str(file_path)] = results
+                        
+                        # 自动保存结果到文件
+                        if self._save_single_result(file_path, results):
+                            success_count += 1
+                        else:
+                            # 保存失败但识别成功，仍计为成功
+                            success_count += 1
+                            logger.warning(f"识别成功但保存失败: {file_path}")
+                    else:
+                        fail_count += 1
+                        logger.error(f"OCR识别失败: {file_path}")
+                    
+                    # 更新文件列表显示（标记已处理）
+                    try:
+                        self._update_file_list()
+                    except:
+                        pass
+                
+                # 显示完成消息
+                output_mode = self.output_mode_radio.value
+                
+                if output_mode == "same":
+                    output_desc = "原文件目录"
+                else:
+                    output_desc = Path(self.custom_output_dir.value).name
+                
+                # 获取输出格式描述
+                format_desc = []
+                if self.output_txt_checkbox.value:
+                    format_desc.append("TXT")
+                if self.output_json_checkbox.value:
+                    format_desc.append("JSON")
+                format_str = "+".join(format_desc) if format_desc else "TXT"
+                
+                if fail_count == 0:
+                    self._show_snackbar(
+                        f"全部完成！成功识别 {success_count} 个文件，已保存到{output_desc}（{format_str}）",
+                        ft.Colors.GREEN
+                    )
+                else:
+                    self._show_snackbar(
+                        f"处理完成！成功: {success_count}, 失败: {fail_count}",
+                        ft.Colors.ORANGE
+                    )
+            
+            except Exception as ex:
+                logger.error(f"批量OCR识别出错: {ex}")
+                self._show_snackbar(f"识别出错: {str(ex)}", ft.Colors.RED)
+            
+            finally:
+                # 更新UI
+                self.is_processing = False
+                self.recognize_button.content.disabled = False
+                self.progress_bar.visible = False
+                self.progress_text.visible = False
+                
+                try:
+                    self.page.update()
+                except:
+                    pass
+        
+        thread = threading.Thread(target=recognize_thread, daemon=True)
+        thread.start()
+    
+    
+    def _get_output_path(self, input_file: Path, output_format: str) -> Path:
+        """获取输出文件路径。
+        
+        Args:
+            input_file: 输入文件路径
+            output_format: 输出格式（txt/json）
+        
+        Returns:
+            输出文件路径
+        """
+        output_mode = self.output_mode_radio.value
+        suffix = self.file_suffix.value or "_ocr"
+        
+        if output_mode == "same":
+            # 保存到原文件目录
+            output_dir = input_file.parent
+        else:
+            # 自定义输出目录
+            output_dir = Path(self.custom_output_dir.value)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 生成输出文件名
+        output_name = f"{input_file.stem}{suffix}.{output_format}"
+        return output_dir / output_name
+    
+    def _save_single_result(self, input_file: Path, results: List[Tuple[List, str, float]]) -> bool:
+        """保存单个文件的识别结果（根据用户选择的格式）。
+        
+        Args:
+            input_file: 输入文件路径
+            results: OCR结果列表
+        
+        Returns:
+            是否成功
+        """
+        try:
+            # 获取用户选择的输出格式
+            selected_formats = []
+            if self.output_txt_checkbox.value:
+                selected_formats.append("txt")
+            if self.output_json_checkbox.value:
+                selected_formats.append("json")
+            
+            # 如果没有选择任何格式，默认保存TXT
+            if not selected_formats:
+                selected_formats = ["txt"]
+            
+            success_count = 0
+            total_formats = len(selected_formats)
+            
+            # 保存TXT格式
+            if "txt" in selected_formats:
+                txt_path = self._get_output_path(input_file, "txt")
+                with open(txt_path, 'w', encoding='utf-8') as f:
+                    if not results:
+                        f.write("未识别到文字\n")
+                    else:
+                        # 按位置从上到下、从左到右排序
+                        sorted_results = sorted(
+                            results,
+                            key=lambda x: (min(pt[1] for pt in x[0]), min(pt[0] for pt in x[0]))
+                        )
+                        
+                        for box, text, confidence in sorted_results:
+                            f.write(f"{text}\n")
+                
+                logger.info(f"TXT结果已保存: {txt_path}")
+                success_count += 1
+            
+            # 保存JSON格式
+            if "json" in selected_formats:
+                json_path = self._get_output_path(input_file, "json")
+                data = {
+                    "image": str(input_file),
+                    "model": self.current_model_key,
+                    "results": [
+                        {
+                            "box": box,
+                            "text": text,
+                            "confidence": confidence
+                        }
+                        for box, text, confidence in results
+                    ]
+                }
+                
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                
+                logger.info(f"JSON结果已保存: {json_path}")
+                success_count += 1
+            
+            return success_count == total_formats
+            
+        except Exception as ex:
+            logger.error(f"保存结果失败: {input_file.name}, 错误: {ex}")
+            return False
+    
+    def _show_snackbar(self, message: str, color: str) -> None:
+        """显示消息提示。"""
+        snack_bar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=color,
+        )
+        self.page.overlay.append(snack_bar)
+        snack_bar.open = True
+        try:
+            self.page.update()
+        except:
+            pass

@@ -175,6 +175,16 @@ def register_all_tools():
         gradient_colors=("#FFA726", "#FB8C00"),
     )
     
+    register_tool_manual(
+        name="OCR 文字识别",
+        description="AI识别图片中的文字，支持中英文",
+        category="图片处理",
+        keywords=["OCR", "文字识别", "识别", "提取", "文本", "字符", "图片转文字", "扫描", "识字", "text", "recognition", "extract", "paddleocr"],
+        icon="TEXT_FIELDS",
+        tool_id="image.ocr",
+        gradient_colors=("#667EEA", "#764BA2"),
+    )
+    
     # ==================== 媒体处理工具 ====================
     
     register_tool_manual(

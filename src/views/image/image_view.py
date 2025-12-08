@@ -82,6 +82,7 @@ class ImageView(ft.Container):
         self.qrcode_view = None  # 二维码生成视图
         self.watermark_view = None  # 添加水印视图
         self.search_view = None  # 图片搜索视图
+        self.ocr_view = None  # OCR视图
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -223,6 +224,13 @@ class ImageView(ft.Container):
                     description="以图搜图，搜索相似图片",
                     gradient_colors=("#FFA726", "#FB8C00"),
                     on_click=self._open_search_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.TEXT_FIELDS,
+                    title="OCR 文字识别",
+                    description="AI识别图片中的文字，支持中英文",
+                    gradient_colors=("#667EEA", "#764BA2"),
+                    on_click=self._open_ocr_dialog,
                 ),
             ],
             wrap=True,  # 自动换行
@@ -753,6 +761,36 @@ class ImageView(ft.Container):
         self.parent_container.content = self.search_view
         self._safe_page_update()
     
+    def _open_ocr_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到OCR工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            logger.error("错误: 未设置父容器")
+            return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
+        # 创建OCR视图（如果还没创建）
+        if not self.ocr_view:
+            from views.image.ocr_view import OCRView
+            self.ocr_view = OCRView(
+                self._saved_page,
+                self.config_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.ocr_view
+        self.current_sub_view_type = "ocr"
+        
+        # 切换到OCR视图
+        self.parent_container.content = self.ocr_view
+        self._safe_page_update()
+    
     def _back_to_main(self, e: ft.ControlEvent = None) -> None:
         """返回主界面。
         
@@ -777,6 +815,7 @@ class ImageView(ft.Container):
                 "qrcode": "qrcode_view",
                 "watermark": "watermark_view",
                 "search": "search_view",
+                "ocr": "ocr_view",
                 "image_tools_install": "image_tools_install_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
@@ -865,6 +904,8 @@ class ImageView(ft.Container):
             "puzzle.merge": self._open_merge_dialog,
             "puzzle.split": self._open_split_dialog,
             "search": self._open_search_dialog,
+            "ocr": self._open_ocr_dialog,
+            "enhance": self._open_enhance_dialog,
         }
         
         # 查找并调用对应的方法
