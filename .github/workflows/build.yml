@@ -61,14 +61,14 @@ jobs:
             jobs: 4
             upx: false  # UPX 不支持 macOS Mach-O 格式
             cuda_variant: none
-          # macOS (Intel)
-          - os: macos-15
-            platform: Darwin
-            arch: amd64
-            artifact_ext: .tar.gz
-            jobs: 4
-            upx: false  # UPX 不支持 macOS Mach-O 格式
-            cuda_variant: none
+          # macOS (Intel) 镜像有问题，暂时禁用
+          # - os: macos-15
+          #   platform: Darwin
+          #   arch: amd64
+          #   artifact_ext: .tar.gz
+          #   jobs: 4
+          #   upx: false  # UPX 不支持 macOS Mach-O 格式
+          #   cuda_variant: none
           # Linux 标准版（CPU）
           - os: ubuntu-22.04  # GLIBC 2.35，兼容 Ubuntu 22.04+, Debian 12+
             platform: Linux
