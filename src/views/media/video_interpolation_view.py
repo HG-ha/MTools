@@ -804,10 +804,16 @@ class VideoInterpolationView(ft.Container):
                 execution_provider = "CPUExecutionProvider"
                 logger.info("✓ 使用 CPU")
             
+            # 获取GPU配置参数
+            gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+            
             # 创建插帧服务
             self.interpolator = FrameInterpolationService(
                 model_name=self.current_model_key,
-                execution_provider=execution_provider
+                execution_provider=execution_provider,
+                gpu_device_id=gpu_device_id,
+                gpu_memory_limit=gpu_memory_limit
             )
             
             # 加载模型

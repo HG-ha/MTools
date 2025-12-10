@@ -32,16 +32,22 @@ class FrameInterpolationService:
     def __init__(
         self,
         model_name: str = DEFAULT_INTERPOLATION_MODEL_KEY,
-        execution_provider: str = "CUDAExecutionProvider"
+        execution_provider: str = "CUDAExecutionProvider",
+        gpu_device_id: int = 0,
+        gpu_memory_limit: int = 2048
     ) -> None:
         """初始化插帧服务。
         
         Args:
             model_name: 模型名称
             execution_provider: 执行提供者（CUDA/DirectML/CPU）
+            gpu_device_id: GPU设备ID，默认0（第一个GPU）
+            gpu_memory_limit: GPU内存限制（MB），默认2048MB
         """
         self.model_name: str = model_name
         self.execution_provider: str = execution_provider
+        self.gpu_device_id: int = gpu_device_id
+        self.gpu_memory_limit: int = gpu_memory_limit
         self.sess: Optional[ort.InferenceSession] = None
         self.model_info: Optional[FrameInterpolationModelInfo] = None
         self.inference_lock = threading.Lock()  # 线程安全锁
@@ -89,13 +95,15 @@ class FrameInterpolationService:
                 if "CUDAExecutionProvider" in available_providers:
                     providers = [
                         ("CUDAExecutionProvider", {
-                            "device_id": 0,
+                            "device_id": self.gpu_device_id,
                             "arena_extend_strategy": "kNextPowerOfTwo",
+                            "gpu_mem_limit": self.gpu_memory_limit * 1024 * 1024,  # 转换为字节
                             "cudnn_conv_algo_search": "EXHAUSTIVE",
                             "do_copy_in_default_stream": True,
                         }),
                         "CPUExecutionProvider"
                     ]
+                    logger.info(f"RIFE 使用 CUDA GPU (设备 {self.gpu_device_id}，内存限制 {self.gpu_memory_limit}MB)")
                 else:
                     logger.warning("CUDA不可用，自动切换到可用的执行提供者")
                     # 自动回退到DirectML或CPU
