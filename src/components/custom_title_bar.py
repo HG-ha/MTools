@@ -5,10 +5,13 @@
 """
 
 import sys
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
 import flet as ft
+from PIL import Image, ImageDraw
+from pystray import Icon, Menu, MenuItem
 
 from constants import (
     APP_TITLE,
@@ -77,16 +80,25 @@ class CustomTitleBar(ft.Container):
         self.weather_service: WeatherService = WeatherService()
         self.weather_data: Optional[dict] = None
         
-        # 获取用户设置的主题色和天气显示配置
+        # 托盘图标相关
+        self.tray_icon: Optional[Icon] = None
+        self.minimize_to_tray: bool = False  # 是否启用最小化到托盘
+        
+        # 获取用户设置的主题色、天气显示和托盘配置
         if self.config_service:
             self.theme_color: str = self.config_service.get_config_value("theme_color", "#667EEA")
             self.show_weather: bool = self.config_service.get_config_value("show_weather", True)
+            self.minimize_to_tray = self.config_service.get_config_value("minimize_to_tray", False)
         else:
             self.theme_color = "#667EEA"
             self.show_weather = True
         
         # 构建标题栏
         self._build_title_bar()
+        
+        # 初始化系统托盘（如果启用）
+        if self.minimize_to_tray:
+            self._setup_tray_icon()
         
         # 异步加载天气数据（如果启用）
         if self.show_weather:
@@ -327,12 +339,125 @@ class CustomTitleBar(ft.Container):
         except Exception:
             pass  # 忽略更新错误
     
-    def _close_window(self, e: ft.ControlEvent) -> None:
+    def _create_tray_icon_image(self) -> Image.Image:
+        """创建托盘图标图像。
+        
+        Returns:
+            PIL Image 对象
+        """
+        # 尝试加载应用图标
+        icon_path = _get_icon_path()
+        
+        try:
+            if Path(icon_path).exists():
+                icon_image = Image.open(icon_path)
+                # 调整图标大小为适合托盘的尺寸
+                icon_image = icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                return icon_image
+        except Exception:
+            pass
+        
+        # 如果加载失败，创建一个简单的图标
+        width = 64
+        height = 64
+        image = Image.new('RGB', (width, height), '#667EEA')
+        dc = ImageDraw.Draw(image)
+        
+        # 绘制一个简单的字母 M
+        dc.text((width // 4, height // 4), 'M', fill='white')
+        
+        return image
+    
+    def _setup_tray_icon(self) -> None:
+        """设置系统托盘图标。"""
+        if self.tray_icon is not None:
+            return  # 已经初始化过了
+        
+        try:
+            # 创建托盘图标图像
+            icon_image = self._create_tray_icon_image()
+            
+            # 创建托盘菜单
+            menu = Menu(
+                MenuItem("显示窗口", self._show_window_from_tray, default=True),
+                MenuItem("退出应用", self._exit_app_from_tray)
+            )
+            
+            # 创建托盘图标
+            self.tray_icon = Icon(APP_TITLE, icon_image, APP_TITLE, menu)
+            
+            # 在单独的线程中运行托盘图标
+            tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            tray_thread.start()
+            
+        except Exception as e:
+            print(f"设置系统托盘失败: {e}")
+            self.tray_icon = None
+    
+    def _show_window_from_tray(self, icon=None, item=None) -> None:
+        """从托盘显示窗口。
+        
+        Args:
+            icon: 托盘图标对象
+            item: 菜单项对象
+        """
+        try:
+            self.page.window.visible = True
+            self.page.update()
+        except Exception:
+            pass
+    
+    def _hide_to_tray(self) -> None:
+        """隐藏窗口到托盘。"""
+        try:
+            self.page.window.visible = False
+            self.page.update()
+        except Exception:
+            pass
+    
+    def _exit_app_from_tray(self, icon=None, item=None) -> None:
+        """从托盘退出应用。
+        
+        Args:
+            icon: 托盘图标对象
+            item: 菜单项对象
+        """
+        # 停止托盘图标
+        if self.tray_icon:
+            self.tray_icon.stop()
+        
+        # 执行正常的关闭流程
+        self._close_window(None)
+    
+    def set_minimize_to_tray(self, enabled: bool) -> None:
+        """设置是否启用最小化到托盘。
+        
+        Args:
+            enabled: 是否启用
+        """
+        self.minimize_to_tray = enabled
+        
+        if enabled:
+            # 启用托盘功能
+            if self.tray_icon is None:
+                self._setup_tray_icon()
+        else:
+            # 禁用托盘功能
+            if self.tray_icon:
+                self.tray_icon.stop()
+                self.tray_icon = None
+    
+    def _close_window(self, e: Optional[ft.ControlEvent]) -> None:
         """关闭窗口。
         
         Args:
             e: 控件事件对象
         """
+        # 如果启用了托盘功能，则隐藏到托盘而不是关闭
+        if self.minimize_to_tray and self.tray_icon:
+            self._hide_to_tray()
+            return
+        
         # 在关闭前保存窗口位置、大小和最大化状态
         if self.config_service:
             # 保存最大化状态
@@ -346,6 +471,11 @@ class CustomTitleBar(ft.Container):
                 if self.page.window.width is not None and self.page.window.height is not None:
                     self.config_service.set_config_value("window_width", self.page.window.width)
                     self.config_service.set_config_value("window_height", self.page.window.height)
+        
+        # 停止托盘图标
+        if self.tray_icon:
+            self.tray_icon.stop()
+            self.tray_icon = None
         
         # 关闭天气服务
         if self.weather_service:

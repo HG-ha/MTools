@@ -94,27 +94,32 @@ class SettingsView(ft.Container):
                 from pathlib import Path
                 font_path = Path(custom_font_file)
                 
+                # 获取字体名称
+                font_name = font_path.stem
+                custom_font_key = f"CustomFont_{font_name}"
+                
+                # 检查当前使用的字体是否是这个自定义字体
+                current_font = self.config_service.get_config_value("font_family", "System")
+                is_using_custom_font = current_font == custom_font_key
+                
                 if font_path.exists():
-                    # 获取字体名称
-                    font_name = font_path.stem
-                    custom_font_key = f"CustomFont_{font_name}"
-                    
-                    # 将字体添加到页面
+                    # 将字体添加到页面（即使当前不使用，也加载以便切换时可用）
                     if not hasattr(self.page, 'fonts') or self.page.fonts is None:
                         self.page.fonts = {}
                     
                     self.page.fonts[custom_font_key] = str(font_path)
                     self.page.update()
                     
-                    logger.info(f"成功恢复自定义字体: {custom_font_file}")
+                    # 只有当前正在使用这个自定义字体时，才记录恢复日志
+                    if is_using_custom_font:
+                        logger.info(f"成功恢复自定义字体: {custom_font_file}")
                 else:
                     logger.warning(f"自定义字体文件不存在: {custom_font_file}")
                     # 清除无效的字体配置
                     self.config_service.set_config_value("custom_font_file", None)
                     
-                    # 如果当前字体设置了自定义字体，重置为系统默认
-                    current_font = self.config_service.get_config_value("font_family", "System")
-                    if current_font != "System":
+                    # 如果当前字体设置了这个自定义字体，重置为系统默认
+                    if is_using_custom_font:
                         self.config_service.set_config_value("font_family", "System")
                         logger.info("因自定义字体文件丢失，已重置为系统默认字体")
                     
@@ -1177,6 +1182,7 @@ class SettingsView(ft.Container):
         show_recommendations = self.config_service.get_config_value("show_recommendations_page", True)
         save_logs = self.config_service.get_config_value("save_logs", False)
         show_weather = self.config_service.get_config_value("show_weather", True)
+        minimize_to_tray = self.config_service.get_config_value("minimize_to_tray", False)
         
         # 推荐工具页面开关
         self.recommendations_switch = ft.Switch(
@@ -1220,6 +1226,20 @@ class SettingsView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
+        # 最小化到托盘开关
+        self.minimize_to_tray_switch = ft.Switch(
+            label="最小化到系统托盘",
+            value=minimize_to_tray,
+            on_change=self._on_minimize_to_tray_switch_change,
+        )
+        
+        # 托盘说明文字
+        tray_info_text = ft.Text(
+            "开启后，点击关闭按钮将隐藏到系统托盘，而不是退出应用",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -1240,6 +1260,12 @@ class SettingsView(ft.Container):
                     self.show_weather_switch,
                     ft.Container(height=PADDING_SMALL),
                     weather_info_text,
+                    ft.Container(height=PADDING_MEDIUM),
+                    ft.Divider(),
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.minimize_to_tray_switch,
+                    ft.Container(height=PADDING_SMALL),
+                    tray_info_text,
                 ],
                 spacing=0,
             ),
@@ -1287,6 +1313,19 @@ class SettingsView(ft.Container):
             
             status = "已显示" if enabled else "已隐藏"
             self._show_snackbar(f"天气信息{status}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("设置更新失败", ft.Colors.RED)
+    
+    def _on_minimize_to_tray_switch_change(self, e: ft.ControlEvent) -> None:
+        """最小化到托盘开关改变事件。"""
+        enabled = e.control.value
+        if self.config_service.set_config_value("minimize_to_tray", enabled):
+            # 立即更新托盘功能状态
+            if hasattr(self.page, '_main_view') and hasattr(self.page._main_view, 'title_bar'):
+                self.page._main_view.title_bar.set_minimize_to_tray(enabled)
+            
+            status = "已启用" if enabled else "已禁用"
+            self._show_snackbar(f"最小化到系统托盘{status}", ft.Colors.GREEN)
         else:
             self._show_snackbar("设置更新失败", ft.Colors.RED)
     
