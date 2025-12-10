@@ -31,7 +31,7 @@ dependencies = [
   "pycryptodome==3.21.0",
   "sqlparse==0.5.3",
   "croniter==5.0.1",
-  "tomli-w==1.1.0",  # TOML 写入支持（Python 3.11+ 内置 tomllib 只支持读取）
+  "tomli-w==1.1.0",
 ]
 
 [tool.flet]

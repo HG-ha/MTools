@@ -43,6 +43,10 @@ from .subtitle_utils import (
     segments_to_vtt,
     segments_to_txt,
 )
+from .onnx_helper import (
+    create_session_options,
+    create_provider_options,
+)
 
 __all__ = [
     "ensure_dir",
@@ -77,5 +81,7 @@ __all__ = [
     "segments_to_srt",
     "segments_to_vtt",
     "segments_to_txt",
+    "create_session_options",
+    "create_provider_options",
 ]
 

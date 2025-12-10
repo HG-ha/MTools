@@ -165,7 +165,10 @@ class VocalSeparationService:
         use_gpu: bool = True,
         gpu_device_id: int = 0,
         gpu_memory_limit: int = 2048,
-        enable_memory_arena: bool = True
+        enable_memory_arena: bool = True,
+        cpu_threads: int = 0,
+        execution_mode: str = "sequential",
+        enable_model_cache: bool = False
     ) -> None:
         """加载 ONNX 模型。
         
@@ -176,6 +179,9 @@ class VocalSeparationService:
             gpu_device_id: GPU设备ID
             gpu_memory_limit: GPU内存限制（MB）
             enable_memory_arena: 是否启用内存池优化
+            cpu_threads: CPU推理线程数，0=自动检测
+            execution_mode: 执行模式（sequential/parallel）
+            enable_model_cache: 是否启用模型缓存优化
         """
         if not model_path.exists():
             raise FileNotFoundError(f"模型文件不存在: {model_path}")
@@ -190,6 +196,28 @@ class VocalSeparationService:
         sess_options.enable_cpu_mem_arena = enable_memory_arena
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         sess_options.log_severity_level = 3  # ERROR级别，减少日志输出
+        
+        # 应用性能优化参数
+        if cpu_threads > 0:
+            sess_options.intra_op_num_threads = cpu_threads
+            sess_options.inter_op_num_threads = cpu_threads
+            from utils import logger
+            logger.info(f"人声分离设置CPU线程数: {cpu_threads}")
+        
+        # 执行模式
+        if execution_mode == "parallel":
+            sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+            from utils import logger
+            logger.info("人声分离使用并行执行模式")
+        else:
+            sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        
+        # 模型缓存优化
+        if enable_model_cache:
+            cache_path = model_path.with_suffix('.optimized.onnx')
+            sess_options.optimized_model_filepath = str(cache_path)
+            from utils import logger
+            logger.info(f"人声分离启用模型缓存: {cache_path.name}")
         
         # 配置执行提供者（GPU或CPU）
         providers = []

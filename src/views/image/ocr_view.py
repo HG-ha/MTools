@@ -1147,8 +1147,10 @@ class OCRView(ft.Container):
             if self.output_json_checkbox.value:
                 selected_formats.append("json")
             
-            # 如果没有选择任何格式，默认保存TXT
-            if not selected_formats:
+            # 检查是否至少选择了一种输出方式
+            has_output = selected_formats or self.output_image_checkbox.value
+            if not has_output:
+                # 如果什么都没选，默认保存TXT
                 selected_formats = ["txt"]
             
             success_count = 0

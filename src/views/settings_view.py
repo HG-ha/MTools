@@ -127,6 +127,9 @@ class SettingsView(ft.Container):
         # GPU加速设置部分
         gpu_acceleration_section: ft.Container = self._build_gpu_acceleration_section()
         
+        # 性能优化设置部分
+        performance_section: ft.Container = self._build_performance_optimization_section()
+        
         # 字体设置部分
         font_section: ft.Container = self._build_font_section()
         
@@ -149,6 +152,8 @@ class SettingsView(ft.Container):
                 interface_section,
                 ft.Container(height=PADDING_LARGE),
                 gpu_acceleration_section,
+                ft.Container(height=PADDING_LARGE),
+                performance_section,
                 ft.Container(height=PADDING_LARGE),
                 font_section,
                 ft.Container(height=PADDING_LARGE),
@@ -1296,7 +1301,7 @@ class SettingsView(ft.Container):
 
         memory_label_row = ft.Row(
             controls=[
-                ft.Text("GPU内存限制", size=13, ),
+                ft.Text("GPU内存限制", size=13),
                 self.gpu_memory_value_text,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -1304,8 +1309,8 @@ class SettingsView(ft.Container):
 
         self.gpu_memory_slider = ft.Slider(
             min=512,
-            max=8192,
-            divisions=15,
+            max=24576,  # 24GB
+            divisions=47,  # (24576-512)/512 ≈ 47，每512MB一个刻度
             value=gpu_memory_limit,
             label=None,
             on_change=self._on_gpu_memory_change,
@@ -1354,7 +1359,7 @@ class SettingsView(ft.Container):
         )
 
         info_text = ft.Text(
-            "启用GPU加速可显著提升图像与视频处理速度。如遇兼容性或显存不足问题，可在此调整参数。",
+            "启用GPU加速可显著提升图像与视频处理速度。建议根据实际GPU显存设置限制，推荐为总显存的60-80%。",
             size=12,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
@@ -1381,6 +1386,108 @@ class SettingsView(ft.Container):
                     self.gpu_advanced_title,
                     ft.Container(height=PADDING_SMALL),
                     self.gpu_advanced_container,
+                    ft.Container(height=PADDING_MEDIUM // 2),
+                    info_text,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _build_performance_optimization_section(self) -> ft.Container:
+        """构建性能优化设置部分。"""
+        
+        # 标题
+        section_title = ft.Text(
+            "性能优化",
+            size=20,
+            weight=ft.FontWeight.W_600,
+        )
+        
+        # 获取当前配置
+        cpu_threads = self.config_service.get_config_value("onnx_cpu_threads", 0)
+        execution_mode = self.config_service.get_config_value("onnx_execution_mode", "sequential")
+        enable_model_cache = self.config_service.get_config_value("onnx_enable_model_cache", False)
+        
+        # CPU线程数设置
+        self.cpu_threads_value_text = ft.Text(
+            f"{cpu_threads if cpu_threads > 0 else '自动'}",
+            size=13,
+            text_align=ft.TextAlign.END,
+            width=80,
+        )
+        
+        threads_label_row = ft.Row(
+            controls=[
+                ft.Text("CPU推理线程数", size=13),
+                self.cpu_threads_value_text,
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+        
+        self.cpu_threads_slider = ft.Slider(
+            min=0,
+            max=16,
+            divisions=16,
+            value=cpu_threads,
+            label=None,
+            on_change=self._on_cpu_threads_change,
+        )
+        
+        threads_hint = ft.Text(
+            "0=自动检测 | CPU推理时使用的并行线程数，多核CPU可提升性能",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 执行模式设置
+        self.execution_mode_radio = ft.RadioGroup(
+            content=ft.Column(
+                controls=[
+                    ft.Radio(
+                        value="sequential",
+                        label="顺序执行 (节省内存，默认推荐)"
+                    ),
+                    ft.Radio(
+                        value="parallel",
+                        label="并行执行 (多核CPU性能更好，但占用更多内存)"
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            value=execution_mode,
+            on_change=self._on_execution_mode_change,
+        )
+        
+        # 模型缓存设置
+        self.model_cache_switch = ft.Switch(
+            label="启用模型缓存优化 (首次加载较慢，后续启动更快)",
+            value=enable_model_cache,
+            on_change=self._on_model_cache_change,
+        )
+        
+        info_text = ft.Text(
+            "这些设置影响AI模型的推理性能。建议GPU用户保持默认，CPU用户可调整线程数和执行模式。",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    ft.Container(height=PADDING_MEDIUM),
+                    ft.Text("执行模式", size=14, weight=ft.FontWeight.W_500),
+                    ft.Container(height=PADDING_SMALL),
+                    self.execution_mode_radio,
+                    ft.Container(height=PADDING_MEDIUM),
+                    threads_label_row,
+                    self.cpu_threads_slider,
+                    threads_hint,
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.model_cache_switch,
                     ft.Container(height=PADDING_MEDIUM // 2),
                     info_text,
                 ],
@@ -1447,6 +1554,52 @@ class SettingsView(ft.Container):
             self._show_snackbar(f"内存池优化{status}", ft.Colors.GREEN)
         else:
             self._show_snackbar("内存池优化设置更新失败", ft.Colors.RED)
+    
+    def _on_cpu_threads_change(self, e: ft.ControlEvent) -> None:
+        """CPU线程数改变事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        threads = int(e.control.value)
+        if self.config_service.set_config_value("onnx_cpu_threads", threads):
+            self.cpu_threads_value_text.value = f"{threads if threads > 0 else '自动'}"
+            try:
+                self.page.update()
+            except:
+                pass
+            
+            display_text = f"自动检测" if threads == 0 else f"{threads} 个线程"
+            self._show_snackbar(f"CPU推理线程数已设置为 {display_text}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("CPU线程数设置更新失败", ft.Colors.RED)
+    
+    def _on_execution_mode_change(self, e: ft.ControlEvent) -> None:
+        """执行模式改变事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        mode = e.control.value
+        if self.config_service.set_config_value("onnx_execution_mode", mode):
+            mode_text = "顺序执行" if mode == "sequential" else "并行执行"
+            self._show_snackbar(f"执行模式已设置为 {mode_text}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("执行模式设置更新失败", ft.Colors.RED)
+    
+    def _on_model_cache_change(self, e: ft.ControlEvent) -> None:
+        """模型缓存开关改变事件处理。
+        
+        Args:
+            e: 控件事件对象
+        """
+        enabled = e.control.value
+        if self.config_service.set_config_value("onnx_enable_model_cache", enabled):
+            status = "已启用" if enabled else "已禁用"
+            hint = "（首次加载会较慢，后续启动更快）" if enabled else ""
+            self._show_snackbar(f"模型缓存优化{status}{hint}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar("模型缓存设置更新失败", ft.Colors.RED)
 
     def _update_gpu_controls_state(self, enabled: bool) -> None:
         """根据GPU加速开关更新高级参数控件的可用状态。"""

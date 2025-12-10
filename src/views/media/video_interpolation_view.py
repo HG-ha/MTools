@@ -808,12 +808,20 @@ class VideoInterpolationView(ft.Container):
             gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
             gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
             
+            # 获取ONNX性能优化参数
+            cpu_threads = self.config_service.get_config_value("onnx_cpu_threads", 0)
+            execution_mode = self.config_service.get_config_value("onnx_execution_mode", "sequential")
+            enable_model_cache = self.config_service.get_config_value("onnx_enable_model_cache", False)
+            
             # 创建插帧服务
             self.interpolator = FrameInterpolationService(
                 model_name=self.current_model_key,
                 execution_provider=execution_provider,
                 gpu_device_id=gpu_device_id,
-                gpu_memory_limit=gpu_memory_limit
+                gpu_memory_limit=gpu_memory_limit,
+                cpu_threads=cpu_threads,
+                execution_mode=execution_mode,
+                enable_model_cache=enable_model_cache
             )
             
             # 加载模型

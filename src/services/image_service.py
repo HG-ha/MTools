@@ -2015,7 +2015,10 @@ class BackgroundRemover:
         use_gpu: bool = False,
         gpu_device_id: int = 0,
         gpu_memory_limit: int = 2048,
-        enable_memory_arena: bool = True
+        enable_memory_arena: bool = True,
+        cpu_threads: int = 0,
+        execution_mode: str = "sequential",
+        enable_model_cache: bool = False
     ) -> None:
         """初始化背景移除器。
         
@@ -2025,6 +2028,9 @@ class BackgroundRemover:
             gpu_device_id: GPU设备ID，默认0（第一个GPU）
             gpu_memory_limit: GPU内存限制（MB），默认2048MB
             enable_memory_arena: 是否启用内存池优化，默认True
+            cpu_threads: CPU推理线程数，0=自动检测
+            execution_mode: 执行模式（sequential/parallel）
+            enable_model_cache: 是否启用模型缓存优化
         """
         try:
             import onnxruntime as ort
@@ -2041,6 +2047,22 @@ class BackgroundRemover:
         sess_options.enable_cpu_mem_arena = enable_memory_arena # 启用CPU内存池
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         sess_options.log_severity_level = 3      # 设置日志级别为 ERROR，抑制警告信息 (0=Verbose, 1=Info, 2=Warning, 3=Error, 4=Fatal)
+        
+        # 应用性能优化参数
+        if cpu_threads > 0:
+            sess_options.intra_op_num_threads = cpu_threads
+            sess_options.inter_op_num_threads = cpu_threads
+        
+        # 执行模式
+        if execution_mode == "parallel":
+            sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+        else:
+            sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        
+        # 模型缓存优化
+        if enable_model_cache:
+            cache_path = model_path.with_suffix('.optimized.onnx')
+            sess_options.optimized_model_filepath = str(cache_path)
         
         # 选择执行提供者（GPU或CPU）
         providers = []
@@ -2293,7 +2315,10 @@ class ImageEnhancer:
         gpu_device_id: int = 0,
         gpu_memory_limit: int = 2048,
         enable_memory_arena: bool = True,
-        scale: int = 4
+        scale: int = 4,
+        cpu_threads: int = 0,
+        execution_mode: str = "sequential",
+        enable_model_cache: bool = False
     ) -> None:
         """初始化图像增强器。
         
@@ -2305,6 +2330,9 @@ class ImageEnhancer:
             gpu_memory_limit: GPU内存限制（MB），默认2048MB
             enable_memory_arena: 是否启用内存池优化，默认True
             scale: 放大倍数，默认4
+            cpu_threads: CPU推理线程数，0=自动检测
+            execution_mode: 执行模式（sequential/parallel）
+            enable_model_cache: 是否启用模型缓存优化
         """
         try:
             import onnxruntime as ort
@@ -2325,6 +2353,22 @@ class ImageEnhancer:
         sess_options.enable_cpu_mem_arena = enable_memory_arena
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         sess_options.log_severity_level = 3  # ERROR级别
+        
+        # 应用性能优化参数
+        if cpu_threads > 0:
+            sess_options.intra_op_num_threads = cpu_threads
+            sess_options.inter_op_num_threads = cpu_threads
+        
+        # 执行模式
+        if execution_mode == "parallel":
+            sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+        else:
+            sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        
+        # 模型缓存优化
+        if enable_model_cache:
+            cache_path = model_path.with_suffix('.optimized.onnx')
+            sess_options.optimized_model_filepath = str(cache_path)
         
         # 选择执行提供者（GPU或CPU）
         providers = []

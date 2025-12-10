@@ -652,13 +652,21 @@ class VideoVocalSeparationView(ft.Container):
                 gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
                 enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
                 
+                # 获取ONNX性能优化参数
+                cpu_threads = self.config_service.get_config_value("onnx_cpu_threads", 0)
+                execution_mode = self.config_service.get_config_value("onnx_execution_mode", "sequential")
+                enable_model_cache = self.config_service.get_config_value("onnx_enable_model_cache", False)
+                
                 self.vocal_service.load_model(
                     model_path, 
                     invert_output=model_info.invert_output,
                     use_gpu=use_gpu,
                     gpu_device_id=gpu_device_id,
                     gpu_memory_limit=gpu_memory_limit,
-                    enable_memory_arena=enable_memory_arena
+                    enable_memory_arena=enable_memory_arena,
+                    cpu_threads=cpu_threads,
+                    execution_mode=execution_mode,
+                    enable_model_cache=enable_model_cache
                 )
                 device_info = self.vocal_service.get_device_info()
                 logger.info(f"视频人声分离模型已加载，使用: {device_info}")

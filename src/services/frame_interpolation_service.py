@@ -34,7 +34,10 @@ class FrameInterpolationService:
         model_name: str = DEFAULT_INTERPOLATION_MODEL_KEY,
         execution_provider: str = "CUDAExecutionProvider",
         gpu_device_id: int = 0,
-        gpu_memory_limit: int = 2048
+        gpu_memory_limit: int = 2048,
+        cpu_threads: int = 0,
+        execution_mode: str = "sequential",
+        enable_model_cache: bool = False
     ) -> None:
         """初始化插帧服务。
         
@@ -43,11 +46,17 @@ class FrameInterpolationService:
             execution_provider: 执行提供者（CUDA/DirectML/CPU）
             gpu_device_id: GPU设备ID，默认0（第一个GPU）
             gpu_memory_limit: GPU内存限制（MB），默认2048MB
+            cpu_threads: CPU推理线程数，0=自动检测
+            execution_mode: 执行模式（sequential/parallel）
+            enable_model_cache: 是否启用模型缓存优化
         """
         self.model_name: str = model_name
         self.execution_provider: str = execution_provider
         self.gpu_device_id: int = gpu_device_id
         self.gpu_memory_limit: int = gpu_memory_limit
+        self.cpu_threads: int = cpu_threads
+        self.execution_mode: str = execution_mode
+        self.enable_model_cache: bool = enable_model_cache
         self.sess: Optional[ort.InferenceSession] = None
         self.model_info: Optional[FrameInterpolationModelInfo] = None
         self.inference_lock = threading.Lock()  # 线程安全锁
@@ -85,6 +94,26 @@ class FrameInterpolationService:
             # 配置 ONNX Runtime
             sess_options = ort.SessionOptions()
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            
+            # 应用性能优化参数
+            if self.cpu_threads > 0:
+                sess_options.intra_op_num_threads = self.cpu_threads
+                sess_options.inter_op_num_threads = self.cpu_threads
+                logger.info(f"设置CPU线程数: {self.cpu_threads}")
+            
+            # 执行模式
+            if self.execution_mode == "parallel":
+                sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+                logger.info("使用并行执行模式 (适合多核CPU)")
+            else:
+                sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                logger.info("使用顺序执行模式 (节省内存)")
+            
+            # 模型缓存优化
+            if self.enable_model_cache:
+                cache_path = model_path.with_suffix('.optimized.onnx')
+                sess_options.optimized_model_filepath = str(cache_path)
+                logger.info(f"启用模型缓存: {cache_path.name}")
             
             # 检查请求的执行提供者是否可用
             available_providers = ort.get_available_providers()
