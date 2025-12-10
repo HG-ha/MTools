@@ -31,20 +31,20 @@ class FFmpegService:
     # Windows essentials 版本已包含 NVIDIA GPU 硬件加速支持（NVENC/NVDEC/CUVID）
     # macOS 使用 zip 格式静态编译版本，Linux 使用 tar.xz 静态编译版本
     FFMPEG_WINDOWS_URLS = [
+        "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-8.0.1-essentials_build.zip",
         "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
-        "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-release-essentials.zip",
     ]
     FFMPEG_MACOS_URLS = [
-        "https://evermeet.cx/ffmpeg/ffmpeg-8.0.1.zip",
         "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-8.0.1.zip",
+        "https://evermeet.cx/ffmpeg/ffmpeg-8.0.1.zip",
     ]
     FFPROBE_MACOS_URLS = [
-        "https://evermeet.cx/ffmpeg/ffprobe-8.0.1.zip",
         "https://openlist.wer.plus/d/share/MTools/Tools/ffprobe-8.0.1.zip",
+        "https://evermeet.cx/ffmpeg/ffprobe-8.0.1.zip",
     ]
     FFMPEG_LINUX_URLS = [
-        "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz",
         "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-release-amd64-static.tar.xz",
+        "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz",
     ]
     
     def __init__(self, config_service=None) -> None:
