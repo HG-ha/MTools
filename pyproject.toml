@@ -1,6 +1,6 @@
 [project]
 name = "MTools"
-version = "0.0.3-beta"
+version = "0.0.4-beta"
 description = "Multi-functional desktop application with media processing, encoding conversion, and more"
 readme = "README.md"
 license = {text = "MIT"}
