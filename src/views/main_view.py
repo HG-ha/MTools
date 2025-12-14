@@ -628,38 +628,13 @@ class MainView(ft.Column):
         thread.start()
     
     def _show_update_dialog(self, update_info) -> None:
-        """显示更新提示对话框。
+        """显示更新提示对话框（带自动更新功能）。
         
         Args:
             update_info: 更新信息对象
         """
-        def close_dialog(e):
-            dialog.open = False
-            self.page.update()
-        
-        def open_github_release(e):
-            """打开 GitHub Release 页面（国际）"""
-            dialog.open = False
-            self.page.update()
-            webbrowser.open(DOWNLOAD_URL_GITHUB)
-        
-        def open_china_release(e):
-            """打开国内镜像下载页面"""
-            dialog.open = False
-            self.page.update()
-            # 在 URL 后添加版本号，例如：https://openlist.wer.plus/MTools/v0.0.2-beta
-            version = update_info.latest_version
-            # 确保版本号有 v 前缀
-            if not version.startswith('v'):
-                version = f'v{version}'
-            url = f"{DOWNLOAD_URL_CHINA}/{version}"
-            webbrowser.open(url)
-        
-        def skip_this_version(e):
-            # 记录跳过的版本
-            self.config_service.set_config_value("skipped_version", update_info.latest_version)
-            dialog.open = False
-            self.page.update()
+        from services.auto_updater import AutoUpdater
+        import time
         
         # 检查是否跳过了这个版本
         skipped_version = self.config_service.get_config_value("skipped_version", "")
@@ -671,27 +646,33 @@ class MainView(ft.Column):
         if len(release_notes) > 500:
             release_notes = release_notes[:500] + "..."
         
-        # 构建按钮列表
-        action_buttons = [
-            ft.TextButton("跳过此版本", on_click=skip_this_version),
-            ft.TextButton("稍后提醒", on_click=close_dialog),
-            ft.FilledButton(
-                "国内下载",
-                icon=ft.Icons.ROCKET_LAUNCH,
-                on_click=open_china_release,
-                tooltip="使用 GitHub 代理加速访问，适合国内用户",
-            ),
-            ft.ElevatedButton(
-                "GitHub下载",
-                icon=ft.Icons.DOWNLOAD,
-                on_click=open_github_release,
-                tooltip="前往 GitHub Release 页面（国际）",
-            ),
-        ]
+        # 创建进度条
+        progress_bar = ft.ProgressBar(value=0, visible=False)
+        progress_text = ft.Text("", size=12, visible=False)
         
+        # 创建按钮
+        auto_update_btn = ft.ElevatedButton(
+            text="立即更新",
+            icon=ft.Icons.SYSTEM_UPDATE,
+        )
+        
+        manual_download_btn = ft.OutlinedButton(
+            text="手动下载",
+            icon=ft.Icons.OPEN_IN_BROWSER,
+        )
+        
+        skip_btn = ft.TextButton(
+            text="跳过此版本",
+        )
+        
+        later_btn = ft.TextButton(
+            text="稍后提醒",
+        )
+        
+        # 创建对话框
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("🎉 发现新版本"),
+            title=ft.Text(f"🎉 发现新版本 {update_info.latest_version}"),
             content=ft.Container(
                 content=ft.Column(
                     controls=[
@@ -704,27 +685,184 @@ class MainView(ft.Column):
                         ft.Text("更新内容:", size=13, weight=ft.FontWeight.W_500),
                         ft.Container(
                             content=ft.Text(
-                            release_notes,
-                            size=12,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
+                                release_notes,
+                                size=12,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                            bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                            border_radius=8,
+                            padding=12,
+                            width=400,
                         ),
-                        bgcolor=ft.Colors.SECONDARY_CONTAINER,
-                        border_radius=8,
-                        padding=12,
-                        width=400,
-                    ),
+                        ft.Container(height=8),
+                        progress_bar,
+                        progress_text,
                     ],
                     spacing=4,
                     tight=True,
                 ),
                 width=420,
             ),
-            actions=action_buttons,
+            actions=[
+                auto_update_btn,
+                manual_download_btn,
+                skip_btn,
+                later_btn,
+            ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
+        # 定义按钮事件处理
+        def on_auto_update(e):
+            """自动更新"""
+            auto_update_btn.disabled = True
+            manual_download_btn.disabled = True
+            skip_btn.disabled = True
+            later_btn.disabled = True
+            
+            progress_bar.visible = True
+            progress_text.visible = True
+            progress_text.value = "正在下载更新..."
+            self.page.update()
+            
+            def update_task():
+                try:
+                    import asyncio
+                    from utils import logger
+                    
+                    updater = AutoUpdater()
+                    
+                    def progress_callback(downloaded: int, total: int):
+                        if total > 0:
+                            progress = downloaded / total
+                            progress_bar.value = progress
+                            downloaded_mb = downloaded / 1024 / 1024
+                            total_mb = total / 1024 / 1024
+                            progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
+                            self.page.update()
+                    
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    download_path = loop.run_until_complete(
+                        updater.download_update(update_info.download_url, progress_callback)
+                    )
+                    
+                    progress_text.value = "正在解压更新..."
+                    progress_bar.value = None
+                    self.page.update()
+                    
+                    extract_dir = updater.extract_update(download_path)
+                    
+                    progress_text.value = "正在应用更新，应用即将重启..."
+                    self.page.update()
+                    
+                    time.sleep(1)
+                    
+                    # 定义优雅退出回调
+                    def exit_callback():
+                        """使用标题栏的关闭方法优雅退出"""
+                        try:
+                            # 使用当前视图的标题栏关闭方法（force=True 强制退出，不最小化到托盘）
+                            if hasattr(self, 'title_bar') and self.title_bar:
+                                self.title_bar._close_window(None, force=True)
+                            else:
+                                # 后备：直接关闭窗口
+                                self.page.window.close()
+                        except Exception as e:
+                            logger.warning(f"优雅退出失败: {e}")
+                            # 如果失败，让 apply_update 使用强制退出
+                            raise
+                    
+                    updater.apply_update(extract_dir, exit_callback)
+                    
+                except Exception as ex:
+                    logger.error(f"自动更新失败: {ex}")
+                    auto_update_btn.disabled = False
+                    manual_download_btn.disabled = False
+                    skip_btn.disabled = False
+                    later_btn.disabled = False
+                    progress_bar.visible = False
+                    progress_text.value = f"更新失败: {str(ex)}"
+                    progress_text.color = ft.Colors.RED
+                    progress_text.visible = True
+                    self.page.update()
+            
+            threading.Thread(target=update_task, daemon=True).start()
+        
+        def on_manual_download(e):
+            """手动下载 - 显示下载选项"""
+            dialog.open = False
+            self.page.update()
+            
+            # 显示下载选项对话框
+            download_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("选择下载方式"),
+                content=ft.Text("请选择合适的下载渠道"),
+                actions=[
+                    ft.FilledButton(
+                        "国内镜像（推荐）",
+                        icon=ft.Icons.ROCKET_LAUNCH,
+                        on_click=lambda _: self._open_china_download(update_info, download_dialog),
+                    ),
+                    ft.OutlinedButton(
+                        "GitHub Release",
+                        icon=ft.Icons.DOWNLOAD,
+                        on_click=lambda _: self._open_github_download(download_dialog),
+                    ),
+                    ft.TextButton(
+                        "取消",
+                        on_click=lambda _: self._close_download_dialog(download_dialog),
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            
+            self.page.overlay.append(download_dialog)
+            download_dialog.open = True
+            self.page.update()
+        
+        def on_skip(e):
+            """跳过此版本"""
+            self.config_service.set_config_value("skipped_version", update_info.latest_version)
+            dialog.open = False
+            self.page.update()
+        
+        def on_later(e):
+            """稍后提醒"""
+            dialog.open = False
+            self.page.update()
+        
+        auto_update_btn.on_click = on_auto_update
+        manual_download_btn.on_click = on_manual_download
+        skip_btn.on_click = on_skip
+        later_btn.on_click = on_later
+        
         self.page.overlay.append(dialog)
         dialog.open = True
+        self.page.update()
+    
+    def _open_china_download(self, update_info, dialog):
+        """打开国内镜像下载"""
+        dialog.open = False
+        self.page.update()
+        
+        version = update_info.latest_version
+        if not version.startswith('v'):
+            version = f'v{version}'
+        url = f"{DOWNLOAD_URL_CHINA}/{version}"
+        webbrowser.open(url)
+    
+    def _open_github_download(self, dialog):
+        """打开GitHub下载"""
+        dialog.open = False
+        self.page.update()
+        webbrowser.open(DOWNLOAD_URL_GITHUB)
+    
+    def _close_download_dialog(self, dialog):
+        """关闭下载对话框"""
+        dialog.open = False
         self.page.update()
     
     def apply_background(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:

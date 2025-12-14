@@ -14,6 +14,7 @@ from .speech_recognition_service import SpeechRecognitionService
 from .weather_service import WeatherService
 from .websocket_service import WebSocketService
 from .update_service import UpdateService, UpdateInfo, UpdateStatus
+from .auto_updater import AutoUpdater
 
 __all__ = [
     "AudioService",
@@ -31,5 +32,6 @@ __all__ = [
     "UpdateService",
     "UpdateInfo",
     "UpdateStatus",
+    "AutoUpdater",
 ]
 

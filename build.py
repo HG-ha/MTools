@@ -28,6 +28,44 @@ PROJECT_ROOT = Path(__file__).parent.absolute()
 ASSETS_DIR = PROJECT_ROOT / "src" / "assets"
 APP_CONFIG_FILE = PROJECT_ROOT / "src" / "constants" / "app_config.py"
 
+def write_cuda_variant_to_config():
+    """将 CUDA 变体信息写入 app_config.py
+    
+    在构建时读取 CUDA_VARIANT 环境变量，并将其写入到
+    app_config.py 的 BUILD_CUDA_VARIANT 常量中，使得编译后的
+    程序能够知道自己的 CUDA 变体类型。
+    """
+    cuda_variant = os.environ.get('CUDA_VARIANT', 'none').lower()
+    
+    # 验证值是否合法
+    if cuda_variant not in ('none', 'cuda', 'cuda_full'):
+        print(f"   ⚠️  无效的 CUDA_VARIANT 值: {cuda_variant}，使用默认值 'none'")
+        cuda_variant = 'none'
+    
+    print(f"   📝 写入 CUDA 变体信息: {cuda_variant}")
+    
+    try:
+        # 读取配置文件
+        with open(APP_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 替换 BUILD_CUDA_VARIANT 的值
+        import re
+        pattern = r'BUILD_CUDA_VARIANT:\s*Final\[str\]\s*=\s*"[^"]*"'
+        replacement = f'BUILD_CUDA_VARIANT: Final[str] = "{cuda_variant}"'
+        
+        new_content = re.sub(pattern, replacement, content)
+        
+        # 写回文件
+        with open(APP_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        print(f"   ✅ 已将 BUILD_CUDA_VARIANT 设置为: {cuda_variant}")
+        
+    except Exception as e:
+        print(f"   ⚠️  写入 CUDA 变体信息失败: {e}")
+        print(f"   ⚠️  将继续构建，但程序可能无法正确检测 CUDA 变体")
+
 def get_dist_dir(mode="release"):
     """根据构建模式获取输出目录
     
@@ -966,14 +1004,15 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         
         # 获取变体后缀
         variant_suffix = get_variant_suffix()
-        product_name = f"{APP_NAME} {VERSION}{variant_suffix}"
+        product_name = f"{APP_NAME}{variant_suffix}"  # 产品名称：MTools (CUDA)
+        file_description = f"{APP_NAME} - 多功能工具箱{variant_suffix}"  # 简短描述
         
         cmd.extend([
             f"--windows-console-mode={console_mode}",
             f"--windows-icon-from-ico={ASSETS_DIR / 'icon.ico'}",
             f"--file-version={get_file_version(VERSION)}",
             f"--product-version={get_file_version(VERSION)}",
-            f"--file-description={DESCRIPTION}{variant_suffix}",
+            f"--file-description={file_description}",
             f"--company-name={COMPANY_NAME}",
             f"--copyright={COPYRIGHT}",
             f"--product-name={product_name}",
@@ -1103,6 +1142,9 @@ def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=N
         mingw64: MinGW64 安装路径（可选）
     """
     clean_dist(mode)
+    
+    # 在构建前写入 CUDA 变体信息到 app_config.py
+    write_cuda_variant_to_config()
     
     # 清理 sherpa-onnx 自带的 onnxruntime 库（避免版本冲突）
     cleanup_sherpa_onnx_libs()

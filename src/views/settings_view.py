@@ -23,6 +23,7 @@ from constants import (
     PADDING_SMALL,
 )
 from services import ConfigService, UpdateService, UpdateInfo, UpdateStatus
+from services.auto_updater import AutoUpdater
 from constants import APP_DESCRIPTION
 
 
@@ -487,7 +488,7 @@ class SettingsView(ft.Container):
         
         # 说明文字
         info_text: ft.Text = ft.Text(
-            "数据目录用于存储应用的模型文件、处理结果和临时文件，建议选择存储空间较大的目录",
+            "数据目录用于存储应用的模型文件、处理结果和临时文件，建议选择存储空间较大的目录。请确保放到一个单独的目录中，避免与其他应用的数据混淆。",
             size=12,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
@@ -2626,10 +2627,11 @@ class SettingsView(ft.Container):
         
         # 更新按钮（当有新版本时显示）
         self.update_download_button: ft.TextButton = ft.TextButton(
-            "前往下载",
-            icon=ft.Icons.DOWNLOAD,
+            "查看更新",
+            icon=ft.Icons.SYSTEM_UPDATE,
             visible=False,
             on_click=self._on_open_download_page,
+            tooltip="查看更新详情并选择更新方式",
         )
         
         # 更新状态行
@@ -2817,20 +2819,237 @@ class SettingsView(ft.Container):
             page.update()
     
     def _on_open_download_page(self, e: ft.ControlEvent) -> None:
-        """打开下载页面。
+        """打开下载页面或开始自动更新。
         
         Args:
             e: 控件事件对象
         """
-        import webbrowser
+        if not hasattr(self, '_latest_update_info') or not self._latest_update_info:
+            return
         
-        if hasattr(self, '_latest_update_info') and self._latest_update_info:
-            # 优先打开 Release 页面
-            url = self._latest_update_info.release_url or self._latest_update_info.download_url
-            if url:
-                webbrowser.open(url)
-            else:
-                webbrowser.open("https://github.com/HG-ha/MTools/releases")
+        update_info = self._latest_update_info
+        
+        # 如果有下载链接，显示对话框让用户选择
+        if update_info.download_url:
+            self._show_update_dialog(update_info)
+        else:
+            # 没有下载链接，打开浏览器
+            import webbrowser
+            url = update_info.release_url or "https://github.com/HG-ha/MTools/releases"
+            webbrowser.open(url)
+    
+    def _show_update_dialog(self, update_info: UpdateInfo) -> None:
+        """显示更新对话框。
+        
+        Args:
+            update_info: 更新信息
+        """
+        # 创建更新说明文本
+        release_notes = update_info.release_notes or "暂无更新说明"
+        if len(release_notes) > 500:
+            release_notes = release_notes[:500] + "..."
+        
+        # 创建进度条
+        progress_bar = ft.ProgressBar(value=0, visible=False)
+        progress_text = ft.Text("", size=12, visible=False)
+        
+        # 创建按钮
+        auto_update_btn = ft.ElevatedButton(
+            text="自动更新",
+            icon=ft.Icons.SYSTEM_UPDATE,
+            on_click=lambda _: self._start_auto_update(
+                update_info, 
+                dialog, 
+                auto_update_btn, 
+                manual_btn, 
+                progress_bar, 
+                progress_text
+            ),
+        )
+        
+        manual_btn = ft.OutlinedButton(
+            text="手动下载",
+            icon=ft.Icons.OPEN_IN_BROWSER,
+            on_click=lambda _: self._open_release_page(update_info, dialog),
+        )
+        
+        cancel_btn = ft.TextButton(
+            text="取消",
+            on_click=lambda _: self._close_dialog(dialog),
+        )
+        
+        # 创建对话框
+        dialog = ft.AlertDialog(
+            title=ft.Text(f"发现新版本 {update_info.latest_version}"),
+            content=ft.Column(
+                controls=[
+                    ft.Text("更新说明:", weight=ft.FontWeight.BOLD, size=14),
+                    ft.Container(
+                        content=ft.Text(release_notes, size=12),
+                        padding=PADDING_SMALL,
+                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        height=150,
+                    ),
+                    ft.Container(height=PADDING_SMALL),
+                    progress_bar,
+                    progress_text,
+                ],
+                tight=True,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+            actions=[
+                auto_update_btn,
+                manual_btn,
+                cancel_btn,
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.overlay.append(dialog)
+            dialog.open = True
+            page.update()
+    
+    def _start_auto_update(
+        self, 
+        update_info: UpdateInfo,
+        dialog: ft.AlertDialog,
+        auto_btn: ft.ElevatedButton,
+        manual_btn: ft.OutlinedButton,
+        progress_bar: ft.ProgressBar,
+        progress_text: ft.Text
+    ) -> None:
+        """开始自动更新。
+        
+        Args:
+            update_info: 更新信息
+            dialog: 对话框
+            auto_btn: 自动更新按钮
+            manual_btn: 手动下载按钮
+            progress_bar: 进度条
+            progress_text: 进度文本
+        """
+        # 禁用按钮
+        auto_btn.disabled = True
+        manual_btn.disabled = True
+        
+        # 显示进度条
+        progress_bar.visible = True
+        progress_text.visible = True
+        progress_text.value = "正在下载更新..."
+        
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.update()
+        
+        # 在后台线程中下载和安装更新
+        def update_task():
+            try:
+                import asyncio
+                updater = AutoUpdater()
+                
+                # 定义进度回调
+                def progress_callback(downloaded: int, total: int):
+                    if total > 0:
+                        progress = downloaded / total
+                        progress_bar.value = progress
+                        
+                        # 格式化显示
+                        downloaded_mb = downloaded / 1024 / 1024
+                        total_mb = total / 1024 / 1024
+                        progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
+                        
+                        if page:
+                            page.update()
+                
+                # 下载更新
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                download_path = loop.run_until_complete(
+                    updater.download_update(update_info.download_url, progress_callback)
+                )
+                
+                # 解压
+                progress_text.value = "正在解压更新..."
+                progress_bar.value = None  # 不确定进度
+                if page:
+                    page.update()
+                
+                extract_dir = updater.extract_update(download_path)
+                
+                # 应用更新
+                progress_text.value = "正在应用更新，应用即将重启..."
+                if page:
+                    page.update()
+                
+                time.sleep(1)  # 让用户看到提示
+                
+                # 定义优雅退出回调
+                def exit_callback():
+                    """使用标题栏的关闭方法优雅退出"""
+                    try:
+                        # 获取主视图
+                        from views.main_view import MainView
+                        main_view = getattr(page, 'main_view', None)
+                        if main_view and hasattr(main_view, 'title_bar'):
+                            # 使用标题栏的关闭方法（force=True 强制退出，不最小化到托盘）
+                            main_view.title_bar._close_window(None, force=True)
+                        else:
+                            # 后备：直接关闭窗口
+                            page.window.close()
+                    except Exception as e:
+                        logger.warning(f"优雅退出失败: {e}")
+                        # 如果失败，让 apply_update 使用强制退出
+                        raise
+                
+                # 应用更新会退出应用
+                updater.apply_update(extract_dir, exit_callback)
+                
+            except Exception as ex:
+                logger.error(f"自动更新失败: {ex}")
+                
+                # 恢复按钮状态
+                auto_btn.disabled = False
+                manual_btn.disabled = False
+                progress_bar.visible = False
+                progress_text.visible = False
+                
+                # 显示错误信息
+                progress_text.value = f"更新失败: {str(ex)}"
+                progress_text.color = ft.Colors.RED
+                progress_text.visible = True
+                
+                if page:
+                    page.update()
+        
+        thread = threading.Thread(target=update_task, daemon=True)
+        thread.start()
+    
+    def _open_release_page(self, update_info: UpdateInfo, dialog: ft.AlertDialog) -> None:
+        """打开 Release 页面。
+        
+        Args:
+            update_info: 更新信息
+            dialog: 对话框
+        """
+        import webbrowser
+        url = update_info.release_url or "https://github.com/HG-ha/MTools/releases"
+        webbrowser.open(url)
+        self._close_dialog(dialog)
+    
+    def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        """关闭对话框。
+        
+        Args:
+            dialog: 要关闭的对话框
+        """
+        dialog.open = False
+        page = getattr(self, '_saved_page', self.page)
+        if page:
+            page.update()
     
     def _on_auto_check_update_change(self, e: ft.ControlEvent) -> None:
         """自动检测更新开关状态变化事件。

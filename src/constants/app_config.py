@@ -9,8 +9,12 @@ from typing import Final
 
 # 应用基本信息
 APP_TITLE: Final[str] = "MTools - 多功能工具箱"
-APP_VERSION: Final[str] = "0.0.5-beta"
+APP_VERSION: Final[str] = "0.0.2-beta"
 APP_DESCRIPTION: Final[str] = "MTools 是一个功能强大的全能桌面应用程序，集成了音视频处理、图片编辑、文本操作和编码工具。旨在简化您的工作流程，提升生产效率。"
+
+# CUDA 变体信息（在构建时由 build.py 写入）
+# 可能的值: 'none' (标准版), 'cuda' (CUDA版), 'cuda_full' (CUDA Full版)
+BUILD_CUDA_VARIANT: Final[str] = "none"  # 默认为标准版，构建时会被替换
 
 # GitHub 仓库配置
 GITHUB_OWNER: Final[str] = "HG-ha"

@@ -168,6 +168,11 @@ def main(page: ft.Page) -> None:
     if hasattr(main_view, '_pending_bg_image') and main_view._pending_bg_image:
         main_view.apply_background(main_view._pending_bg_image, main_view._pending_bg_fit)
     
+    # 启动时检查更新（如果启用）
+    auto_check = config_service.get_config_value("auto_check_update", True)
+    if auto_check:
+        _check_update_on_startup(page, config_service)
+    
     # 监听窗口事件（移动和调整大小时自动保存）
     def on_window_event(e):
         """处理窗口事件。"""
@@ -189,6 +194,209 @@ def main(page: ft.Page) -> None:
                     config_service.set_config_value("window_height", page.window.height)
     
     page.on_window_event = on_window_event
+    
+def _check_update_on_startup(page: ft.Page, config_service: ConfigService) -> None:
+    """启动时检查更新。
+    
+    Args:
+        page: Flet页面对象
+        config_service: 配置服务实例
+    """
+    import threading
+    from services import UpdateService, UpdateStatus
+    
+    def check_task():
+        try:
+            # 等待界面完全加载
+            import time
+            time.sleep(2)
+            
+            update_service = UpdateService()
+            update_info = update_service.check_update()
+            
+            # 只在有新版本时提示
+            if update_info.status == UpdateStatus.UPDATE_AVAILABLE:
+                # 检查是否跳过了这个版本
+                skipped_version = config_service.get_config_value("skipped_version", "")
+                if skipped_version == update_info.latest_version:
+                    logger.info(f"跳过版本 {update_info.latest_version} 的更新提示")
+                    return
+                
+                # 在主线程中显示提示
+                def show_update_snackbar():
+                    snackbar = ft.SnackBar(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.NEW_RELEASES, color=ft.Colors.ORANGE),
+                                ft.Text(f"发现新版本 {update_info.latest_version}"),
+                            ],
+                            spacing=10,
+                        ),
+                        action="查看",
+                        action_color=ft.Colors.ORANGE,
+                        on_action=lambda _: _show_startup_update_dialog(page, config_service, update_info),
+                        duration=10000,  # 10秒
+                    )
+                    page.overlay.append(snackbar)
+                    snackbar.open = True
+                    page.update()
+                
+                page.run_task(show_update_snackbar)
+                
+        except Exception as e:
+            logger.error(f"启动时检查更新失败: {e}")
+    
+    thread = threading.Thread(target=check_task, daemon=True)
+    thread.start()
+
+def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, update_info) -> None:
+    """显示启动时的更新对话框。
+    
+    Args:
+        page: Flet页面对象
+        config_service: 配置服务
+        update_info: 更新信息
+    """
+    from services.auto_updater import AutoUpdater
+    from constants import BORDER_RADIUS_MEDIUM, PADDING_SMALL
+    import threading
+    import time
+    
+    release_notes = update_info.release_notes or "暂无更新说明"
+    if len(release_notes) > 500:
+        release_notes = release_notes[:500] + "..."
+    
+    # 创建进度条
+    progress_bar = ft.ProgressBar(value=0, visible=False)
+    progress_text = ft.Text("", size=12, visible=False)
+    
+    # 创建按钮
+    auto_update_btn = ft.ElevatedButton(
+        text="立即更新",
+        icon=ft.Icons.SYSTEM_UPDATE,
+    )
+    
+    skip_btn = ft.TextButton(
+        text="跳过此版本",
+    )
+    
+    later_btn = ft.TextButton(
+        text="稍后提醒",
+    )
+    
+    # 创建对话框
+    dialog = ft.AlertDialog(
+        title=ft.Text(f"发现新版本 {update_info.latest_version}"),
+        content=ft.Column(
+            controls=[
+                ft.Text("更新说明:", weight=ft.FontWeight.BOLD, size=14),
+                ft.Container(
+                    content=ft.Text(release_notes, size=12),
+                    padding=PADDING_SMALL,
+                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                    border_radius=BORDER_RADIUS_MEDIUM,
+                    height=150,
+                ),
+                ft.Container(height=PADDING_SMALL),
+                progress_bar,
+                progress_text,
+            ],
+            tight=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
+        actions=[
+            auto_update_btn,
+            skip_btn,
+            later_btn,
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    
+    # 定义按钮事件处理
+    def on_auto_update(_):
+        auto_update_btn.disabled = True
+        skip_btn.disabled = True
+        later_btn.disabled = True
+        
+        progress_bar.visible = True
+        progress_text.visible = True
+        progress_text.value = "正在下载更新..."
+        page.update()
+        
+        def update_task():
+            try:
+                import asyncio
+                updater = AutoUpdater()
+                
+                def progress_callback(downloaded: int, total: int):
+                    if total > 0:
+                        progress = downloaded / total
+                        progress_bar.value = progress
+                        downloaded_mb = downloaded / 1024 / 1024
+                        total_mb = total / 1024 / 1024
+                        progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
+                        page.update()
+                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                download_path = loop.run_until_complete(
+                    updater.download_update(update_info.download_url, progress_callback)
+                )
+                
+                progress_text.value = "正在解压更新..."
+                progress_bar.value = None
+                page.update()
+                
+                extract_dir = updater.extract_update(download_path)
+                
+                progress_text.value = "正在应用更新，应用即将重启..."
+                page.update()
+                
+                time.sleep(1)
+                
+                # 定义优雅退出回调
+                def exit_callback():
+                    """优雅退出应用"""
+                    try:
+                        # 直接关闭窗口（启动时没有标题栏实例）
+                        page.window.close()
+                    except Exception as e:
+                        logger.warning(f"优雅退出失败: {e}")
+                        # 如果失败，让 apply_update 使用强制退出
+                        raise
+                
+                updater.apply_update(extract_dir, exit_callback)
+                
+            except Exception as ex:
+                logger.error(f"自动更新失败: {ex}")
+                auto_update_btn.disabled = False
+                skip_btn.disabled = False
+                later_btn.disabled = False
+                progress_bar.visible = False
+                progress_text.value = f"更新失败: {str(ex)}"
+                progress_text.color = ft.Colors.RED
+                progress_text.visible = True
+                page.update()
+        
+        threading.Thread(target=update_task, daemon=True).start()
+    
+    def on_skip(_):
+        config_service.set_config_value("skipped_version", update_info.latest_version)
+        dialog.open = False
+        page.update()
+    
+    def on_later(_):
+        dialog.open = False
+        page.update()
+    
+    auto_update_btn.on_click = on_auto_update
+    skip_btn.on_click = on_skip
+    later_btn.on_click = on_later
+    
+    page.overlay.append(dialog)
+    dialog.open = True
+    page.update()
 
 
 # 启动应用
