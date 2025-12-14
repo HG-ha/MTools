@@ -1040,7 +1040,15 @@ class FFmpegService:
         if not ffmpeg_path:
             return False, "未找到 FFmpeg"
         
+        ffprobe_path = self.get_ffprobe_path()
+        if not ffprobe_path:
+            return False, "未找到 FFprobe"
+        
         try:
+            # 检测视频是否有音频流
+            probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
+            has_audio = any(s['codec_type'] == 'audio' for s in probe['streams'])
+            
             # 获取视频时长
             duration = self.get_video_duration(input_path)
             
@@ -1092,7 +1100,7 @@ class FFmpegService:
                 elif gpu_encoder.startswith("h264_qsv") or gpu_encoder.startswith("hevc_qsv"):
                     preset = "medium"  # Intel QSV
             
-            if adjust_audio and audio_filter:
+            if adjust_audio and audio_filter and has_audio:
                 audio_stream = stream.audio
                 for filter_str in audio_filter.split(","):
                     # 解析 atempo=value
@@ -1130,7 +1138,7 @@ class FFmpegService:
                 )
             else:
                 # 只调整视频，保留原音频或移除音频
-                if adjust_audio:
+                if adjust_audio and has_audio:
                     # 保留原音频（不调速）
                     output_params = {
                         'vcodec': vcodec,
@@ -1138,11 +1146,12 @@ class FFmpegService:
                         'pix_fmt': 'yuv420p',
                     }
                 else:
-                    # 移除音频
+                    # 无音频或不需要音频
                     output_params = {
                         'vcodec': vcodec,
                         'pix_fmt': 'yuv420p',
                     }
+                    # 如果没有音频流，不添加任何音频参数（ffmpeg会自动处理）
                 
                 # 根据编码器类型设置质量参数
                 if vcodec in ["libx264", "libx265"]:

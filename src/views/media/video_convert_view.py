@@ -764,7 +764,15 @@ class VideoConvertView(ft.Container):
         if not ffmpeg_path:
             return False, "未找到 FFmpeg"
         
+        ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+        if not ffprobe_path:
+            return False, "未找到 FFprobe"
+        
         try:
+            # 检测视频是否有音频流
+            probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
+            has_audio = any(stream['codec_type'] == 'audio' for stream in probe['streams'])
+            
             # 获取视频时长用于进度显示
             duration = self.ffmpeg_service.get_video_duration(input_path)
             
@@ -805,19 +813,33 @@ class VideoConvertView(ft.Container):
                     output_params['crf'] = 30
                     output_params['b:v'] = '0'  # 使用CRF模式
             
-            # 音频编码器
-            acodec = params.get("acodec", "copy")
-            if acodec == "copy":
-                output_params['acodec'] = 'copy'
-            else:
-                output_params['acodec'] = acodec
-                if acodec != "copy":
-                    output_params['b:a'] = '192k'
+            # 音频编码器（仅当视频有音频流时才处理）
+            if has_audio:
+                acodec = params.get("acodec", "copy")
+                if acodec == "copy":
+                    output_params['acodec'] = 'copy'
+                else:
+                    output_params['acodec'] = acodec
+                    if acodec != "copy":
+                        output_params['b:a'] = '192k'
+            # 如果没有音频流，不添加任何音频相关参数（ffmpeg会自动处理）
             
-            # 输出格式
+            # 输出格式 - 映射文件扩展名到FFmpeg格式名称
             output_format = params.get("output_format")
             if output_format:
-                output_params['format'] = output_format
+                # 格式名称映射（某些扩展名需要特殊处理）
+                format_mapping = {
+                    'mkv': 'matroska',
+                    'ts': 'mpegts',
+                    'mts': 'mpegts',
+                    'm2ts': 'mpegts',
+                    'mpg': 'mpeg',
+                    'mpeg': 'mpeg',
+                    'm4v': 'mp4',
+                }
+                # 使用映射的格式名称，如果没有映射则使用原始值
+                ffmpeg_format = format_mapping.get(output_format, output_format)
+                output_params['format'] = ffmpeg_format
             
             stream = ffmpeg.output(stream, str(output_path), **output_params)
             
@@ -834,6 +856,8 @@ class VideoConvertView(ft.Container):
             )
             
             # 实时读取进度
+            stderr_lines = []  # 收集所有stderr输出用于错误报告
+            
             if duration > 0 and progress_callback:
                 import re
                 
@@ -841,6 +865,7 @@ class VideoConvertView(ft.Container):
                     for line in iter(process.stderr.readline, b''):
                         try:
                             line_str = line.decode('utf-8', errors='ignore').strip()
+                            stderr_lines.append(line_str)  # 保存所有输出
                             
                             # 解析时间进度
                             time_match = re.search(r"time=(\d{2}):(\d{2}):(\d{2})\.\d{2}", line_str)
@@ -874,18 +899,27 @@ class VideoConvertView(ft.Container):
                 process.wait()
                 stderr_thread.join(timeout=1)
             else:
-                # 没有时长信息或回调时直接等待
+                # 没有时长信息或回调时直接等待，但仍收集stderr
+                def read_stderr_simple():
+                    for line in iter(process.stderr.readline, b''):
+                        try:
+                            line_str = line.decode('utf-8', errors='ignore').strip()
+                            stderr_lines.append(line_str)
+                        except Exception:
+                            pass
+                    process.stderr.close()
+                
+                stderr_thread = threading.Thread(target=read_stderr_simple, daemon=True)
+                stderr_thread.start()
                 process.wait()
+                stderr_thread.join(timeout=1)
             
             # 检查返回码
             if process.returncode != 0:
-                stderr_output = ""
-                try:
-                    if process.stderr:
-                        stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
-                except Exception:
-                    pass
-                return False, f"FFmpeg 执行失败，退出码: {process.returncode}\n{stderr_output}"
+                # 获取最后50行错误信息
+                error_output = "\n".join(stderr_lines[-50:]) if stderr_lines else "无详细错误信息"
+                logger.error(f"FFmpeg转换失败，完整输出:\n{error_output}")
+                return False, f"FFmpeg 执行失败，退出码: {process.returncode}\n{error_output}"
             
             return True, "转换成功"
             

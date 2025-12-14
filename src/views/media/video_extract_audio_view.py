@@ -654,6 +654,19 @@ class VideoExtractAudioView(ft.Container):
         try:
             import ffmpeg
             
+            # 先检测视频是否有音频流
+            ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+            if ffprobe_path:
+                try:
+                    probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
+                    has_audio = any(s['codec_type'] == 'audio' for s in probe['streams'])
+                    if not has_audio:
+                        logger.warning(f"视频文件不包含音频流: {input_path.name}")
+                        return False
+                except ffmpeg.Error:
+                    # 如果探测失败，继续尝试提取（让 ffmpeg 报错）
+                    pass
+            
             # 构建输入流（只提取音频）
             stream = ffmpeg.input(str(input_path))
             

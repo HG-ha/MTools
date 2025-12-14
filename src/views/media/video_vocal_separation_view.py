@@ -718,6 +718,19 @@ class VideoVocalSeparationView(ft.Container):
         """
         import ffmpeg
         
+        # 先检测视频是否有音频流
+        ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+        if not ffprobe_path:
+            raise RuntimeError("未找到 FFprobe")
+        
+        try:
+            probe = ffmpeg.probe(str(video_path), cmd=ffprobe_path)
+            has_audio = any(stream['codec_type'] == 'audio' for stream in probe['streams'])
+            if not has_audio:
+                raise RuntimeError("视频文件不包含音频流，无法进行人声分离")
+        except ffmpeg.Error as e:
+            raise RuntimeError(f"无法读取视频信息: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}")
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             

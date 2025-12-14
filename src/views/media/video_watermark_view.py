@@ -751,7 +751,15 @@ class VideoWatermarkView(ft.Container):
         if not ffmpeg_path:
             return False, "未找到 FFmpeg"
         
+        ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+        if not ffprobe_path:
+            return False, "未找到 FFprobe"
+        
         try:
+            # 先检测输入视频是否有音频流
+            probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
+            has_audio = any(stream['codec_type'] == 'audio' for stream in probe['streams'])
+            
             watermark_type = self.watermark_type_radio.value
             position = self.position_dropdown.value
             margin = int(self.margin_slider.value)
@@ -784,7 +792,7 @@ class VideoWatermarkView(ft.Container):
                 x_pos, y_pos = text_position_map[position]
                 
                 # 应用文字滤镜
-                stream = ffmpeg.drawtext(
+                video_stream = ffmpeg.drawtext(
                     stream,
                     text=text,
                     fontsize=font_size,
@@ -819,15 +827,28 @@ class VideoWatermarkView(ft.Container):
                     output_params['crf'] = 23
                     output_params['preset'] = 'medium'
                 
-                stream = ffmpeg.output(stream, str(output_path), **output_params)
+                # 根据是否有音频流决定输出方式
+                if has_audio:
+                    # 有音频流：显式提取并映射音频流
+                    audio_stream = ffmpeg.input(str(input_path)).audio
+                    stream = ffmpeg.output(video_stream, audio_stream, str(output_path), **output_params)
+                else:
+                    # 无音频流：只输出视频
+                    stream = ffmpeg.output(video_stream, str(output_path), **output_params)
                 
             else:
                 # 图片水印 - 使用 overlay 滤镜
                 if not self.watermark_image_path or not self.watermark_image_path.exists():
                     return False, "请选择水印图片"
                 
-                # 读取水印图片
-                watermark = ffmpeg.input(str(self.watermark_image_path))
+                # 检查是否是 GIF 文件
+                is_gif = self.watermark_image_path.suffix.lower() == '.gif'
+                
+                # 读取水印图片 - GIF需要设置loop参数来无限循环
+                if is_gif:
+                    watermark = ffmpeg.input(str(self.watermark_image_path), stream_loop=-1, ignore_loop=0)
+                else:
+                    watermark = ffmpeg.input(str(self.watermark_image_path))
                 
                 # 调整图片大小
                 size_mode = self.image_size_mode_radio.value
@@ -859,19 +880,15 @@ class VideoWatermarkView(ft.Container):
                 }
                 x_pos, y_pos = overlay_position_map[position]
                 
-                # 检查是否是 GIF 文件
-                is_gif = self.watermark_image_path.suffix.lower() == '.gif'
-                
                 # 应用 overlay 滤镜
                 if is_gif:
-                    # GIF 需要循环播放，使用 shortest=1 让水印循环到视频结束
+                    # GIF 需要使用 shortest=1 确保输出时长与主视频一致
                     stream = ffmpeg.overlay(
                         stream, 
                         watermark, 
                         x=str(x_pos), 
                         y=str(y_pos),
-                        shortest=1,
-                        repeatlast=0  # 不重复最后一帧，而是循环
+                        shortest=1
                     )
                 else:
                     # 静态图片
@@ -881,7 +898,7 @@ class VideoWatermarkView(ft.Container):
                 gpu_encoder = self.ffmpeg_service.get_preferred_gpu_encoder()
                 
                 output_params = {
-                    'acodec': 'copy',  # 复制音频流
+                    'acodec': 'copy',  # 复制音频流（重要！保留原视频音频）
                 }
                 
                 # 设置视频编码器
@@ -903,7 +920,15 @@ class VideoWatermarkView(ft.Container):
                     output_params['crf'] = 23
                     output_params['preset'] = 'medium'
                 
-                stream = ffmpeg.output(stream, str(output_path), **output_params)
+                # 根据是否有音频流决定输出方式
+                video_stream = stream
+                if has_audio:
+                    # 有音频流：overlay 只处理视频流，音频流需要单独映射
+                    audio_stream = ffmpeg.input(str(input_path)).audio
+                    stream = ffmpeg.output(video_stream, audio_stream, str(output_path), **output_params)
+                else:
+                    # 无音频流：只输出视频
+                    stream = ffmpeg.output(video_stream, str(output_path), **output_params)
             
             # 运行转换
             ffmpeg.run(
