@@ -410,7 +410,7 @@ class IDPhotoView(ft.Container):
         self.kb_limit_checkbox = ft.Checkbox(label="限制文件大小", value=True, on_change=self._on_kb_limit_change)
         self.kb_value_field = ft.TextField(
             label="",
-            value="48",
+            value="50",
             width=70,
             dense=True,
             text_size=12,
