@@ -8,7 +8,7 @@ import gc
 import threading
 import uuid
 from pathlib import Path
-from typing import Optional, List, Callable, Tuple, TYPE_CHECKING
+from typing import Optional, List, Callable, Tuple, TYPE_CHECKING, Dict
 
 import cv2
 import numpy as np
@@ -26,7 +26,7 @@ from constants import (
     PADDING_SMALL,
 )
 from services import IDPhotoService, IDPhotoParams, IDPhotoResult
-from utils import logger
+from utils import logger, format_file_size
 
 if TYPE_CHECKING:
     from services.config_service import ConfigService
@@ -86,19 +86,16 @@ class IDPhotoView(ft.Container):
         self.id_photo_service = IDPhotoService(config_service)
         
         # 状态变量
-        self.selected_file: Optional[Path] = None
+        self.selected_files: List[Path] = []
         self.is_processing: bool = False
         self.is_model_loading: bool = False
+        self.processing_results: Dict[str, IDPhotoResult] = {}  # 文件路径 -> 结果
         
         # 当前选择的背景移除模型
         saved_bg_model = DEFAULT_MODEL_KEY
         if config_service:
             saved_bg_model = config_service.get_config_value("id_photo_bg_model", DEFAULT_MODEL_KEY)
         self.current_bg_model_key: str = saved_bg_model
-        
-        # 处理结果
-        self.result: Optional[IDPhotoResult] = None
-        self.result_temp_dir: Optional[Path] = None
         
         # 设置容器属性
         self.expand = True
@@ -169,81 +166,48 @@ class IDPhotoView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
-        # ==================== 图片选择和结果预览 ====================
-        # 左侧：选择照片
-        self.image_preview = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("点击选择照片", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("支持 JPG、PNG、WebP、BMP、TIFF、HEIC 等格式", size=11, color=ft.Colors.OUTLINE),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=8,
-            ),
-            width=280,
-            height=480,
-            bgcolor=ft.Colors.with_opacity(0.04, ft.Colors.ON_SURFACE),
-            border_radius=BORDER_RADIUS_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-            alignment=ft.alignment.center,
-            on_click=self._on_select_file,
-            ink=True,
+        # ==================== 文件选择区域 ====================
+        self.file_list_view = ft.Column(
+            spacing=PADDING_SMALL,
+            scroll=ft.ScrollMode.ADAPTIVE,
+            expand=True,  # 确保 Column 填充父容器
         )
         
-        self.clear_file_btn = ft.TextButton("清空照片", icon=ft.Icons.CLEAR, on_click=self._on_clear_file, visible=False)
-        
-        # 右侧上方：标准照和高清照（横向并排）
-        self.standard_preview = self._create_result_card("标准照", 170, 220)
-        self.hd_preview = self._create_result_card("高清照", 170, 220)
-        
-        self.standard_save_btn = ft.IconButton(ft.Icons.SAVE_ALT, tooltip="保存标准照", on_click=lambda _: self._save_result("standard"), disabled=True, icon_size=18)
-        self.hd_save_btn = ft.IconButton(ft.Icons.SAVE_ALT, tooltip="保存高清照", on_click=lambda _: self._save_result("hd"), disabled=True, icon_size=18)
-        
-        # 右侧下方：排版照
-        self.layout_preview = self._create_result_card("排版照（六寸）", 380, 240)
-        self.layout_save_btn = ft.IconButton(ft.Icons.SAVE_ALT, tooltip="保存排版照", on_click=lambda _: self._save_result("layout"), disabled=True, icon_size=18)
-        
-        # 右侧整体布局
-        right_panel = ft.Column(
+        file_select_area = ft.Column(
             controls=[
-                ft.Text("生成结果:", size=14, weight=ft.FontWeight.W_500),
-                ft.Container(height=PADDING_SMALL // 2),
-                # 上方：标准照和高清照横向并排
                 ft.Row(
                     controls=[
-                        ft.Column([self.standard_preview, self.standard_save_btn], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-                        ft.Column([self.hd_preview, self.hd_save_btn], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+                        ft.Text("选择照片:", size=14, weight=ft.FontWeight.W_500),
+                        ft.ElevatedButton("选择文件", icon=ft.Icons.FILE_UPLOAD, on_click=self._on_select_files),
+                        ft.ElevatedButton("选择文件夹", icon=ft.Icons.FOLDER_OPEN, on_click=self._on_select_folder),
+                        ft.TextButton("清空列表", icon=ft.Icons.CLEAR_ALL, on_click=self._on_clear_files),
                     ],
                     spacing=PADDING_MEDIUM,
-                    alignment=ft.MainAxisAlignment.START,
                 ),
-                ft.Container(height=PADDING_SMALL),
-                # 下方：排版照
-                ft.Column([self.layout_preview, self.layout_save_btn], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-            ],
-            spacing=0,
-        )
-        
-        # 图片区域：左右布局
-        image_area = ft.Row(
-            controls=[
-                # 左侧：原始照片
-                ft.Column(
-                    controls=[
-                        ft.Text("原始照片:", size=14, weight=ft.FontWeight.W_500),
-                        self.image_preview,
-                        self.clear_file_btn,
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=PADDING_SMALL,
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text(
+                                "支持格式: JPG, PNG, WebP, BMP, TIFF, HEIC 等",
+                                size=12,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=8,
+                    ),
+                    margin=ft.margin.only(left=4, bottom=4),
                 ),
-                # 右侧：结果预览
-                right_panel,
+                ft.Container(
+                    content=self.file_list_view,
+                    height=280,
+                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border_radius=BORDER_RADIUS_MEDIUM,
+                    padding=PADDING_MEDIUM,
+                ),
             ],
-            spacing=PADDING_LARGE,
-            vertical_alignment=ft.CrossAxisAlignment.START,
+            spacing=PADDING_SMALL,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
         
         # ==================== 模型管理区域 ====================
@@ -438,6 +402,60 @@ class IDPhotoView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
+        # ==================== 输出选项 ====================
+        self.output_mode_radio = ft.RadioGroup(
+            content=ft.Column(
+                controls=[
+                    ft.Radio(value="same", label="输出到同目录（添加后缀 _id）"),
+                    ft.Radio(value="custom", label="自定义输出目录"),
+                ],
+                spacing=PADDING_SMALL // 2,
+            ),
+            value="same",
+            on_change=self._on_output_mode_change,
+        )
+        
+        self.custom_output_dir = ft.TextField(
+            label="输出目录",
+            value=str(self.config_service.get_data_dir() / "id_photos") if self.config_service else "",
+            disabled=True,
+            expand=True,
+        )
+        
+        self.browse_output_button = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN,
+            tooltip="浏览",
+            on_click=self._on_browse_output,
+            disabled=True,
+        )
+        
+        output_area = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("输出设置:", size=14, weight=ft.FontWeight.W_500),
+                    self.output_mode_radio,
+                    ft.Row(
+                        controls=[self.custom_output_dir, self.browse_output_button],
+                        spacing=PADDING_SMALL,
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+        
+        # ==================== 左右布局 ====================
+        main_content = ft.Row(
+            controls=[
+                ft.Container(content=file_select_area, expand=3, height=380),
+                ft.Container(content=model_area, expand=2, height=380),
+            ],
+            spacing=PADDING_LARGE,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+        
         # ==================== 进度和生成按钮 ====================
         self.progress_bar = ft.ProgressBar(value=0, visible=False)
         self.progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
@@ -453,7 +471,7 @@ class IDPhotoView(ft.Container):
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.AUTO_AWESOME, size=20),
-                    ft.Text("生成证件照", size=16, weight=ft.FontWeight.W_600),
+                    ft.Text("批量生成证件照", size=16, weight=ft.FontWeight.W_600),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=PADDING_SMALL,
@@ -470,11 +488,11 @@ class IDPhotoView(ft.Container):
         # 可滚动内容区域
         scrollable_content = ft.Column(
             controls=[
-                image_area,
-                ft.Container(height=PADDING_MEDIUM),
-                model_area,
+                main_content,
                 ft.Container(height=PADDING_MEDIUM),
                 settings_area,
+                ft.Container(height=PADDING_MEDIUM),
+                output_area,
                 ft.Container(height=PADDING_LARGE),
                 progress_container,
                 ft.Container(height=PADDING_MEDIUM),
@@ -498,26 +516,267 @@ class IDPhotoView(ft.Container):
             ],
             spacing=0,
         )
+        
+        # 初始化文件列表
+        self._update_file_list()
     
-    def _create_result_card(self, label: str, width: int, height: int) -> ft.Container:
-        """创建结果预览卡片。"""
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Icon(ft.Icons.IMAGE_OUTLINED, size=32, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text(label, size=11, color=ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=PADDING_SMALL,
-            ),
-            width=width,
-            height=height,
-            bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
-            border_radius=BORDER_RADIUS_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-            alignment=ft.alignment.center,
+    # ==================== 文件操作 ====================
+    
+    def _on_select_files(self, e: ft.ControlEvent) -> None:
+        """选择文件。"""
+        def on_result(result: ft.FilePickerResultEvent) -> None:
+            if result.files:
+                for file in result.files:
+                    file_path = Path(file.path)
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+                self._update_file_list()
+                self._update_generate_button()
+        
+        picker = ft.FilePicker(on_result=on_result)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.pick_files(
+            dialog_title="选择人像照片",
+            allowed_extensions=["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"],
+            allow_multiple=True,
         )
+    
+    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹。"""
+        def on_result(result: ft.FilePickerResultEvent) -> None:
+            if result.path:
+                folder = Path(result.path)
+                for ext in ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"]:
+                    for file_path in folder.glob(f"*.{ext}"):
+                        if file_path not in self.selected_files:
+                            self.selected_files.append(file_path)
+                    for file_path in folder.glob(f"*.{ext.upper()}"):
+                        if file_path not in self.selected_files:
+                            self.selected_files.append(file_path)
+                self._update_file_list()
+                self._update_generate_button()
+        
+        picker = ft.FilePicker(on_result=on_result)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.get_directory_path(dialog_title="选择包含照片的文件夹")
+    
+    def _on_clear_files(self, e: ft.ControlEvent) -> None:
+        """清空文件列表。"""
+        self.selected_files.clear()
+        self.processing_results.clear()
+        self._update_file_list()
+        self._update_generate_button()
+    
+    def _on_remove_file(self, index: int) -> None:
+        """移除单个文件。"""
+        if 0 <= index < len(self.selected_files):
+            file_path = self.selected_files.pop(index)
+            # 同时删除处理结果
+            if str(file_path) in self.processing_results:
+                del self.processing_results[str(file_path)]
+            self._update_file_list()
+            self._update_generate_button()
+    
+    def _update_file_list(self) -> None:
+        """更新文件列表显示。"""
+        self.file_list_view.controls.clear()
+        
+        if not self.selected_files:
+            self.file_list_view.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("点击选择照片", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("支持选择多个文件或文件夹", size=12, color=ft.Colors.OUTLINE),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    height=260,  # 设置固定高度以填充区域
+                    alignment=ft.alignment.center,
+                    on_click=self._on_select_files,
+                    ink=True,
+                    border_radius=BORDER_RADIUS_MEDIUM,
+                )
+            )
+        else:
+            for idx, file_path in enumerate(self.selected_files):
+                # 获取文件信息
+                try:
+                    file_size = file_path.stat().st_size
+                    size_str = format_file_size(file_size)
+                except:
+                    size_str = "未知"
+                
+                # 检查是否已处理
+                is_processed = str(file_path) in self.processing_results
+                
+                # 创建预览按钮（仅处理完成后显示）
+                preview_btn = ft.IconButton(
+                    icon=ft.Icons.PREVIEW,
+                    icon_size=18,
+                    tooltip="预览结果",
+                    on_click=lambda e, fp=file_path: self._on_preview_result(fp),
+                    visible=is_processed,
+                )
+                
+                self.file_list_view.controls.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                # 序号
+                                ft.Container(
+                                    content=ft.Text(
+                                        str(idx + 1),
+                                        size=12,
+                                        weight=ft.FontWeight.W_500,
+                                        color=ft.Colors.ON_SURFACE_VARIANT,
+                                    ),
+                                    width=30,
+                                    alignment=ft.alignment.center,
+                                ),
+                                # 文件图标
+                                ft.Icon(ft.Icons.PERSON, size=20, color=ft.Colors.PRIMARY),
+                                # 文件信息
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(
+                                            file_path.name,
+                                            size=13,
+                                            weight=ft.FontWeight.W_500,
+                                            overflow=ft.TextOverflow.ELLIPSIS,
+                                        ),
+                                        ft.Row(
+                                            controls=[
+                                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(size_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text("•", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                                ft.Text(file_path.suffix.upper(), size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                            ],
+                                            spacing=4,
+                                        ),
+                                    ],
+                                    spacing=4,
+                                    expand=True,
+                                ),
+                                # 状态指示器
+                                ft.Icon(
+                                    ft.Icons.CHECK_CIRCLE if is_processed else ft.Icons.RADIO_BUTTON_UNCHECKED,
+                                    size=20,
+                                    color=ft.Colors.GREEN if is_processed else ft.Colors.OUTLINE,
+                                ),
+                                # 预览按钮
+                                preview_btn,
+                                # 删除按钮
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE,
+                                    icon_size=18,
+                                    tooltip="移除",
+                                    on_click=lambda e, i=idx: self._on_remove_file(i),
+                                ),
+                            ],
+                            spacing=PADDING_SMALL,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=PADDING_MEDIUM,
+                        border_radius=BORDER_RADIUS_MEDIUM,
+                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE) if idx % 2 == 0 else None,
+                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)),
+                    )
+                )
+        
+        try:
+            self.file_list_view.update()
+        except:
+            pass
+    
+    def _on_preview_result(self, file_path: Path) -> None:
+        """预览处理结果。"""
+        result = self.processing_results.get(str(file_path))
+        if not result:
+            return
+        
+        # 创建预览对话框
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        # 保存临时预览图
+        if self.config_service:
+            temp_dir = self.config_service.get_temp_dir()
+        else:
+            from utils.file_utils import get_app_root
+            temp_dir = get_app_root() / "storage" / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        session_id = str(uuid.uuid4())[:8]
+        standard_path = temp_dir / f"preview_standard_{session_id}.png"
+        hd_path = temp_dir / f"preview_hd_{session_id}.png"
+        layout_path = temp_dir / f"preview_layout_{session_id}.png" if result.layout is not None else None
+        
+        # 使用 imencode 支持中文路径
+        is_success, buffer = cv2.imencode('.png', result.standard)
+        if is_success:
+            with open(standard_path, 'wb') as f:
+                f.write(buffer)
+        
+        is_success, buffer = cv2.imencode('.png', result.hd)
+        if is_success:
+            with open(hd_path, 'wb') as f:
+                f.write(buffer)
+        
+        if layout_path:
+            is_success, buffer = cv2.imencode('.png', result.layout)
+            if is_success:
+                with open(layout_path, 'wb') as f:
+                    f.write(buffer)
+        
+        # 创建预览内容
+        preview_content = ft.Column(
+            controls=[
+                ft.Text(f"预览: {file_path.name}", size=16, weight=ft.FontWeight.BOLD),
+                ft.Container(height=PADDING_SMALL),
+                ft.Row(
+                    controls=[
+                        ft.Column([
+                            ft.Text("标准照", size=12, weight=ft.FontWeight.W_500),
+                            ft.Image(src=str(standard_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=6),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+                        ft.Column([
+                            ft.Text("高清照", size=12, weight=ft.FontWeight.W_500),
+                            ft.Image(src=str(hd_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=6),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+                    ],
+                    spacing=PADDING_LARGE,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Container(height=PADDING_SMALL),
+                ft.Column([
+                    ft.Text("排版照", size=12, weight=ft.FontWeight.W_500),
+                    ft.Image(src=str(layout_path) if layout_path else "", width=380, height=240, fit=ft.ImageFit.CONTAIN, border_radius=6) if layout_path else ft.Text("未生成", color=ft.Colors.OUTLINE),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4) if layout_path else ft.Container(),
+            ],
+            spacing=0,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("证件照预览"),
+            content=preview_content,
+            actions=[
+                ft.TextButton("关闭", on_click=close_dialog),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
     # ==================== 模型管理 ====================
     
@@ -717,56 +976,6 @@ class IDPhotoView(ft.Container):
         if self.config_service:
             self.config_service.set_config_value("id_photo_auto_load_model", e.control.value)
     
-    # ==================== 文件操作 ====================
-    
-    def _on_select_file(self, e: ft.ControlEvent = None) -> None:
-        """选择文件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.selected_file = Path(result.files[0].path)
-                self._update_image_preview()
-                self._update_generate_button()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
-            dialog_title="选择人像照片",
-            allowed_extensions=["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"],
-            allow_multiple=False,
-        )
-    
-    def _on_clear_file(self, e: ft.ControlEvent = None) -> None:
-        """清空文件。"""
-        self.selected_file = None
-        self._update_image_preview()
-        self._update_generate_button()
-    
-    def _update_image_preview(self) -> None:
-        """更新图片预览。"""
-        if self.selected_file and self.selected_file.exists():
-            self.image_preview.content = ft.Image(
-                src=str(self.selected_file),
-                width=280,
-                height=480,
-                fit=ft.ImageFit.CONTAIN,
-                border_radius=BORDER_RADIUS_MEDIUM,
-            )
-            self.clear_file_btn.visible = True
-        else:
-            self.image_preview.content = ft.Column(
-                controls=[
-                    ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("点击选择照片", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("支持 JPG、PNG、WebP、BMP、TIFF、HEIC 等格式", size=11, color=ft.Colors.OUTLINE),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=8,
-            )
-            self.clear_file_btn.visible = False
-        self._safe_update()
-    
     # ==================== 参数变更 ====================
     
     def _on_size_mode_change(self, e: ft.ControlEvent) -> None:
@@ -778,6 +987,26 @@ class IDPhotoView(ft.Container):
     def _on_bg_color_change(self, e: ft.ControlEvent) -> None:
         self.custom_color_input.visible = (e.control.value == "custom")
         self._safe_update()
+    
+    def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
+        """输出模式变化。"""
+        mode = e.control.value
+        is_custom = mode == "custom"
+        self.custom_output_dir.disabled = not is_custom
+        self.browse_output_button.disabled = not is_custom
+        self._safe_update()
+    
+    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+        """浏览输出目录。"""
+        def on_result(result: ft.FilePickerResultEvent) -> None:
+            if result.path:
+                self.custom_output_dir.value = result.path
+                self.custom_output_dir.update()
+        
+        picker = ft.FilePicker(on_result=on_result)
+        self.page.overlay.append(picker)
+        self.page.update()
+        picker.get_directory_path(dialog_title="选择输出目录")
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         if self.on_back:
@@ -791,7 +1020,7 @@ class IDPhotoView(ft.Container):
             self.id_photo_service.is_background_model_loaded() and 
             self.id_photo_service.is_face_model_loaded()
         )
-        self.generate_button.disabled = not (self.selected_file and models_ready)
+        self.generate_button.disabled = not (self.selected_files and models_ready)
         self._safe_update()
     
     def _get_params(self) -> Tuple[IDPhotoParams, Tuple[int, int, int], str]:
@@ -835,9 +1064,22 @@ class IDPhotoView(ft.Container):
         
         return params, bg_color, render_mode
     
+    def _get_output_path(self, input_file: Path, suffix: str) -> Path:
+        """获取输出文件路径。"""
+        output_mode = self.output_mode_radio.value
+        
+        if output_mode == "same":
+            # 输出到同目录
+            return input_file.parent / f"{input_file.stem}_id{suffix}.png"
+        else:
+            # 自定义输出目录
+            output_dir = Path(self.custom_output_dir.value)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            return output_dir / f"{input_file.stem}_id{suffix}.png"
+    
     def _on_generate_click(self, e: ft.ControlEvent) -> None:
-        """生成证件照。"""
-        if not self.selected_file or self.is_processing:
+        """批量生成证件照。"""
+        if not self.selected_files or self.is_processing:
             return
         
         self.is_processing = True
@@ -851,173 +1093,95 @@ class IDPhotoView(ft.Container):
         params, bg_color, render_mode = self._get_params()
         generate_layout = self.layout_checkbox.value
         
-        def process_task():
-            try:
-                # 检查文件是否存在
-                if not self.selected_file.exists():
-                    raise ValueError(f"文件不存在: {self.selected_file}")
-                
-                # 检查是否是 HEIC/HEIF 格式，需要先转换
-                file_ext = self.selected_file.suffix.lower()
-                if file_ext in ['.heic', '.heif']:
-                    try:
-                        # 使用 PIL 读取 HEIC/HEIF
+        def process_all_task():
+            total_files = len(self.selected_files)
+            success_count = 0
+            failed_count = 0
+            
+            for idx, file_path in enumerate(self.selected_files):
+                try:
+                    # 更新进度
+                    self.progress_bar.value = idx / total_files
+                    self.progress_text.value = f"正在处理 ({idx + 1}/{total_files}): {file_path.name}"
+                    self._safe_update()
+                    
+                    # 读取图片
+                    if not file_path.exists():
+                        raise ValueError(f"文件不存在: {file_path}")
+                    
+                    file_ext = file_path.suffix.lower()
+                    if file_ext in ['.heic', '.heif']:
                         from PIL import Image as PILImage
-                        pil_image = PILImage.open(self.selected_file)
-                        # 转换为 RGB
+                        pil_image = PILImage.open(file_path)
                         if pil_image.mode != 'RGB':
                             pil_image = pil_image.convert('RGB')
-                        # 转换为 numpy 数组
                         image = np.array(pil_image)
-                        # 转换为 BGR（OpenCV 格式）
                         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                    except Exception as heic_error:
-                        raise ValueError(f"无法读取 HEIC/HEIF 格式图片，请安装 pillow-heif 库或使用其他格式: {heic_error}")
-                else:
-                    # 使用 numpy 和 cv2.imdecode 来支持中文路径
-                    # cv2.imread 在 Windows 上不支持 Unicode 路径
-                    # 读取文件为字节流
-                    with open(self.selected_file, 'rb') as f:
-                        file_data = f.read()
-                    
-                    # 转换为numpy数组
-                    file_array = np.frombuffer(file_data, dtype=np.uint8)
-                    
-                    # 使用cv2.imdecode解码图像
-                    image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
-                
-                if image is None:
-                    raise ValueError("无法读取图片文件，请检查文件格式是否正确")
-                
-                def progress_callback(value: float, message: str):
-                    self.progress_bar.value = value
-                    self.progress_text.value = message
-                    self._safe_update()
-                
-                result = self.id_photo_service.process(
-                    image=image,
-                    params=params,
-                    bg_color=bg_color,
-                    render_mode=render_mode,
-                    generate_layout=generate_layout,
-                    progress_callback=progress_callback,
-                )
-                
-                self.result = result
-                self._on_process_complete(True, None)
-                
-            except Exception as ex:
-                logger.error(f"证件照生成失败: {ex}")
-                self._on_process_complete(False, str(ex))
-        
-        threading.Thread(target=process_task, daemon=True).start()
-    
-    def _on_process_complete(self, success: bool, error: Optional[str]) -> None:
-        """处理完成。"""
-        self.is_processing = False
-        self.generate_button.disabled = False
-        self.progress_bar.visible = False
-        
-        if success:
-            self.progress_text.value = "✓ 生成完成"
-            self._update_result_preview()
-            self._show_snackbar("证件照生成成功！", ft.Colors.GREEN)
-        else:
-            self.progress_text.value = f"✗ 失败: {error}"
-            self._show_snackbar(f"生成失败: {error}", ft.Colors.RED)
-        
-        self._safe_update()
-    
-    def _update_result_preview(self) -> None:
-        """更新结果预览。"""
-        if not self.result:
-            return
-        
-        if self.config_service:
-            temp_dir = self.config_service.get_temp_dir()
-        else:
-            from utils.file_utils import get_app_root
-            temp_dir = get_app_root() / "storage" / "temp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        self.result_temp_dir = temp_dir
-        
-        session_id = str(uuid.uuid4())[:8]
-        
-        # 标准照 - 使用 imencode 支持中文路径
-        standard_path = temp_dir / f"id_standard_{session_id}.png"
-        is_success, buffer = cv2.imencode('.png', self.result.standard)
-        if is_success:
-            with open(standard_path, 'wb') as f:
-                f.write(buffer)
-            self.standard_preview.content = ft.Image(
-                src=str(standard_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=BORDER_RADIUS_MEDIUM
-            )
-            self.standard_save_btn.disabled = False
-        
-        # 高清照 - 使用 imencode 支持中文路径
-        hd_path = temp_dir / f"id_hd_{session_id}.png"
-        is_success, buffer = cv2.imencode('.png', self.result.hd)
-        if is_success:
-            with open(hd_path, 'wb') as f:
-                f.write(buffer)
-            self.hd_preview.content = ft.Image(
-                src=str(hd_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=BORDER_RADIUS_MEDIUM
-            )
-            self.hd_save_btn.disabled = False
-        
-        # 排版照 - 使用 imencode 支持中文路径
-        if self.result.layout is not None:
-            layout_path = temp_dir / f"id_layout_{session_id}.png"
-            is_success, buffer = cv2.imencode('.png', self.result.layout)
-            if is_success:
-                with open(layout_path, 'wb') as f:
-                    f.write(buffer)
-                self.layout_preview.content = ft.Image(
-                    src=str(layout_path), width=380, height=240, fit=ft.ImageFit.CONTAIN, border_radius=BORDER_RADIUS_MEDIUM
-                )
-                self.layout_save_btn.disabled = False
-        else:
-            self.layout_save_btn.disabled = True
-        
-        self._safe_update()
-    
-    def _save_result(self, result_type: str) -> None:
-        """保存结果。"""
-        if not self.result:
-            return
-        
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    # 使用 cv2.imencode 支持中文路径
-                    if result_type == "standard":
-                        is_success, buffer = cv2.imencode('.png', self.result.standard)
-                    elif result_type == "hd":
-                        is_success, buffer = cv2.imencode('.png', self.result.hd)
-                    elif result_type == "layout" and self.result.layout is not None:
-                        is_success, buffer = cv2.imencode('.png', self.result.layout)
                     else:
-                        is_success = False
+                        with open(file_path, 'rb') as f:
+                            file_data = f.read()
+                        file_array = np.frombuffer(file_data, dtype=np.uint8)
+                        image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
                     
+                    if image is None:
+                        raise ValueError("无法读取图片文件")
+                    
+                    # 处理
+                    result = self.id_photo_service.process(
+                        image=image,
+                        params=params,
+                        bg_color=bg_color,
+                        render_mode=render_mode,
+                        generate_layout=generate_layout,
+                        progress_callback=None,
+                    )
+                    
+                    # 保存结果
+                    standard_path = self._get_output_path(file_path, "_standard")
+                    hd_path = self._get_output_path(file_path, "_hd")
+                    
+                    is_success, buffer = cv2.imencode('.png', result.standard)
                     if is_success:
-                        with open(result.path, 'wb') as f:
+                        with open(standard_path, 'wb') as f:
                             f.write(buffer)
-                        self._show_snackbar(f"保存成功", ft.Colors.GREEN)
-                    else:
-                        self._show_snackbar(f"保存失败：编码图像失败", ft.Colors.RED)
+                    
+                    is_success, buffer = cv2.imencode('.png', result.hd)
+                    if is_success:
+                        with open(hd_path, 'wb') as f:
+                            f.write(buffer)
+                    
+                    if result.layout is not None:
+                        layout_path = self._get_output_path(file_path, "_layout")
+                        is_success, buffer = cv2.imencode('.png', result.layout)
+                        if is_success:
+                            with open(layout_path, 'wb') as f:
+                                f.write(buffer)
+                    
+                    # 保存到结果字典
+                    self.processing_results[str(file_path)] = result
+                    success_count += 1
+                    
                 except Exception as ex:
-                    self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
+                    logger.error(f"处理失败 {file_path.name}: {ex}")
+                    failed_count += 1
+            
+            # 完成
+            self.is_processing = False
+            self.generate_button.disabled = False
+            self.progress_bar.value = 1.0
+            self.progress_text.value = f"处理完成！成功: {success_count}, 失败: {failed_count}"
+            
+            # 更新文件列表以显示预览按钮
+            self._update_file_list()
+            
+            if success_count > 0:
+                self._show_snackbar(f"成功生成 {success_count} 张证件照", ft.Colors.GREEN)
+            if failed_count > 0:
+                self._show_snackbar(f"{failed_count} 张照片处理失败", ft.Colors.ORANGE)
+            
+            self._safe_update()
         
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        base_name = self.selected_file.stem if self.selected_file else "id_photo"
-        picker.save_file(
-            dialog_title=f"保存{result_type}照",
-            file_name=f"{base_name}_{result_type}.png",
-            allowed_extensions=["png"],
-        )
+        threading.Thread(target=process_all_task, daemon=True).start()
     
     # ==================== 工具方法 ====================
     
