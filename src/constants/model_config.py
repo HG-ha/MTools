@@ -922,3 +922,63 @@ FACE_DETECTION_MODELS: Final[dict[str, FaceDetectionModelInfo]] = {
 
 # 默认人脸检测模型
 DEFAULT_FACE_DETECTION_MODEL_KEY: Final[str] = "retinaface_resnet50"
+
+
+# 字幕/水印移除模型配置
+@dataclass
+class SubtitleRemoveModelInfo:
+    """字幕/水印移除模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        encoder_url: encoder模型下载链接
+        infer_url: infer模型下载链接
+        decoder_url: decoder模型下载链接
+        size_mb: 文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        encoder_filename: encoder文件名
+        infer_filename: infer文件名
+        decoder_filename: decoder文件名
+        version: 版本号
+        neighbor_stride: 相邻帧步长
+        ref_length: 参考帧长度
+    """
+    name: str
+    display_name: str
+    encoder_url: str
+    infer_url: str
+    decoder_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    encoder_filename: str
+    infer_filename: str
+    decoder_filename: str
+    version: str = "1.0"
+    neighbor_stride: int = 5
+    ref_length: int = 10
+
+
+SUBTITLE_REMOVE_MODELS: Final[dict[str, SubtitleRemoveModelInfo]] = {
+    "sttn_v1": SubtitleRemoveModelInfo(
+        name="sttn_v1",
+        display_name="STTN 视频修复模型",
+        encoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/subtitle-remove/sttn/infer_model_encoder.onnx",
+        infer_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/subtitle-remove/sttn/infer_model_infer.onnx",
+        decoder_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/subtitle-remove/sttn/infer_model_decoder.onnx",
+        size_mb=66,  # 1.63 + 63.28 + 1.63 ≈ 66.54
+        quality="高质量视频修复 | 时空注意力机制",
+        performance="GPU加速推荐 | 适合去字幕/水印",
+        encoder_filename="infer_model_encoder.onnx",
+        infer_filename="infer_model_infer.onnx",
+        decoder_filename="infer_model_decoder.onnx",
+        version="1.0",
+        neighbor_stride=5,
+        ref_length=10
+    ),
+}
+
+# 默认字幕移除模型
+DEFAULT_SUBTITLE_REMOVE_MODEL_KEY: Final[str] = "sttn_v1"

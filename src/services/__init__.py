@@ -17,6 +17,7 @@ from .update_service import UpdateService, UpdateInfo, UpdateStatus
 from .auto_updater import AutoUpdater
 from .face_detection_service import FaceDetector, FaceDetectionResult
 from .id_photo_service import IDPhotoService, IDPhotoParams, IDPhotoResult
+from .subtitle_remove_service import SubtitleRemoveService
 
 __all__ = [
     "AudioService",
@@ -40,5 +41,6 @@ __all__ = [
     "IDPhotoService",
     "IDPhotoParams",
     "IDPhotoResult",
+    "SubtitleRemoveService",
 ]
 

@@ -326,6 +326,17 @@ def register_all_tools():
         tool_id="video.interpolation",
         gradient_colors=("#667eea", "#764ba2"),
     )
+    
+    register_tool_manual(
+        name="视频去字幕/水印",
+        description="AI智能移除视频字幕和水印",
+        category="媒体处理",
+        keywords=["视频", "去除", "移除", "字幕", "水印", "subtitle", "watermark", "remove", "erase", "AI", "STTN", "修复", "inpaint"],
+        icon="AUTO_FIX_HIGH",
+        tool_id="video.subtitle_remove",
+        gradient_colors=("#FA709A", "#FEE140"),
+    )
+    
     # ==================== 开发工具 ====================
     
     register_tool_manual(

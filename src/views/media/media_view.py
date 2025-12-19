@@ -29,6 +29,7 @@ from views.media.video_repair_view import VideoRepairView
 from views.media.video_speed_view import VideoSpeedView
 from views.media.video_vocal_separation_view import VideoVocalSeparationView
 from views.media.video_watermark_view import VideoWatermarkView
+from views.media.subtitle_remove_view import SubtitleRemoveView
 
 
 class MediaView(ft.Container):
@@ -93,6 +94,7 @@ class MediaView(ft.Container):
         self.video_speed_view: Optional[VideoSpeedView] = None
         self.video_vocal_separation_view: Optional[VideoVocalSeparationView] = None
         self.video_watermark_view: Optional[VideoWatermarkView] = None
+        self.subtitle_remove_view: Optional[SubtitleRemoveView] = None
         
         # FFmpeg安装视图
         self.ffmpeg_install_view: Optional[FFmpegInstallView] = None
@@ -175,6 +177,13 @@ class MediaView(ft.Container):
                 description="AI帧率提升，让视频更流畅",
                 on_click=lambda e: self._open_view('video_interpolation'),
                 gradient_colors=("#667eea", "#764ba2"),
+            ),
+            FeatureCard(
+                icon=ft.Icons.AUTO_FIX_HIGH,
+                title="视频去字幕/水印",
+                description="AI智能移除视频字幕和水印",
+                on_click=lambda e: self._open_view('subtitle_remove'),
+                gradient_colors=("#FA709A", "#FEE140"),
             ),
             FeatureCard(
                 icon=ft.Icons.COMPRESS,
@@ -372,6 +381,16 @@ class MediaView(ft.Container):
                     on_back=self._back_to_main
                 )
             self._switch_to_sub_view(self.video_interpolation_view, 'video_interpolation')
+        
+        elif view_name == 'subtitle_remove':
+            if not self.subtitle_remove_view:
+                self.subtitle_remove_view = SubtitleRemoveView(
+                    self._saved_page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main
+                )
+            self._switch_to_sub_view(self.subtitle_remove_view, 'subtitle_remove')
             
         elif view_name == 'video_extract_audio':
             if not self.video_extract_audio_view:
@@ -485,6 +504,7 @@ class MediaView(ft.Container):
                 "video_convert": "video_convert_view",
                 "video_enhance": "video_enhance_view",
                 "video_interpolation": "video_interpolation_view",
+                "subtitle_remove": "subtitle_remove_view",
                 "video_extract_audio": "video_extract_audio_view",
                 "video_repair": "video_repair_view",
                 "video_speed": "video_speed_view",
