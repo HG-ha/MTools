@@ -16,6 +16,7 @@ from views.image.rotate_view import ImageRotateView
 from views.image.remove_exif_view import ImageRemoveExifView
 from views.image.qrcode_view import QRCodeGeneratorView
 from views.image.watermark_view import ImageWatermarkView
+from views.image.watermark_remove_view import ImageWatermarkRemoveView
 from views.image.puzzle import ImagePuzzleView, ImagePuzzleSplitView, ImagePuzzleMergeView
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     'ImageRemoveExifView',
     'QRCodeGeneratorView',
     'ImageWatermarkView',
+    'ImageWatermarkRemoveView',
     'ImagePuzzleView',
     'ImagePuzzleSplitView',
     'ImagePuzzleMergeView',

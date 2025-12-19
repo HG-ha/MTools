@@ -86,6 +86,16 @@ def register_all_tools():
     )
     
     register_tool_manual(
+        name="去水印",
+        description="AI智能去除图片水印，支持自定义区域",
+        category="图片处理",
+        keywords=["去水印", "移除", "删除", "擦除", "修复", "AI", "智能", "水印", "remove", "watermark", "erase", "inpaint", "STTN"],
+        icon="AUTO_FIX_HIGH",
+        tool_id="image.watermark_remove",
+        gradient_colors=("#11998E", "#38EF7D"),
+    )
+    
+    register_tool_manual(
         name="图片信息",
         description="查看图片详细信息和EXIF数据",
         category="图片处理",

@@ -522,21 +522,24 @@ class IDPhotoView(ft.Container):
             ),
         )
         
-        self.generate_button = ft.ElevatedButton(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.AUTO_AWESOME, size=20),
-                    ft.Text("批量生成证件照", size=16, weight=ft.FontWeight.W_600),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=PADDING_SMALL,
+        self.generate_button: ft.Container = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.AUTO_AWESOME, size=24),
+                        ft.Text("批量生成证件照", size=18, weight=ft.FontWeight.W_600),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=PADDING_MEDIUM,
+                ),
+                on_click=self._on_generate_click,
+                disabled=True,
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
+                ),
             ),
-            on_click=self._on_generate_click,
-            disabled=True,
-            style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_MEDIUM),
-                shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
-            ),
+            alignment=ft.alignment.center,
         )
         
         # ==================== 组装界面 ====================
@@ -551,10 +554,7 @@ class IDPhotoView(ft.Container):
                 ft.Container(height=PADDING_LARGE),
                 progress_container,
                 ft.Container(height=PADDING_MEDIUM),
-                ft.Container(
-                    content=self.generate_button,
-                    alignment=ft.alignment.center,
-                ),
+                self.generate_button,
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
             spacing=0,
@@ -1085,7 +1085,7 @@ class IDPhotoView(ft.Container):
             self.id_photo_service.is_background_model_loaded() and 
             self.id_photo_service.is_face_model_loaded()
         )
-        self.generate_button.disabled = not (self.selected_files and models_ready)
+        self.generate_button.content.disabled = not (self.selected_files and models_ready)
         self._safe_update()
     
     def _get_params(self) -> Tuple[IDPhotoParams, Tuple[int, int, int], str]:
@@ -1148,7 +1148,7 @@ class IDPhotoView(ft.Container):
             return
         
         self.is_processing = True
-        self.generate_button.disabled = True
+        self.generate_button.content.disabled = True
         self.progress_text.value = "正在处理..."
         self.progress_text.visible = True
         self.progress_bar.visible = True
@@ -1257,7 +1257,7 @@ class IDPhotoView(ft.Container):
             
             # 完成
             self.is_processing = False
-            self.generate_button.disabled = False
+            self.generate_button.content.disabled = False
             self.progress_bar.value = 1.0
             self.progress_text.value = f"处理完成！成功: {success_count}, 失败: {failed_count}"
             

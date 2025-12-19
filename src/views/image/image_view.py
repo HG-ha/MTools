@@ -27,6 +27,7 @@ from views.image.puzzle.split_view import ImagePuzzleSplitView
 from views.image.puzzle.merge_view import ImagePuzzleMergeView
 from views.image.resize_view import ImageResizeView
 from views.image.search_view import ImageSearchView
+from views.image.watermark_remove_view import ImageWatermarkRemoveView
 
 
 class ImageView(ft.Container):
@@ -81,6 +82,7 @@ class ImageView(ft.Container):
         self.remove_exif_view = None  # 去除EXIF视图
         self.qrcode_view = None  # 二维码生成视图
         self.watermark_view = None  # 添加水印视图
+        self.watermark_remove_view = None  # 图片去水印视图
         self.search_view = None  # 图片搜索视图
         self.ocr_view = None  # OCR视图
         
@@ -217,6 +219,13 @@ class ImageView(ft.Container):
                     description="支持单个水印和全屏平铺水印，批量处理，实时预览",
                     gradient_colors=("#FF6FD8", "#3813C2"),
                     on_click=self._open_watermark_dialog,
+                ),
+                FeatureCard(
+                    icon=ft.Icons.AUTO_FIX_HIGH,
+                    title="去水印",
+                    description="AI智能去除图片水印，支持自定义区域",
+                    gradient_colors=("#11998E", "#38EF7D"),
+                    on_click=self._open_watermark_remove_dialog,
                 ),
                 FeatureCard(
                     icon=ft.Icons.IMAGE_SEARCH,
@@ -731,6 +740,35 @@ class ImageView(ft.Container):
         
         # 切换到添加水印视图
         self.parent_container.content = self.watermark_view
+        self._safe_page_update()
+    
+    def _open_watermark_remove_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图片去水印工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            logger.error("错误: 未设置父容器")
+            return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
+        # 创建图片去水印视图（如果还没创建）
+        if not self.watermark_remove_view:
+            self.watermark_remove_view = ImageWatermarkRemoveView(
+                self._saved_page,
+                self.config_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.watermark_remove_view
+        self.current_sub_view_type = "watermark_remove"
+        
+        # 切换到图片去水印视图
+        self.parent_container.content = self.watermark_remove_view
         self._safe_page_update()
     
     def _open_search_dialog(self, e: ft.ControlEvent) -> None:

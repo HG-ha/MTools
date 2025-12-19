@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""视频字幕/水印移除视图模块。
+"""图片去水印视图模块。
 
-提供视频字幕/水印移除功能的用户界面。
+提供图片水印移除功能的用户界面。
 """
 
 import threading
-import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -21,16 +20,15 @@ from constants import (
     PADDING_LARGE,
     SUBTITLE_REMOVE_MODELS,
 )
-from services import ConfigService, FFmpegService
+from services import ConfigService
 from services.subtitle_remove_service import SubtitleRemoveService
-from views.media.ffmpeg_install_view import FFmpegInstallView
 from utils import format_file_size, logger
 
 
-class SubtitleRemoveView(ft.Container):
-    """视频字幕/水印移除视图类。
+class ImageWatermarkRemoveView(ft.Container):
+    """图片去水印视图类。
     
-    提供视频字幕/水印移除功能，包括：
+    提供图片水印移除功能，包括：
     - 单文件/批量处理
     - 自定义遮罩区域
     - 实时进度显示
@@ -40,28 +38,24 @@ class SubtitleRemoveView(ft.Container):
         self,
         page: ft.Page,
         config_service: ConfigService,
-        ffmpeg_service: FFmpegService,
         on_back: Optional[Callable] = None
     ) -> None:
-        """初始化视频字幕/水印移除视图。
+        """初始化图片去水印视图。
         
         Args:
             page: Flet页面对象
             config_service: 配置服务实例
-            ffmpeg_service: FFmpeg服务实例
             on_back: 返回按钮回调函数
         """
         super().__init__()
         self.page: ft.Page = page
         self.config_service: ConfigService = config_service
-        self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
         
         self.selected_files: List[Path] = []
         self.is_processing: bool = False
         self.current_model_key: str = DEFAULT_SUBTITLE_REMOVE_MODEL_KEY
         self.file_regions: dict = {}  # 每个文件的区域设置 {file_path: [region_list]}
-        self.visual_region: Optional[dict] = None  # 可视化选择的区域（兼容旧代码）
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -73,7 +67,7 @@ class SubtitleRemoveView(ft.Container):
         
         # 初始化服务
         model_dir = self.config_service.get_data_dir() / "models" / "subtitle_remove"
-        self.subtitle_service: SubtitleRemoveService = SubtitleRemoveService()
+        self.remove_service: SubtitleRemoveService = SubtitleRemoveService()
         self.model_dir = model_dir
         
         # 构建界面
@@ -81,19 +75,6 @@ class SubtitleRemoveView(ft.Container):
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
-        # 检查 FFmpeg 是否可用
-        is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
-        if not is_ffmpeg_available:
-            # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
-            self.content = FFmpegInstallView(
-                self.page,
-                self.ffmpeg_service,
-                on_back=self._on_back_click,
-                tool_name="视频去字幕/水印"
-            )
-            return
-        
         # 顶部：标题和返回按钮
         header = ft.Row(
             controls=[
@@ -102,7 +83,7 @@ class SubtitleRemoveView(ft.Container):
                     tooltip="返回",
                     on_click=self._on_back_click,
                 ),
-                ft.Text("视频去字幕/水印", size=28, weight=ft.FontWeight.BOLD),
+                ft.Text("图片去水印", size=28, weight=ft.FontWeight.BOLD),
             ],
             spacing=PADDING_MEDIUM,
         )
@@ -126,7 +107,7 @@ class SubtitleRemoveView(ft.Container):
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
+                        ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
                         ft.ElevatedButton(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
@@ -150,7 +131,7 @@ class SubtitleRemoveView(ft.Container):
                         controls=[
                             ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                             ft.Text(
-                                "支持 MP4、AVI、MOV、MKV 等常见视频格式",
+                                "支持 JPG、PNG、BMP、WebP 等常见图片格式",
                                 size=12,
                                 color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
@@ -234,7 +215,7 @@ class SubtitleRemoveView(ft.Container):
         )
         
         # 自动加载模型选项
-        auto_load_model = self.config_service.get_config_value("subtitle_remove_auto_load_model", False)
+        auto_load_model = self.config_service.get_config_value("image_watermark_remove_auto_load_model", False)
         self.auto_load_checkbox = ft.Checkbox(
             label="自动加载模型",
             value=auto_load_model,
@@ -338,8 +319,8 @@ class SubtitleRemoveView(ft.Container):
             content=ft.ElevatedButton(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.PLAY_ARROW, size=24),
-                        ft.Text("开始处理", size=18, weight=ft.FontWeight.W_600),
+                        ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=24),
+                        ft.Text("开始去水印", size=18, weight=ft.FontWeight.W_600),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_MEDIUM,
@@ -395,7 +376,7 @@ class SubtitleRemoveView(ft.Container):
                 content=ft.Column(
                     controls=[
                         ft.Icon(
-                            ft.Icons.VIDEO_FILE_OUTLINED,
+                            ft.Icons.IMAGE_OUTLINED,
                             size=48,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
@@ -405,7 +386,7 @@ class SubtitleRemoveView(ft.Container):
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                         ft.Text(
-                            "点击此处选择视频文件",
+                            "点击此处选择图片文件",
                             size=12,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
@@ -421,172 +402,199 @@ class SubtitleRemoveView(ft.Container):
             )
         )
     
-    def _on_back_click(self, e) -> None:
-        """返回按钮点击处理。"""
+    def _on_back_click(self, e: ft.ControlEvent) -> None:
+        """返回按钮点击事件。"""
         if self.on_back:
             self.on_back()
     
     def _on_select_files(self) -> None:
-        """选择文件。"""
+        """选择文件按钮点击事件。"""
         self.file_picker.pick_files(
-            dialog_title="选择视频文件",
-            allowed_extensions=["mp4", "avi", "mov", "mkv", "flv", "wmv"],
+            dialog_title="选择图片",
+            allowed_extensions=["jpg", "jpeg", "png", "bmp", "webp", "tiff", "tif"],
             allow_multiple=True,
         )
     
     def _on_select_folder(self) -> None:
-        """选择文件夹。"""
+        """选择文件夹按钮点击事件。"""
         self.file_picker.get_directory_path(
-            dialog_title="选择文件夹",
+            dialog_title="选择包含图片的文件夹"
         )
     
     def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择回调。"""
+        """文件选择结果处理。"""
         if e.files:
-            # 添加选中的文件
-            for file in e.files:
-                file_path = Path(file.path)
+            for f in e.files:
+                file_path = Path(f.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
         elif e.path:
-            # 添加文件夹中的所有视频文件
+            # 文件夹选择
             folder_path = Path(e.path)
-            video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"}
-            for ext in video_extensions:
-                for file_path in folder_path.glob(f"*{ext}"):
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                # 大写扩展名
-                for file_path in folder_path.glob(f"*{ext.upper()}"):
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
+            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'}
+            for f in folder_path.iterdir():
+                if f.is_file() and f.suffix.lower() in image_extensions:
+                    if f not in self.selected_files:
+                        self.selected_files.append(f)
         
         self._update_file_list()
+        self._check_model_status()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         if not self.selected_files:
             self._init_empty_state()
-            self.process_btn.content.disabled = True
-        else:
-            self.file_list_view.controls = []
-            for file_path in self.selected_files:
-                # 检查是否有自定义区域
-                regions = self.file_regions.get(str(file_path), [])
-                region_count = len(regions)
-                
-                if region_count > 0:
-                    region_info = f"{region_count}个区域"
-                    region_color = ft.Colors.GREEN
-                    region_tooltip = "\n".join([f"区域{i+1}: ({r['left']},{r['top']})-({r['right']},{r['bottom']})" for i, r in enumerate(regions)])
-                else:
-                    region_info = "默认"
-                    region_color = ft.Colors.ON_SURFACE_VARIANT
-                    region_tooltip = "使用默认底部25%区域"
-                
-                file_item = ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons.VIDEO_FILE, size=20),
-                        ft.Text(
-                            file_path.name,
-                            size=12,
-                            expand=True,
-                            tooltip=str(file_path),
-                        ),
-                        ft.Text(
-                            region_info,
-                            size=11,
-                            color=region_color,
-                            tooltip=region_tooltip,
-                        ),
-                        ft.Text(
-                            format_file_size(file_path.stat().st_size),
-                            size=12,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                        ),
-                        ft.TextButton(
-                            "标注",
-                            icon=ft.Icons.CROP_FREE,
-                            tooltip="标注字幕/水印区域",
-                            on_click=lambda _, p=file_path: self._open_region_selector(p),
-                        ),
-                        ft.IconButton(
-                            icon=ft.Icons.DELETE_OUTLINE,
-                            icon_size=16,
-                            tooltip="移除",
-                            on_click=lambda _, p=file_path: self._remove_file(p),
-                        ),
-                    ],
-                    spacing=PADDING_SMALL,
-                )
-                self.file_list_view.controls.append(file_item)
+            return
+        
+        self.file_list_view.controls.clear()
+        
+        for file_path in self.selected_files:
+            # 获取文件大小
+            try:
+                file_size = format_file_size(file_path.stat().st_size)
+            except Exception:
+                file_size = "未知"
             
-            # 更新按钮状态
-            model_loaded = self.subtitle_service.is_model_loaded()
-            self.process_btn.content.disabled = not model_loaded
+            # 检查是否有自定义区域
+            has_region = str(file_path) in self.file_regions
+            region_icon = ft.Icons.CHECK_CIRCLE if has_region else ft.Icons.RADIO_BUTTON_UNCHECKED
+            region_color = ft.Colors.GREEN if has_region else ft.Colors.ON_SURFACE_VARIANT
+            
+            file_row = ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.IMAGE, size=20, color=ft.Colors.PRIMARY),
+                    ft.Text(
+                        file_path.name,
+                        size=13,
+                        expand=True,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                    ft.Text(
+                        file_size,
+                        size=11,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                    ft.Icon(region_icon, size=16, color=region_color, tooltip="区域标注状态"),
+                    ft.TextButton(
+                        "标注",
+                        on_click=lambda _, p=file_path: self._open_region_editor(p),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=16,
+                        tooltip="移除",
+                        on_click=lambda _, p=file_path: self._remove_file(p),
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            )
+            self.file_list_view.controls.append(file_row)
         
         self.page.update()
     
     def _remove_file(self, file_path: Path) -> None:
-        """移除文件。"""
+        """从列表中移除文件。"""
         if file_path in self.selected_files:
             self.selected_files.remove(file_path)
             # 同时移除区域设置
             if str(file_path) in self.file_regions:
                 del self.file_regions[str(file_path)]
-            self._update_file_list()
+        self._update_file_list()
+        self._check_model_status()
     
-    def _open_region_selector(self, file_path: Path) -> None:
-        """打开区域选择器对话框。
+    def _clear_files(self) -> None:
+        """清空文件列表。"""
+        self.file_regions.clear()
+        self.selected_files.clear()
+        self._update_file_list()
+        self._check_model_status()
+    
+    def _read_image_unicode(self, image_path: Path) -> Optional[np.ndarray]:
+        """读取图像，支持Unicode/中文路径。
         
         Args:
-            file_path: 视频文件路径
+            image_path: 图像路径
+        
+        Returns:
+            图像数组，如果读取失败返回None
         """
         try:
-            cap = cv2.VideoCapture(str(file_path))
-            if not cap.isOpened():
-                logger.error(f"无法打开视频: {file_path}")
-                self._show_snackbar(f"无法打开视频: {file_path.name}")
-                return
+            # 使用 numpy 和 cv2.imdecode 来支持中文路径
+            # cv2.imread 在 Windows 上不支持 Unicode 路径
+            if not image_path.exists():
+                logger.error(f"文件不存在: {image_path}")
+                return None
             
-            # 获取视频信息
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            duration = total_frames / fps if fps > 0 else 0
+            # 读取文件为字节流
+            with open(image_path, 'rb') as f:
+                file_data = f.read()
             
-            # 读取第一帧
-            ret, frame = cap.read()
-            cap.release()
+            # 转换为numpy数组
+            file_array = np.frombuffer(file_data, dtype=np.uint8)
             
-            if not ret:
-                logger.error("无法读取视频帧")
-                self._show_snackbar("无法读取视频帧")
-                return
+            # 使用cv2.imdecode解码图像
+            image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
             
-            # 显示对话框
-            self._show_region_dialog(file_path, frame, total_frames, fps, frame_width, frame_height, duration)
+            if image is None:
+                logger.error(f"无法解码图像: {image_path}")
+                return None
+            
+            return image
             
         except Exception as e:
-            logger.error(f"读取视频帧失败: {e}", exc_info=True)
-            self._show_snackbar(f"读取视频帧失败: {str(e)}")
+            logger.error(f"读取图像失败: {image_path}, 错误: {e}")
+            return None
     
-    def _show_region_dialog(self, file_path: Path, frame: np.ndarray, 
-                             total_frames: int, fps: float, 
-                             frame_width: int, frame_height: int, duration: float) -> None:
-        """显示区域选择对话框。
+    def _save_image_unicode(self, image: np.ndarray, output_path: Path) -> bool:
+        """保存图像，支持Unicode/中文路径。
         
         Args:
-            file_path: 视频文件路径
-            frame: 视频帧
-            total_frames: 总帧数
-            fps: 帧率
-            frame_width: 视频宽度
-            frame_height: 视频高度
-            duration: 视频时长（秒）
+            image: 图像数组
+            output_path: 输出路径
+        
+        Returns:
+            是否保存成功
         """
+        try:
+            # 根据文件扩展名选择编码格式
+            ext = output_path.suffix.lower()
+            if ext in ['.jpg', '.jpeg']:
+                encode_ext = '.jpg'
+            elif ext == '.png':
+                encode_ext = '.png'
+            elif ext == '.webp':
+                encode_ext = '.webp'
+            elif ext == '.bmp':
+                encode_ext = '.bmp'
+            else:
+                encode_ext = '.png'  # 默认使用PNG
+            
+            # 使用 cv2.imencode 编码图像
+            is_success, buffer = cv2.imencode(encode_ext, image)
+            if not is_success:
+                logger.error(f"编码图像失败: {output_path}")
+                return False
+            
+            # 写入文件
+            with open(output_path, 'wb') as f:
+                f.write(buffer)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存图像失败: {output_path}, 错误: {e}")
+            return False
+    
+    def _open_region_editor(self, file_path: Path) -> None:
+        """打开可视化区域编辑器。"""
         import uuid
+        
+        # 读取图片（支持中文路径）
+        img = self._read_image_unicode(file_path)
+        if img is None:
+            self._show_snackbar(f"无法读取图片: {file_path.name}")
+            return
+        img_height, img_width = img.shape[:2]
         
         # 临时文件目录
         temp_dir = self.config_service.get_temp_dir()
@@ -597,28 +605,25 @@ class SubtitleRemoveView(ft.Container):
         page_width = self.page.width or 1000
         page_height = self.page.height or 700
         
-        # 对话框可用高度（预留标题50px、按钮50px、时间轴40px、状态栏20px）
-        available_height = page_height - 160
-        available_height = max(available_height, 350)  # 最小350
+        # 对话框可用高度（预留标题、按钮、底部间距）
+        available_height = page_height - 200
+        available_height = max(available_height, 350)
         
-        # 视频预览最大尺寸
-        max_video_width = min(page_width - 380, 700)  # 预留右侧面板
-        max_video_height = available_height - 80  # 预留时间轴和状态栏
+        # 图片预览最大尺寸
+        max_img_width = min(page_width - 380, 700)
+        max_img_height = available_height - 60  # 留出状态栏和底部间距
         
-        # 按比例缩放视频
-        scale_w = max_video_width / frame_width
-        scale_h = max_video_height / frame_height
-        scale = min(scale_w, scale_h, 1.0)  # 不放大
+        # 按比例缩放图片
+        scale_w = max_img_width / img_width
+        scale_h = max_img_height / img_height
+        scale = min(scale_w, scale_h, 1.0)
         
-        display_width = int(frame_width * scale)
-        display_height = int(frame_height * scale)
+        display_width = int(img_width * scale)
+        display_height = int(img_height * scale)
         
         # 确保最小尺寸
         display_width = max(display_width, 200)
         display_height = max(display_height, 150)
-        
-        # 时间轴宽度（至少400px，确保拖动条可用）
-        slider_width = max(display_width, 400)
         
         # 预览图路径
         preview_path = temp_dir / f"region_preview_{session_id}.jpg"
@@ -628,36 +633,36 @@ class SubtitleRemoveView(ft.Container):
         regions_list = [r.copy() for r in existing_regions]
         
         # 状态变量
-        current_frame = [frame.copy()]
-        update_counter = [0]  # 用于生成唯一文件名
+        current_image = [img.copy()]
+        update_counter = [0]
         
         def save_preview_with_regions():
             """保存带区域标注的预览图，返回新路径"""
             update_counter[0] += 1
             new_path = temp_dir / f"region_preview_{session_id}_{update_counter[0]}.jpg"
             
-            img = current_frame[0].copy()
+            preview_img = current_image[0].copy()
             
             # 绘制已有区域（绿色，加粗）
             for r in regions_list:
-                cv2.rectangle(img, 
+                cv2.rectangle(preview_img, 
                     (r['left'], r['top']), 
                     (r['right'], r['bottom']), 
                     (0, 255, 0), 3)
                 # 半透明填充
-                overlay = img.copy()
+                overlay = preview_img.copy()
                 cv2.rectangle(overlay, (r['left'], r['top']), (r['right'], r['bottom']), (0, 255, 0), -1)
-                cv2.addWeighted(overlay, 0.2, img, 0.8, 0, img)
+                cv2.addWeighted(overlay, 0.2, preview_img, 0.8, 0, preview_img)
             
             # 缩放并保存
-            img_resized = cv2.resize(img, (display_width, display_height))
+            img_resized = cv2.resize(preview_img, (display_width, display_height))
             cv2.imwrite(str(new_path), img_resized)
             return str(new_path)
         
         # 初始保存预览
         initial_preview = save_preview_with_regions()
         
-        # 预览图控件 - 使用 FILL 确保完全填充，避免上下边距
+        # 预览图控件
         preview_image = ft.Image(
             src=initial_preview,
             width=display_width,
@@ -677,13 +682,8 @@ class SubtitleRemoveView(ft.Container):
         regions_column = ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO)
         
         status_text = ft.Text(
-            f"在视频上拖动鼠标框选区域 | 视频: {frame_width}x{frame_height}",
+            f"在图片上拖动鼠标框选水印区域 | 尺寸: {img_width}x{img_height}",
             size=11, color=ft.Colors.ON_SURFACE_VARIANT,
-        )
-        
-        time_text = ft.Text(
-            f"00:00 / {int(duration//60):02d}:{int(duration%60):02d}",
-            size=11,
         )
         
         # 绘制状态
@@ -694,83 +694,24 @@ class SubtitleRemoveView(ft.Container):
             new_path = save_preview_with_regions()
             preview_image.src = new_path
         
-        def format_time(seconds: float) -> str:
-            """格式化时间为 MM:SS"""
-            m = int(seconds // 60)
-            s = int(seconds % 60)
-            return f"{m:02d}:{s:02d}"
-        
-        def parse_time(time_str: str) -> float:
-            """解析时间字符串 MM:SS 为秒"""
-            try:
-                parts = time_str.strip().split(':')
-                if len(parts) == 2:
-                    return int(parts[0]) * 60 + float(parts[1])
-                elif len(parts) == 1:
-                    return float(parts[0])
-            except:
-                pass
-            return 0.0
-        
-        def make_time_change_handler(idx: int, field: str):
-            """创建时间变化处理器"""
-            def handler(e):
-                if 0 <= idx < len(regions_list):
-                    t = parse_time(e.control.value)
-                    t = max(0, min(duration, t))
-                    regions_list[idx][field] = t
-            return handler
-        
         def update_regions_display():
             """更新区域列表显示"""
             regions_column.controls.clear()
             for i, r in enumerate(regions_list):
-                start_t = r.get('start_time', 0.0)
-                end_t = r.get('end_time', duration)
-                
                 regions_column.controls.append(
                     ft.Container(
-                        content=ft.Column(
+                        content=ft.Row(
                             controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Container(width=10, height=10, bgcolor=ft.Colors.GREEN, border_radius=2),
-                                        ft.Text(f"区域{i+1}: ({r['left']},{r['top']})-({r['right']},{r['bottom']})", 
-                                                size=11, expand=True),
-                                        ft.IconButton(
-                                            icon=ft.Icons.CLOSE, icon_size=14,
-                                            tooltip="删除",
-                                            on_click=lambda _, idx=i: delete_region(idx),
-                                        ),
-                                    ],
-                                    spacing=4,
-                                ),
-                                ft.Row(
-                                    controls=[
-                                        ft.Text("时间:", size=10, color=ft.Colors.ON_SURFACE_VARIANT),
-                                        ft.TextField(
-                                            value=format_time(start_t),
-                                            width=60, height=28,
-                                            text_size=10,
-                                            content_padding=ft.padding.symmetric(horizontal=6, vertical=2),
-                                            on_blur=make_time_change_handler(i, 'start_time'),
-                                            tooltip="开始时间 (MM:SS)",
-                                        ),
-                                        ft.Text("-", size=10),
-                                        ft.TextField(
-                                            value=format_time(end_t),
-                                            width=60, height=28,
-                                            text_size=10,
-                                            content_padding=ft.padding.symmetric(horizontal=6, vertical=2),
-                                            on_blur=make_time_change_handler(i, 'end_time'),
-                                            tooltip="结束时间 (MM:SS)",
-                                        ),
-                                        ft.Text(f"/ {format_time(duration)}", size=10, color=ft.Colors.ON_SURFACE_VARIANT),
-                                    ],
-                                    spacing=4,
+                                ft.Container(width=10, height=10, bgcolor=ft.Colors.GREEN, border_radius=2),
+                                ft.Text(f"区域{i+1}: ({r['left']},{r['top']})-({r['right']},{r['bottom']})", 
+                                        size=11, expand=True),
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE, icon_size=14,
+                                    tooltip="删除",
+                                    on_click=lambda _, idx=i: delete_region(idx),
                                 ),
                             ],
-                            spacing=2,
+                            spacing=4,
                         ),
                         padding=4,
                         border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
@@ -780,7 +721,7 @@ class SubtitleRemoveView(ft.Container):
                 )
             if not regions_list:
                 regions_column.controls.append(
-                    ft.Text("拖动鼠标在视频上框选区域", size=11, 
+                    ft.Text("拖动鼠标在图片上框选区域", size=11, 
                             color=ft.Colors.ON_SURFACE_VARIANT, italic=True)
                 )
         
@@ -824,7 +765,7 @@ class SubtitleRemoveView(ft.Container):
         def on_pan_end(e: ft.DragEndEvent):
             selection_box.visible = False
             
-            # 使用保存的最后位置（DragEndEvent 没有 local_x/local_y）
+            # 使用保存的最后位置
             end_x = draw_state['end_x']
             end_y = draw_state['end_y']
             
@@ -835,18 +776,16 @@ class SubtitleRemoveView(ft.Container):
             y2 = int(max(draw_state['start_y'], end_y) / scale)
             
             # 确保在边界内
-            x1 = max(0, min(frame_width, x1))
-            x2 = max(0, min(frame_width, x2))
-            y1 = max(0, min(frame_height, y1))
-            y2 = max(0, min(frame_height, y2))
+            x1 = max(0, min(img_width, x1))
+            x2 = max(0, min(img_width, x2))
+            y1 = max(0, min(img_height, y1))
+            y2 = max(0, min(img_height, y2))
             
             # 最小区域限制
             if x2 - x1 > 20 and y2 - y1 > 20:
                 regions_list.append({
                     'left': x1, 'top': y1, 'right': x2, 'bottom': y2,
-                    'height': frame_height, 'width': frame_width,
-                    'start_time': 0.0,  # 开始时间（秒），0表示从头
-                    'end_time': duration,  # 结束时间（秒），默认到结尾
+                    'height': img_height, 'width': img_width,
                 })
                 status_text.value = f"✓ 已添加区域{len(regions_list)}: ({x1},{y1})-({x2},{y2})"
                 status_text.color = ft.Colors.GREEN
@@ -879,34 +818,6 @@ class SubtitleRemoveView(ft.Container):
             on_pan_end=on_pan_end,
         )
         
-        time_slider = ft.Slider(
-            min=0, max=max(1, total_frames - 1), value=0, expand=True,
-            on_change_end=lambda e: on_time_change(e),
-        )
-        
-        def on_time_change(e):
-            frame_idx = int(e.control.value)
-            time_sec = frame_idx / fps if fps > 0 else 0
-            time_text.value = f"{int(time_sec//60):02d}:{int(time_sec%60):02d} / {int(duration//60):02d}:{int(duration%60):02d}"
-            
-            try:
-                cap = cv2.VideoCapture(str(file_path))
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, new_frame = cap.read()
-                cap.release()
-                
-                if ret:
-                    current_frame[0] = new_frame.copy()
-                    refresh_preview()
-                    status_text.value = f"已跳转到 {time_text.value.split('/')[0].strip()}"
-                    status_text.color = ft.Colors.ON_SURFACE_VARIANT
-            except Exception as ex:
-                logger.error(f"读取帧失败: {ex}")
-                status_text.value = f"读取帧失败"
-                status_text.color = ft.Colors.ERROR
-            
-            self.page.update()
-        
         def close_dialog(e):
             dialog.open = False
             self.page.update()
@@ -933,29 +844,19 @@ class SubtitleRemoveView(ft.Container):
         # 初始化区域列表
         update_regions_display()
         
-        # 左侧面板宽度（取视频宽度和时间轴最小宽度的较大值）
-        left_panel_width = max(display_width, slider_width)
-        
-        # 左侧：视频预览 + 时间轴
+        # 左侧面板：图片预览
         left_panel = ft.Container(
             content=ft.Column(
                 controls=[
-                    # 预览图（可框选）- 居中显示
                     ft.Container(
                         content=gesture_detector,
                         alignment=ft.alignment.center,
                     ),
-                    # 时间轴
-                    ft.Row([
-                        ft.Icon(ft.Icons.ACCESS_TIME, size=16),
-                        time_slider,
-                        time_text,
-                    ], spacing=8),
                     status_text,
                 ],
                 spacing=8,
             ),
-            width=left_panel_width,
+            width=display_width + 20,
             padding=ft.padding.only(right=12),
         )
         
@@ -976,7 +877,7 @@ class SubtitleRemoveView(ft.Container):
                     ),
                     ft.Container(
                         content=ft.Text(
-                            "提示：每个区域可设置独立的时间范围",
+                            "提示：可标注多个水印区域",
                             size=10, 
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
@@ -1002,13 +903,13 @@ class SubtitleRemoveView(ft.Container):
             modal=True,
             title=ft.Row([
                 ft.Icon(ft.Icons.CROP, size=20),
-                ft.Text(f"标注水印/字幕区域", size=16, weight=ft.FontWeight.W_500),
+                ft.Text(f"标注水印区域", size=16, weight=ft.FontWeight.W_500),
                 ft.Text(f" - {file_path.name}", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
             ], spacing=8),
             content=ft.Container(
                 content=main_content,
-                width=left_panel_width + 285,  # 左侧面板 + 右侧面板(260) + 边距
-                height=display_height + 70,  # 视频 + 时间轴 + 状态栏
+                width=display_width + 305,
+                height=display_height + 100,  # 多留空间避免底部被遮挡
             ),
             actions=[
                 ft.TextButton("取消", on_click=close_dialog),
@@ -1027,10 +928,24 @@ class SubtitleRemoveView(ft.Container):
         self.page.snack_bar.open = True
         self.page.update()
     
-    def _clear_files(self) -> None:
-        """清空文件列表。"""
-        self.selected_files.clear()
-        self._update_file_list()
+    def _on_output_mode_change(self) -> None:
+        """输出模式变化事件。"""
+        is_custom = self.output_mode.value == "custom"
+        self.output_dir_field.disabled = not is_custom
+        self.output_dir_btn.disabled = not is_custom
+        self.page.update()
+    
+    def _select_output_dir(self) -> None:
+        """选择输出目录。"""
+        self.output_dir_picker.get_directory_path(
+            dialog_title="选择输出目录"
+        )
+    
+    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
+        """输出目录选择结果处理。"""
+        if e.path:
+            self.output_dir_field.value = e.path
+            self.page.update()
     
     def _check_model_status(self) -> None:
         """检查模型状态。"""
@@ -1057,7 +972,7 @@ class SubtitleRemoveView(ft.Container):
             self.model_load_btn.visible = False
             self.model_unload_btn.visible = False
             self.model_delete_btn.visible = False
-        elif self.subtitle_service.is_model_loaded():
+        elif self.remove_service.is_model_loaded():
             # 模型已加载
             self.model_status_icon.name = ft.Icons.CHECK_CIRCLE
             self.model_status_icon.color = ft.Colors.GREEN
@@ -1085,7 +1000,7 @@ class SubtitleRemoveView(ft.Container):
                 return
         
         # 更新处理按钮状态
-        model_loaded = self.subtitle_service.is_model_loaded()
+        model_loaded = self.remove_service.is_model_loaded()
         has_files = len(self.selected_files) > 0
         self.process_btn.content.disabled = not (model_loaded and has_files)
         
@@ -1138,58 +1053,35 @@ class SubtitleRemoveView(ft.Container):
                     self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
                     self.page.update()
                     
-                    logger.info(f"开始下载: {file_name} from {url}")
-                    
-                    with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
+                    with httpx.stream("GET", url, follow_redirects=True, timeout=300) as response:
                         response.raise_for_status()
-                        
                         total_size = int(response.headers.get('content-length', 0))
                         downloaded = 0
                         
                         with open(save_path, 'wb') as f:
                             for chunk in response.iter_bytes(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    if total_size > 0:
-                                        file_progress = downloaded / total_size
-                                        overall_progress = (file_idx + file_progress) / total_files
-                                        percent = overall_progress * 100
-                                        
-                                        downloaded_mb = downloaded / (1024 * 1024)
-                                        total_mb = total_size / (1024 * 1024)
-                                        
-                                        self.progress_bar.value = overall_progress
-                                        self.progress_text.value = (
-                                            f"下载 {file_name}: {downloaded_mb:.1f}MB / {total_mb:.1f}MB "
-                                            f"({file_idx + 1}/{total_files}) - 总进度: {percent:.1f}%"
-                                        )
-                                        self.model_status_text.value = f"正在下载... {percent:.1f}%"
-                                        
-                                        try:
-                                            self.progress_bar.update()
-                                            self.progress_text.update()
-                                            self.model_status_text.update()
-                                        except:
-                                            pass
-                    
-                    logger.info(f"下载完成: {file_name}")
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if total_size > 0:
+                                    file_progress = downloaded / total_size
+                                    overall_progress = (file_idx + file_progress) / total_files
+                                    self.progress_bar.value = overall_progress
+                                    self.progress_text.value = (
+                                        f"正在下载 {file_name} ({file_idx + 1}/{total_files}): "
+                                        f"{format_file_size(downloaded)} / {format_file_size(total_size)}"
+                                    )
+                                    self.page.update()
                 
                 # 下载完成
                 self.progress_bar.visible = False
                 self.progress_text.visible = False
-                self.progress_bar.value = 0
-                self.progress_text.value = ""
-                logger.info("所有模型文件下载完成")
-                
-                # 更新状态
+                self.model_download_btn.disabled = False
                 self._check_model_status()
                 
-                # 自动加载模型
-                logger.info("开始自动加载模型...")
-                self._load_model()
-                
+                # 如果启用自动加载，则加载模型
+                if self.auto_load_checkbox.value:
+                    self._load_model()
+                    
             except Exception as e:
                 logger.error(f"下载模型失败: {e}", exc_info=True)
                 self.model_status_icon.name = ft.Icons.ERROR
@@ -1219,7 +1111,7 @@ class SubtitleRemoveView(ft.Container):
                 infer_path = self.model_dir / model_info.infer_filename
                 decoder_path = self.model_dir / model_info.decoder_filename
                 
-                self.subtitle_service.load_model(
+                self.remove_service.load_model(
                     str(encoder_path),
                     str(infer_path),
                     str(decoder_path),
@@ -1240,13 +1132,9 @@ class SubtitleRemoveView(ft.Container):
         threading.Thread(target=load_task, daemon=True).start()
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
-        """自动加载模型复选框变化事件。
-        
-        Args:
-            e: 控件事件对象
-        """
+        """自动加载模型复选框变化事件。"""
         auto_load = self.auto_load_checkbox.value
-        self.config_service.set_config_value("subtitle_remove_auto_load_model", auto_load)
+        self.config_service.set_config_value("image_watermark_remove_auto_load_model", auto_load)
         
         # 如果启用自动加载，尝试加载模型
         if auto_load:
@@ -1254,7 +1142,7 @@ class SubtitleRemoveView(ft.Container):
     
     def _try_auto_load_model(self) -> None:
         """尝试自动加载已下载的模型。"""
-        if self.subtitle_service.is_model_loaded():
+        if self.remove_service.is_model_loaded():
             return
         
         model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
@@ -1278,7 +1166,7 @@ class SubtitleRemoveView(ft.Container):
     
     def _unload_model(self) -> None:
         """卸载模型。"""
-        self.subtitle_service.unload_model()
+        self.remove_service.unload_model()
         self._check_model_status()
     
     def _delete_model(self) -> None:
@@ -1292,27 +1180,15 @@ class SubtitleRemoveView(ft.Container):
                 decoder_path = self.model_dir / model_info.decoder_filename
                 
                 # 先卸载模型
-                if self.subtitle_service.is_model_loaded():
-                    self.subtitle_service.unload_model()
+                if self.remove_service.is_model_loaded():
+                    self.remove_service.unload_model()
                 
                 # 删除文件
-                deleted = []
-                if encoder_path.exists():
-                    encoder_path.unlink()
-                    deleted.append("encoder")
-                if infer_path.exists():
-                    infer_path.unlink()
-                    deleted.append("infer")
-                if decoder_path.exists():
-                    decoder_path.unlink()
-                    deleted.append("decoder")
+                for path in [encoder_path, infer_path, decoder_path]:
+                    if path.exists():
+                        path.unlink()
+                        logger.info(f"已删除: {path}")
                 
-                if deleted:
-                    logger.info(f"已删除模型文件: {', '.join(deleted)}")
-                else:
-                    logger.warning("没有找到要删除的模型文件")
-                
-                # 更新状态
                 self._check_model_status()
                 
             except Exception as e:
@@ -1321,56 +1197,15 @@ class SubtitleRemoveView(ft.Container):
                 self.model_status_text.color = ft.Colors.ERROR
                 self.page.update()
         
-        # 确认对话框
-        def confirm_delete(e):
-            dlg.open = False
-            self.page.update()
-            threading.Thread(target=delete_task, daemon=True).start()
-        
-        def cancel_delete(e):
-            dlg.open = False
-            self.page.update()
-        
-        dlg = ft.AlertDialog(
-            title=ft.Text("确认删除"),
-            content=ft.Text("确定要删除模型文件吗？此操作无法撤销。"),
-            actions=[
-                ft.TextButton("取消", on_click=cancel_delete),
-                ft.TextButton("删除", on_click=confirm_delete),
-            ],
-        )
-        self.page.overlay.append(dlg)
-        dlg.open = True
-        self.page.update()
+        threading.Thread(target=delete_task, daemon=True).start()
     
-    def _on_output_mode_change(self) -> None:
-        """输出模式变更。"""
-        is_custom = self.output_mode.value == "custom"
-        self.output_dir_field.disabled = not is_custom
-        self.output_dir_btn.disabled = not is_custom
-        self.page.update()
-    
-    def _select_output_dir(self) -> None:
-        """选择输出目录。"""
-        self.output_dir_picker.get_directory_path(
-            dialog_title="选择输出目录",
-        )
-    
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """输出目录选择回调。"""
-        if e.path:
-            self.output_dir_field.value = e.path
-            self.page.update()
-    
-    def _create_mask(self, height: int, width: int, file_path: Optional[Path] = None, 
-                     current_time: Optional[float] = None) -> np.ndarray:
+    def _create_mask(self, height: int, width: int, file_path: Optional[Path] = None) -> np.ndarray:
         """创建遮罩。
         
         Args:
-            height: 视频高度
-            width: 视频宽度
-            file_path: 视频文件路径，用于获取文件特定的区域设置
-            current_time: 当前帧的时间（秒），用于过滤时间范围内的区域
+            height: 图片高度
+            width: 图片宽度
+            file_path: 文件路径（用于获取特定文件的区域设置）
         
         Returns:
             遮罩数组
@@ -1383,17 +1218,9 @@ class SubtitleRemoveView(ft.Container):
             regions = self.file_regions[str(file_path)]
         
         if regions:
-            # 使用文件特定的多个区域设置
-            active_count = 0
+            # 使用文件特定的区域设置
             for region in regions:
-                # 检查时间范围
-                if current_time is not None:
-                    start_time = region.get('start_time', 0.0)
-                    end_time = region.get('end_time', float('inf'))
-                    if current_time < start_time or current_time > end_time:
-                        continue  # 跳过不在时间范围内的区域
-                
-                # 如果视频尺寸与标注时不同，需要缩放
+                # 如果图片尺寸与标注时不同，需要缩放
                 if region.get('height', height) != height or region.get('width', width) != width:
                     scale_h = height / region.get('height', height)
                     scale_w = width / region.get('width', width)
@@ -1415,16 +1242,66 @@ class SubtitleRemoveView(ft.Container):
                 right = max(0, min(width, right))
                 
                 mask[top:bottom, left:right] = 255
-                active_count += 1
-            
-            if active_count > 0:
-                logger.debug(f"时间 {current_time:.2f}s: 使用 {active_count} 个区域")
         else:
             # 默认模式：底部25%区域
             top = int(height * 0.75)
             mask[top:height, :] = 255
         
         return mask
+    
+    def _process_single_image(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """处理单张图片。
+        
+        使用STTN模型需要多帧输入，这里将单张图片复制多份作为输入。
+        
+        Args:
+            image: 输入图片 (H, W, 3)
+            mask: 遮罩 (H, W)
+        
+        Returns:
+            处理后的图片
+        """
+        height, width = image.shape[:2]
+        
+        # 获取需要修复的区域
+        split_h = int(width * 3 / 16)
+        mask_3d = mask[:, :, None]
+        inpaint_area = self.remove_service.get_inpaint_area_by_mask(height, split_h, mask_3d)
+        
+        if not inpaint_area:
+            return image
+        
+        result = image.copy()
+        
+        # 处理每个需要修复的区域
+        for from_H, to_H in inpaint_area:
+            # 提取并缩放区域
+            image_crop = image[from_H:to_H, :, :]
+            image_resize = cv2.resize(
+                image_crop,
+                (self.remove_service.model_input_width, self.remove_service.model_input_height)
+            )
+            
+            # 复制多份作为输入（模型需要多帧）
+            batch_size = 10
+            frames = [image_resize.copy() for _ in range(batch_size)]
+            
+            # 使用模型修复
+            comps = self.remove_service.inpaint(frames)
+            
+            # 取中间帧的结果
+            comp = comps[batch_size // 2]
+            comp = cv2.resize(comp, (width, split_h))
+            comp = cv2.cvtColor(np.array(comp).astype(np.uint8), cv2.COLOR_BGR2RGB)
+            
+            # 合成到原图
+            mask_area = mask_3d[from_H:to_H, :]
+            result[from_H:to_H, :, :] = (
+                mask_area * comp +
+                (1 - mask_area) * result[from_H:to_H, :, :]
+            )
+        
+        return result
     
     def _start_processing(self) -> None:
         """开始处理。"""
@@ -1448,10 +1325,6 @@ class SubtitleRemoveView(ft.Container):
         self.page.update()
         
         def process_task():
-            import ffmpeg
-            temp_audio_file = None
-            temp_video_file = None
-            
             try:
                 total = len(self.selected_files)
                 
@@ -1461,163 +1334,44 @@ class SubtitleRemoveView(ft.Container):
                     self.progress_bar.value = idx / total
                     self.page.update()
                     
-                    # 获取视频信息
-                    video_info = self.ffmpeg_service.safe_probe(str(file_path))
-                    if not video_info:
-                        logger.error(f"无法获取视频信息: {file_path}")
+                    # 读取图片（支持中文路径）
+                    image = self._read_image_unicode(file_path)
+                    if image is None:
                         continue
                     
-                    # 检查是否有音频流
-                    has_audio = any(
-                        s.get('codec_type') == 'audio' 
-                        for s in video_info.get('streams', [])
-                    )
+                    height, width = image.shape[:2]
                     
-                    # 步骤1：如果有音频，先提取音频
-                    if has_audio:
-                        temp_audio_file = Path(tempfile.gettempdir()) / f"temp_audio_{file_path.stem}.aac"
-                        logger.info(f"提取音频到: {temp_audio_file}")
-                        
-                        try:
-                            ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
-                            audio_stream = ffmpeg.input(str(file_path)).output(
-                                str(temp_audio_file),
-                                acodec='copy',
-                                vn=None
-                            ).global_args('-hide_banner', '-loglevel', 'error')
-                            
-                            ffmpeg.run(audio_stream, cmd=ffmpeg_path, overwrite_output=True)
-                        except Exception as e:
-                            logger.error(f"提取音频失败: {e}")
-                            temp_audio_file = None
+                    # 创建遮罩
+                    mask = self._create_mask(height, width, file_path)
                     
-                    # 步骤2：处理视频（流式处理，减少内存使用）
-                    # 读取视频信息
-                    cap = cv2.VideoCapture(str(file_path))
-                    if not cap.isOpened():
-                        logger.error(f"无法打开视频: {file_path}")
-                        continue
+                    # 处理图片
+                    result = self._process_single_image(image, mask)
                     
-                    # 获取视频信息
-                    fps = cap.get(cv2.CAP_PROP_FPS)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    cap.release()
-                    
-                    logger.info(f"视频信息: {width}x{height}, {fps}fps, {total_frames}帧")
-                    
-                    # 创建mask回调函数（支持按时间动态创建mask）
-                    current_file_path = file_path  # 捕获当前文件路径
-                    def mask_callback(h: int, w: int, current_time: float) -> np.ndarray:
-                        return self._create_mask(h, w, current_file_path, current_time)
-                    
-                    # 步骤3：流式处理视频并直接输出到临时文件
-                    temp_video_file = Path(tempfile.gettempdir()) / f"temp_video_{file_path.stem}.mp4"
-                    
-                    def update_progress(current, total_f):
-                        progress = (idx + current / total_f) / total
-                        self.progress_bar.value = progress
-                        self.page.update()
-                    
-                    success = self.subtitle_service.process_video_streaming(
-                        video_path=str(file_path),
-                        output_path=str(temp_video_file),
-                        mask_callback=mask_callback,
-                        fps=fps,
-                        progress_callback=update_progress,
-                        batch_size=10  # 每批处理10帧，可根据内存情况调整
-                    )
-                    
-                    if not success:
-                        logger.error(f"视频处理失败: {file_path}")
-                        continue
-                    
-                    logger.info(f"临时视频保存到: {temp_video_file}")
-                    
-                    # 步骤4：确定最终输出路径
+                    # 确定输出路径
                     if output_dir:
-                        output_path = output_dir / f"{file_path.stem}_no_subtitle{file_path.suffix}"
+                        output_path = output_dir / f"{file_path.stem}_no_watermark{file_path.suffix}"
                     else:
-                        output_path = file_path.parent / f"{file_path.stem}_no_subtitle{file_path.suffix}"
+                        output_path = file_path.parent / f"{file_path.stem}_no_watermark{file_path.suffix}"
                     
-                    # 步骤5：如果有音频，使用FFmpeg合并视频和音频
-                    if has_audio and temp_audio_file and temp_audio_file.exists():
-                        logger.info("合并视频和音频...")
-                        try:
-                            ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
-                            
-                            # 使用FFmpeg合并视频和音频
-                            video_input = ffmpeg.input(str(temp_video_file))
-                            audio_input = ffmpeg.input(str(temp_audio_file))
-                            
-                            # 获取GPU编码器（如果可用）
-                            use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
-                            gpu_encoder = None
-                            if use_gpu:
-                                gpu_encoder = self.ffmpeg_service.get_preferred_gpu_encoder()
-                            
-                            # 选择编码器
-                            if gpu_encoder:
-                                vcodec = gpu_encoder
-                                logger.info(f"使用GPU编码器: {vcodec}")
-                            else:
-                                vcodec = 'libx264'
-                                logger.info("使用CPU编码器: libx264")
-                            
-                            output_stream = ffmpeg.output(
-                                video_input,
-                                audio_input,
-                                str(output_path),
-                                vcodec=vcodec,
-                                acodec='copy',
-                                crf=23,
-                                preset='medium'
-                            ).global_args('-hide_banner', '-loglevel', 'error')
-                            
-                            ffmpeg.run(output_stream, cmd=ffmpeg_path, overwrite_output=True)
-                            logger.info(f"保存完成: {output_path}")
-                        except Exception as e:
-                            logger.error(f"合并音视频失败: {e}")
-                            # 如果合并失败，直接使用无音频的视频
-                            import shutil
-                            shutil.copy(temp_video_file, output_path)
-                            logger.info(f"保存无音频视频: {output_path}")
+                    # 保存结果（支持中文路径）
+                    if self._save_image_unicode(result, output_path):
+                        logger.info(f"已保存: {output_path}")
                     else:
-                        # 没有音频，直接复制临时视频文件
-                        import shutil
-                        shutil.copy(temp_video_file, output_path)
-                        logger.info(f"保存完成: {output_path}")
-                    
-                    # 清理临时文件
-                    if temp_audio_file and temp_audio_file.exists():
-                        temp_audio_file.unlink()
-                    if temp_video_file and temp_video_file.exists():
-                        temp_video_file.unlink()
+                        logger.error(f"保存失败: {output_path}")
                 
-                # 完成
-                self.progress_text.value = "处理完成！"
+                # 处理完成
+                self.progress_text.value = f"处理完成，共处理 {total} 张图片"
                 self.progress_bar.value = 1.0
+                self.page.update()
                 
             except Exception as e:
                 logger.error(f"处理失败: {e}", exc_info=True)
                 self.progress_text.value = f"处理失败: {str(e)}"
-                self.progress_text.color = ft.Colors.ERROR
+                self.page.update()
             finally:
-                # 确保清理临时文件
-                if temp_audio_file and Path(temp_audio_file).exists():
-                    try:
-                        Path(temp_audio_file).unlink()
-                    except:
-                        pass
-                if temp_video_file and Path(temp_video_file).exists():
-                    try:
-                        Path(temp_video_file).unlink()
-                    except:
-                        pass
-                
                 self.is_processing = False
                 self.process_btn.content.disabled = False
                 self.page.update()
         
         threading.Thread(target=process_task, daemon=True).start()
+
