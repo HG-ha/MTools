@@ -8,6 +8,7 @@ from .file_utils import (
     format_file_size,
     get_file_extension,
     get_file_size,
+    get_system_fonts,
     list_files_by_extension,
     move_file,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "copy_file",
     "move_file",
     "get_file_extension",
+    "get_system_fonts",
     "list_files_by_extension",
     "GifUtils",
     "logger",

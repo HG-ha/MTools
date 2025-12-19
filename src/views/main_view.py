@@ -420,6 +420,10 @@ class MainView(ft.Column):
                         self.media_view._open_view('video_enhance')
                     elif tool_name == "interpolation":
                         self.media_view._open_view('video_interpolation')
+                    elif tool_name == "subtitle":
+                        self.media_view._open_view('video_subtitle')
+                    elif tool_name == "subtitle_remove":
+                        self.media_view._open_view('subtitle_remove')
         elif category == "dev":
             self.navigation_rail.selected_index = 3 + offset  # 开发工具
             self.content_container.content = self.dev_tools_view

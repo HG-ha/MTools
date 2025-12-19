@@ -79,10 +79,10 @@ class AudioToTextView(ft.Container):
         self.model_loaded: bool = False
         self.auto_load_model: bool = self.config_service.get_config_value("whisper_auto_load_model", True)
         
-        # 当前选择的模型引擎（whisper 或 sensevoice）
-        self.current_engine: str = self.config_service.get_config_value("asr_engine", "whisper")
+        # 当前选择的模型引擎（whisper 或 sensevoice）- 优先使用 SenseVoice
+        self.current_engine: str = self.config_service.get_config_value("asr_engine", "sensevoice")
         if self.current_engine not in ["whisper", "sensevoice"]:
-            self.current_engine = "whisper"
+            self.current_engine = "sensevoice"
         
         # 当前选择的模型
         if self.current_engine == "whisper":

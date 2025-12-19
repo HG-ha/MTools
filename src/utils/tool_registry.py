@@ -347,6 +347,16 @@ def register_all_tools():
         gradient_colors=("#FA709A", "#FEE140"),
     )
     
+    register_tool_manual(
+        name="视频配字幕",
+        description="AI语音识别自动生成字幕并烧录到视频",
+        category="媒体处理",
+        keywords=["视频", "字幕", "配字幕", "语音识别", "ASS", "SRT", "烧录", "嵌入", "自动", "AI", "Whisper", "SenseVoice", "subtitle", "caption", "burn", "embed", "speech"],
+        icon="SUBTITLES",
+        tool_id="video.subtitle",
+        gradient_colors=("#4776E6", "#8E54E9"),
+    )
+    
     # ==================== 开发工具 ====================
     
     register_tool_manual(
