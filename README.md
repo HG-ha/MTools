@@ -296,8 +296,9 @@ uv add onnxruntime-gpu==1.22.0
 - **[PPOCR_v5](https://github.com/Nnow2024/PPOCR_v5)** - 高精度OCR识别引擎
 - **[FunASR](https://github.com/modelscope/FunASR)** - 语音识别工具包
 - **[ICP_Query](https://github.com/HG-ha/ICP_Query)** - ICP备案查询功能实现
+- **[HivisionIDPhotos](https://github.com/Zeyi-Lin/HivisionIDPhotos)** - AI证件照
+- **[video-subtitle-remover](https://github.com/YaoFANGUK/video-subtitle-remover)** - AI去水印
 
-感谢这些优秀的开源项目为本项目提供的技术支持和灵感！
 
 ### 外部服务
 
