@@ -2,16 +2,18 @@
 """语音识别服务模块。
 
 使用 sherpa-onnx 和 Whisper 模型进行语音转文字。
+支持 VAD（语音活动检测）智能分片，提高识别准确率。
 """
 
 import os
 from pathlib import Path
-from typing import Optional, Callable, TYPE_CHECKING, List, Dict, Any
+from typing import Optional, Callable, TYPE_CHECKING, List, Dict, Any, Tuple
 from utils import logger
 import numpy as np
 
 if TYPE_CHECKING:
     from services import FFmpegService
+    from services.vad_service import VADService
     from constants import WhisperModelInfo, SenseVoiceModelInfo
 
 
@@ -19,12 +21,14 @@ class SpeechRecognitionService:
     """语音识别服务类。
     
     支持 sherpa-onnx Whisper 和 SenseVoice/Paraformer 模型进行音视频转文字。
+    支持 VAD（语音活动检测）智能分片。
     """
     
     def __init__(
         self,
         model_dir: Optional[Path] = None,
         ffmpeg_service: Optional['FFmpegService'] = None,
+        vad_service: Optional['VADService'] = None,
         debug_mode: bool = False
     ):
         """初始化语音识别服务。
@@ -32,9 +36,11 @@ class SpeechRecognitionService:
         Args:
             model_dir: 模型存储目录，默认为用户数据目录下的 models/whisper
             ffmpeg_service: FFmpeg 服务实例
+            vad_service: VAD 服务实例（可选，用于智能分片）
             debug_mode: 是否启用调试模式（输出详细信息）
         """
         self.ffmpeg_service = ffmpeg_service
+        self.vad_service = vad_service
         self.model_dir = model_dir
         self.debug_mode = debug_mode
         # 确保目录存在
@@ -46,6 +52,9 @@ class SpeechRecognitionService:
         self.model_type: str = "whisper"  # whisper 或 sensevoice
         self.sample_rate: int = 16000  # 固定使用 16kHz
         self.current_provider: str = "未加载"
+        
+        # VAD 相关设置
+        self.use_vad: bool = True  # 是否使用 VAD 智能分片
         
         # 设置 FFmpeg 环境
         self._setup_ffmpeg_env()
@@ -650,6 +659,73 @@ class SpeechRecognitionService:
             # 英文为主：用空格连接
             return ' '.join(seg.strip() for seg in segments if seg.strip())
     
+    def _is_hallucination(self, text: str) -> bool:
+        """检测文本是否为幻觉输出（重复字符、异常语言等）。
+        
+        Args:
+            text: 待检测文本
+            
+        Returns:
+            是否为幻觉输出
+        """
+        if not text or len(text.strip()) < 2:
+            return True
+        
+        text = text.strip()
+        
+        # 检测高度重复字符（如 ooooo, aaaaa, 阿拉伯语重复等）
+        # 如果某个字符重复超过总长度的 60%，认为是幻觉
+        from collections import Counter
+        char_counts = Counter(text.replace(' ', ''))
+        if char_counts:
+            most_common_char, count = char_counts.most_common(1)[0]
+            total_chars = sum(char_counts.values())
+            if total_chars > 0 and count / total_chars > 0.6:
+                return True
+        
+        # 检测主要由非 CJK/拉丁字符组成（如阿拉伯语、韩语重复）
+        # 统计 CJK + 拉丁 + 数字 + 常用标点的占比
+        normal_chars = 0
+        for c in text:
+            if (
+                '\u4e00' <= c <= '\u9fff'  # CJK
+                or '\u3040' <= c <= '\u30ff'  # 日文
+                or 'a' <= c.lower() <= 'z'  # 拉丁
+                or '0' <= c <= '9'  # 数字
+                or c in ' ,.!?;:，。！？；：、""''（）()[]【】'  # 常用标点
+            ):
+                normal_chars += 1
+        
+        if len(text) > 0 and normal_chars / len(text) < 0.3:
+            return True
+        
+        return False
+    
+    def _filter_hallucination_segments(
+        self,
+        segments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """过滤掉幻觉输出的分段。
+        
+        Args:
+            segments: 分段列表
+            
+        Returns:
+            过滤后的分段列表
+        """
+        filtered = []
+        for seg in segments:
+            text = seg.get('text', '')
+            if not self._is_hallucination(text):
+                filtered.append(seg)
+            else:
+                logger.debug(f"过滤幻觉输出: {text[:50]}...")
+        
+        if len(filtered) < len(segments):
+            logger.info(f"已过滤 {len(segments) - len(filtered)} 个幻觉分段")
+        
+        return filtered
+    
     def _recognize_audio_chunk(self, audio_chunk: np.ndarray) -> str:
         """识别单个音频片段（内部方法）。
         
@@ -688,6 +764,329 @@ class SpeechRecognitionService:
             
             # 其他未知异常，向上抛出
             raise RuntimeError(f"音频片段识别失败: {error_msg}")
+
+    def _postprocess_vad_segments(
+        self,
+        segments: List[Tuple[float, float]],
+        min_segment_duration: float = 1.0,
+        merge_gap: float = 0.6,
+        max_segment_duration: float = 28.0,
+    ) -> List[Tuple[float, float]]:
+        """对 VAD 输出的片段做二次合并，避免过短片段导致识别率下降。"""
+        if not segments:
+            return []
+
+        segments = sorted(segments, key=lambda x: x[0])
+        merged: List[Tuple[float, float]] = []
+
+        cur_start, cur_end = segments[0]
+        for start, end in segments[1:]:
+            if end <= start:
+                continue
+            gap = start - cur_end
+            cur_dur = cur_end - cur_start
+            next_dur = end - start
+            combined_dur = end - cur_start
+
+            should_merge = (
+                gap <= merge_gap
+                and combined_dur <= max_segment_duration
+                and (cur_dur < min_segment_duration or next_dur < min_segment_duration)
+            )
+
+            if should_merge:
+                cur_end = end
+            else:
+                merged.append((cur_start, cur_end))
+                cur_start, cur_end = start, end
+
+        merged.append((cur_start, cur_end))
+        return merged
+    
+    def _recognize_with_vad(
+        self,
+        audio: np.ndarray,
+        audio_duration: float,
+        progress_callback: Optional[Callable[[str, float], None]] = None
+    ) -> str:
+        """使用 VAD 智能分片进行识别（内部方法）。
+        
+        Args:
+            audio: 完整音频数据
+            audio_duration: 音频时长（秒）
+            progress_callback: 进度回调函数
+            
+        Returns:
+            识别的文字内容
+        """
+        if progress_callback:
+            progress_callback("正在检测语音活动...", 0.15)
+        
+        # 使用 VAD 检测语音片段
+        segments = self.vad_service.detect_speech_segments(audio)
+        
+        if not segments:
+            logger.warning("VAD 未检测到语音片段")
+            return "[未识别到语音内容]"
+        
+        # 合并相邻短片段，确保不超过 28 秒
+        merged_segments = self.vad_service.merge_short_segments(
+            segments, 
+            max_segment_duration=28.0,
+            min_gap=0.5
+        )
+
+        # 二次合并过短片段，避免过短导致识别率下降
+        merged_segments = self._postprocess_vad_segments(
+            merged_segments,
+            min_segment_duration=1.0,
+            merge_gap=0.6,
+            max_segment_duration=28.0,
+        )
+        
+        logger.info(
+            f"VAD 智能分片：{len(merged_segments)} 个片段 "
+            f"（原 {len(segments)} 个语音段）"
+        )
+        
+        # 获取音频块
+        audio_chunks = self.vad_service.get_audio_chunks(audio, merged_segments, padding=0.3)
+        
+        results = []
+        num_chunks = len(audio_chunks)
+        
+        for i, (chunk, start_time, end_time) in enumerate(audio_chunks):
+            if progress_callback:
+                progress = 0.2 + (i / num_chunks) * 0.7
+                progress_callback(
+                    f"识别片段 {i+1}/{num_chunks} ({start_time:.1f}s - {end_time:.1f}s)...",
+                    progress
+                )
+            
+            chunk_text = self._recognize_audio_chunk(chunk)
+            if chunk_text:
+                results.append(chunk_text)
+                logger.info(f"VAD 片段 {i+1}/{num_chunks} 识别完成: {len(chunk_text)} 字符")
+            else:
+                logger.info(f"VAD 片段 {i+1}/{num_chunks} 识别为空")
+        
+        if progress_callback:
+            progress_callback("合并结果...", 0.95)
+        
+        if not results:
+            logger.warning("VAD 分片识别结果为空，回退到固定分片识别")
+            return self._recognize_with_fixed_chunks(audio, audio_duration, progress_callback)
+        
+        # 智能合并文本
+        full_text = self._merge_segments_text(results)
+
+        # 如果 VAD 输出文本过短，回退固定分片（避免 VAD 把内容“吃掉”）
+        min_len = 5 if audio_duration <= 60 else 30
+        if audio_duration > 28.0 and len(full_text.strip()) < min_len:
+            logger.warning(
+                f"VAD 识别文本过短（{len(full_text.strip())} 字符），回退到固定分片识别"
+            )
+            fallback_text = self._recognize_with_fixed_chunks(audio, audio_duration, progress_callback)
+            if len(fallback_text.strip()) > len(full_text.strip()):
+                return fallback_text
+        
+        if progress_callback:
+            progress_callback("完成!", 1.0)
+        
+        logger.info(f"VAD 识别完成，{len(results)} 个片段，{len(full_text)} 字符")
+        return full_text
+
+    def _recognize_with_fixed_chunks(
+        self,
+        audio: np.ndarray,
+        audio_duration: float,
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ) -> str:
+        """Whisper 长音频的固定分片识别（作为 VAD 的回退路径）。"""
+        max_chunk_duration = 28.0
+        chunk_samples = int(max_chunk_duration * self.sample_rate)
+        num_chunks = int(np.ceil(len(audio) / chunk_samples))
+
+        logger.info(
+            f"回退固定分片：音频时长 {audio_duration:.1f} 秒，"
+            f"分成 {num_chunks} 个片段进行识别"
+        )
+
+        results: List[str] = []
+        for i in range(num_chunks):
+            start_idx = i * chunk_samples
+            end_idx = min((i + 1) * chunk_samples, len(audio))
+            chunk = audio[start_idx:end_idx]
+
+            chunk_start_time = start_idx / self.sample_rate
+            chunk_end_time = end_idx / self.sample_rate
+
+            if progress_callback:
+                progress = 0.2 + (i / max(num_chunks, 1)) * 0.7
+                progress_callback(
+                    f"识别片段 {i+1}/{num_chunks} ({chunk_start_time:.1f}s - {chunk_end_time:.1f}s)...",
+                    progress,
+                )
+
+            chunk_text = self._recognize_audio_chunk(chunk)
+            if chunk_text:
+                results.append(chunk_text)
+
+        if progress_callback:
+            progress_callback("合并结果...", 0.95)
+
+        if not results:
+            return "[未识别到语音内容]"
+
+        full_text = self._merge_segments_text(results)
+        if progress_callback:
+            progress_callback("完成!", 1.0)
+        return full_text
+    
+    def _recognize_with_vad_timestamps(
+        self,
+        audio: np.ndarray,
+        audio_duration: float,
+        progress_callback: Optional[Callable[[str, float], None]] = None
+    ) -> List[Dict[str, Any]]:
+        """使用 VAD 智能分片进行识别并返回带时间戳的结果（内部方法）。
+        
+        Args:
+            audio: 完整音频数据
+            audio_duration: 音频时长（秒）
+            progress_callback: 进度回调函数
+            
+        Returns:
+            分段结果列表
+        """
+        if progress_callback:
+            progress_callback("正在检测语音活动...", 0.15)
+        
+        # 使用 VAD 检测语音片段
+        vad_segments = self.vad_service.detect_speech_segments(audio)
+        
+        if not vad_segments:
+            logger.warning("VAD 未检测到语音片段")
+            return []
+        
+        # 合并相邻短片段，确保不超过 28 秒
+        merged_segments = self.vad_service.merge_short_segments(
+            vad_segments, 
+            max_segment_duration=28.0,
+            min_gap=0.5
+        )
+
+        merged_segments = self._postprocess_vad_segments(
+            merged_segments,
+            min_segment_duration=1.0,
+            merge_gap=0.6,
+            max_segment_duration=28.0,
+        )
+        
+        logger.info(
+            f"VAD 智能分片：{len(merged_segments)} 个片段 "
+            f"（原 {len(vad_segments)} 个语音段）"
+        )
+        
+        # 获取音频块
+        audio_chunks = self.vad_service.get_audio_chunks(audio, merged_segments, padding=0.3)
+        
+        all_segments = []
+        num_chunks = len(audio_chunks)
+        
+        for i, (chunk, chunk_start, chunk_end) in enumerate(audio_chunks):
+            chunk_duration = chunk_end - chunk_start
+            
+            if progress_callback:
+                progress = 0.2 + (i / num_chunks) * 0.7
+                progress_callback(
+                    f"识别片段 {i+1}/{num_chunks} ({chunk_start:.1f}s - {chunk_end:.1f}s)...",
+                    progress
+                )
+            
+            chunk_text = self._recognize_audio_chunk(chunk)
+            
+            if chunk_text:
+                # 为这个片段生成带时间戳的分段
+                chunk_segments = self._split_into_segments(chunk_text, chunk_duration)
+                
+                # 调整时间戳（加上片段的起始时间）
+                for segment in chunk_segments:
+                    segment['start'] += chunk_start
+                    segment['end'] += chunk_start
+                
+                all_segments.extend(chunk_segments)
+                logger.info(f"VAD 片段 {i+1}/{num_chunks} 识别完成: {len(chunk_segments)} 个分段")
+            else:
+                logger.info(f"VAD 片段 {i+1}/{num_chunks} 识别为空")
+        
+        if progress_callback:
+            progress_callback("完成!", 1.0)
+        
+        total_text_len = sum(len((seg.get("text") or "").strip()) for seg in all_segments)
+        logger.info(f"VAD 识别完成，总共 {len(all_segments)} 个分段，{total_text_len} 字符")
+
+        # 过滤幻觉输出（重复字符、异常语言等）
+        all_segments = self._filter_hallucination_segments(all_segments)
+
+        # VAD 分段结果为空或文本过短时，回退固定分片生成分段（防止 VAD 导致输出几乎为空）
+        if audio_duration > 28.0:
+            min_len = 10 if audio_duration <= 60 else 30
+            total_text_len = sum(len((seg.get("text") or "").strip()) for seg in all_segments)
+            if len(all_segments) == 0:
+                logger.warning("VAD 时间戳识别结果为空，回退到固定分片识别")
+                return self._filter_hallucination_segments(
+                    self._recognize_with_fixed_chunks_timestamps(audio, audio_duration, progress_callback)
+                )
+            if total_text_len < min_len:
+                logger.warning(
+                    f"VAD 时间戳识别文本过短（{total_text_len} 字符），回退到固定分片识别"
+                )
+                return self._filter_hallucination_segments(
+                    self._recognize_with_fixed_chunks_timestamps(audio, audio_duration, progress_callback)
+                )
+
+        return all_segments
+
+    def _recognize_with_fixed_chunks_timestamps(
+        self,
+        audio: np.ndarray,
+        audio_duration: float,
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Whisper 长音频固定分片 + 伪时间戳（作为 VAD 的回退路径）。"""
+        max_chunk_duration = 28.0
+        chunk_samples = int(max_chunk_duration * self.sample_rate)
+        num_chunks = int(np.ceil(len(audio) / chunk_samples))
+
+        all_segments: List[Dict[str, Any]] = []
+        for i in range(num_chunks):
+            start_idx = i * chunk_samples
+            end_idx = min((i + 1) * chunk_samples, len(audio))
+            chunk = audio[start_idx:end_idx]
+
+            chunk_start_time = start_idx / self.sample_rate
+            chunk_end_time = end_idx / self.sample_rate
+            chunk_duration = (end_idx - start_idx) / self.sample_rate
+
+            if progress_callback:
+                progress = 0.2 + (i / max(num_chunks, 1)) * 0.7
+                progress_callback(
+                    f"识别片段 {i+1}/{num_chunks} ({chunk_start_time:.1f}s - {chunk_end_time:.1f}s)...",
+                    progress,
+                )
+
+            chunk_text = self._recognize_audio_chunk(chunk)
+            if chunk_text:
+                chunk_segments = self._split_into_segments(chunk_text, chunk_duration)
+                for seg in chunk_segments:
+                    seg["start"] += chunk_start_time
+                    seg["end"] += chunk_start_time
+                all_segments.extend(chunk_segments)
+
+        if progress_callback:
+            progress_callback("完成!", 1.0)
+        return self._filter_hallucination_segments(all_segments)
     
     def recognize(
         self,
@@ -738,17 +1137,17 @@ class SpeechRecognitionService:
         try:
             import sherpa_onnx
             
-            # SenseVoice/Paraformer 无长度限制，直接识别
+            # SenseVoice/Paraformer：可选启用 VAD（用于切静音/降噪场景）
             if self.model_type == "sensevoice":
-                if progress_callback:
-                    progress_callback(f"正在识别语音（{audio_duration:.1f}秒）...", 0.5)
-                
-                text = self._recognize_audio_chunk(audio)
-                
-                if progress_callback:
-                    progress_callback("完成!", 1.0)
-                
-                return text if text else "[未识别到语音内容]"
+                if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
+                    return self._recognize_with_vad(audio, audio_duration, progress_callback)
+                else:
+                    if progress_callback:
+                        progress_callback(f"正在识别语音（{audio_duration:.1f}秒）...", 0.5)
+                    text = self._recognize_audio_chunk(audio)
+                    if progress_callback:
+                        progress_callback("完成!", 1.0)
+                    return text if text else "[未识别到语音内容]"
             
             # Whisper 限制：单次最多 30 秒
             # 为了稳妥，使用 28 秒作为分段长度（留 2 秒缓冲）
@@ -767,12 +1166,16 @@ class SpeechRecognitionService:
                 
                 return text if text else "[未识别到语音内容]"
             
-            # 长音频：分段识别
+            # 长音频：优先使用 VAD 智能分片
+            if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
+                return self._recognize_with_vad(audio, audio_duration, progress_callback)
+            
+            # 回退：固定时间分段识别
             # sherpa-onnx Whisper 限制：最多 30 秒，参考 https://github.com/k2-fsa/sherpa-onnx/issues/896
             num_chunks = int(np.ceil(len(audio) / chunk_samples))
             logger.info(
                 f"音频时长 {audio_duration:.1f} 秒 > 28 秒，"
-                f"将自动分成 {num_chunks} 个片段进行识别"
+                f"将自动分成 {num_chunks} 个片段进行识别（固定分片）"
             )
             
             results = []
@@ -869,8 +1272,13 @@ class SpeechRecognitionService:
             
             all_segments = []
             
-            # SenseVoice/Paraformer 无长度限制，直接识别并获取真实时间戳
+            # SenseVoice/Paraformer：
+            # - 默认：直接识别并获取真实时间戳
+            # - 启用 VAD：改用 VAD 分片生成“近似时间戳”（按句子均分），避免 padding 重叠导致的时间戳/文本重复问题
             if self.model_type == "sensevoice":
+                if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
+                    logger.info("SenseVoice 启用 VAD：使用 VAD 分片生成近似时间戳")
+                    return self._recognize_with_vad_timestamps(audio, audio_duration, progress_callback)
                 if progress_callback:
                     progress_callback(f"正在识别语音（{audio_duration:.1f}秒）...", 0.5)
                 
@@ -888,6 +1296,7 @@ class SpeechRecognitionService:
                 if progress_callback:
                     progress_callback("完成!", 1.0)
                 
+                segments = self._filter_hallucination_segments(segments)
                 logger.info(f"识别完成，使用真实时间戳生成 {len(segments)} 个分段")
                 return segments
             
@@ -909,18 +1318,23 @@ class SpeechRecognitionService:
                 
                 # 将文本分割成句子
                 segments = self._split_into_segments(text, audio_duration)
+                segments = self._filter_hallucination_segments(segments)
                 
                 if progress_callback:
                     progress_callback("完成!", 1.0)
                 
                 return segments
             
-            # 长音频：分段识别
+            # 长音频：优先使用 VAD 智能分片
+            if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
+                return self._recognize_with_vad_timestamps(audio, audio_duration, progress_callback)
+            
+            # 回退：固定时间分段识别
             # sherpa-onnx Whisper 限制：最多 30 秒，参考 https://github.com/k2-fsa/sherpa-onnx/issues/896
             num_chunks = int(np.ceil(len(audio) / chunk_samples))
             logger.info(
                 f"音频时长 {audio_duration:.1f} 秒 > 28 秒，"
-                f"将自动分成 {num_chunks} 个片段进行识别"
+                f"将自动分成 {num_chunks} 个片段进行识别（固定分片）"
             )
             
             for i in range(num_chunks):
@@ -952,6 +1366,8 @@ class SpeechRecognitionService:
                     
                     all_segments.extend(chunk_segments)
                     logger.info(f"片段 {i+1}/{num_chunks} 识别完成: {len(chunk_segments)} 个分段")
+            
+            all_segments = self._filter_hallucination_segments(all_segments)
             
             if progress_callback:
                 progress_callback("完成!", 1.0)
@@ -1230,3 +1646,30 @@ class SpeechRecognitionService:
             return "CPU"
         else:
             return self.current_provider.upper()
+    
+    def set_vad_service(self, vad_service: 'VADService') -> None:
+        """设置 VAD 服务。
+        
+        Args:
+            vad_service: VAD 服务实例
+        """
+        self.vad_service = vad_service
+    
+    def set_use_vad(self, use_vad: bool) -> None:
+        """设置是否使用 VAD 智能分片。
+        
+        Args:
+            use_vad: 是否使用 VAD
+        """
+        self.use_vad = use_vad
+    
+    def is_vad_available(self) -> bool:
+        """检查 VAD 是否可用。
+        
+        Returns:
+            VAD 是否可用
+        """
+        return (
+            self.vad_service is not None 
+            and self.vad_service.is_model_loaded()
+        )

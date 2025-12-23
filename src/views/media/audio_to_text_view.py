@@ -14,15 +14,19 @@ from constants import (
     BORDER_RADIUS_MEDIUM,
     DEFAULT_WHISPER_MODEL_KEY,
     DEFAULT_SENSEVOICE_MODEL_KEY,
+    DEFAULT_VAD_MODEL_KEY,
+    DEFAULT_VOCAL_MODEL_KEY,
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_LARGE,
     WHISPER_MODELS,
     SENSEVOICE_MODELS,
+    VAD_MODELS,
+    VOCAL_SEPARATION_MODELS,
     SenseVoiceModelInfo,
     WhisperModelInfo,
 )
-from services import ConfigService, SpeechRecognitionService, FFmpegService
+from services import ConfigService, SpeechRecognitionService, FFmpegService, VADService, VocalSeparationService
 from utils import format_file_size, logger, segments_to_srt, segments_to_vtt, segments_to_txt
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
@@ -75,13 +79,37 @@ class AudioToTextView(ft.Container):
         
         # 初始化服务
         model_dir = self.config_service.get_data_dir() / "models" / "whisper"
+        vad_model_dir = self.config_service.get_data_dir() / "models" / "vad"
+        vocal_model_dir = self.config_service.get_data_dir() / "models" / "vocal"
+        
+        # VAD 服务
+        self.vad_service: VADService = VADService(vad_model_dir)
+        self.vad_loaded: bool = False
+        
+        # 人声分离服务（用于降噪）
+        self.vocal_service: VocalSeparationService = VocalSeparationService(
+            vocal_model_dir,
+            ffmpeg_service=ffmpeg_service,
+            config_service=config_service
+        )
+        self.vocal_loaded: bool = False
+        
+        # 语音识别服务（传入 VAD 服务）
         self.speech_service: SpeechRecognitionService = SpeechRecognitionService(
             model_dir,
-            ffmpeg_service
+            ffmpeg_service,
+            vad_service=self.vad_service
         )
         self.model_loading: bool = False
         self.model_loaded: bool = False
         self.auto_load_model: bool = self.config_service.get_config_value("whisper_auto_load_model", True)
+        
+        # VAD 和人声分离设置（默认启用，效果最好）
+        self.use_vad: bool = self.config_service.get_config_value("asr_use_vad", True)
+        self.use_vocal_separation: bool = self.config_service.get_config_value("asr_use_vocal_separation", True)
+        self.current_vocal_model_key: str = self.config_service.get_config_value("asr_vocal_model_key", DEFAULT_VOCAL_MODEL_KEY)
+        if self.current_vocal_model_key not in VOCAL_SEPARATION_MODELS:
+            self.current_vocal_model_key = DEFAULT_VOCAL_MODEL_KEY
         
         # 当前选择的模型引擎（whisper 或 sensevoice）- 优先使用 SenseVoice
         self.current_engine: str = self.config_service.get_config_value("asr_engine", "sensevoice")
@@ -326,6 +354,158 @@ class AudioToTextView(ft.Container):
             on_change=self._on_auto_load_change,
         )
         
+        # === VAD 模型设置 ===
+        self.vad_checkbox = ft.Checkbox(
+            label="启用 VAD 智能分片",
+            value=self.use_vad,
+            on_change=self._on_vad_change,
+        )
+        
+        self.vad_status_icon = ft.Icon(
+            ft.Icons.CLOUD_DOWNLOAD,
+            size=16,
+            color=ft.Colors.ORANGE,
+        )
+        self.vad_status_text = ft.Text(
+            "未加载",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        self.vad_download_btn = ft.TextButton(
+            "下载",
+            icon=ft.Icons.DOWNLOAD,
+            on_click=self._on_download_vad,
+            visible=False,
+        )
+        self.vad_load_btn = ft.TextButton(
+            "加载",
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_load_vad,
+            visible=False,
+        )
+        
+        vad_row = ft.Row(
+            controls=[
+                self.vad_checkbox,
+                self.vad_status_icon,
+                self.vad_status_text,
+                self.vad_download_btn,
+                self.vad_load_btn,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        vad_hint = ft.Text(
+            "在静音处智能分片，避免在说话中间切断（仅 Whisper 长音频需要）",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # === 人声分离模型设置 ===
+        self.vocal_checkbox = ft.Checkbox(
+            label="启用人声分离（降噪）",
+            value=self.use_vocal_separation,
+            on_change=self._on_vocal_change,
+        )
+        
+        # 人声分离模型选择
+        vocal_model_options = []
+        for model_key, model_info in VOCAL_SEPARATION_MODELS.items():
+            prefix = "[伴奏]" if model_info.invert_output else "[人声]"
+            option_text = f"{prefix} {model_info.display_name}"
+            vocal_model_options.append(
+                ft.dropdown.Option(key=model_key, text=option_text)
+            )
+        
+        self.vocal_model_dropdown = ft.Dropdown(
+            options=vocal_model_options,
+            value=self.current_vocal_model_key,
+            label="降噪模型",
+            hint_text="选择人声分离模型",
+            on_change=self._on_vocal_model_change,
+            width=380,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_vocal_separation,
+        )
+        
+        self.vocal_status_icon = ft.Icon(
+            ft.Icons.CLOUD_DOWNLOAD,
+            size=16,
+            color=ft.Colors.ORANGE,
+        )
+        self.vocal_status_text = ft.Text(
+            "未加载",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        self.vocal_download_btn = ft.TextButton(
+            "下载",
+            icon=ft.Icons.DOWNLOAD,
+            on_click=self._on_download_vocal,
+            visible=False,
+        )
+        self.vocal_load_btn = ft.TextButton(
+            "加载",
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_load_vocal,
+            visible=False,
+        )
+        
+        vocal_status_row = ft.Row(
+            controls=[
+                self.vocal_status_icon,
+                self.vocal_status_text,
+                self.vocal_download_btn,
+                self.vocal_load_btn,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        vocal_hint = ft.Text(
+            "对嘈杂音频进行人声分离，去除背景音乐和噪音（处理时间会增加）",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 预处理设置区域
+        preprocess_hint = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.TIPS_AND_UPDATES, size=14, color=ft.Colors.PRIMARY),
+                    ft.Text(
+                        "推荐：同时启用 VAD 和人声分离可获得最佳识别效果",
+                        size=11,
+                        color=ft.Colors.PRIMARY,
+                    ),
+                ],
+                spacing=4,
+            ),
+            padding=ft.padding.only(bottom=4),
+        )
+        
+        preprocess_section = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("预处理设置", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT),
+                    preprocess_hint,
+                    vad_row,
+                    vad_hint,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    self.vocal_checkbox,
+                    self.vocal_model_dropdown,
+                    vocal_status_row,
+                    vocal_hint,
+                ],
+                spacing=4,
+            ),
+            padding=ft.padding.only(top=PADDING_SMALL),
+        )
+        
+        # 初始化 VAD 和人声分离状态
+        self._init_vad_status()
+        self._init_vocal_status()
+        
         model_section = ft.Container(
             content=ft.Column(
                 controls=[
@@ -345,6 +525,8 @@ class AudioToTextView(ft.Container):
                     ft.Container(height=PADDING_SMALL),
                     model_status_row,
                     self.auto_load_checkbox,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
+                    preprocess_section,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -1209,6 +1391,214 @@ class AudioToTextView(ft.Container):
         if self.model_loaded:
             self._show_info("提示", "GPU设置已更改，需要重新加载模型才能生效。")
     
+    def _on_vad_change(self, e: ft.ControlEvent) -> None:
+        """VAD 选项变更事件。"""
+        self.use_vad = e.control.value
+        self.config_service.set_config_value("asr_use_vad", self.use_vad)
+        self.speech_service.set_use_vad(self.use_vad)
+    
+    def _on_vocal_change(self, e: ft.ControlEvent) -> None:
+        """人声分离选项变更事件。"""
+        self.use_vocal_separation = e.control.value
+        self.config_service.set_config_value("asr_use_vocal_separation", self.use_vocal_separation)
+        
+        # 更新模型下拉框的启用状态
+        self.vocal_model_dropdown.disabled = not self.use_vocal_separation
+        self.page.update()
+    
+    def _on_vocal_model_change(self, e: ft.ControlEvent) -> None:
+        """人声分离模型选择变更事件。"""
+        self.current_vocal_model_key = e.control.value
+        self.config_service.set_config_value("asr_vocal_model_key", self.current_vocal_model_key)
+        
+        # 更新模型状态
+        self._init_vocal_status()
+    
+    def _init_vad_status(self) -> None:
+        """初始化 VAD 模型状态。"""
+        vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
+        model_dir = self.vad_service.get_model_dir(DEFAULT_VAD_MODEL_KEY)
+        model_path = model_dir / vad_model_info.filename
+        
+        if model_path.exists():
+            self.vad_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.vad_status_icon.color = ft.Colors.GREEN
+            self.vad_status_text.value = "已下载"
+            self.vad_download_btn.visible = False
+            self.vad_load_btn.visible = True
+            
+            # 自动加载 VAD 模型
+            if self.use_vad and not self.vad_loaded:
+                self._load_vad_model()
+        else:
+            self.vad_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
+            self.vad_status_icon.color = ft.Colors.ORANGE
+            self.vad_status_text.value = f"未下载 ({vad_model_info.size_mb}MB)"
+            self.vad_download_btn.visible = True
+            self.vad_load_btn.visible = False
+    
+    def _init_vocal_status(self) -> None:
+        """初始化人声分离模型状态。"""
+        vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
+        model_path = self.vocal_service.model_dir / vocal_model_info.filename
+        
+        if model_path.exists():
+            self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.vocal_status_icon.color = ft.Colors.GREEN
+            self.vocal_status_text.value = "已下载"
+            self.vocal_download_btn.visible = False
+            self.vocal_load_btn.visible = True
+            
+            # 自动加载人声分离模型
+            if self.use_vocal_separation and not self.vocal_loaded:
+                self._load_vocal_model()
+        else:
+            self.vocal_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
+            self.vocal_status_icon.color = ft.Colors.ORANGE
+            self.vocal_status_text.value = f"未下载 ({vocal_model_info.size_mb}MB)"
+            self.vocal_download_btn.visible = True
+            self.vocal_load_btn.visible = False
+    
+    def _on_download_vad(self, e: ft.ControlEvent) -> None:
+        """下载 VAD 模型。"""
+        self.vad_download_btn.visible = False
+        self.vad_status_text.value = "下载中..."
+        self.page.update()
+        
+        def download_task():
+            try:
+                vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
+                
+                def progress_callback(progress: float, message: str):
+                    self.vad_status_text.value = message
+                    try:
+                        self.page.update()
+                    except:
+                        pass
+                
+                self.vad_service.download_model(
+                    DEFAULT_VAD_MODEL_KEY,
+                    vad_model_info,
+                    progress_callback
+                )
+                
+                self.vad_status_icon.name = ft.Icons.CHECK_CIRCLE
+                self.vad_status_icon.color = ft.Colors.GREEN
+                self.vad_status_text.value = "已下载"
+                self.vad_load_btn.visible = True
+                self.page.update()
+                
+                # 自动加载
+                self._load_vad_model()
+                
+            except Exception as ex:
+                self.vad_status_icon.name = ft.Icons.ERROR
+                self.vad_status_icon.color = ft.Colors.ERROR
+                self.vad_status_text.value = f"下载失败: {ex}"
+                self.vad_download_btn.visible = True
+                self.page.update()
+        
+        self.page.run_thread(download_task)
+    
+    def _on_load_vad(self, e: ft.ControlEvent) -> None:
+        """加载 VAD 模型。"""
+        self._load_vad_model()
+    
+    def _load_vad_model(self) -> None:
+        """加载 VAD 模型。"""
+        try:
+            vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
+            model_dir = self.vad_service.get_model_dir(DEFAULT_VAD_MODEL_KEY)
+            model_path = model_dir / vad_model_info.filename
+            
+            self.vad_service.load_model(
+                model_path,
+                threshold=vad_model_info.threshold,
+                min_silence_duration=vad_model_info.min_silence_duration,
+                min_speech_duration=vad_model_info.min_speech_duration,
+                window_size=vad_model_info.window_size
+            )
+            
+            self.vad_loaded = True
+            self.vad_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.vad_status_icon.color = ft.Colors.GREEN
+            self.vad_status_text.value = "已加载"
+            self.vad_load_btn.visible = False
+            self.page.update()
+            
+        except Exception as ex:
+            self.vad_status_text.value = f"加载失败: {ex}"
+            self.vad_status_icon.color = ft.Colors.ERROR
+            self.page.update()
+    
+    def _on_download_vocal(self, e: ft.ControlEvent) -> None:
+        """下载人声分离模型。"""
+        self.vocal_download_btn.visible = False
+        self.vocal_status_text.value = "下载中..."
+        self.page.update()
+        
+        def download_task():
+            try:
+                vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
+                
+                def progress_callback(progress: float, message: str):
+                    self.vocal_status_text.value = message
+                    try:
+                        self.page.update()
+                    except:
+                        pass
+                
+                self.vocal_service.download_model(
+                    self.current_vocal_model_key,
+                    vocal_model_info,
+                    progress_callback
+                )
+                
+                self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
+                self.vocal_status_icon.color = ft.Colors.GREEN
+                self.vocal_status_text.value = "已下载"
+                self.vocal_load_btn.visible = True
+                self.page.update()
+                
+                # 自动加载
+                self._load_vocal_model()
+                
+            except Exception as ex:
+                self.vocal_status_icon.name = ft.Icons.ERROR
+                self.vocal_status_icon.color = ft.Colors.ERROR
+                self.vocal_status_text.value = f"下载失败: {ex}"
+                self.vocal_download_btn.visible = True
+                self.page.update()
+        
+        self.page.run_thread(download_task)
+    
+    def _on_load_vocal(self, e: ft.ControlEvent) -> None:
+        """加载人声分离模型。"""
+        self._load_vocal_model()
+    
+    def _load_vocal_model(self) -> None:
+        """加载人声分离模型。"""
+        try:
+            vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
+            model_path = self.vocal_service.model_dir / vocal_model_info.filename
+            
+            self.vocal_service.load_model(
+                model_path,
+                invert_output=vocal_model_info.invert_output
+            )
+            
+            self.vocal_loaded = True
+            self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.vocal_status_icon.color = ft.Colors.GREEN
+            self.vocal_status_text.value = "已加载"
+            self.vocal_load_btn.visible = False
+            self.page.update()
+            
+        except Exception as ex:
+            self.vocal_status_text.value = f"加载失败: {ex}"
+            self.vocal_status_icon.color = ft.Colors.ERROR
+            self.page.update()
+    
     def _on_language_change(self, e: ft.ControlEvent) -> None:
         """语言选择变更事件。"""
         language = e.control.value
@@ -1409,12 +1799,43 @@ class AudioToTextView(ft.Container):
                     # 获取识别参数
                     language = self.config_service.get_config_value("whisper_language", "auto")
                     task = self.config_service.get_config_value("whisper_task", "transcribe")
+
+                    # === 预处理：人声分离（降噪）===
+                    input_path = file_path
+                    if self.use_vocal_separation:
+                        if not self.vocal_loaded:
+                            # 尝试自动加载（如果用户已下载模型）
+                            try:
+                                self._load_vocal_model()
+                            except Exception as ex:
+                                logger.warning(f"人声分离模型未加载，跳过降噪：{ex}")
+                        if self.vocal_loaded:
+                            try:
+                                temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
+                                temp_dir.mkdir(parents=True, exist_ok=True)
+
+                                def vocal_progress(msg: str, p: float):
+                                    # 给分离留出 0.0~0.25 的进度区间
+                                    progress_callback(f"降噪中：{msg}", min(0.25, 0.25 * p))
+
+                                vocals_path, _ = self.vocal_service.separate(
+                                    audio_path=file_path,
+                                    output_dir=temp_dir,
+                                    progress_callback=vocal_progress,
+                                    output_format="wav",
+                                    output_sample_rate=None,
+                                )
+                                input_path = vocals_path
+                                logger.info(f"人声分离完成: {file_path} -> {vocals_path}")
+                            except Exception as ex:
+                                logger.error(f"人声分离失败，继续使用原文件识别: {ex}")
+                                input_path = file_path
                     
                     # 根据输出格式选择识别方法
                     if output_format in ['srt', 'vtt']:
                         # 使用带时间戳的识别方法
                         segments = self.speech_service.recognize_with_timestamps(
-                            file_path,
+                            input_path,
                             language=language,
                             task=task,
                             progress_callback=progress_callback
@@ -1428,7 +1849,7 @@ class AudioToTextView(ft.Container):
                     else:
                         # txt 格式，使用普通识别方法
                         text = self.speech_service.recognize(
-                            file_path,
+                            input_path,
                             language=language,
                             task=task,
                             progress_callback=progress_callback

@@ -758,6 +758,62 @@ SENSEVOICE_MODELS: Final[dict[str, SenseVoiceModelInfo]] = {
         version="2024-03-09",
         model_type="paraformer"
     ),
+    "paraformer_zh_cantonese_en": SenseVoiceModelInfo(
+        name="paraformer_zh_cantonese_en",
+        display_name="Paraformer 中粤英 FP32（高精度）",
+        model_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-cantonese-en/model.onnx",
+        tokens_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-cantonese-en/tokens.txt",
+        size_mb=830,
+        quality="极高质量",
+        performance="快速 | 内存占用 ~1GB | 无长度限制",
+        model_filename="model.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文、粤语、英文",
+        version="2024-03-09",
+        model_type="paraformer"
+    ),
+    "paraformer_zh_cantonese_en_int8": SenseVoiceModelInfo(
+        name="paraformer_zh_cantonese_en_int8",
+        display_name="Paraformer 中粤英 INT8（推荐）",
+        model_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-cantonese-en/model.int8.onnx",
+        tokens_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-cantonese-en/tokens.txt",
+        size_mb=233,
+        quality="极高质量",
+        performance="极速 | 内存占用 ~400MB | 无长度限制",
+        model_filename="model.int8.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文、粤语、英文",
+        version="2024-03-09",
+        model_type="paraformer"
+    ),
+    "paraformer_zh": SenseVoiceModelInfo(
+        name="paraformer_zh",
+        display_name="Paraformer 中文 FP32（高精度）",
+        model_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-2024-03-09/model.onnx",
+        tokens_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-2024-03-09/tokens.txt",
+        size_mb=784,
+        quality="极高质量",
+        performance="快速 | 内存占用 ~1GB | 无长度限制",
+        model_filename="model.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        version="2024-03-09",
+        model_type="paraformer"
+    ),
+    "paraformer_zh_int8": SenseVoiceModelInfo(
+        name="paraformer_zh_int8",
+        display_name="Paraformer 中文 INT8",
+        model_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-2024-03-09/model.int8.onnx",
+        tokens_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/paraformer-zh-2024-03-09/tokens.txt",
+        size_mb=216,
+        quality="极高质量",
+        performance="极速 | 内存占用 ~400MB | 无长度限制",
+        model_filename="model.int8.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        version="2024-03-09",
+        model_type="paraformer"
+    ),
 }
 
 # 默认 SenseVoice 模型（推荐使用 INT8 版本，兼容性好）
@@ -982,3 +1038,60 @@ SUBTITLE_REMOVE_MODELS: Final[dict[str, SubtitleRemoveModelInfo]] = {
 
 # 默认字幕移除模型
 DEFAULT_SUBTITLE_REMOVE_MODEL_KEY: Final[str] = "sttn_v1"
+
+
+# VAD（语音活动检测）模型配置
+@dataclass
+class VADModelInfo:
+    """VAD 模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        url: 模型下载链接
+        size_mb: 文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        filename: 模型文件名
+        version: 版本号
+        sample_rate: 采样率
+        threshold: 语音检测阈值（0-1，默认0.5）
+        min_silence_duration: 最小静音时长（秒）
+        min_speech_duration: 最小语音时长（秒）
+        window_size: 窗口大小（毫秒）
+    """
+    name: str
+    display_name: str
+    url: str
+    size_mb: int
+    quality: str
+    performance: str
+    filename: str
+    version: str = "5"
+    sample_rate: int = 16000
+    threshold: float = 0.5
+    min_silence_duration: float = 0.5
+    min_speech_duration: float = 0.25
+    window_size: int = 512  # 32ms at 16kHz
+
+
+VAD_MODELS: Final[dict[str, VADModelInfo]] = {
+    "silero_vad_v5": VADModelInfo(
+        name="silero_vad_v5",
+        display_name="Silero VAD v5（推荐）",
+        url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/vad/silero_vad_v5.onnx",
+        size_mb=2,
+        quality="高精度语音检测",
+        performance="极速 | 内存占用 ~50MB | 支持实时处理",
+        filename="silero_vad_v5.onnx",
+        version="5",
+        sample_rate=16000,
+        threshold=0.5,
+        min_silence_duration=0.5,
+        min_speech_duration=0.25,
+        window_size=512
+    ),
+}
+
+# 默认 VAD 模型
+DEFAULT_VAD_MODEL_KEY: Final[str] = "silero_vad_v5"

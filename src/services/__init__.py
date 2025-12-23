@@ -9,6 +9,7 @@ from .ffmpeg_service import FFmpegService
 from .http_service import HttpService
 from .image_service import ImageService
 from .ocr_service import OCRService
+from .vad_service import VADService
 from .vocal_separation_service import VocalSeparationService
 from .speech_recognition_service import SpeechRecognitionService
 from .weather_service import WeatherService
@@ -29,6 +30,7 @@ __all__ = [
     "HttpService",
     "ImageService",
     "OCRService",
+    "VADService",
     "VocalSeparationService",
     "SpeechRecognitionService",
     "WeatherService",
