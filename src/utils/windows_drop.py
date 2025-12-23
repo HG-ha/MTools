@@ -119,6 +119,13 @@ if sys.platform == "win32":
     
     user32.ScreenToClient.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
     user32.ScreenToClient.restype = wintypes.BOOL
+    
+    user32.MoveWindow.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.BOOL]
+    user32.MoveWindow.restype = wintypes.BOOL
+    
+    # SetWindowPos 标志
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
 
     WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 
@@ -364,20 +371,36 @@ class WindowsDropHandler:
                 time.sleep(0.01)
     
     def _start_position_tracker(self):
-        """跟踪父窗口位置"""
+        """跟踪父窗口位置和大小"""
         def track():
+            last_rect = None
             while not WindowsDropHandler._stop_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.016)  # ~60 FPS，更快响应窗口大小变化
                 if not user32.IsWindow(self._parent_hwnd):
+                    break
+                if not user32.IsWindow(self._overlay_hwnd):
                     break
                 rect = wintypes.RECT()
                 user32.GetWindowRect(self._parent_hwnd, ctypes.byref(rect))
-                user32.SetWindowPos(
-                    self._overlay_hwnd, HWND_TOPMOST,
-                    rect.left, rect.top,
-                    rect.right - rect.left, rect.bottom - rect.top,
-                    SWP_NOACTIVATE
-                )
+                # 仅在位置或大小变化时更新，减少不必要的调用
+                current = (rect.left, rect.top, rect.right, rect.bottom)
+                if current != last_rect:
+                    # 使用 MoveWindow 调整窗口大小
+                    user32.MoveWindow(
+                        self._overlay_hwnd,
+                        rect.left, rect.top,
+                        rect.right - rect.left, rect.bottom - rect.top,
+                        False  # 不重绘（透明窗口不需要）
+                    )
+                    # 确保保持在最顶层
+                    user32.SetWindowPos(
+                        self._overlay_hwnd, HWND_TOPMOST,
+                        0, 0, 0, 0,
+                        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+                    )
+                    # 重新启用拖放接受（确保新区域也能接收拖放）
+                    shell32.DragAcceptFiles(self._overlay_hwnd, True)
+                    last_rect = current
         threading.Thread(target=track, daemon=True).start()
     
     def _start_drag_detector(self):

@@ -33,10 +33,11 @@ class GifAdjustmentView(ft.Container):
     - 截取帧范围
     - 跳帧处理
     - 反转播放
-    
-    现在也支持实况图（Live Photo / Motion Photo）的调整。
     """
-
+    
+    # 支持的格式
+    SUPPORTED_EXTENSIONS = {'.gif', '.mov', '.mp4'}
+    
     def __init__(
         self,
         page: ft.Page,
@@ -2007,6 +2008,25 @@ class GifAdjustmentView(ft.Container):
         except Exception as e:
             import traceback
             traceback.print_exc()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（只取第一个支持的文件）。"""
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                self._load_file(path)
+                self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
+                return
+        
+        self._show_snackbar("GIF编辑工具不支持该格式", ft.Colors.ORANGE)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

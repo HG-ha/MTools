@@ -43,6 +43,11 @@ class ImageCropView(ft.Container):
     
     提供可拖动的裁剪框功能。
     """
+    
+    # 支持的图片格式
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.bmp', '.webp', '.tiff', '.gif'
+    }
 
     def __init__(
         self,
@@ -1611,6 +1616,36 @@ class ImageCropView(ft.Container):
         except Exception:
             # 静默处理，避免影响用户体验
             pass
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（只取第一个支持的文件）。"""
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                self.selected_file = path
+                # 检测是否为动态 GIF
+                self.is_animated_gif = GifUtils.is_animated_gif(path)
+                if self.is_animated_gif:
+                    self.gif_frame_count = GifUtils.get_frame_count(path)
+                    self.current_frame_index = 0
+                    self.original_image = GifUtils.extract_frame(path, 0)
+                else:
+                    self.gif_frame_count = 1
+                    self.current_frame_index = 0
+                    self.original_image = Image.open(path)
+                self._update_preview()
+                self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
+                return
+        
+        self._show_snackbar("图片裁剪工具不支持该格式", ft.Colors.ORANGE)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

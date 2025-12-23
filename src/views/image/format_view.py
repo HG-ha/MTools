@@ -30,7 +30,7 @@ class ImageFormatView(ft.Container):
     - 批量处理
     """
 
-    # 支持的图片格式
+    # 支持的图片格式（用于输出）
     SUPPORTED_FORMATS = [
         ("JPEG", ".jpg", "最常用的图片格式，有损压缩"),
         ("PNG", ".png", "无损压缩，支持透明通道"),
@@ -40,6 +40,12 @@ class ImageFormatView(ft.Container):
         ("TIFF", ".tiff", "专业图像格式"),
         ("ICO", ".ico", "图标格式"),
     ]
+    
+    # 支持的输入格式（用于拖放）
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', 
+        '.gif', '.tiff', '.tif', '.ico'
+    }
 
     def __init__(
         self,
@@ -885,6 +891,36 @@ class ImageFormatView(ft.Container):
         )
         self.page.overlay.append(snackbar)
         snackbar.open = True
+        self.page.update()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件。"""
+        added_count = 0
+        skipped_count = 0
+        
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
+                skipped_count += 1
+                continue
+            if path not in self.selected_files:
+                self.selected_files.append(path)
+                added_count += 1
+        
+        if added_count > 0:
+            self._update_file_list()
+            self._show_message(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
+        elif skipped_count > 0:
+            self._show_message("格式转换工具不支持该格式", ft.Colors.ORANGE)
+        
         self.page.update()
     
     def cleanup(self) -> None:

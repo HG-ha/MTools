@@ -29,9 +29,14 @@ class ImageRotateView(ft.Container):
     - 水平/垂直翻转
     - 自定义填充颜色
     - 支持 GIF 动图（保留动画效果）
-    - 左右对比实时预览
-    - 批量处理
     """
+    
+    # 支持的图片格式
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', 
+        '.gif', '.tiff', '.tif', '.ico', '.avif', '.heic', '.heif'
+    }
+
 
     def __init__(
         self,
@@ -1164,6 +1169,44 @@ class ImageRotateView(ft.Container):
         )
         self.page.overlay.append(snackbar)
         snackbar.open = True
+        self.page.update()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件。"""
+        added_count = 0
+        skipped_count = 0
+        
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
+                skipped_count += 1
+                continue
+            if path not in self.selected_files:
+                self.selected_files.append(path)
+                added_count += 1
+        
+        if added_count > 0:
+            # 更新文件列表显示
+            count = len(self.selected_files)
+            if count == 1:
+                self.file_list_text.value = self.selected_files[0].name
+            else:
+                self.file_list_text.value = f"已选择 {count} 个文件"
+            # 显示预览区域并自动生成预览
+            self.preview_section.visible = True
+            self._update_preview()
+            self._show_message(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
+        elif skipped_count > 0:
+            self._show_message("旋转/翻转工具不支持该格式", ft.Colors.ORANGE)
+        
         self.page.update()
     
     def cleanup(self) -> None:

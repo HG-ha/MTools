@@ -28,6 +28,12 @@ class ImageToBase64View(ft.Container):
     - 一键复制到剪贴板
     - Data URI格式支持
     """
+    
+    # 支持的图片格式
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', 
+        '.gif', '.tiff', '.tif', '.ico', '.avif', '.heic', '.heif'
+    }
 
     def __init__(
         self,
@@ -331,6 +337,27 @@ class ImageToBase64View(ft.Container):
         self.page.overlay.append(snackbar)
         snackbar.open = True
         self.page.update()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（只取第一个支持的文件）。"""
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                self.selected_file = path
+                self.file_text.value = path.name
+                self.file_text.update()
+                self._show_message(f"已加载: {path.name}", ft.Colors.GREEN)
+                return
+        
+        self._show_message("图片转Base64工具不支持该格式", ft.Colors.ORANGE)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

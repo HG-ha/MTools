@@ -26,6 +26,12 @@ class ImageSearchView(ft.Container):
     提供以图搜图的完整界面，包括图片上传、结果展示、分页等功能。
     """
     
+    # 支持的图片格式
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', 
+        '.gif', '.tiff', '.tif', '.ico', '.avif', '.heic', '.heif'
+    }
+    
     def __init__(self, page: ft.Page, on_back: Optional[Callable] = None):
         super().__init__()
         self.page = page
@@ -693,6 +699,33 @@ class ImageSearchView(ft.Container):
         self.page.dialog = dialog
         dialog.open = True
         self.page.update()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（只取第一个支持的文件）。"""
+        import os
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                self.current_image_path = str(path)
+                self.image_path_text.value = os.path.basename(str(path))
+                self.image_preview.src = str(path)
+                self.image_preview.visible = True
+                self.image_preview_container.visible = True
+                # 启用搜索按钮
+                self.search_btn.disabled = False
+                self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
+                self.page.update()
+                return
+        
+        self._show_snackbar("图片搜索工具不支持该格式", ft.Colors.ORANGE)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

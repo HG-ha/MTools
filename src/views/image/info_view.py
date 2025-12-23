@@ -30,12 +30,13 @@ class ImageInfoView(ft.Container):
     - 颜色信息（颜色模式、位深度、调色板、透明度、ICC配置文件、色彩统计等）
     - 动画信息（GIF帧数等）
     - 压缩信息（JPEG质量、渐进式、PNG交错等）
-    - 拍摄参数（相机型号、镜头、曝光、光圈、ISO、焦距等）
-    - GPS信息（拍摄位置坐标）
-    - 文件哈希（MD5、SHA256）
-    - 时间信息（创建时间、修改时间）
-    - EXIF 元数据（详细的EXIF标签信息）
     """
+    
+    # 支持的图片格式
+    SUPPORTED_EXTENSIONS = {
+        '.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', 
+        '.gif', '.tiff', '.tif', '.ico', '.heic', '.heif', '.avif'
+    }
 
     def __init__(
         self,
@@ -1343,6 +1344,37 @@ class ImageInfoView(ft.Container):
             color: 背景颜色
         """
         snackbar: ft.SnackBar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=color,
+            duration=2000,
+        )
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
+    
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（只取第一个支持的文件）。"""
+        all_files = []
+        for path in files:
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        for path in all_files:
+            if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                self.selected_file = path
+                self._load_and_display_info()
+                self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
+                return
+        
+        self._show_snackbar("图片信息工具不支持该格式", ft.Colors.ORANGE)
+    
+    def _show_snackbar(self, message: str, color: str) -> None:
+        """显示提示消息。"""
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=color,
             duration=2000,

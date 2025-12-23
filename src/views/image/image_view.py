@@ -249,6 +249,9 @@ class ImageView(ft.Container):
             vertical_alignment=ft.CrossAxisAlignment.START,  # 从上开始排列
         )
         
+        # 滚动偏移量跟踪
+        self._scroll_offset_y = 0.0
+        
         # 组装视图 - 确保内容从左上角开始排列
         self.content = ft.Column(
             controls=[
@@ -260,6 +263,7 @@ class ImageView(ft.Container):
             alignment=ft.MainAxisAlignment.START,  # 从上对齐
             expand=True,  # 占满整个容器
             width=float('inf'),  # 占满可用宽度
+            on_scroll=self._on_scroll,  # 跟踪滚动位置
         )
         
         # 初始化工具拖放映射（工具名、支持的格式、打开方法、视图属性名）
@@ -289,9 +293,16 @@ class ImageView(ft.Container):
         ]
         
         # 卡片布局参数（需要与 FeatureCard 的实际尺寸匹配）
-        self._card_width = 160
-        self._card_height = 140
-        self._card_gap = PADDING_LARGE
+        # FeatureCard: width=280, height=220, margin=only(left=5, right=0, top=5, bottom=10)
+        # Row: spacing=PADDING_LARGE(24), run_spacing=PADDING_LARGE(24)
+        self._card_margin_left = 5
+        self._card_margin_top = 5
+        self._card_margin_bottom = 10
+        self._card_width = 280   # FeatureCard.width
+        self._card_height = 220  # FeatureCard.height
+        # 卡片间的实际步进距离：margin_left + width + margin_right + spacing
+        self._card_step_x = self._card_margin_left + self._card_width + 0 + PADDING_LARGE  # 5+280+0+24=309
+        self._card_step_y = self._card_margin_top + self._card_height + self._card_margin_bottom + PADDING_LARGE  # 5+220+10+24=259
         self._content_padding = PADDING_MEDIUM
     
     def handle_dropped_files_at(self, files: list, x: int, y: int) -> None:
@@ -308,24 +319,28 @@ class ImageView(ft.Container):
             return
         
         # 计算点击的是哪个工具卡片
-        # 注意：需要考虑导航栏宽度和标题栏高度
+        # 注意：需要考虑导航栏宽度、标题栏高度和分类标题高度
         nav_width = 100  # 导航栏宽度
-        title_height = 40  # 标题栏高度
+        title_height = 32  # 系统标题栏高度（自定义标题栏）
+        category_header_height = 60  # 分类标题区域高度（包含标题和描述）
         
-        # 调整坐标（减去导航栏和标题栏）
+        # 调整坐标（减去导航栏、标题栏和分类标题，加上滚动偏移量）
         local_x = x - nav_width - self._content_padding
-        local_y = y - title_height - self._content_padding
+        local_y = y - title_height - category_header_height - self._content_padding + self._scroll_offset_y
+        
         
         if local_x < 0 or local_y < 0:
             self._show_snackbar("请将文件拖放到工具卡片上")
             return
         
-        # 计算行列
-        col = int(local_x // (self._card_width + self._card_gap))
-        row = int(local_y // (self._card_height + self._card_gap))
+        # 计算行列（考虑卡片的 margin 和 spacing）
+        col = int(local_x // self._card_step_x)
+        row = int(local_y // self._card_step_y)
         
-        # 假设每行最多 5 个卡片（根据窗口宽度可能不同）
-        cols_per_row = max(1, int((700 - nav_width - self._content_padding * 2) // (self._card_width + self._card_gap)))
+        # 根据实际窗口宽度计算每行卡片数
+        window_width = self.page.window.width or 1000
+        content_width = window_width - nav_width - self._content_padding * 2
+        cols_per_row = max(1, int(content_width // self._card_step_x))
         
         index = row * cols_per_row + col
         
@@ -379,6 +394,10 @@ class ImageView(ft.Container):
         
         self._pending_drop_files = []
         self._pending_view_attr = None
+    
+    def _on_scroll(self, e: ft.OnScrollEvent) -> None:
+        """跟踪滚动位置。"""
+        self._scroll_offset_y = e.pixels
     
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""
