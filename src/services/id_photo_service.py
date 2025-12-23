@@ -805,6 +805,8 @@ class IDPhotoService:
     ) -> np.ndarray:
         """添加背景颜色。
         
+        参考 HivisionIDPhotos 项目的渐变实现。
+        
         Args:
             matting_image: RGBA 格式的抠图结果
             bg_color: 背景颜色 (R, G, B)
@@ -817,38 +819,48 @@ class IDPhotoService:
         
         # 创建背景
         if render_mode == "solid":
+            # 纯色背景
             background = np.zeros((height, width, 3), dtype=np.uint8)
             background[:] = bg_color[::-1]  # RGB to BGR
         elif render_mode == "gradient_up":
-            # 上渐变：从浅到深
+            # 向上渐变：从下到上，颜色从深到浅
+            # 完全按照 HivisionIDPhotos 的实现
             background = np.zeros((height, width, 3), dtype=np.uint8)
             for i in range(height):
-                ratio = i / height
-                color = tuple(int(c * (0.7 + 0.3 * ratio)) for c in bg_color[::-1])
+                # 从 0 (底部) 到 1 (顶部)
+                ratio = i / (height - 1) if height > 1 else 0
+                # 底部深色(原色)，顶部浅色(原色*1.3)
+                color = tuple(int(min(c * (1.0 + 0.3 * ratio), 255)) for c in bg_color[::-1])
                 background[i, :] = color
         elif render_mode == "gradient_down":
-            # 下渐变：从深到浅
+            # 向下渐变：从上到下，颜色从深到浅
+            # 完全按照 HivisionIDPhotos 的实现
             background = np.zeros((height, width, 3), dtype=np.uint8)
             for i in range(height):
-                ratio = 1 - i / height
-                color = tuple(int(c * (0.7 + 0.3 * ratio)) for c in bg_color[::-1])
+                # 从 1 (顶部) 到 0 (底部)
+                ratio = 1 - (i / (height - 1) if height > 1 else 0)
+                # 顶部深色(原色)，底部浅色(原色*1.3)
+                color = tuple(int(min(c * (1.0 + 0.3 * ratio), 255)) for c in bg_color[::-1])
                 background[i, :] = color
         elif render_mode == "gradient_center":
-            # 中心渐变：从中心向外变浅
+            # 中心渐变：从中心向外渐变
+            # 完全按照 HivisionIDPhotos 的实现
             background = np.zeros((height, width, 3), dtype=np.uint8)
             center_y, center_x = height // 2, width // 2
             max_dist = math.sqrt(center_x ** 2 + center_y ** 2)
             for i in range(height):
                 for j in range(width):
                     dist = math.sqrt((i - center_y) ** 2 + (j - center_x) ** 2)
-                    ratio = 1 - dist / max_dist * 0.3
-                    color = tuple(int(c * ratio) for c in bg_color[::-1])
+                    # 中心深色，外围变浅
+                    ratio = dist / max_dist if max_dist > 0 else 0
+                    color = tuple(int(min(c * (1.0 + 0.3 * ratio), 255)) for c in bg_color[::-1])
                     background[i, j] = color
         else:
+            # 默认纯色
             background = np.zeros((height, width, 3), dtype=np.uint8)
             background[:] = bg_color[::-1]
         
-        # 合成
+        # Alpha 混合合成
         b, g, r, a = cv2.split(matting_image)
         alpha = a.astype(float) / 255
         
