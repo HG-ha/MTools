@@ -58,6 +58,9 @@ class FFmpegService:
         # 获取应用程序根目录
         self.app_root = get_app_root()
     
+        # 编码器可用性验证缓存（避免每次构建 UI 都跑一次 ffmpeg）
+        self._encoder_usable_cache: Dict[str, bool] = {}
+    
     @property
     def ffmpeg_dir(self) -> Path:
         """获取FFmpeg目录路径（动态读取）。"""
@@ -886,35 +889,111 @@ class FFmpegService:
                 return {"available": False, "encoders": []}
             
             output = result.stdout
-            available_encoders = []
+            listed_encoders = []
             
             # 检测NVIDIA编码器
             if "h264_nvenc" in output:
-                available_encoders.append("h264_nvenc")
+                listed_encoders.append("h264_nvenc")
             if "hevc_nvenc" in output:
-                available_encoders.append("hevc_nvenc")
+                listed_encoders.append("hevc_nvenc")
             
             # 检测AMD编码器
             if "h264_amf" in output:
-                available_encoders.append("h264_amf")
+                listed_encoders.append("h264_amf")
             if "hevc_amf" in output:
-                available_encoders.append("hevc_amf")
+                listed_encoders.append("hevc_amf")
             if "av1_amf" in output:
-                available_encoders.append("av1_amf")
+                listed_encoders.append("av1_amf")
             
             # 检测Intel编码器（QSV）
             if "h264_qsv" in output:
-                available_encoders.append("h264_qsv")
+                listed_encoders.append("h264_qsv")
             if "hevc_qsv" in output:
-                available_encoders.append("hevc_qsv")
+                listed_encoders.append("hevc_qsv")
+
+            # 关键：仅“列出”不代表可用（NVENC 很常见：encoders 有但驱动/硬件不可用，启动会直接失败）
+            available_encoders = [e for e in listed_encoders if self.is_encoder_usable(e)]
             
             return {
                 "available": len(available_encoders) > 0,
                 "encoders": available_encoders,
-                "preferred": available_encoders[0] if available_encoders else None
+                "preferred": available_encoders[0] if available_encoders else None,
+                "listed_encoders": listed_encoders,
             }
         except Exception:
             return {"available": False, "encoders": []}
+
+    def is_encoder_usable(self, encoder: str) -> bool:
+        """判断某个视频编码器是否“真正可用”。
+
+        说明：
+        - `ffmpeg -encoders` 只能说明“FFmpeg 编译时支持”，不代表当前环境能打开硬件编码器。
+        - 这里使用一个极短的 lavfi 试编码来验证可用性。
+        """
+        if not encoder:
+            return False
+
+        # CPU 编码器默认认为可用（不在这里验证）
+        if not (encoder.endswith("_nvenc") or encoder.endswith("_amf") or encoder.endswith("_qsv")):
+            return True
+
+        if encoder in self._encoder_usable_cache:
+            return self._encoder_usable_cache[encoder]
+
+        ffmpeg_path = self.get_ffmpeg_path()
+        if not ffmpeg_path:
+            self._encoder_usable_cache[encoder] = False
+            return False
+
+        # 1 帧试编码（黑色视频），输出到 null
+        # 注意：NVENC 等硬件编码器有最小分辨率限制（通常 128x128 或更高）
+        # 使用 256x256 来确保所有编码器都能通过验证
+        cmd = [
+            ffmpeg_path,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=256x256:r=1",
+            "-frames:v",
+            "1",
+            "-c:v",
+            encoder,
+            "-f",
+            "null",
+            "-",
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,  # 增加超时时间，GPU 初始化可能较慢
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+            ok = result.returncode == 0
+            if not ok:
+                # 记录失败原因（使用 INFO 级别，让用户能看到）
+                stderr = result.stderr.strip() if result.stderr else ""
+                if stderr:
+                    import logging
+                    logging.getLogger(__name__).info(f"编码器 {encoder} 验证失败: {stderr[:150]}")
+            self._encoder_usable_cache[encoder] = ok
+            return ok
+        except subprocess.TimeoutExpired:
+            import logging
+            logging.getLogger(__name__).warning(f"编码器 {encoder} 验证超时")
+            self._encoder_usable_cache[encoder] = False
+            return False
+        except Exception as ex:
+            import logging
+            logging.getLogger(__name__).warning(f"编码器 {encoder} 验证异常: {ex}")
+            self._encoder_usable_cache[encoder] = False
+            return False
 
     def detect_hw_accels(self) -> list:
         """检测可用的硬件加速方法。

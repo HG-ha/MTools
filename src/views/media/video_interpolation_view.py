@@ -595,12 +595,12 @@ class VideoInterpolationView(ft.Container):
                         ft.Container(
                             content=model_section,
                             expand=True,
-                            height=280,  # 固定高度让两边对齐
+                            height=340,  # 固定高度让两边对齐
                         ),
                         ft.Container(
                             content=interpolation_section,
                             expand=True,
-                            height=280,  # 固定高度让两边对齐
+                            height=340,  # 固定高度让两边对齐
                         ),
                     ],
                     spacing=PADDING_MEDIUM,
