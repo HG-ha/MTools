@@ -28,7 +28,7 @@ from constants import (
     SenseVoiceModelInfo,
     WhisperModelInfo,
 )
-from services import ConfigService, FFmpegService, SpeechRecognitionService, TranslateService, VADService, VocalSeparationService, SUPPORTED_LANGUAGES
+from services import ConfigService, FFmpegService, SpeechRecognitionService, TranslateService, VADService, VocalSeparationService, AISubtitleFixService, SUPPORTED_LANGUAGES
 from utils import format_file_size, logger, get_system_fonts
 from utils.subtitle_utils import segments_to_srt
 from views.media.ffmpeg_install_view import FFmpegInstallView
@@ -112,6 +112,11 @@ class VideoSubtitleView(ft.Container):
         if self.current_vocal_model_key not in VOCAL_SEPARATION_MODELS:
             self.current_vocal_model_key = DEFAULT_VOCAL_MODEL_KEY
         
+        # AI 字幕修复设置（默认不启用，需要配置 API Key）
+        self.use_ai_fix: bool = self.config_service.get_config_value("video_subtitle_use_ai_fix", False)
+        self.ai_fix_api_key: str = self.config_service.get_config_value("video_subtitle_ai_fix_api_key", "")
+        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
+        
         # 初始化语音识别服务（传入 VAD 服务）
         self.speech_service: SpeechRecognitionService = SpeechRecognitionService(
             model_dir,
@@ -134,6 +139,8 @@ class VideoSubtitleView(ft.Container):
         self.translate_service = TranslateService()
         self.enable_translation: bool = False
         self.target_language: str = "en"  # 默认翻译目标语言
+        self.translate_engine: str = self.config_service.get_config_value("video_subtitle_translate_engine", "bing")  # bing 或 iflow
+        self.bilingual_line_spacing: int = self.config_service.get_config_value("video_subtitle_bilingual_spacing", 10)  # 双语字幕行距（像素）
         
         # 构建界面
         self._build_ui()
@@ -491,6 +498,39 @@ class VideoSubtitleView(ft.Container):
             padding=ft.padding.only(bottom=4),
         )
         
+        # === AI 字幕修复设置 ===
+        self.ai_fix_checkbox = ft.Checkbox(
+            label="启用 AI 修复字幕",
+            value=self.use_ai_fix,
+            on_change=self._on_ai_fix_change,
+        )
+        
+        self.ai_fix_api_key_field = ft.TextField(
+            label="心流 API Key",
+            value=self.ai_fix_api_key,
+            password=True,
+            can_reveal_password=True,
+            hint_text="请输入心流开放平台 API Key",
+            on_change=self._on_ai_fix_api_key_change,
+            width=300,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
+        )
+        
+        ai_fix_link = ft.TextButton(
+            "前往心流开放平台注册",
+            icon=ft.Icons.OPEN_IN_NEW,
+            url="https://platform.iflow.cn/",
+            tooltip="免费注册，获取 API Key",
+        )
+        
+        ai_fix_hint = ft.Text(
+            "使用 AI 修复识别结果中的错词、同音字等问题（需注册心流开放平台，免费使用）",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         preprocess_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -503,6 +543,11 @@ class VideoSubtitleView(ft.Container):
                     self.vocal_model_dropdown,
                     vocal_status_row,
                     vocal_hint,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    self.ai_fix_checkbox,
+                    self.ai_fix_api_key_field,
+                    ai_fix_link,
+                    ai_fix_hint,
                 ],
                 spacing=4,
             ),
@@ -723,6 +768,26 @@ class VideoSubtitleView(ft.Container):
             on_change=self._on_translate_toggle,
         )
         
+        # 翻译引擎选择
+        self.translate_engine_dropdown = ft.Dropdown(
+            label="翻译引擎",
+            width=150,
+            options=[
+                ft.dropdown.Option(key="bing", text="Bing 翻译"),
+                ft.dropdown.Option(key="iflow", text="心流 AI"),
+            ],
+            value=self.translate_engine,
+            disabled=True,
+            on_change=self._on_translate_engine_change,
+            tooltip="Bing 免费无需配置；心流 AI 需要配置 API Key",
+        )
+        
+        self.translate_engine_hint = ft.Text(
+            "Bing 翻译：免费，无需配置",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         # 语言选项
         language_options = [
             ft.dropdown.Option(key=code, text=name) 
@@ -752,19 +817,32 @@ class VideoSubtitleView(ft.Container):
             tooltip="替换原文仅显示翻译，双语同时显示原文和翻译",
         )
         
+        # 双语字幕行距
+        self.bilingual_spacing_field = ft.TextField(
+            label="行距",
+            value=str(self.bilingual_line_spacing),
+            width=80,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            suffix_text="px",
+            disabled=True,
+            on_change=self._on_bilingual_spacing_change,
+            tooltip="双语字幕两行之间的距离（像素）",
+        )
+        
         translate_settings_area = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row([
                         ft.Text("多语言字幕", size=14, weight=ft.FontWeight.W_500),
-                        ft.Container(expand=True),
-                        ft.Text("使用 Bing 翻译 API", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     ]),
                     ft.Row([
                         self.translate_checkbox,
+                        self.translate_engine_dropdown,
                         self.target_lang_dropdown,
                         self.translate_mode_dropdown,
+                        self.bilingual_spacing_field,
                     ], spacing=PADDING_MEDIUM),
+                    self.translate_engine_hint,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -805,6 +883,40 @@ class VideoSubtitleView(ft.Container):
         )
         self.page.overlay.append(self.output_dir_picker)
         
+        # 输出选项
+        self.export_subtitle_checkbox = ft.Checkbox(
+            label="同时导出字幕文件",
+            value=self.config_service.get_config_value("video_subtitle_export_subtitle", False),
+            on_change=self._on_export_subtitle_change,
+            tooltip="导出独立的字幕文件，方便二次编辑",
+        )
+        
+        self.subtitle_format_dropdown = ft.Dropdown(
+            label="字幕格式",
+            width=120,
+            options=[
+                ft.dropdown.Option(key="srt", text="SRT"),
+                ft.dropdown.Option(key="ass", text="ASS"),
+            ],
+            value=self.config_service.get_config_value("video_subtitle_format", "srt"),
+            disabled=True,
+            on_change=self._on_subtitle_format_change,
+        )
+        
+        self.only_subtitle_checkbox = ft.Checkbox(
+            label="仅导出字幕（不烧录视频）",
+            value=self.config_service.get_config_value("video_subtitle_only_subtitle", False),
+            on_change=self._on_only_subtitle_change,
+            disabled=True,
+            tooltip="只生成字幕文件，不生成带字幕的视频",
+        )
+        
+        export_subtitle_hint = ft.Text(
+            "导出字幕文件后可使用其他软件进行二次编辑",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         output_settings_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -817,6 +929,13 @@ class VideoSubtitleView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    ft.Row([
+                        self.export_subtitle_checkbox,
+                        self.subtitle_format_dropdown,
+                        self.only_subtitle_checkbox,
+                    ], spacing=PADDING_MEDIUM),
+                    export_subtitle_hint,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -1116,19 +1235,21 @@ class VideoSubtitleView(ft.Container):
             max_chars = int(max_line_width / estimated_char_width)
             max_chars = max(10, min(max_chars, 50))
             
-            # 自动换行
+            # 先按 \n 分割，再对每段进行自动换行
             lines = []
-            if len(sample_text) > max_chars:
-                current_line = ""
-                for char in sample_text:
-                    current_line += char
-                    if len(current_line) >= max_chars:
+            raw_lines = sample_text.split('\n')
+            for raw_line in raw_lines:
+                if len(raw_line) > max_chars:
+                    current_line = ""
+                    for char in raw_line:
+                        current_line += char
+                        if len(current_line) >= max_chars:
+                            lines.append(current_line)
+                            current_line = ""
+                    if current_line:
                         lines.append(current_line)
-                        current_line = ""
-                if current_line:
-                    lines.append(current_line)
-            else:
-                lines = [sample_text]
+                else:
+                    lines.append(raw_line)
             
             # 使用 OpenCV 渲染文字（使用 putText，支持有限）
             # 注意：OpenCV 的 putText 对中文支持有限，这里使用 PIL 来渲染
@@ -1172,8 +1293,13 @@ class VideoSubtitleView(ft.Container):
                 except Exception:
                     font = ImageFont.load_default()
                 
-                # 计算文本位置
-                line_height = font_size + 4
+                # 计算文本位置（双语字幕使用自定义行距）
+                base_line_height = font_size + 4
+                # 如果是双语字幕，使用用户设置的行距
+                if self.enable_translation and self.translate_mode_dropdown.value in ["bilingual", "bilingual_top"]:
+                    line_height = font_size + self.bilingual_line_spacing
+                else:
+                    line_height = base_line_height
                 total_text_height = line_height * len(lines)
                 
                 if position == "bottom":
@@ -2341,6 +2467,19 @@ class VideoSubtitleView(ft.Container):
         self.config_service.set_config_value("video_subtitle_vocal_model_key", self.current_vocal_model_key)
         self._init_vocal_status()
     
+    def _on_ai_fix_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复选项变更事件。"""
+        self.use_ai_fix = e.control.value
+        self.config_service.set_config_value("video_subtitle_use_ai_fix", self.use_ai_fix)
+        self.ai_fix_api_key_field.disabled = not self.use_ai_fix
+        self.page.update()
+    
+    def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复 API Key 变更事件。"""
+        self.ai_fix_api_key = e.control.value
+        self.config_service.set_config_value("video_subtitle_ai_fix_api_key", self.ai_fix_api_key)
+        self.ai_fix_service.set_api_key(self.ai_fix_api_key)
+    
     def _on_download_vad(self, e: ft.ControlEvent) -> None:
         """下载 VAD 模型。"""
         self.vad_download_btn.visible = False
@@ -3007,8 +3146,37 @@ class VideoSubtitleView(ft.Container):
     def _on_translate_toggle(self, e) -> None:
         """翻译开关变化事件。"""
         self.enable_translation = e.control.value
+        self.translate_engine_dropdown.disabled = not self.enable_translation
         self.target_lang_dropdown.disabled = not self.enable_translation
         self.translate_mode_dropdown.disabled = not self.enable_translation
+        self.bilingual_spacing_field.disabled = not self.enable_translation
+        self.page.update()
+    
+    def _on_bilingual_spacing_change(self, e) -> None:
+        """双语字幕行距变化事件。"""
+        try:
+            value = int(e.control.value)
+            if 0 <= value <= 100:
+                self.bilingual_line_spacing = value
+                self.config_service.set_config_value("video_subtitle_bilingual_spacing", value)
+        except ValueError:
+            pass
+    
+    def _on_translate_engine_change(self, e) -> None:
+        """翻译引擎变化事件。"""
+        self.translate_engine = e.control.value
+        self.config_service.set_config_value("video_subtitle_translate_engine", self.translate_engine)
+        
+        # 更新提示文字
+        if self.translate_engine == "bing":
+            self.translate_engine_hint.value = "Bing 翻译：免费，无需配置"
+        else:
+            if self.ai_fix_service.is_configured():
+                self.translate_engine_hint.value = "心流 AI：已配置 API Key"
+                self.translate_engine_hint.color = ft.Colors.GREEN
+            else:
+                self.translate_engine_hint.value = "心流 AI：需要在「预处理设置」中配置 API Key"
+                self.translate_engine_hint.color = ft.Colors.ORANGE
         self.page.update()
     
     def _on_target_lang_change(self, e) -> None:
@@ -3033,6 +3201,26 @@ class VideoSubtitleView(ft.Container):
         """
         import asyncio
         
+        # 如果使用心流 AI 翻译
+        if self.translate_engine == "iflow" and self.ai_fix_service.is_configured():
+            try:
+                def ai_progress(msg, prog):
+                    if progress_callback:
+                        current = int(prog * len(segments))
+                        progress_callback(current, len(segments), msg)
+                
+                return self.ai_fix_service.translate_segments(
+                    segments,
+                    target_lang=target_lang,
+                    source_lang="auto",
+                    progress_callback=ai_progress,
+                    batch_size=5
+                )
+            except Exception as e:
+                logger.warning(f"心流 AI 翻译失败，回退到 Bing 翻译: {e}")
+                # 继续使用 Bing 翻译
+        
+        # 使用 Bing 翻译 API（默认）
         total = len(segments)
         translated_segments = []
         
@@ -3086,6 +3274,25 @@ class VideoSubtitleView(ft.Container):
         if e.path:
             self.output_dir_field.value = e.path
             self.page.update()
+    
+    def _on_export_subtitle_change(self, e: ft.ControlEvent) -> None:
+        """导出字幕文件选项变更。"""
+        export_subtitle = e.control.value
+        self.config_service.set_config_value("video_subtitle_export_subtitle", export_subtitle)
+        self.subtitle_format_dropdown.disabled = not export_subtitle
+        self.only_subtitle_checkbox.disabled = not export_subtitle
+        if not export_subtitle:
+            self.only_subtitle_checkbox.value = False
+            self.config_service.set_config_value("video_subtitle_only_subtitle", False)
+        self.page.update()
+    
+    def _on_subtitle_format_change(self, e: ft.ControlEvent) -> None:
+        """字幕格式选项变更。"""
+        self.config_service.set_config_value("video_subtitle_format", e.control.value)
+    
+    def _on_only_subtitle_change(self, e: ft.ControlEvent) -> None:
+        """仅导出字幕选项变更。"""
+        self.config_service.set_config_value("video_subtitle_only_subtitle", e.control.value)
     
     def _generate_ass_style(self, video_width: int, video_height: int, file_path: Path = None) -> str:
         """生成 ASS 字幕样式。
@@ -3157,6 +3364,62 @@ Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
         return style
+    
+    def _segments_to_srt(self, segments: List[Dict[str, Any]]) -> str:
+        """将分段结果转换为 SRT 格式字幕。
+        
+        Args:
+            segments: 分段结果
+        
+        Returns:
+            SRT 格式字幕内容
+        """
+        lines = []
+        
+        # 获取翻译模式
+        translate_mode = self.translate_mode_dropdown.value if self.enable_translation else "replace"
+        
+        for i, segment in enumerate(segments, 1):
+            text = segment.get('text', '').strip()
+            if not text:
+                continue
+            
+            start = segment.get('start', 0)
+            end = segment.get('end', 0)
+            
+            # 格式化时间 (SRT 格式: 00:00:00,000)
+            def format_srt_time(seconds: float) -> str:
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                millis = int((seconds % 1) * 1000)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+            
+            start_str = format_srt_time(start)
+            end_str = format_srt_time(end)
+            
+            # 获取翻译文本
+            translated_text = segment.get('translated_text', '').strip()
+            
+            # 根据翻译模式生成字幕文本
+            if self.enable_translation and translated_text:
+                if translate_mode == "replace":
+                    display_text = translated_text
+                elif translate_mode == "bilingual":
+                    display_text = f"{text}\n{translated_text}"
+                elif translate_mode == "bilingual_top":
+                    display_text = f"{translated_text}\n{text}"
+                else:
+                    display_text = text
+            else:
+                display_text = text
+            
+            lines.append(f"{i}")
+            lines.append(f"{start_str} --> {end_str}")
+            lines.append(display_text)
+            lines.append("")  # 空行分隔
+        
+        return "\n".join(lines)
     
     def _segments_to_ass_events(self, segments: List[Dict[str, Any]], max_chars_per_line: int = 30) -> str:
         """将分段结果转换为 ASS 事件。
@@ -3335,6 +3598,28 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                             logger.error(f"语音识别失败: {file_path}")
                             continue
                         
+                        # 步骤2.5：AI 修复字幕（如果启用）
+                        if self.use_ai_fix and self.ai_fix_service.is_configured():
+                            self.progress_text.value = f"[{idx + 1}/{total}] AI 修复字幕..."
+                            self.page.update()
+                            
+                            try:
+                                def ai_fix_progress(msg, prog):
+                                    self.progress_text.value = f"[{idx + 1}/{total}] {msg}"
+                                    try:
+                                        self.page.update()
+                                    except:
+                                        pass
+                                
+                                segments = self.ai_fix_service.fix_segments(
+                                    segments,
+                                    language="auto",
+                                    progress_callback=ai_fix_progress
+                                )
+                                logger.info(f"AI 修复完成: {file_path.name}")
+                            except Exception as e:
+                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                        
                         # 步骤3：获取视频信息
                         video_info = self.ffmpeg_service.safe_probe(str(file_path))
                         if not video_info:
@@ -3400,32 +3685,70 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         with open(temp_ass, 'w', encoding='utf-8') as f:
                             f.write(ass_content)
                         
-                        # 步骤5：烧录字幕到视频
-                        self.progress_text.value = f"[{idx + 1}/{total}] 烧录字幕..."
-                        self.progress_bar.value = (idx + 0.7) / total
-                        self.page.update()
+                        # 步骤4.5：导出字幕文件（如果启用）
+                        export_subtitle = self.export_subtitle_checkbox.value
+                        only_subtitle = self.only_subtitle_checkbox.value
+                        subtitle_format = self.subtitle_format_dropdown.value
                         
-                        if output_dir:
-                            output_path = output_dir / f"{file_path.stem}_subtitled.mp4"
+                        if export_subtitle:
+                            self.progress_text.value = f"[{idx + 1}/{total}] 导出字幕文件..."
+                            self.page.update()
+                            
+                            if output_dir:
+                                subtitle_dir = output_dir
+                            else:
+                                subtitle_dir = file_path.parent
+                            
+                            if subtitle_format == "ass":
+                                # 导出 ASS 格式
+                                subtitle_path = subtitle_dir / f"{file_path.stem}.ass"
+                                with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                    f.write(ass_content)
+                                logger.info(f"已导出 ASS 字幕: {subtitle_path}")
+                            else:
+                                # 导出 SRT 格式
+                                subtitle_path = subtitle_dir / f"{file_path.stem}.srt"
+                                srt_content = self._segments_to_srt(segments)
+                                with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                    f.write(srt_content)
+                                logger.info(f"已导出 SRT 字幕: {subtitle_path}")
+                        
+                        # 步骤5：烧录字幕到视频（如果不是"仅导出字幕"模式）
+                        if not only_subtitle:
+                            self.progress_text.value = f"[{idx + 1}/{total}] 烧录字幕..."
+                            self.progress_bar.value = (idx + 0.7) / total
+                            self.page.update()
+                            
+                            if output_dir:
+                                output_path = output_dir / f"{file_path.stem}_subtitled.mp4"
+                            else:
+                                output_path = file_path.parent / f"{file_path.stem}_subtitled.mp4"
+                            
+                            # 获取字体目录（如果使用外部字体）
+                            font_dir = None
+                            custom_font_path = video_settings.get("custom_font_path")
+                            if custom_font_path and Path(custom_font_path).exists():
+                                font_dir = str(Path(custom_font_path).parent)
+                            
+                            self._burn_subtitles(file_path, temp_ass, output_path, font_dir)
+                            logger.info(f"处理完成: {output_path}")
                         else:
-                            output_path = file_path.parent / f"{file_path.stem}_subtitled.mp4"
-                        
-                        # 获取字体目录（如果使用外部字体）
-                        font_dir = None
-                        custom_font_path = video_settings.get("custom_font_path")
-                        if custom_font_path and Path(custom_font_path).exists():
-                            font_dir = str(Path(custom_font_path).parent)
-                        
-                        self._burn_subtitles(file_path, temp_ass, output_path, font_dir)
+                            logger.info(f"仅导出字幕完成: {file_path.name}")
                         
                         # 清理临时文件
                         try:
                             temp_audio.unlink()
                             temp_ass.unlink()
+                            
+                            # 清理人声分离临时目录
+                            if self.use_vocal_separation and audio_for_recognition != temp_audio:
+                                import shutil
+                                vocal_temp_dir = self.config_service.get_temp_dir() / "video_subtitle_vocals" / f"{file_path.stem}_{idx}"
+                                if vocal_temp_dir.exists():
+                                    shutil.rmtree(vocal_temp_dir, ignore_errors=True)
+                                    logger.debug(f"已清理人声分离临时目录: {vocal_temp_dir}")
                         except:
                             pass
-                        
-                        logger.info(f"处理完成: {output_path}")
                         
                     except Exception as ex:
                         logger.error(f"处理文件失败 {file_path}: {ex}", exc_info=True)

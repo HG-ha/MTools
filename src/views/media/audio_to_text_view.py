@@ -26,7 +26,7 @@ from constants import (
     SenseVoiceModelInfo,
     WhisperModelInfo,
 )
-from services import ConfigService, SpeechRecognitionService, FFmpegService, VADService, VocalSeparationService
+from services import ConfigService, SpeechRecognitionService, FFmpegService, VADService, VocalSeparationService, AISubtitleFixService
 from utils import format_file_size, logger, segments_to_srt, segments_to_vtt, segments_to_txt
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
@@ -110,6 +110,11 @@ class AudioToTextView(ft.Container):
         self.current_vocal_model_key: str = self.config_service.get_config_value("asr_vocal_model_key", DEFAULT_VOCAL_MODEL_KEY)
         if self.current_vocal_model_key not in VOCAL_SEPARATION_MODELS:
             self.current_vocal_model_key = DEFAULT_VOCAL_MODEL_KEY
+        
+        # AI 字幕修复设置（默认不启用，需要配置 API Key）
+        self.use_ai_fix: bool = self.config_service.get_config_value("asr_use_ai_fix", False)
+        self.ai_fix_api_key: str = self.config_service.get_config_value("asr_ai_fix_api_key", "")
+        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
         
         # 当前选择的模型引擎（whisper 或 sensevoice）- 优先使用 SenseVoice
         self.current_engine: str = self.config_service.get_config_value("asr_engine", "sensevoice")
@@ -484,6 +489,50 @@ class AudioToTextView(ft.Container):
             padding=ft.padding.only(bottom=4),
         )
         
+        # === AI 字幕修复设置 ===
+        self.ai_fix_checkbox = ft.Checkbox(
+            label="启用 AI 修复字幕",
+            value=self.use_ai_fix,
+            on_change=self._on_ai_fix_change,
+        )
+        
+        self.ai_fix_api_key_field = ft.TextField(
+            label="心流 API Key",
+            value=self.ai_fix_api_key,
+            password=True,
+            can_reveal_password=True,
+            hint_text="请输入心流开放平台 API Key",
+            on_change=self._on_ai_fix_api_key_change,
+            width=350,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
+        )
+        
+        ai_fix_link = ft.TextButton(
+            "前往心流开放平台注册",
+            icon=ft.Icons.OPEN_IN_NEW,
+            url="https://platform.iflow.cn/",
+            tooltip="免费注册，获取 API Key",
+        )
+        
+        ai_fix_hint = ft.Text(
+            "使用 AI 修复识别结果中的错词、同音字等问题（需注册心流开放平台，免费使用）",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        ai_fix_section = ft.Column(
+            controls=[
+                ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                self.ai_fix_checkbox,
+                self.ai_fix_api_key_field,
+                ai_fix_link,
+                ai_fix_hint,
+            ],
+            spacing=4,
+        )
+        
         preprocess_section = ft.Container(
             content=ft.Column(
                 controls=[
@@ -496,6 +545,7 @@ class AudioToTextView(ft.Container):
                     self.vocal_model_dropdown,
                     vocal_status_row,
                     vocal_hint,
+                    ai_fix_section,
                 ],
                 spacing=4,
             ),
@@ -1414,6 +1464,19 @@ class AudioToTextView(ft.Container):
         # 更新模型状态
         self._init_vocal_status()
     
+    def _on_ai_fix_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复选项变更事件。"""
+        self.use_ai_fix = e.control.value
+        self.config_service.set_config_value("asr_use_ai_fix", self.use_ai_fix)
+        self.ai_fix_api_key_field.disabled = not self.use_ai_fix
+        self.page.update()
+    
+    def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复 API Key 变更事件。"""
+        self.ai_fix_api_key = e.control.value
+        self.config_service.set_config_value("asr_ai_fix_api_key", self.ai_fix_api_key)
+        self.ai_fix_service.set_api_key(self.ai_fix_api_key)
+    
     def _init_vad_status(self) -> None:
         """初始化 VAD 模型状态。"""
         vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
@@ -1841,6 +1904,28 @@ class AudioToTextView(ft.Container):
                             progress_callback=progress_callback
                         )
                         
+                        # AI 修复字幕（如果启用）
+                        if self.use_ai_fix and self.ai_fix_service.is_configured() and segments:
+                            try:
+                                self.progress_text.value = f"AI 修复中: {file_path.name}"
+                                self.page.update()
+                                
+                                def ai_fix_progress(msg, prog):
+                                    self.progress_text.value = f"{msg}: {file_path.name}"
+                                    try:
+                                        self.page.update()
+                                    except:
+                                        pass
+                                
+                                segments = self.ai_fix_service.fix_segments(
+                                    segments,
+                                    language=language,
+                                    progress_callback=ai_fix_progress
+                                )
+                                logger.info(f"AI 修复完成: {file_path.name}")
+                            except Exception as e:
+                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                        
                         # 转换为对应的字幕格式
                         if output_format == 'srt':
                             content = segments_to_srt(segments)
@@ -1854,6 +1939,29 @@ class AudioToTextView(ft.Container):
                             task=task,
                             progress_callback=progress_callback
                         )
+                        
+                        # AI 修复文本（如果启用）
+                        if self.use_ai_fix and self.ai_fix_service.is_configured() and text:
+                            try:
+                                self.progress_text.value = f"AI 修复中: {file_path.name}"
+                                self.page.update()
+                                
+                                def ai_fix_progress(msg, prog):
+                                    self.progress_text.value = f"{msg}: {file_path.name}"
+                                    try:
+                                        self.page.update()
+                                    except:
+                                        pass
+                                
+                                text = self.ai_fix_service.fix_plain_text(
+                                    text,
+                                    language=language,
+                                    progress_callback=ai_fix_progress
+                                )
+                                logger.info(f"AI 修复完成: {file_path.name}")
+                            except Exception as e:
+                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                        
                         content = text
                     
                     # 确定输出路径
@@ -1869,6 +1977,17 @@ class AudioToTextView(ft.Container):
                         f.write(content)
                     
                     logger.info(f"识别完成: {file_path} -> {output_path}")
+                    
+                    # 清理人声分离临时目录
+                    if self.use_vocal_separation and input_path != file_path:
+                        try:
+                            import shutil
+                            temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
+                            if temp_dir.exists():
+                                shutil.rmtree(temp_dir, ignore_errors=True)
+                                logger.debug(f"已清理人声分离临时目录: {temp_dir}")
+                        except:
+                            pass
                     
                 except Exception as e:
                     logger.error(f"处理文件失败 {file_path}: {e}")

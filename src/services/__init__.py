@@ -20,6 +20,7 @@ from .face_detection_service import FaceDetector, FaceDetectionResult
 from .id_photo_service import IDPhotoService, IDPhotoParams, IDPhotoResult
 from .subtitle_remove_service import SubtitleRemoveService
 from .translate_service import TranslateService, SUPPORTED_LANGUAGES
+from .ai_subtitle_fix_service import AISubtitleFixService
 
 __all__ = [
     "AudioService",
@@ -47,5 +48,6 @@ __all__ = [
     "SubtitleRemoveService",
     "TranslateService",
     "SUPPORTED_LANGUAGES",
+    "AISubtitleFixService",
 ]
 
