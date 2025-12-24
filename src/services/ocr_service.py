@@ -509,6 +509,60 @@ class OCRService:
             logger.error(f"OCR识别失败: {e}")
             return False, []
     
+    def ocr_image(
+        self,
+        image: np.ndarray,
+        progress_callback: Optional[Callable[[float, str], None]] = None
+    ) -> Tuple[bool, List[Tuple[List, str, float]]]:
+        """对内存中的图像执行OCR。
+        
+        Args:
+            image: BGR格式的numpy图像数组
+            progress_callback: 进度回调
+        
+        Returns:
+            (是否成功, 结果列表) 结果格式: [(box, text, confidence), ...]
+        """
+        try:
+            if not self.det_session or not self.rec_session:
+                return False, []
+            
+            if image is None or image.size == 0:
+                logger.error("输入图像为空")
+                return False, []
+            
+            if progress_callback:
+                progress_callback(0.3, "正在检测文本区域...")
+            
+            # 检测
+            boxes = self.detect_text(image)
+            
+            if not boxes:
+                return True, []  # 没有检测到文本
+            
+            if progress_callback:
+                progress_callback(0.6, f"正在识别文本... (共{len(boxes)}个区域)")
+            
+            # 识别
+            texts = self.recognize_text(image, boxes)
+            
+            # 过滤 score >= 0.5
+            filtered_results = []
+            for box, (text, conf) in zip(boxes, texts):
+                if conf >= 0.5:
+                    filtered_results.append((box.tolist(), text, conf))
+            
+            if progress_callback:
+                progress_callback(1.0, f"识别完成！有效结果: {len(filtered_results)}/{len(boxes)}")
+            
+            logger.info(f"OCR图像检测到 {len(boxes)} 个区域，过滤保留 {len(filtered_results)} 个有效结果")
+            
+            return True, filtered_results
+        
+        except Exception as e:
+            logger.error(f"OCR图像识别失败: {e}")
+            return False, []
+    
     def _preprocess_det(self, image: np.ndarray) -> Tuple[np.ndarray, float, float]:
         """预处理检测输入（PaddleOCR v5 DBNet标准）。
         

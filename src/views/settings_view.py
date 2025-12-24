@@ -194,6 +194,9 @@ class SettingsView(ft.Container):
             weight=ft.FontWeight.BOLD,
         )
         
+        # 快捷功能设置部分（放在顶部）
+        hotkey_section: ft.Container = self._build_hotkey_section()
+        
         # 数据目录设置部分
         data_dir_section: ft.Container = self._build_data_dir_section()
         
@@ -228,6 +231,8 @@ class SettingsView(ft.Container):
         self.content = ft.Column(
             controls=[
                 title,
+                ft.Container(height=PADDING_LARGE),
+                hotkey_section,
                 ft.Container(height=PADDING_LARGE),
                 data_dir_section,
                 ft.Container(height=PADDING_LARGE),
@@ -425,6 +430,414 @@ class SettingsView(ft.Container):
             "dark": "深色模式",
         }
         return mode_names.get(mode, mode)
+    
+    # ========== 快捷功能相关 ==========
+    
+    # 可用的主键列表
+    AVAILABLE_KEYS = [
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    ]
+    
+    # Windows 虚拟键码映射
+    VK_CODES = {
+        "F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73, "F5": 0x74, "F6": 0x75,
+        "F7": 0x76, "F8": 0x77, "F9": 0x78, "F10": 0x79, "F11": 0x7A, "F12": 0x7B,
+        "A": 0x41, "B": 0x42, "C": 0x43, "D": 0x44, "E": 0x45, "F": 0x46,
+        "G": 0x47, "H": 0x48, "I": 0x49, "J": 0x4A, "K": 0x4B, "L": 0x4C,
+        "M": 0x4D, "N": 0x4E, "O": 0x4F, "P": 0x50, "Q": 0x51, "R": 0x52,
+        "S": 0x53, "T": 0x54, "U": 0x55, "V": 0x56, "W": 0x57, "X": 0x58,
+        "Y": 0x59, "Z": 0x5A,
+        "0": 0x30, "1": 0x31, "2": 0x32, "3": 0x33, "4": 0x34,
+        "5": 0x35, "6": 0x36, "7": 0x37, "8": 0x38, "9": 0x39,
+    }
+    
+    def _get_hotkey_display(self, config: dict) -> str:
+        """获取快捷键显示文本。"""
+        parts = []
+        if config.get("ctrl"):
+            parts.append("Ctrl")
+        if config.get("alt"):
+            parts.append("Alt")
+        if config.get("shift"):
+            parts.append("Shift")
+        parts.append(config.get("key", ""))
+        return "+".join(parts) if parts else "未设置"
+    
+    def _build_hotkey_section(self) -> ft.Container:
+        """构建快捷功能设置部分。"""
+        # 分区标题
+        section_title = ft.Text(
+            "快捷功能",
+            size=20,
+            weight=ft.FontWeight.W_600,
+        )
+        
+        # 检查平台支持
+        is_windows = sys.platform == 'win32'
+        platform_hint = ""
+        if not is_windows:
+            platform_hint = "（当前系统不支持全局快捷键）"
+        
+        section_desc = ft.Text(
+            f"通过快捷键快速调用功能，无需打开工具界面{platform_hint}",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 加载已保存的快捷键配置
+        ocr_hotkey = self.config_service.get_config_value("ocr_hotkey", {
+            "ctrl": True, "shift": True, "alt": False, "key": "Q"
+        })
+        ocr_hotkey_enabled = self.config_service.get_config_value("ocr_hotkey_enabled", True)
+        
+        screen_record_hotkey = self.config_service.get_config_value("screen_record_hotkey", {
+            "ctrl": True, "shift": True, "alt": False, "key": "C"
+        })
+        screen_record_hotkey_enabled = self.config_service.get_config_value("screen_record_hotkey_enabled", True)
+        
+        # 预加载 OCR 模型开关
+        preload_ocr = self.config_service.get_config_value("preload_ocr_model", False)
+        
+        # OCR 快捷键开关
+        self.ocr_hotkey_switch = ft.Switch(
+            value=ocr_hotkey_enabled and is_windows,
+            on_change=lambda e: self._on_hotkey_enabled_change("ocr", e),
+            disabled=not is_windows,
+        )
+        
+        # OCR 快捷键配置
+        self.ocr_ctrl_cb = ft.Checkbox(label="Ctrl", value=ocr_hotkey.get("ctrl", True), 
+                                        on_change=lambda e: self._on_hotkey_change("ocr"), 
+                                        disabled=not is_windows or not ocr_hotkey_enabled)
+        self.ocr_alt_cb = ft.Checkbox(label="Alt", value=ocr_hotkey.get("alt", False),
+                                       on_change=lambda e: self._on_hotkey_change("ocr"), 
+                                       disabled=not is_windows or not ocr_hotkey_enabled)
+        self.ocr_shift_cb = ft.Checkbox(label="Shift", value=ocr_hotkey.get("shift", True),
+                                         on_change=lambda e: self._on_hotkey_change("ocr"), 
+                                         disabled=not is_windows or not ocr_hotkey_enabled)
+        self.ocr_key_dropdown = ft.Dropdown(
+            value=ocr_hotkey.get("key", "Q"),
+            options=[ft.dropdown.Option(k) for k in self.AVAILABLE_KEYS],
+            on_change=lambda e: self._on_hotkey_change("ocr"),
+            width=80,
+            dense=True,
+            disabled=not is_windows or not ocr_hotkey_enabled,
+        )
+        
+        # 预加载开关
+        self.preload_ocr_switch = ft.Checkbox(
+            label="预加载模型",
+            value=preload_ocr,
+            on_change=self._on_preload_ocr_change,
+            disabled=not is_windows or not ocr_hotkey_enabled,
+        )
+        
+        # OCR 功能卡片
+        ocr_hotkey_row = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            # 固定宽度的开关容器，确保对齐
+                            ft.Container(
+                                content=self.ocr_hotkey_switch,
+                                width=60,
+                                alignment=ft.alignment.center_left,
+                            ),
+                            ft.Icon(ft.Icons.TEXT_FIELDS, size=20, color=ft.Colors.PRIMARY),
+                            ft.Text("OCR 截图识别", size=14, weight=ft.FontWeight.W_500),
+                            ft.Container(expand=True),
+                            ft.Text(
+                                f"{self._get_hotkey_display(ocr_hotkey)}",
+                                size=12,
+                                weight=ft.FontWeight.W_500,
+                                color=ft.Colors.PRIMARY if ocr_hotkey_enabled else ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Container(width=60),  # 与开关对齐
+                            self.ocr_ctrl_cb,
+                            self.ocr_alt_cb,
+                            self.ocr_shift_cb,
+                            ft.Text("+", size=12),
+                            self.ocr_key_dropdown,
+                            ft.Container(width=30),
+                            self.preload_ocr_switch,
+                        ],
+                        spacing=6,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        visible=ocr_hotkey_enabled,
+                    ),
+                ],
+                spacing=8,
+            ),
+            padding=ft.padding.all(12),
+            bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
+            border_radius=8,
+        )
+        self.ocr_hotkey_label = ocr_hotkey_row.content.controls[0].controls[-1]
+        self.ocr_config_row = ocr_hotkey_row.content.controls[1]
+        
+        # 录屏快捷键开关
+        self.record_hotkey_switch = ft.Switch(
+            value=screen_record_hotkey_enabled and is_windows,
+            on_change=lambda e: self._on_hotkey_enabled_change("screen_record", e),
+            disabled=not is_windows,
+        )
+        
+        # 录屏快捷键配置
+        self.record_ctrl_cb = ft.Checkbox(label="Ctrl", value=screen_record_hotkey.get("ctrl", True),
+                                           on_change=lambda e: self._on_hotkey_change("screen_record"), 
+                                           disabled=not is_windows or not screen_record_hotkey_enabled)
+        self.record_alt_cb = ft.Checkbox(label="Alt", value=screen_record_hotkey.get("alt", False),
+                                          on_change=lambda e: self._on_hotkey_change("screen_record"), 
+                                          disabled=not is_windows or not screen_record_hotkey_enabled)
+        self.record_shift_cb = ft.Checkbox(label="Shift", value=screen_record_hotkey.get("shift", True),
+                                            on_change=lambda e: self._on_hotkey_change("screen_record"), 
+                                            disabled=not is_windows or not screen_record_hotkey_enabled)
+        self.record_key_dropdown = ft.Dropdown(
+            value=screen_record_hotkey.get("key", "C"),
+            options=[ft.dropdown.Option(k) for k in self.AVAILABLE_KEYS],
+            on_change=lambda e: self._on_hotkey_change("screen_record"),
+            width=80,
+            dense=True,
+            disabled=not is_windows or not screen_record_hotkey_enabled,
+        )
+        
+        # 录屏功能卡片
+        record_hotkey_row = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            # 固定宽度的开关容器，确保对齐
+                            ft.Container(
+                                content=self.record_hotkey_switch,
+                                width=60,
+                                alignment=ft.alignment.center_left,
+                            ),
+                            ft.Icon(ft.Icons.VIDEOCAM, size=20, color=ft.Colors.PRIMARY),
+                            ft.Text("屏幕录制", size=14, weight=ft.FontWeight.W_500),
+                            ft.Container(expand=True),
+                            ft.Text(
+                                f"{self._get_hotkey_display(screen_record_hotkey)}",
+                                size=12,
+                                weight=ft.FontWeight.W_500,
+                                color=ft.Colors.PRIMARY if screen_record_hotkey_enabled else ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Container(width=60),  # 与开关对齐
+                            self.record_ctrl_cb,
+                            self.record_alt_cb,
+                            self.record_shift_cb,
+                            ft.Text("+", size=12),
+                            self.record_key_dropdown,
+                        ],
+                        spacing=6,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        visible=screen_record_hotkey_enabled,
+                    ),
+                ],
+                spacing=8,
+            ),
+            padding=ft.padding.all(12),
+            bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
+            border_radius=8,
+        )
+        self.record_hotkey_label = record_hotkey_row.content.controls[0].controls[-1]
+        self.record_config_row = record_hotkey_row.content.controls[1]
+        
+        # 提示信息
+        hint_row = ft.Row(
+            controls=[
+                ft.Icon(
+                    ft.Icons.INFO_OUTLINE if is_windows else ft.Icons.WARNING_AMBER,
+                    size=14,
+                    color=ft.Colors.ON_SURFACE_VARIANT if is_windows else ft.Colors.WARNING,
+                ),
+                ft.Text(
+                    "快捷键在全局生效，可在任意应用中使用。" if is_windows else "全局快捷键功能仅支持 Windows 系统。",
+                    size=11,
+                    color=ft.Colors.ON_SURFACE_VARIANT if is_windows else ft.Colors.WARNING,
+                ),
+            ],
+            spacing=6,
+        )
+        
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    section_title,
+                    section_desc,
+                    ft.Container(height=8),
+                    ocr_hotkey_row,
+                    ft.Container(height=8),  # 间距
+                    record_hotkey_row,
+                    ft.Container(height=12),
+                    hint_row,
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_MEDIUM,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+    
+    def _on_hotkey_change(self, hotkey_type: str) -> None:
+        """处理快捷键变化。"""
+        if hotkey_type == "ocr":
+            config = {
+                "ctrl": self.ocr_ctrl_cb.value,
+                "alt": self.ocr_alt_cb.value,
+                "shift": self.ocr_shift_cb.value,
+                "key": self.ocr_key_dropdown.value,
+            }
+            self.config_service.set_config_value("ocr_hotkey", config)
+            if hasattr(self, 'ocr_hotkey_label'):
+                self.ocr_hotkey_label.value = self._get_hotkey_display(config)
+        elif hotkey_type == "screen_record":
+            config = {
+                "ctrl": self.record_ctrl_cb.value,
+                "alt": self.record_alt_cb.value,
+                "shift": self.record_shift_cb.value,
+                "key": self.record_key_dropdown.value,
+            }
+            self.config_service.set_config_value("screen_record_hotkey", config)
+            if hasattr(self, 'record_hotkey_label'):
+                self.record_hotkey_label.value = self._get_hotkey_display(config)
+        
+        self.config_service.save_config()
+        
+        # 重启全局热键服务以应用新配置
+        self._restart_global_hotkey_service()
+        
+        try:
+            self.page.update()
+        except Exception:
+            pass
+    
+    def _restart_global_hotkey_service(self) -> None:
+        """重启全局热键服务。"""
+        try:
+            # 尝试从 main_view 获取全局热键服务
+            if self.page and self.page.controls:
+                main_view = self.page.controls[0]
+                if hasattr(main_view, 'global_hotkey_service'):
+                    service = main_view.global_hotkey_service
+                    if service:
+                        # 检查是否有任一功能启用
+                        ocr_enabled = self.config_service.get_config_value("ocr_hotkey_enabled", True)
+                        record_enabled = self.config_service.get_config_value("screen_record_hotkey_enabled", True)
+                        
+                        if ocr_enabled or record_enabled:
+                            service.restart()
+                            logger.info("全局热键服务已重启")
+                        else:
+                            service.stop()
+                            logger.info("全局热键服务已停止")
+        except Exception as ex:
+            logger.warning(f"重启全局热键服务失败: {ex}")
+    
+    def _on_hotkey_enabled_change(self, func_type: str, e) -> None:
+        """处理快捷功能开关变化。
+        
+        Args:
+            func_type: 功能类型，"ocr" 或 "screen_record"
+            e: 事件对象
+        """
+        enabled = e.control.value
+        config_key = f"{func_type}_hotkey_enabled"
+        self.config_service.set_config_value(config_key, enabled)
+        self.config_service.save_config()
+        
+        if func_type == "ocr":
+            # 更新 OCR 相关控件状态
+            if hasattr(self, 'ocr_ctrl_cb'):
+                self.ocr_ctrl_cb.disabled = not enabled
+                self.ocr_alt_cb.disabled = not enabled
+                self.ocr_shift_cb.disabled = not enabled
+                self.ocr_key_dropdown.disabled = not enabled
+            if hasattr(self, 'preload_ocr_switch'):
+                self.preload_ocr_switch.disabled = not enabled
+            if hasattr(self, 'ocr_config_row'):
+                self.ocr_config_row.visible = enabled
+            if hasattr(self, 'ocr_hotkey_label'):
+                self.ocr_hotkey_label.color = ft.Colors.PRIMARY if enabled else ft.Colors.ON_SURFACE_VARIANT
+        elif func_type == "screen_record":
+            # 更新录屏相关控件状态
+            if hasattr(self, 'record_ctrl_cb'):
+                self.record_ctrl_cb.disabled = not enabled
+                self.record_alt_cb.disabled = not enabled
+                self.record_shift_cb.disabled = not enabled
+                self.record_key_dropdown.disabled = not enabled
+            if hasattr(self, 'record_config_row'):
+                self.record_config_row.visible = enabled
+            if hasattr(self, 'record_hotkey_label'):
+                self.record_hotkey_label.color = ft.Colors.PRIMARY if enabled else ft.Colors.ON_SURFACE_VARIANT
+        
+        # 重启热键服务
+        self._restart_global_hotkey_service()
+        
+        try:
+            self.page.update()
+        except Exception:
+            pass
+    
+    def _on_preload_ocr_change(self, e) -> None:
+        """处理预加载 OCR 模型开关变化。"""
+        preload = e.control.value
+        self.config_service.set_config_value("preload_ocr_model", preload)
+        self.config_service.save_config()
+        
+        if preload:
+            # 立即预加载 OCR 模型
+            self._preload_ocr_model()
+    
+    def _preload_ocr_model(self) -> None:
+        """预加载 OCR 模型。"""
+        import threading
+        
+        def load():
+            try:
+                from services import OCRService
+                from constants import DEFAULT_OCR_MODEL_KEY
+                
+                ocr_service = OCRService(self.config_service)
+                model_key = self.config_service.get_config_value("ocr_model_key", DEFAULT_OCR_MODEL_KEY)
+                use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                
+                success, message = ocr_service.load_model(
+                    model_key,
+                    use_gpu=use_gpu,
+                    progress_callback=lambda p, m: None
+                )
+                
+                if success:
+                    # 保存到全局热键服务
+                    if self.page and self.page.controls:
+                        main_view = self.page.controls[0]
+                        if hasattr(main_view, 'global_hotkey_service'):
+                            main_view.global_hotkey_service._ocr_service = ocr_service
+                    logger.info("OCR 模型已预加载")
+                else:
+                    logger.warning(f"OCR 模型预加载失败: {message}")
+            except Exception as ex:
+                logger.error(f"预加载 OCR 模型失败: {ex}")
+        
+        thread = threading.Thread(target=load, daemon=True)
+        thread.start()
     
     def _build_data_dir_section(self) -> ft.Container:
         """构建数据目录设置部分。

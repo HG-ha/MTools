@@ -5,6 +5,7 @@
 """
 
 import json
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
@@ -34,6 +35,7 @@ class OCRView(ft.Container):
     - 模型选择和下载
     - 文字识别
     - 结果展示和导出
+    - 快捷键截图识别
     """
     
     # 支持的图片格式

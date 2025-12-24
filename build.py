@@ -862,6 +862,11 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         ])
         print("   优化级别: 调试模式")
     
+    # Tkinter 插件 - 用于快捷功能的区域选择
+    if sys.platform == "win32":
+        cmd.append("--enable-plugin=tk-inter")
+        print("   Tkinter 插件: 已启用（用于快捷功能区域选择）")
+    
     # UPX 压缩插件
     if enable_upx:
         upx_available, upx_cmd = check_upx(upx_path)
@@ -879,8 +884,9 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         print("   UPX 压缩: 未启用")
     
     # 排除不需要的包以减小体积
+    # 注意：tkinter 用于快捷功能的区域选择，不能排除
     excluded_packages = [
-        "tkinter", "unittest", "test", "pytest", 
+        "unittest", "test", "pytest", 
         "setuptools", "distutils", "wheel", "pip", 
         "IPython", "matplotlib", "pdb"
     ]

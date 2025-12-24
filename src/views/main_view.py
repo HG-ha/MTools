@@ -582,6 +582,31 @@ class MainView(ft.Column):
             self.page.floating_action_button = None
             self.page.update()
     
+    def navigate_to_screen_record(self) -> None:
+        """导航到屏幕录制工具（供全局热键调用）。"""
+        try:
+            # 计算导航索引偏移
+            offset = 0 if self.show_recommendations else -1
+            
+            # 切换到媒体处理视图
+            self.navigation_rail.selected_index = 2 + offset
+            view = self._get_or_create_media_view()
+            self.content_container.content = view
+            
+            # 打开屏幕录制子视图
+            if hasattr(view, '_open_view'):
+                view._open_view('screen_record')
+            
+            # 隐藏搜索按钮
+            self.hide_search_button()
+            
+            if self.page:
+                self.page.update()
+                
+        except Exception as ex:
+            from utils import logger
+            logger.error(f"导航到屏幕录制失败: {ex}")
+    
     def update_recommendations_visibility(self, show: bool) -> None:
         """更新推荐工具页面的显示状态
         

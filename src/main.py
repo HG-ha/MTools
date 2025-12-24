@@ -26,7 +26,7 @@ from constants import (
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
-from services import ConfigService
+from services import ConfigService, GlobalHotkeyService
 from views.main_view import MainView
 from utils import logger
 
@@ -162,6 +162,11 @@ def main(page: ft.Page) -> None:
     
     # 更新页面
     page.update()
+    
+    # 启动全局热键服务
+    global_hotkey_service = GlobalHotkeyService(config_service, page)
+    main_view.global_hotkey_service = global_hotkey_service  # 保存引用
+    global_hotkey_service.start()
     
     # 应用窗口透明度（必须在page.update()之后）
     if hasattr(main_view, '_pending_opacity'):

@@ -87,21 +87,14 @@ class ScreenRecordView(ft.Container):
             bottom=PADDING_MEDIUM
         )
         
-        # 快捷键处理
-        self._keyboard_handler = None
-        # Windows 全局热键（F9/F10）线程与退出控制
-        self._global_hotkey_thread = None
-        self._global_hotkey_stop_event = None
-        self._global_hotkey_thread_id = None
-
         # 交互式选区（拖拽框选）
         self.pick_region_btn = None
         
         # 构建界面
         self._build_ui()
         
-        # 注册快捷键
-        self._setup_keyboard_shortcuts()
+        # 注意：全局热键由 GlobalHotkeyService 在应用启动时注册
+        # 这里不再重复注册，避免冲突
     
     def _get_platform(self) -> str:
         """获取当前平台。"""
@@ -263,38 +256,62 @@ class ScreenRecordView(ft.Container):
             logger.warning(f"获取窗口矩形失败: {ex}")
             return None
     
-    def _setup_keyboard_shortcuts(self) -> None:
-        """设置键盘快捷键。"""
-        def on_keyboard(e: ft.KeyboardEvent):
-            # F9: 开始/停止录制
-            if e.key == "F9":
-                if self.is_recording:
-                    self._stop_recording()
-                else:
-                    self._on_start_recording(None)
-            # F10: 暂停/继续
-            elif e.key == "F10":
-                if self.is_recording:
-                    self._on_pause_recording(None)
+    def _get_all_window_rects_windows(self) -> List[Tuple[str, int, int, int, int]]:
+        """获取所有可见窗口的矩形信息。
         
-        self._keyboard_handler = on_keyboard
-        self.page.on_keyboard_event = on_keyboard
-
-        # Windows：注册系统级全局热键，使得切到其他软件也能用 F9 停止录制
-        # 说明：Flet 的 on_keyboard_event 只在窗口聚焦时有效
-        if self._get_platform() == "windows":
-            self._start_windows_global_hotkeys()
+        Returns:
+            窗口列表，每项为 (窗口标题, left, top, width, height)
+            按 Z-order 排序（顶层窗口在前）
+        """
+        if self._get_platform() != "windows":
+            return []
+        
+        self._ensure_windows_dpi_aware()
+        windows = []
+        
+        try:
+            import ctypes
+            from ctypes import wintypes
+            
+            user32 = ctypes.windll.user32
+            
+            # 系统窗口黑名单
+            blacklist = {
+                'Program Manager', 'Windows Input Experience',
+                'Microsoft Text Input Application', 'Settings',
+                'Windows Shell Experience Host', 'NVIDIA GeForce Overlay',
+                'AMD Link Server', 'PopupHost', '',
+            }
+            
+            EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            
+            def callback(hwnd, lparam):
+                if user32.IsWindowVisible(hwnd):
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buf = ctypes.create_unicode_buffer(length + 1)
+                        user32.GetWindowTextW(hwnd, buf, length + 1)
+                        title = buf.value
+                        
+                        if title and title not in blacklist:
+                            rect = wintypes.RECT()
+                            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                                left = int(rect.left)
+                                top = int(rect.top)
+                                w = int(rect.right) - left
+                                h = int(rect.bottom) - top
+                                # 只添加尺寸足够大的窗口
+                                if w >= 50 and h >= 50:
+                                    windows.append((title, left, top, w, h))
+                return True
+            
+            user32.EnumWindows(EnumWindowsProc(callback), 0)
+            
+        except Exception as ex:
+            logger.warning(f"获取窗口列表失败: {ex}")
+        
+        return windows
     
-    def _remove_keyboard_shortcuts(self) -> None:
-        """移除键盘快捷键。"""
-        if self._keyboard_handler and self.page.on_keyboard_event == self._keyboard_handler:
-            self.page.on_keyboard_event = None
-            self._keyboard_handler = None
-
-        # 关闭 Windows 全局热键监听
-        if self._get_platform() == "windows":
-            self._stop_windows_global_hotkeys()
-
     def _invoke_ui(self, fn) -> None:
         """尽量安全地从后台线程回到 UI 线程执行。"""
         try:
@@ -308,117 +325,6 @@ class ScreenRecordView(ft.Container):
             fn()
         except Exception:
             pass
-
-    def _start_windows_global_hotkeys(self) -> None:
-        """Windows：启动全局热键监听线程（F9/F10）。"""
-        if self._global_hotkey_thread and self._global_hotkey_thread.is_alive():
-            return
-
-        import ctypes
-        from ctypes import wintypes
-
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-
-        WM_HOTKEY = 0x0312
-        MOD_NONE = 0x0000
-        VK_F9 = 0x78
-        VK_F10 = 0x79
-
-        self._global_hotkey_stop_event = threading.Event()
-
-        def hotkey_loop():
-            # 该线程的消息循环需要先创建消息队列：一次 PeekMessage 即可
-            msg = wintypes.MSG()
-            try:
-                user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)
-            except Exception:
-                pass
-
-            self._global_hotkey_thread_id = kernel32.GetCurrentThreadId()
-
-            # 注册 F9 / F10（无修饰键）
-            # RegisterHotKey(NULL, id, modifiers, vk) -> 给当前线程投递 WM_HOTKEY
-            ok_f9 = bool(user32.RegisterHotKey(None, 1, MOD_NONE, VK_F9))
-            ok_f10 = bool(user32.RegisterHotKey(None, 2, MOD_NONE, VK_F10))
-
-            if not ok_f9:
-                logger.warning("全局热键注册失败：F9（可能被其他软件占用）")
-            if not ok_f10:
-                logger.warning("全局热键注册失败：F10（可能被其他软件占用）")
-
-            # 如果两个都失败，就不再进入循环
-            if not ok_f9 and not ok_f10:
-                self._global_hotkey_thread_id = None
-                return
-
-            try:
-                while not self._global_hotkey_stop_event.is_set():
-                    # GetMessage 会阻塞，退出通过 PostThreadMessage(WM_QUIT) 唤醒
-                    ret = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
-                    if ret == 0:  # WM_QUIT
-                        break
-                    if ret == -1:
-                        continue
-
-                    if msg.message == WM_HOTKEY:
-                        hotkey_id = int(msg.wParam)
-
-                        def handle():
-                            # F9: 开始/停止
-                            if hotkey_id == 1:
-                                if self.is_recording:
-                                    self._stop_recording()
-                                else:
-                                    self._on_start_recording(None)
-                            # F10: 暂停/继续（Windows 目前不支持暂停，沿用原逻辑提示）
-                            elif hotkey_id == 2:
-                                if self.is_recording:
-                                    self._on_pause_recording(None)
-
-                        self._invoke_ui(handle)
-
-                    user32.TranslateMessage(ctypes.byref(msg))
-                    user32.DispatchMessageW(ctypes.byref(msg))
-            finally:
-                try:
-                    user32.UnregisterHotKey(None, 1)
-                except Exception:
-                    pass
-                try:
-                    user32.UnregisterHotKey(None, 2)
-                except Exception:
-                    pass
-                self._global_hotkey_thread_id = None
-
-        self._global_hotkey_thread = threading.Thread(target=hotkey_loop, daemon=True)
-        self._global_hotkey_thread.start()
-
-    def _stop_windows_global_hotkeys(self) -> None:
-        """Windows：停止全局热键监听线程。"""
-        if not self._global_hotkey_thread:
-            return
-
-        try:
-            if self._global_hotkey_stop_event:
-                self._global_hotkey_stop_event.set()
-        except Exception:
-            pass
-
-        # 唤醒 GetMessage 阻塞
-        try:
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            user32 = ctypes.windll.user32
-            WM_QUIT = 0x0012
-            if self._global_hotkey_thread_id:
-                user32.PostThreadMessageW(int(self._global_hotkey_thread_id), WM_QUIT, 0, 0)
-        except Exception:
-            pass
-
-        self._global_hotkey_thread = None
-        self._global_hotkey_stop_event = None
-        self._global_hotkey_thread_id = None
     
     def _get_audio_devices(self) -> List[Tuple[str, str]]:
         """获取可用的音频设备列表。
@@ -432,30 +338,45 @@ class ScreenRecordView(ft.Container):
         """获取分类的音频设备列表。
         
         Returns:
-            (麦克风设备列表, 系统音频设备列表)
+            (麦克风设备列表, 系统音频/输出设备列表)
         """
         all_devices = self._get_audio_devices()
         
         mic_devices = []
         system_devices = []
         
-        # 系统音频设备的关键词（立体声混音等）
+        # 麦克风设备的关键词
+        mic_keywords = [
+            'microphone', 'mic', '麦克风', '话筒', 'headset',
+            '耳机', '耳麦', 'webcam', 'camera', '摄像头',
+        ]
+        
+        # 系统音频/输出设备的关键词（优先识别为系统音频）
         system_audio_keywords = [
             '立体声混音', 'stereo mix', 'what u hear', 'wave out',
             'loopback', '混音', 'mix', 'wasapi', 'virtual cable',
             'vb-audio', 'voicemeeter', 'blackhole', 'soundflower',
+            'speaker', 'headphone', '扬声器', '耳机', 'realtek',
+            'nvidia', 'hdmi', 'displayport', 'output', '输出',
         ]
         
         for device_id, display_name in all_devices:
             name_lower = display_name.lower()
             
-            # 检查是否是系统音频设备
-            is_system_audio = any(keyword in name_lower for keyword in system_audio_keywords)
+            # 优先检查是否是麦克风
+            is_mic = any(keyword in name_lower for keyword in mic_keywords)
+            # 再检查是否是系统音频
+            is_system = any(keyword in name_lower for keyword in system_audio_keywords)
             
-            if is_system_audio:
-                system_devices.append((device_id, display_name))
-            else:
+            if is_mic and not is_system:
                 mic_devices.append((device_id, display_name))
+            else:
+                # 其他设备都归类到系统音频，让用户自己选择
+                system_devices.append((device_id, display_name))
+        
+        # 如果系统音频设备列表为空，把所有设备都放进去让用户选
+        if not system_devices:
+            system_devices = all_devices[:]
         
         logger.info(f"分类结果: {len(mic_devices)} 个麦克风, {len(system_devices)} 个系统音频设备")
         return mic_devices, system_devices
@@ -604,107 +525,130 @@ class ScreenRecordView(ft.Container):
         if platform == 'windows':
             area_options.insert(1, ft.dropdown.Option("window", "指定窗口"))
         
+        # 保存选择的录制区域信息
+        self.selected_region = None  # (x, y, w, h) 或 None 表示全屏
+        self.selected_region_type = "fullscreen"  # fullscreen, window, custom
+        self.selected_window_title = None  # 选择的窗口标题（用于显示）
+        
+        # 三合一选择按钮
+        self.pick_area_btn = ft.ElevatedButton(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.SCREENSHOT_MONITOR, size=20),
+                    ft.Text("选择录制区域", size=14, weight=ft.FontWeight.W_500),
+                ],
+                spacing=8,
+            ),
+            on_click=self._on_pick_area_click,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            ),
+        )
+        
+        # 当前选择的区域显示
+        self.region_info_text = ft.Text(
+            "🖥️ 当前：全屏录制",
+            size=13,
+            weight=ft.FontWeight.W_500,
+        )
+        
+        self.region_detail_text = ft.Text(
+            "",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # 用于显示选区预览（可选）
+        self.region_preview_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.region_info_text,
+                    self.region_detail_text,
+                ],
+                spacing=2,
+            ),
+        )
+        
+        # 兼容旧代码的隐藏变量
         self.area_dropdown = ft.Dropdown(
             label="录制目标",
             value="fullscreen",
             options=area_options,
             width=200,
-            on_change=self._on_area_change,
+            visible=False,  # 隐藏，用新的三合一按钮替代
         )
+        self.window_dropdown = ft.Dropdown(visible=False)
+        self.refresh_windows_btn = ft.IconButton(icon=ft.Icons.REFRESH, visible=False)
+        self.window_row = ft.Row(visible=False)
+        self.offset_x = ft.TextField(value="0", visible=False)
+        self.offset_y = ft.TextField(value="0", visible=False)
+        self.width_field = ft.TextField(value="1920", visible=False)
+        self.height_field = ft.TextField(value="1080", visible=False)
+        self.custom_area_row = ft.Row(visible=False)
+        self.pick_region_btn = ft.ElevatedButton(visible=False)
+        self.pick_region_hint = ft.Text(visible=False)
         
-        # 窗口选择（Windows 专用，初始隐藏）
-        self.window_dropdown = ft.Dropdown(
-            label="选择窗口",
-            width=300,
-            visible=False,
-        )
-        
-        self.refresh_windows_btn = ft.IconButton(
-            icon=ft.Icons.REFRESH,
-            tooltip="刷新窗口列表",
-            on_click=self._on_refresh_windows,
-            visible=False,
-        )
-        
-        self.window_row = ft.Row(
-            controls=[
-                self.window_dropdown,
-                self.refresh_windows_btn,
-            ],
-            spacing=PADDING_SMALL,
-            visible=False,
-        )
-        
-        # 自定义区域设置（初始隐藏）
-        self.offset_x = ft.TextField(
-            label="X 偏移",
-            value="0",
-            width=90,
-            keyboard_type=ft.KeyboardType.NUMBER,
-        )
-        self.offset_y = ft.TextField(
-            label="Y 偏移",
-            value="0",
-            width=90,
-            keyboard_type=ft.KeyboardType.NUMBER,
-        )
-        self.width_field = ft.TextField(
-            label="宽度",
-            value="1920",
-            width=90,
-            keyboard_type=ft.KeyboardType.NUMBER,
-        )
-        self.height_field = ft.TextField(
-            label="高度",
-            value="1080",
-            width=90,
-            keyboard_type=ft.KeyboardType.NUMBER,
-        )
-        
-        self.custom_area_row = ft.Row(
-            controls=[
-                self.offset_x,
-                self.offset_y,
-                self.width_field,
-                self.height_field,
-            ],
-            spacing=PADDING_SMALL,
-            visible=False,
-        )
-
-        # 交互式拖拽框选区域（Windows 优先）
-        self.pick_region_btn = ft.ElevatedButton(
-            "拖拽框选区域",
-            icon=ft.Icons.CROP_FREE,
-            on_click=self._on_pick_region_click,
-            visible=False,
-        )
-        self.pick_region_hint = ft.Text(
-            "提示：点击后会弹出全屏遮罩，按住鼠标左键拖拽选择区域，松开即完成。",
-            size=12,
-            color=ft.Colors.ON_SURFACE_VARIANT,
-            visible=False,
-        )
-        
+        # 录制源信息卡片（现代化设计）
         source_area = ft.Container(
-            content=ft.Column(
+            content=ft.Row(
                 controls=[
-                    ft.Text("录制源", size=18, weight=ft.FontWeight.W_600),
-                    ft.Row(
-                        controls=[self.area_dropdown],
-                        spacing=PADDING_MEDIUM,
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.VIDEOCAM, size=28, color=ft.Colors.WHITE),
+                        padding=12,
+                        bgcolor=ft.Colors.RED_600,
+                        border_radius=10,
                     ),
-                    self.window_row,
-                    self.custom_area_row,
-                    ft.Row(controls=[self.pick_region_btn], visible=True),
-                    self.pick_region_hint,
+                    ft.Column(
+                        controls=[
+                            ft.Text("录制区域选择", size=15, weight=ft.FontWeight.W_600),
+                            ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        content=ft.Text("🖥️ 全屏", size=11),
+                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+                                        border_radius=4,
+                                    ),
+                                    ft.Container(
+                                        content=ft.Text("🪟 窗口", size=11),
+                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+                                        border_radius=4,
+                                    ),
+                                    ft.Container(
+                                        content=ft.Text("📐 区域", size=11),
+                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+                                        border_radius=4,
+                                    ),
+                                ],
+                                spacing=8,
+                            ),
+                            ft.Text(
+                                "点击开始录制后，在屏幕上选择要录制的区域",
+                                size=11,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                                italic=True,
+                            ),
+                        ],
+                        spacing=6,
+                        expand=True,
+                    ),
                 ],
-                spacing=PADDING_MEDIUM,
+                spacing=PADDING_LARGE,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-            border_radius=BORDER_RADIUS_MEDIUM,
-            bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.PRIMARY),
+            border_radius=12,
+            gradient=ft.LinearGradient(
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right,
+                colors=[
+                    ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
+                    ft.Colors.with_opacity(0.02, ft.Colors.SECONDARY),
+                ],
+            ),
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY)),
         )
         
         # ===== 音频设置 =====
@@ -737,22 +681,22 @@ class ScreenRecordView(ft.Container):
             visible=False,
         )
         
-        # 系统音频录制（立体声混音）
+        # 扬声器/电脑声音录制（立体声混音）
         self.record_system_audio = ft.Checkbox(
-            label="录制系统音频",
+            label="录制电脑声音 (扬声器)",
             value=False,
             on_change=self._on_system_audio_checkbox_change,
         )
         
         self.system_audio_dropdown = ft.Dropdown(
-            label="系统音频设备",
+            label="音频输出设备",
             width=280,
             visible=False,
         )
         
         self.refresh_system_audio_btn = ft.IconButton(
             icon=ft.Icons.REFRESH,
-            tooltip="刷新系统音频列表",
+            tooltip="刷新设备列表",
             on_click=self._on_refresh_audio_devices,
             visible=False,
         )
@@ -768,16 +712,32 @@ class ScreenRecordView(ft.Container):
         
         # 系统音频提示
         self.system_audio_tip = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text(
-                        "Windows: 需启用「立体声混音」。右键音量图标 → 声音设置 → 更多声音设置 → 录制 → 右键启用「立体声混音」",
-                        size=11,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.LIGHTBULB_OUTLINE, size=14, color=ft.Colors.PRIMARY),
+                            ft.Text(
+                                "选择「立体声混音」或「Stereo Mix」可录制电脑播放的所有声音",
+                                size=11,
+                                color=ft.Colors.PRIMARY,
+                            ),
+                        ],
+                        spacing=6,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text(
+                                "如果看不到「立体声混音」：右键音量图标 → 声音设置 → 更多设置 → 录制 → 右键空白处 → 显示禁用设备 → 启用",
+                                size=10,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=6,
                     ),
                 ],
-                spacing=6,
+                spacing=4,
             ),
             visible=False,
         )
@@ -1030,6 +990,13 @@ class ScreenRecordView(ft.Container):
         )
         self.page.overlay.append(self.folder_picker)
         
+        # 打开输出文件夹按钮（小型）
+        self.open_folder_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN,
+            tooltip="打开输出文件夹",
+            on_click=self._on_open_folder,
+        )
+        
         output_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -1038,10 +1005,11 @@ class ScreenRecordView(ft.Container):
                         controls=[
                             self.output_path_field,
                             ft.IconButton(
-                                icon=ft.Icons.FOLDER_OPEN,
+                                icon=ft.Icons.CREATE_NEW_FOLDER,
                                 tooltip="选择文件夹",
                                 on_click=self._on_select_folder,
                             ),
+                            self.open_folder_btn,
                         ],
                         spacing=PADDING_SMALL,
                     ),
@@ -1054,57 +1022,43 @@ class ScreenRecordView(ft.Container):
             bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.PRIMARY),
         )
         
-        # 控制按钮
-        self.start_btn = ft.ElevatedButton(
-            "开始录制",
-            icon=ft.Icons.FIBER_MANUAL_RECORD,
-            on_click=self._on_start_recording,
-            style=ft.ButtonStyle(
-                bgcolor=ft.Colors.RED,
-                color=ft.Colors.WHITE,
+        # 控制按钮（开始/停止 二合一）- 现代化设计
+        self.record_btn = ft.Container(
+            content=ft.ElevatedButton(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, size=24, color=ft.Colors.WHITE),
+                        ft.Text("开始录制", size=18, weight=ft.FontWeight.BOLD),
+                    ],
+                    spacing=12,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                on_click=self._on_record_toggle,
+                style=ft.ButtonStyle(
+                    bgcolor={
+                        ft.ControlState.DEFAULT: ft.Colors.RED_600,
+                        ft.ControlState.HOVERED: ft.Colors.RED_700,
+                        ft.ControlState.PRESSED: ft.Colors.RED_800,
+                    },
+                    color=ft.Colors.WHITE,
+                    elevation={"default": 4, "hovered": 8},
+                    animation_duration=200,
+                    shape=ft.RoundedRectangleBorder(radius=12),
+                    padding=ft.padding.symmetric(horizontal=32, vertical=16),
+                ),
+                height=60,
             ),
-            height=48,
-            width=160,
-        )
-        
-        self.pause_btn = ft.ElevatedButton(
-            "暂停",
-            icon=ft.Icons.PAUSE,
-            on_click=self._on_pause_recording,
-            disabled=True,
-            height=48,
-            width=120,
-        )
-        
-        self.stop_btn = ft.ElevatedButton(
-            "停止",
-            icon=ft.Icons.STOP,
-            on_click=self._on_stop_recording,
-            disabled=True,
-            height=48,
-            width=120,
-        )
-        
-        self.open_folder_btn = ft.OutlinedButton(
-            "打开文件夹",
-            icon=ft.Icons.FOLDER_OPEN,
-            on_click=self._on_open_folder,
-            height=48,
-            visible=False,
         )
         
         control_area = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 controls=[
-                    self.start_btn,
-                    self.pause_btn,
-                    self.stop_btn,
-                    self.open_folder_btn,
+                    self.record_btn,
                 ],
-                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=PADDING_MEDIUM,
             ),
-            padding=PADDING_LARGE,
+            padding=ft.padding.symmetric(vertical=PADDING_LARGE),
         )
         
         # 平台提示
@@ -1129,22 +1083,6 @@ class ScreenRecordView(ft.Container):
             padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM),
         )
         
-        # 快捷键提示
-        shortcut_note = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.KEYBOARD, size=16, color=ft.Colors.PRIMARY),
-                    ft.Text(
-                        "快捷键: F9 开始/停止录制 | F10 暂停/继续",
-                        size=12,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    ),
-                ],
-                spacing=6,
-            ),
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM),
-        )
-        
         # 可滚动内容区域
         scrollable_content = ft.Column(
             controls=[
@@ -1153,9 +1091,8 @@ class ScreenRecordView(ft.Container):
                 audio_area,
                 video_area,
                 output_area,
-                control_area,
                 platform_note,
-                shortcut_note,
+                control_area,  # 放到最后
             ],
             scroll=ft.ScrollMode.AUTO,
             spacing=PADDING_MEDIUM,
@@ -1178,9 +1115,6 @@ class ScreenRecordView(ft.Container):
         # 如果正在录制，先停止
         if self.is_recording:
             self._stop_recording()
-        
-        # 移除快捷键
-        self._remove_keyboard_shortcuts()
         
         if self.on_back:
             self.on_back()
@@ -1209,40 +1143,74 @@ class ScreenRecordView(ft.Container):
         
         self.page.update()
 
-    def _on_pick_region_click(self, e) -> None:
-        """交互式拖拽框选区域，回填到 X/Y/宽/高。"""
-        # 避免重复点击开启多个遮罩
-        self.pick_region_btn.disabled = True
+    def _on_pick_area_click(self, e) -> None:
+        """三合一选择录制区域：全屏/窗口/自定义区域。"""
+        self.pick_area_btn.disabled = True
         self.page.update()
 
         def worker():
-            rect = self._select_region_interactively_windows()
+            result = self._select_region_interactively_windows()
 
             def apply():
                 try:
-                    if rect:
-                        x, y, w, h = rect
-                        self.offset_x.value = str(int(x))
-                        self.offset_y.value = str(int(y))
-                        self.width_field.value = str(int(w))
-                        self.height_field.value = str(int(h))
-                        # 确保切到 custom
-                        self.area_dropdown.value = "custom"
-                        self.custom_area_row.visible = True
-                        self.pick_region_btn.visible = True
-                        self.pick_region_hint.visible = True
-                        self._show_message(f"已选择区域：x={x}, y={y}, w={w}, h={h}", ft.Colors.GREEN)
+                    if result is None:
+                        # 用户取消
+                        self._show_message("已取消选择", ft.Colors.ORANGE)
+                    elif result == "fullscreen":
+                        # 全屏模式
+                        self.selected_region = None
+                        self.selected_region_type = "fullscreen"
+                        self.selected_window_title = None
+                        self.region_info_text.value = "🖥️ 当前：全屏录制"
+                        self.region_detail_text.value = ""
+                        self._show_message("已选择：全屏录制", ft.Colors.GREEN)
+                    elif isinstance(result, tuple) and len(result) == 5:
+                        # 窗口模式：(x, y, w, h, window_title)
+                        x, y, w, h, title = result
+                        self.selected_region = (x, y, w, h)
+                        self.selected_region_type = "window"
+                        self.selected_window_title = title
+                        display_title = title[:30] + "..." if len(title) > 30 else title
+                        self.region_info_text.value = f"🪟 当前：窗口录制"
+                        self.region_detail_text.value = f"{display_title} ({w}×{h})"
+                        self._show_message(f"已选择窗口：{display_title}", ft.Colors.GREEN)
+                    elif isinstance(result, tuple) and len(result) == 4:
+                        # 自定义区域模式：(x, y, w, h)
+                        x, y, w, h = result
+                        self.selected_region = (x, y, w, h)
+                        self.selected_region_type = "custom"
+                        self.selected_window_title = None
+                        self.region_info_text.value = f"📐 当前：自定义区域"
+                        self.region_detail_text.value = f"位置 ({x}, {y}) 尺寸 {w}×{h}"
+                        self._show_message(f"已选择区域：{w}×{h}", ft.Colors.GREEN)
                 finally:
-                    self.pick_region_btn.disabled = False
+                    self.pick_area_btn.disabled = False
                     self.page.update()
 
             self._invoke_ui(apply)
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _select_region_interactively_windows(self) -> Optional[Tuple[int, int, int, int]]:
-        """Windows：弹出全屏遮罩，鼠标拖拽选择区域，返回 (x,y,w,h)。取消则返回 None。"""
-        # 只在 Windows 做（tkinter 全屏遮罩在 Win 上最稳定）
+    def _on_pick_region_click(self, e) -> None:
+        """交互式拖拽框选区域（兼容旧代码）。"""
+        self._on_pick_area_click(e)
+
+    def _select_region_interactively_windows(self):
+        """Windows：截取当前屏幕画面，支持三合一选择。
+        
+        更现代的交互方式（类似 Windows Snipping Tool / ShareX）：
+        1. 截取整个屏幕的静态画面
+        2. 鼠标悬停时自动高亮窗口
+        3. 点击可直接选择窗口，拖拽可自由框选区域
+        4. 按 F 或 Enter 选择全屏
+        5. 按 ESC 取消
+        
+        Returns:
+            - "fullscreen": 全屏模式
+            - (x, y, w, h, window_title): 窗口模式
+            - (x, y, w, h): 自定义区域模式
+            - None: 取消
+        """
         if self._get_platform() != "windows":
             return None
 
@@ -1251,8 +1219,383 @@ class ScreenRecordView(ft.Container):
 
         try:
             import tkinter as tk
+            from PIL import Image, ImageTk, ImageGrab
         except Exception as ex:
-            logger.warning(f"无法启用框选区域（缺少 tkinter）: {ex}")
+            logger.warning(f"无法启用框选区域（缺少依赖）: {ex}")
+            return None
+
+        logger.info(f"截取屏幕画面: {v_w}x{v_h} @ ({v_left}, {v_top})")
+        
+        # 1. 截取整个虚拟桌面的画面
+        try:
+            screenshot = ImageGrab.grab(
+                bbox=(v_left, v_top, v_left + v_w, v_top + v_h),
+                all_screens=True
+            )
+            logger.info(f"屏幕截图成功: {screenshot.size}")
+        except Exception as ex:
+            logger.error(f"截取屏幕失败: {ex}")
+            return self._select_region_fallback(v_left, v_top, v_w, v_h)
+
+        # 2. 获取所有窗口的矩形信息（用于悬停高亮）
+        all_windows = self._get_all_window_rects_windows()
+        # 转换为相对于截图的坐标
+        window_rects = []
+        for title, wl, wt, ww, wh in all_windows:
+            # 转换到截图坐标系
+            rel_left = wl - v_left
+            rel_top = wt - v_top
+            # 只保留在截图范围内的窗口
+            if rel_left < v_w and rel_top < v_h and rel_left + ww > 0 and rel_top + wh > 0:
+                window_rects.append((title, rel_left, rel_top, ww, wh))
+        logger.info(f"检测到 {len(window_rects)} 个可选窗口")
+
+        # 3. 创建暗化版本的截图
+        darkened = screenshot.copy()
+        darkened = Image.blend(darkened, Image.new('RGB', darkened.size, (0, 0, 0)), 0.5)
+
+        result = {"rect": None}
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+
+        overlay = tk.Toplevel(root)
+        overlay.attributes("-topmost", True)
+        overlay.geometry(f"{v_w}x{v_h}{v_left:+d}{v_top:+d}")
+        overlay.overrideredirect(True)
+        overlay.configure(bg="black")
+
+        canvas = tk.Canvas(overlay, cursor="cross", highlightthickness=0, width=v_w, height=v_h)
+        canvas.pack(fill="both", expand=True)
+
+        # 将暗化的截图作为背景
+        darkened_tk = ImageTk.PhotoImage(darkened)
+        screenshot_tk = ImageTk.PhotoImage(screenshot)
+        canvas.create_image(0, 0, anchor="nw", image=darkened_tk, tags="bg")
+
+        # 获取各显示器的矩形信息（用于提示文字跟随）
+        monitors = []
+        try:
+            import ctypes
+            from ctypes import wintypes, POINTER, byref
+            
+            class RECT(ctypes.Structure):
+                _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), 
+                           ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+            
+            MONITORENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, 
+                                                  ctypes.c_void_p, POINTER(RECT), ctypes.c_void_p)
+            
+            def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
+                r = lprcMonitor.contents
+                # 转换到截图坐标系
+                monitors.append((
+                    r.left - v_left, r.top - v_top,
+                    r.right - v_left, r.bottom - v_top
+                ))
+                return 1
+            
+            ctypes.windll.user32.EnumDisplayMonitors(None, None, MONITORENUMPROC(callback), 0)
+            logger.info(f"检测到 {len(monitors)} 个显示器")
+        except Exception as ex:
+            logger.warning(f"获取显示器信息失败: {ex}")
+            monitors = [(0, 0, v_w, v_h)]
+
+        # 提示文字（初始位置在第一个屏幕）
+        first_mon = monitors[0] if monitors else (0, 0, v_w, v_h)
+        init_x = first_mon[0] + (first_mon[2] - first_mon[0]) // 2
+        
+        # 创建提示背景框（更美观）
+        hint_bg = canvas.create_rectangle(
+            init_x - 220, 25, init_x + 220, 95,
+            fill="#1a1a1a", outline="#333333", width=1,
+            tags="hint_bg"
+        )
+        
+        hint_text = canvas.create_text(
+            init_x, 45,
+            text="🎯 点击选择窗口  |  拖拽框选区域",
+            fill="white",
+            font=("Microsoft YaHei", 13, "bold"),
+            tags="hint"
+        )
+        
+        hint_text2 = canvas.create_text(
+            init_x, 72,
+            text="按 F 录制当前屏幕  |  ESC 取消",
+            fill="#888888",
+            font=("Microsoft YaHei", 11),
+            tags="hint"
+        )
+        
+        # 窗口标题提示
+        window_title_text = canvas.create_text(
+            init_x, 110,
+            text="",
+            fill="#00BFFF",
+            font=("Microsoft YaHei", 12),
+            tags="window_title"
+        )
+
+        state = {
+            "is_dragging": False,
+            "start_x": 0,
+            "start_y": 0,
+            "hover_window": None,  # (title, left, top, w, h)
+            "hover_monitor": None,  # (mon_idx, left, top, w, h) 当空白区域时高亮的屏幕
+            "hover_image": None,   # 保存 ImageTk 引用
+            "current_monitor": -1,  # 当前鼠标所在显示器索引
+            "last_hover": None,    # 上次悬停状态，用于避免重复更新
+        }
+        
+        def update_hint_position(x: int, y: int):
+            """根据鼠标位置，将提示文字移动到当前显示器。"""
+            for i, (ml, mt, mr, mb) in enumerate(monitors):
+                if ml <= x <= mr and mt <= y <= mb:
+                    if state["current_monitor"] != i:
+                        state["current_monitor"] = i
+                        center_x = ml + (mr - ml) // 2
+                        # 更新所有提示元素的位置
+                        canvas.coords(hint_bg, center_x - 220, 25, center_x + 220, 95)
+                        canvas.coords(hint_text, center_x, 45)
+                        canvas.coords(hint_text2, center_x, 72)
+                        canvas.coords(window_title_text, center_x, 110)
+                    break
+
+        def find_window_at(x: int, y: int) -> Optional[Tuple[str, int, int, int, int]]:
+            """查找鼠标位置下的窗口（按 Z-order，顶层优先）。"""
+            for title, wl, wt, ww, wh in window_rects:
+                if wl <= x <= wl + ww and wt <= y <= wt + wh:
+                    return (title, wl, wt, ww, wh)
+            return None
+
+        def get_current_monitor(x: int, y: int):
+            """获取鼠标所在的显示器区域。"""
+            for i, (ml, mt, mr, mb) in enumerate(monitors):
+                if ml <= x <= mr and mt <= y <= mb:
+                    return i, (ml, mt, mr - ml, mb - mt)
+            return 0, (0, 0, v_w, v_h)
+
+        def update_hover(x: int, y: int):
+            """更新悬停高亮。"""
+            # 更新提示文字位置到当前屏幕
+            update_hint_position(x, y)
+            
+            if state["is_dragging"]:
+                return
+            
+            window = find_window_at(x, y)
+            mon_idx, mon_rect = get_current_monitor(x, y)
+            
+            # 检查是否需要更新高亮
+            current_hover = (window, mon_idx if not window else None)
+            if current_hover == state.get("last_hover"):
+                return
+            state["last_hover"] = current_hover
+            state["hover_window"] = window
+            
+            # 清除之前的高亮
+            canvas.delete("highlight")
+            canvas.delete("highlight_border")
+            
+            if window:
+                # 高亮窗口
+                title, wl, wt, ww, wh = window
+                
+                try:
+                    crop_left = max(0, wl)
+                    crop_top = max(0, wt)
+                    crop_right = min(v_w, wl + ww)
+                    crop_bottom = min(v_h, wt + wh)
+                    
+                    if crop_right > crop_left and crop_bottom > crop_top:
+                        cropped = screenshot.crop((crop_left, crop_top, crop_right, crop_bottom))
+                        cropped_tk = ImageTk.PhotoImage(cropped)
+                        state["hover_image"] = cropped_tk
+                        canvas.create_image(crop_left, crop_top, anchor="nw", 
+                                          image=cropped_tk, tags="highlight")
+                        
+                        canvas.create_rectangle(
+                            crop_left, crop_top, crop_right, crop_bottom,
+                            outline="#00BFFF", width=3, tags="highlight_border"
+                        )
+                except Exception:
+                    pass
+                
+                display_title = title[:50] + "..." if len(title) > 50 else title
+                canvas.itemconfig(window_title_text, text=f"🖥️ {display_title}")
+                state["hover_monitor"] = None
+            else:
+                # 空白区域：高亮当前屏幕
+                ml, mt, mw, mh = mon_rect
+                mr, mb = ml + mw, mt + mh
+                
+                try:
+                    cropped = screenshot.crop((ml, mt, mr, mb))
+                    cropped_tk = ImageTk.PhotoImage(cropped)
+                    state["hover_image"] = cropped_tk
+                    canvas.create_image(ml, mt, anchor="nw", 
+                                      image=cropped_tk, tags="highlight")
+                    
+                    # 屏幕边框使用不同颜色
+                    canvas.create_rectangle(
+                        ml, mt, mr, mb,
+                        outline="#FF6B6B", width=3, tags="highlight_border"
+                    )
+                except Exception:
+                    pass
+                
+                canvas.itemconfig(window_title_text, text=f"🖥️ 屏幕 {mon_idx + 1} 全屏 ({mw}×{mh})")
+                state["hover_monitor"] = (mon_idx, ml, mt, mw, mh)
+            
+            # 确保提示在最上层
+            canvas.tag_raise("hint_bg")
+            canvas.tag_raise("hint")
+            canvas.tag_raise("window_title")
+
+        def on_motion(event):
+            """鼠标移动事件。"""
+            update_hover(event.x, event.y)
+
+        def on_down(event):
+            """鼠标按下事件。"""
+            state["start_x"] = event.x
+            state["start_y"] = event.y
+            state["is_dragging"] = False
+
+        def on_drag(event):
+            """拖拽事件。"""
+            dx = abs(event.x - state["start_x"])
+            dy = abs(event.y - state["start_y"])
+            
+            # 如果移动超过 5 像素，进入拖拽模式
+            if dx > 5 or dy > 5:
+                if not state["is_dragging"]:
+                    state["is_dragging"] = True
+                    # 清除窗口高亮
+                    canvas.delete("highlight")
+                    canvas.delete("highlight_border")
+                    canvas.itemconfig(window_title_text, text="拖拽选择区域...")
+                
+                x1, y1 = state["start_x"], state["start_y"]
+                x2, y2 = event.x, event.y
+                left, top = min(x1, x2), min(y1, y2)
+                right, bottom = max(x1, x2), max(y1, y2)
+                
+                # 更新选框
+                canvas.delete("selection")
+                canvas.delete("selection_area")
+                
+                if right > left and bottom > top:
+                    try:
+                        cropped = screenshot.crop((left, top, right, bottom))
+                        cropped_tk = ImageTk.PhotoImage(cropped)
+                        state["hover_image"] = cropped_tk
+                        canvas.create_image(left, top, anchor="nw", 
+                                          image=cropped_tk, tags="selection_area")
+                    except Exception:
+                        pass
+                    
+                    canvas.create_rectangle(
+                        left, top, right, bottom,
+                        outline="#FF6B6B", width=2, tags="selection"
+                    )
+                
+                canvas.tag_raise("hint")
+                canvas.tag_raise("window_title")
+
+        def on_up(event):
+            """鼠标释放事件。"""
+            if state["is_dragging"]:
+                # 拖拽模式：使用框选区域（返回 4 元素元组）
+                x1, y1 = state["start_x"], state["start_y"]
+                x2, y2 = event.x, event.y
+                left, top = min(x1, x2), min(y1, y2)
+                right, bottom = max(x1, x2), max(y1, y2)
+                w, h = right - left, bottom - top
+                
+                if w >= 10 and h >= 10:
+                    result["rect"] = (left + v_left, top + v_top, w, h)
+                    logger.info(f"框选区域: x={left + v_left}, y={top + v_top}, w={w}, h={h}")
+                else:
+                    logger.warning(f"框选区域太小 ({w}x{h})，已取消")
+            else:
+                # 点击模式：选择悬停的窗口或屏幕
+                if state["hover_window"]:
+                    # 选择窗口（返回 5 元素元组，包含窗口标题）
+                    title, wl, wt, ww, wh = state["hover_window"]
+                    final_left = max(0, wl) + v_left
+                    final_top = max(0, wt) + v_top
+                    final_right = min(v_w, wl + ww) + v_left
+                    final_bottom = min(v_h, wt + wh) + v_top
+                    w = final_right - final_left
+                    h = final_bottom - final_top
+                    
+                    if w >= 10 and h >= 10:
+                        result["rect"] = (final_left, final_top, w, h, title)
+                        logger.info(f"选择窗口 '{title}': x={final_left}, y={final_top}, w={w}, h={h}")
+                    else:
+                        logger.warning(f"窗口太小 ({w}x{h})")
+                elif state.get("hover_monitor"):
+                    # 选择屏幕（返回 4 元素元组）
+                    mon_idx, ml, mt, mw, mh = state["hover_monitor"]
+                    # ml, mt 是相对于截图的坐标，需要转换为全局坐标
+                    result["rect"] = (ml + v_left, mt + v_top, mw, mh)
+                    logger.info(f"选择屏幕 {mon_idx + 1}: x={ml + v_left}, y={mt + v_top}, w={mw}, h={mh}")
+            
+            root.quit()
+
+        def on_key(event):
+            if event.keysym == "Escape":
+                result["rect"] = None
+                logger.info("选择已取消 (ESC)")
+                root.quit()
+            elif event.keysym.lower() == "f" or event.keysym == "Return":
+                # 全屏模式：录制当前鼠标所在屏幕
+                current_mon_idx = state.get("current_monitor", 0)
+                if 0 <= current_mon_idx < len(monitors):
+                    ml, mt, mr, mb = monitors[current_mon_idx]
+                    # 转换回全局坐标
+                    mon_x = ml + v_left
+                    mon_y = mt + v_top
+                    mon_w = mr - ml
+                    mon_h = mb - mt
+                    result["rect"] = (mon_x, mon_y, mon_w, mon_h)
+                    logger.info(f"选择屏幕 {current_mon_idx + 1} 全屏: {mon_w}x{mon_h} @ ({mon_x}, {mon_y})")
+                else:
+                    # 回退到整个虚拟桌面
+                    result["rect"] = "fullscreen"
+                    logger.info("选择全屏录制（所有屏幕）")
+                root.quit()
+
+        overlay.bind("<Key>", on_key)
+        canvas.bind("<Motion>", on_motion)
+        canvas.bind("<ButtonPress-1>", on_down)
+        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonRelease-1>", on_up)
+        overlay.focus_force()
+
+        try:
+            root.mainloop()
+        finally:
+            try:
+                overlay.destroy()
+            except Exception:
+                pass
+            try:
+                root.destroy()
+            except Exception:
+                pass
+            del screenshot, darkened, darkened_tk, screenshot_tk
+
+        return result["rect"]
+    
+    def _select_region_fallback(self, v_left: int, v_top: int, v_w: int, v_h: int) -> Optional[Tuple[int, int, int, int]]:
+        """回退方案：使用半透明遮罩（截图失败时使用）。"""
+        try:
+            import tkinter as tk
+        except Exception:
             return None
 
         result = {"rect": None}
@@ -1263,9 +1606,7 @@ class ScreenRecordView(ft.Container):
 
         overlay = tk.Toplevel(root)
         overlay.attributes("-topmost", True)
-        # 覆盖整个虚拟桌面（多屏），支持负坐标
         overlay.geometry(f"{v_w}x{v_h}{v_left:+d}{v_top:+d}")
-        # 半透明遮罩
         try:
             overlay.attributes("-alpha", 0.25)
         except Exception:
@@ -1283,12 +1624,8 @@ class ScreenRecordView(ft.Container):
             if start["rect_id"]:
                 canvas.delete(start["rect_id"])
             start["rect_id"] = canvas.create_rectangle(
-                start["x"],
-                start["y"],
-                start["x"],
-                start["y"],
-                outline="red",
-                width=2,
+                start["x"], start["y"], start["x"], start["y"],
+                outline="red", width=2,
             )
 
         def on_move(event):
@@ -1301,22 +1638,15 @@ class ScreenRecordView(ft.Container):
             left, top = min(x1, x2), min(y1, y2)
             right, bottom = max(x1, x2), max(y1, y2)
             w, h = right - left, bottom - top
-            # 过小视为取消
             if w < 10 or h < 10:
-                logger.warning(f"框选区域太小 ({w}x{h})，已取消")
                 result["rect"] = None
             else:
-                # Tk 事件坐标是相对 overlay 的，需要换算到虚拟桌面全局坐标
                 result["rect"] = (left + v_left, top + v_top, w, h)
-                logger.info(f"框选区域: x={left + v_left}, y={top + v_top}, w={w}, h={h}")
-            # 必须先调用 root.quit() 退出 mainloop，否则 mainloop 不会结束
             root.quit()
 
         def on_key(event):
-            # ESC 取消
             if event.keysym == "Escape":
                 result["rect"] = None
-                logger.info("框选已取消 (ESC)")
                 root.quit()
 
         overlay.bind("<Key>", on_key)
@@ -1396,7 +1726,7 @@ class ScreenRecordView(ft.Container):
             self.system_audio_dropdown.value = system_options[0].key
         else:
             self.system_audio_dropdown.options = [
-                ft.dropdown.Option("none", "未找到系统音频设备 (需启用立体声混音)")
+                ft.dropdown.Option("none", "未找到设备 (需在系统中启用立体声混音)")
             ]
             self.system_audio_dropdown.value = "none"
         
@@ -1535,8 +1865,6 @@ class ScreenRecordView(ft.Container):
         streams = []
         
         if platform == 'windows':
-            area_mode = self.area_dropdown.value
-            
             # 构建视频输入参数
             input_kwargs = {
                 'format': 'gdigrab',
@@ -1544,52 +1872,22 @@ class ScreenRecordView(ft.Container):
             }
             input_name = "desktop"
             
-            # 优化：直接让 gdigrab 只抓取需要的区域，而不是抓整个屏幕再 crop
-            # 这样可以大幅提升帧率！
-            
-            if area_mode == "window":
-                # 指定窗口：直接抓取窗口区域
-                window_title = self.window_dropdown.value
-                if window_title and window_title != "none":
-                    rect = self._get_window_rect_windows(window_title)
-                    if rect:
-                        w_left, w_top, w_w, w_h = rect
-                        # 确保宽高为偶数（编码器要求），最小 64x64
-                        w_w = max(64, (w_w // 2) * 2)
-                        w_h = max(64, (w_h // 2) * 2)
-                        # 确保坐标不是太离谱（窗口可能在屏幕外）
-                        if w_left < -10000 or w_top < -10000:
-                            logger.warning(f"窗口 '{window_title}' 坐标异常 ({w_left},{w_top})，可能最小化或在屏幕外")
-                        else:
-                            input_kwargs["offset_x"] = w_left
-                            input_kwargs["offset_y"] = w_top
-                            input_kwargs["s"] = f"{w_w}x{w_h}"
-                            logger.info(f"窗口 '{window_title}' 直接抓取: offset=({w_left},{w_top}), size={w_w}x{w_h}")
-                    else:
-                        logger.warning(f"无法获取窗口 '{window_title}' 的矩形，录制全屏")
-                # else: 没选窗口就当全屏
+            # 使用新的三合一选择结果
+            if self.selected_region and self.selected_region_type in ("window", "custom"):
+                # 窗口或自定义区域模式
+                x, y, w, h = self.selected_region
+                # 确保宽高为偶数（编码器要求），最小 64x64
+                w = max(64, (w // 2) * 2)
+                h = max(64, (h // 2) * 2)
                 
-            elif area_mode == "custom":
-                # 自定义区域：直接抓取指定区域
-                try:
-                    offset_x = int(self.offset_x.value or "0")
-                    offset_y = int(self.offset_y.value or "0")
-                    width = int(self.width_field.value or "1920")
-                    height = int(self.height_field.value or "1080")
-                except Exception:
-                    offset_x, offset_y, width, height = 0, 0, 1920, 1080
-                
-                # 确保宽高为偶数
-                width = (width // 2) * 2
-                height = (height // 2) * 2
-                
-                if width >= 16 and height >= 16:
-                    input_kwargs["offset_x"] = offset_x
-                    input_kwargs["offset_y"] = offset_y
-                    input_kwargs["s"] = f"{width}x{height}"
-                    logger.info(f"自定义区域直接抓取: offset=({offset_x},{offset_y}), size={width}x{height}")
+                if x < -10000 or y < -10000:
+                    logger.warning(f"选区坐标异常 ({x},{y})，录制全屏")
                 else:
-                    logger.warning(f"自定义区域尺寸太小 ({width}x{height})，录制全屏")
+                    input_kwargs["offset_x"] = x
+                    input_kwargs["offset_y"] = y
+                    input_kwargs["s"] = f"{w}x{h}"
+                    mode_name = "窗口" if self.selected_region_type == "window" else "自定义区域"
+                    logger.info(f"{mode_name}直接抓取: offset=({x},{y}), size={w}x{h}")
             else:
                 # 全屏模式：不传任何参数，让 FFmpeg 自动检测
                 logger.info("全屏录制模式：使用 FFmpeg 默认行为")
@@ -1645,20 +1943,16 @@ class ScreenRecordView(ft.Container):
         else:
             # Linux 使用 x11grab
             display = ':0.0'
-            area_mode = self.area_dropdown.value
             
             input_kwargs = {
                 'format': 'x11grab',
                 'framerate': fps,
             }
             
-            if area_mode == "custom":
-                offset_x = self.offset_x.value or "0"
-                offset_y = self.offset_y.value or "0"
-                width = self.width_field.value or "1920"
-                height = self.height_field.value or "1080"
-                input_kwargs['video_size'] = f'{width}x{height}'
-                input_name = f'{display}+{offset_x},{offset_y}'
+            if self.selected_region and self.selected_region_type == "custom":
+                x, y, w, h = self.selected_region
+                input_kwargs['video_size'] = f'{w}x{h}'
+                input_name = f'{display}+{x},{y}'
             else:
                 input_name = display
             
@@ -1718,6 +2012,64 @@ class ScreenRecordView(ft.Container):
         
         return stream, self.output_file
     
+    def _on_record_toggle(self, e) -> None:
+        """切换录制状态（开始/停止）。"""
+        if self.is_recording:
+            self._stop_recording()
+        else:
+            # 每次开始录制前，先选择录制区域
+            self._start_recording_with_region_select()
+    
+    def _start_recording_with_region_select(self) -> None:
+        """先选择录制区域，然后开始录制。"""
+        self.record_btn.disabled = True
+        self.page.update()
+        
+        def worker():
+            # 弹出区域选择界面
+            result = self._select_region_interactively_windows()
+            
+            def apply():
+                self.record_btn.disabled = False
+                
+                if result is None:
+                    # 用户取消
+                    self._show_message("已取消录制", ft.Colors.ORANGE)
+                    self.page.update()
+                    return
+                
+                # 更新选择结果
+                if result == "fullscreen":
+                    self.selected_region = None
+                    self.selected_region_type = "fullscreen"
+                    self.selected_window_title = None
+                    self.region_info_text.value = "🖥️ 全屏录制"
+                    self.region_detail_text.value = ""
+                elif isinstance(result, tuple) and len(result) == 5:
+                    x, y, w, h, title = result
+                    self.selected_region = (x, y, w, h)
+                    self.selected_region_type = "window"
+                    self.selected_window_title = title
+                    display_title = title[:25] + "..." if len(title) > 25 else title
+                    self.region_info_text.value = f"🪟 {display_title}"
+                    self.region_detail_text.value = f"{w}×{h}"
+                elif isinstance(result, tuple) and len(result) == 4:
+                    x, y, w, h = result
+                    self.selected_region = (x, y, w, h)
+                    self.selected_region_type = "custom"
+                    self.selected_window_title = None
+                    self.region_info_text.value = f"📐 自定义区域"
+                    self.region_detail_text.value = f"{w}×{h}"
+                
+                self.page.update()
+                
+                # 选择完成后，直接开始录制
+                self._on_start_recording(None)
+            
+            self._invoke_ui(apply)
+        
+        threading.Thread(target=worker, daemon=True).start()
+
     def _on_start_recording(self, e) -> None:
         """开始录制。"""
         try:
@@ -1813,7 +2165,7 @@ class ScreenRecordView(ft.Container):
             self.timer_thread = threading.Thread(target=self._timer_loop, daemon=True)
             self.timer_thread.start()
             
-            self._show_message("录制已开始 (按 F9 停止)", ft.Colors.GREEN)
+            self._show_message(f"录制已开始 (按 {self._get_hotkey_display()} 停止)", ft.Colors.GREEN)
             
         except Exception as ex:
             logger.error(f"启动录制失败: {ex}", exc_info=True)
@@ -1951,11 +2303,32 @@ class ScreenRecordView(ft.Container):
     
     def _update_ui_state(self) -> None:
         """更新 UI 状态。"""
+        # 获取按钮引用（Container 里的 ElevatedButton）
+        btn = self.record_btn.content
+        
         if self.is_recording:
-            self.start_btn.disabled = True
-            self.pause_btn.disabled = (self._get_platform() == 'windows')  # Windows 不支持暂停
-            self.stop_btn.disabled = False
-            self.status_text.value = "正在录制..."
+            # 录制中：按钮变为"停止录制"
+            btn.content = ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.STOP_CIRCLE, size=24, color=ft.Colors.WHITE),
+                    ),
+                    ft.Text("停止录制", size=18, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=12,
+                alignment=ft.MainAxisAlignment.CENTER,
+            )
+            btn.style = ft.ButtonStyle(
+                bgcolor={
+                    ft.ControlState.DEFAULT: ft.Colors.GREY_700,
+                    ft.ControlState.HOVERED: ft.Colors.GREY_800,
+                },
+                color=ft.Colors.WHITE,
+                elevation={"default": 2, "hovered": 4},
+                shape=ft.RoundedRectangleBorder(radius=12),
+                padding=ft.padding.symmetric(horizontal=32, vertical=16),
+            )
+            self.status_text.value = "● 正在录制..."
             self.status_text.color = ft.Colors.RED
             self.recording_indicator.content = ft.Icon(
                 ft.Icons.FIBER_MANUAL_RECORD, color=ft.Colors.RED, size=16
@@ -1966,16 +2339,33 @@ class ScreenRecordView(ft.Container):
             self.encoder_dropdown.disabled = True
             self.preset_dropdown.disabled = True
             self.quality_slider.disabled = True
-            self.area_dropdown.disabled = True
             self.record_mic.disabled = True
             self.mic_device_dropdown.disabled = True
             self.record_system_audio.disabled = True
             self.system_audio_dropdown.disabled = True
-            self.window_dropdown.disabled = True
         else:
-            self.start_btn.disabled = False
-            self.pause_btn.disabled = True
-            self.stop_btn.disabled = True
+            # 准备就绪：按钮变为"开始录制"
+            btn.content = ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, size=24, color=ft.Colors.WHITE),
+                    ),
+                    ft.Text("开始录制", size=18, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=12,
+                alignment=ft.MainAxisAlignment.CENTER,
+            )
+            btn.style = ft.ButtonStyle(
+                bgcolor={
+                    ft.ControlState.DEFAULT: ft.Colors.RED_600,
+                    ft.ControlState.HOVERED: ft.Colors.RED_700,
+                    ft.ControlState.PRESSED: ft.Colors.RED_800,
+                },
+                color=ft.Colors.WHITE,
+                elevation={"default": 4, "hovered": 8},
+                shape=ft.RoundedRectangleBorder(radius=12),
+                padding=ft.padding.symmetric(horizontal=32, vertical=16),
+            )
             self.status_text.value = "准备就绪"
             self.status_text.color = ft.Colors.ON_SURFACE_VARIANT
             self.recording_indicator.content = ft.Icon(
@@ -1987,12 +2377,10 @@ class ScreenRecordView(ft.Container):
             self.encoder_dropdown.disabled = False
             self.preset_dropdown.disabled = False
             self.quality_slider.disabled = False
-            self.area_dropdown.disabled = False
             self.record_mic.disabled = False
             self.mic_device_dropdown.disabled = False
             self.record_system_audio.disabled = False
             self.system_audio_dropdown.disabled = False
-            self.window_dropdown.disabled = False
         
         self.page.update()
     
@@ -2014,9 +2402,6 @@ class ScreenRecordView(ft.Container):
             self._stop_recording()
         
         self.should_stop_timer = True
-        
-        # 移除快捷键
-        self._remove_keyboard_shortcuts()
         
         # 移除 file picker
         if hasattr(self, 'folder_picker') and self.folder_picker in self.page.overlay:

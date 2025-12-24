@@ -21,6 +21,7 @@ from .id_photo_service import IDPhotoService, IDPhotoParams, IDPhotoResult
 from .subtitle_remove_service import SubtitleRemoveService
 from .translate_service import TranslateService, SUPPORTED_LANGUAGES
 from .ai_subtitle_fix_service import AISubtitleFixService
+from .global_hotkey_service import GlobalHotkeyService
 
 __all__ = [
     "AudioService",
@@ -49,5 +50,6 @@ __all__ = [
     "TranslateService",
     "SUPPORTED_LANGUAGES",
     "AISubtitleFixService",
+    "GlobalHotkeyService",
 ]
 
