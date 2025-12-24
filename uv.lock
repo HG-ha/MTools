@@ -449,7 +449,7 @@ wheels = [
 
 [[package]]
 name = "mtools"
-version = "0.0.6b0"
+version = "0.0.7b0"
 source = { virtual = "." }
 dependencies = [
     { name = "chardet" },
@@ -467,7 +467,7 @@ dependencies = [
     { name = "pyclipper" },
     { name = "pycryptodome" },
     { name = "pystray" },
-    { name = "pywin32" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "pyyaml" },
     { name = "qrcode", extra = ["pil"] },
     { name = "shapely" },
@@ -502,7 +502,7 @@ requires-dist = [
     { name = "pyclipper", specifier = "==1.4.0" },
     { name = "pycryptodome", specifier = "==3.21.0" },
     { name = "pystray", specifier = "==0.19.5" },
-    { name = "pywin32", specifier = ">=311" },
+    { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=311" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "qrcode", extras = ["pil"], specifier = "==7.4.2" },
     { name = "shapely", specifier = "==2.1.2" },

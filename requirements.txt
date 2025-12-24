@@ -41,3 +41,4 @@ croniter==5.0.1  # Cron表达式解析
 tomli-w==1.1.0  # TOML 写入支持（Python 3.11+ 内置 tomllib 只支持读取）
 pystray==0.19.5
 psutil==6.1.1  # 系统和进程工具（用于自动更新）
+pywin32>=311 ; sys_platform == 'win32'  # Windows 专用（全局热键、COM等）
