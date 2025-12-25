@@ -441,36 +441,44 @@ def check_onnxruntime_version():
         print(f"⚠️  检查 onnxruntime 版本时出错: {e}")
         return True
 
-def pack_flet_client():
-    """打包 Flet 客户端
+def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base_dir=None):
+    """准备 Flet 客户端目录（动态生成到构建输出目录）
     
-    从虚拟环境的 flet_desktop 包中提取客户端文件。
-    根据平台使用不同的打包格式：
-    - Windows: .zip
-    - macOS: .tar.gz  
-    - Linux: .tar.gz
+    新策略：不再放在源码目录，而是构建时动态准备到 dist/.build_cache/flet_client/，
+    然后通过 Nuitka 的 --include-data-dir 参数包含到最终程序中。
+    
+    优点：
+    - 不污染源码目录
+    - 支持多版本并存（不同 flet 版本）
+    - 构建缓存可重用
+    
+    Args:
+        enable_upx_compression: 是否对 flet 客户端的 exe/dll 进行 UPX 压缩
+        upx_path: UPX 可执行文件路径（可选）
+        output_base_dir: 输出基础目录，默认为 PROJECT_ROOT/dist/.build_cache
     
     Returns:
-        bool: 打包成功返回 True
+        Path: flet_client 目录路径，失败返回 None
     """
     system = platform.system()
     
-    # 根据平台确定输出文件名和格式
-    if system == "Windows":
-        output_file = ASSETS_DIR / ".flet.zip"
-        use_zip = True
-    elif system == "Darwin":
-        output_file = ASSETS_DIR / ".flet.tar.gz"
-        use_zip = False
-    elif system == "Linux":
-        output_file = ASSETS_DIR / ".flet.tar.gz"
-        use_zip = False
-    else:
-        print(f"❌ 不支持的平台: {system}")
-        return False
+    # 默认输出到 dist/.build_cache/flet_client/
+    if output_base_dir is None:
+        output_base_dir = PROJECT_ROOT / "dist" / ".build_cache"
+    
+    # 获取 flet 版本
+    try:
+        import flet.version
+        flet_version = flet.version.version
+    except ImportError:
+        print("❌ 错误: 未找到 flet 模块")
+        return None
+    
+    # 目标目录：dist/.build_cache/flet_client-{version}/
+    flet_client_output = output_base_dir / f"flet_client-{flet_version}"
     
     print("\n" + "="*60)
-    print(f"📦 打包 Flet 客户端 ({system})")
+    print(f"📦 准备 Flet 客户端 ({system})")
     print("="*60)
     
     # 查找 flet_desktop 包的位置
@@ -491,176 +499,195 @@ def pack_flet_client():
             print(f"   预期位置: {flet_client_dir}")
             print("\n请先安装依赖：")
             print("   uv sync")
-            return False
+            return None
         
         # 检查客户端目录是否有内容
         if not any(flet_client_dir.iterdir()):
             print("❌ 错误: Flet 客户端目录为空")
-            return False
+            return None
         
         print(f"源目录: {flet_client_dir}")
-        print(f"目标文件: {output_file}")
+        print(f"目标目录: {flet_client_output}")
+        print(f"版本: {flet_version}")
         print("="*60)
         
     except ImportError:
         print("❌ 错误: 未找到 flet_desktop 模块")
         print("\n请先安装依赖：")
         print("   uv sync")
-        return False
+        return None
     
-    # 确保 assets 目录存在
-    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    # 如果目标目录已存在且完整，直接返回
+    if flet_client_output.exists():
+        # 检查是否完整（至少有 flet.exe 或主要文件）
+        if system == "Windows":
+            flet_exe = flet_client_output / "flet" / "flet.exe"
+            if flet_exe.exists():
+                file_count = len(list(flet_client_output.rglob('*')))
+                total_size = sum(f.stat().st_size for f in flet_client_output.rglob('*') if f.is_file())
+                size_mb = total_size / (1024 * 1024)
+                print(f"✅ 找到缓存: {flet_client_output.name} ({size_mb:.2f} MB)")
+                return flet_client_output
+        
+        # 目录存在但不完整，删除重建
+        print(f"   清理不完整的缓存...")
+        shutil.rmtree(flet_client_output)
     
-    # 如果目标文件已存在，先删除
-    if output_file.exists():
-        output_file.unlink()
-        print(f"   已删除旧的 {output_file.name}")
+    # 确保输出目录存在
+    output_base_dir.mkdir(parents=True, exist_ok=True)
     
     try:
-        # 获取 flet 版本
-        import flet.version
-        import tarfile
-        flet_version = flet.version.version
-        print(f"   Flet 版本: {flet_version}")
+        # 创建输出目录
+        flet_client_output.mkdir(parents=True, exist_ok=True)
         
-        # 遍历 flet 客户端目录
-        all_files = list(flet_client_dir.rglob('*'))
-        total_files = len([f for f in all_files if f.is_file()])
+        # 复制 Flet 客户端文件
+        print(f"⏳ 正在复制 Flet 客户端...")
         
-        print(f"⏳ 正在打包... (共 {total_files} 个文件)")
-        
-        processed = 0
-        
-        if use_zip:
-            # Windows: 使用 ZIP 格式
-            with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as archive:
-                for file_path in all_files:
-                    if file_path.is_file():
-                        # Windows 路径结构：bin/flet-{version}/flet/...
-                        rel_path = file_path.relative_to(flet_client_dir)
-                        arcname = f"bin/flet-{flet_version}/flet/{rel_path}"
-                        archive.write(file_path, arcname)
-                        
-                        processed += 1
-                        if processed % 50 == 0 or processed == total_files:
-                            percent = processed * 100 / total_files
-                            print(f"\r📥 进度: {percent:.1f}% ({processed}/{total_files})", end='', flush=True)
+        if system == "Windows":
+            # Windows: 复制 flet/ 目录下的所有文件
+            target_dir = flet_client_output / "flet"
+            shutil.copytree(flet_client_dir, target_dir, dirs_exist_ok=True)
         else:
-            # macOS/Linux: 使用 TAR.GZ 格式
-            with tarfile.open(output_file, 'w:gz') as archive:
-                for file_path in all_files:
-                    if file_path.is_file():
-                        # 计算相对路径
-                        # macOS: bin/flet-{version}/*.app/...
-                        # Linux: bin/flet-{version}/flet/...
-                        if system == "Darwin":
-                            # macOS: 保持 .app 结构
-                            rel_path = file_path.relative_to(flet_client_dir.parent)
-                            arcname = f"bin/flet-{flet_version}/{rel_path}"
-                        else:
-                            # Linux: flet/ 子目录
-                            rel_path = file_path.relative_to(flet_client_dir.parent)
-                            arcname = f"bin/flet-{flet_version}/{rel_path}"
-                        
-                        archive.add(file_path, arcname=arcname)
-                        
-                        processed += 1
-                        if processed % 50 == 0 or processed == total_files:
-                            percent = processed * 100 / total_files
-                            print(f"\r📥 进度: {percent:.1f}% ({processed}/{total_files})", end='', flush=True)
+            # macOS/Linux: 复制整个 app/ 目录
+            shutil.copytree(flet_client_dir, flet_client_output, dirs_exist_ok=True)
         
-        print("\n")
+        # 统计文件数量和大小
+        all_files = list(flet_client_output.rglob('*'))
+        file_count = len([f for f in all_files if f.is_file()])
+        total_size = sum(f.stat().st_size for f in all_files if f.is_file())
+        size_mb = total_size / (1024 * 1024)
         
-        # 显示文件大小
-        file_size_mb = output_file.stat().st_size / (1024 * 1024)
+        # UPX 压缩（如果启用）
+        compressed_count = 0
+        if enable_upx_compression:
+            upx_available, upx_cmd = check_upx(upx_path)
+            if upx_available:
+                print("\n🗜️  正在对 Flet 客户端进行 UPX 压缩...")
+                print("   ⚠️  注意: 跳过 Flutter 核心引擎文件")
+                
+                # 跳过 Flutter 核心引擎和 OpenGL 相关文件（这些文件压缩后可能无法运行）
+                skip_files = {
+                    "flet.exe",              # Flet 主程序
+                    "flutter_windows.dll",   # Flutter 引擎
+                    "libEGL.dll",            # OpenGL ES 库
+                    "libGLESv2.dll",         # OpenGL ES 2.0 库
+                    "app.so",                # Flutter 应用主体（不能压缩）
+                }
+                
+                compressed_files = []
+                skipped_files = []
+                
+                for file in all_files:
+                    if file.is_file() and file.suffix.lower() in ['.dll', '.exe', '.so']:
+                        if file.name in skip_files:
+                            skipped_files.append(file.name)
+                            continue
+                        
+                        try:
+                            # 获取压缩前大小
+                            before_size = file.stat().st_size
+                            
+                            result = subprocess.run(
+                                [upx_cmd, "--best", "--lzma", str(file)],
+                                capture_output=True,
+                                timeout=60,
+                                check=False
+                            )
+                            
+                            # 获取压缩后大小
+                            after_size = file.stat().st_size
+                            saved = before_size - after_size
+                            
+                            if result.returncode == 0:
+                                compressed_files.append((file.name, before_size, after_size, saved))
+                                compressed_count += 1
+                            else:
+                                # UPX 失败（可能文件已压缩或不兼容）
+                                pass
+                        except subprocess.TimeoutExpired:
+                            print(f"   ⚠️  {file.name}: 压缩超时，跳过")
+                        except Exception as e:
+                            print(f"   ⚠️  {file.name}: {e}")
+                
+                # 重新计算总大小
+                compressed_size = sum(f.stat().st_size for f in all_files if f.is_file())
+                compressed_size_mb = compressed_size / (1024 * 1024)
+                saved_mb = size_mb - compressed_size_mb
+                
+                print(f"\n   ✅ 已压缩 {compressed_count} 个文件")
+                if compressed_files:
+                    print(f"   📊 压缩详情（前 10 个）:")
+                    for name, before, after, saved in sorted(compressed_files, key=lambda x: x[3], reverse=True)[:10]:
+                        ratio = (1 - after/before) * 100 if before > 0 else 0
+                        print(f"      • {name}: {before/1024/1024:.2f}MB → {after/1024/1024:.2f}MB (-{ratio:.1f}%)")
+                
+                if skipped_files:
+                    print(f"   ⏭️  跳过 {len(skipped_files)} 个核心文件: {', '.join(skipped_files[:5])}")
+                
+                print(f"   💾 总节省: {saved_mb:.2f} MB ({saved_mb/size_mb*100:.1f}%)")
+                size_mb = compressed_size_mb
         
         print("="*60)
-        print("✅ Flet 客户端打包完成！")
+        print("✅ Flet 客户端准备完成！")
         print("="*60)
-        print(f"文件: {output_file}")
-        print(f"大小: {file_size_mb:.2f} MB")
-        print(f"格式: {'ZIP' if use_zip else 'TAR.GZ'}")
+        print(f"缓存目录: {flet_client_output}")
+        print(f"文件数: {file_count}")
+        print(f"大小: {size_mb:.2f} MB")
+        if compressed_count > 0:
+            print(f"UPX 压缩: {compressed_count} 个文件")
         print("="*60 + "\n")
         
-        return True
+        return flet_client_output
         
     except Exception as e:
-        print(f"\n❌ 打包失败: {e}")
+        print(f"\n❌ 准备失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return None
 
 
-def check_and_pack_flet_client():
-    """检查并自动打包 Flet 客户端
+def pack_flet_client():
+    """打包 Flet 客户端（已废弃，保留用于兼容性）
     
-    如果 Flet 客户端文件不存在或版本不匹配，自动重新打包。
-    根据平台检查不同的文件格式：
-    - Windows: .flet.zip
-    - macOS/Linux: .flet.tar.gz
+    ⚠️ 此函数已废弃！
+    新版本直接使用 prepare_flet_client() 准备 Flet 客户端目录，
+    不再需要打包成 .zip/.tar.gz 文件。
+    
+    为了保持向后兼容，此函数现在调用 prepare_flet_client()。
     
     Returns:
-        bool: 成功返回 True
+        bool: 准备成功返回 True
     """
-    system = platform.system()
+    print("⚠️  注意: pack_flet_client() 已废弃，现在使用 prepare_flet_client()")
+    return prepare_flet_client()
+
+
+def check_and_prepare_flet_client(enable_upx=False, upx_path=None):
+    """检查并自动准备 Flet 客户端目录（到构建缓存）
     
-    # 根据平台确定文件名
-    if system == "Windows":
-        flet_file = ASSETS_DIR / ".flet.zip"
-        is_zip = True
-    elif system in ["Darwin", "Linux"]:
-        flet_file = ASSETS_DIR / ".flet.tar.gz"
-        is_zip = False
-    else:
-        print(f"❌ 不支持的平台: {system}")
-        return False
+    新策略：动态生成到 dist/.build_cache/flet_client-{version}/，
+    避免污染源码目录。
     
-    # 检查是否需要打包
-    need_pack = False
+    Args:
+        enable_upx: 是否对 flet 客户端进行 UPX 压缩
+        upx_path: UPX 可执行文件路径（可选）
     
-    if not flet_file.exists():
-        print(f"⚠️  未找到 Flet 客户端打包文件 ({flet_file.name})，将自动打包")
-        need_pack = True
-    else:
-        # 检查版本是否匹配
-        try:
-            import flet.version
-            import tarfile
-            current_version = flet.version.version
-            
-            # 尝试读取打包文件中的版本信息
-            expected_prefix = f"bin/flet-{current_version}/"
-            
-            if is_zip:
-                # ZIP 格式（Windows）
-                with zipfile.ZipFile(flet_file, 'r') as archive:
-                    if not any(name.startswith(expected_prefix) for name in archive.namelist()):
-                        print(f"⚠️  Flet 版本已更新 (当前: {current_version})，将重新打包")
-                        need_pack = True
-                    else:
-                        file_size_mb = flet_file.stat().st_size / (1024 * 1024)
-                        print(f"✅ 找到 Flet 客户端: {flet_file.name} ({file_size_mb:.2f} MB, v{current_version})")
-            else:
-                # TAR.GZ 格式（macOS/Linux）
-                with tarfile.open(flet_file, 'r:gz') as archive:
-                    if not any(name.startswith(expected_prefix) for name in archive.getnames()):
-                        print(f"⚠️  Flet 版本已更新 (当前: {current_version})，将重新打包")
-                        need_pack = True
-                    else:
-                        file_size_mb = flet_file.stat().st_size / (1024 * 1024)
-                        print(f"✅ 找到 Flet 客户端: {flet_file.name} ({file_size_mb:.2f} MB, v{current_version})")
-        except Exception as e:
-            print(f"⚠️  检查 Flet 版本失败: {e}，将重新打包")
-            need_pack = True
+    Returns:
+        Path: flet_client 目录路径，失败返回 None
+    """
+    print("\n🔍 检查 Flet 客户端...")
     
-    # 如果需要打包，自动执行
-    if need_pack:
-        print("\n🔄 自动打包 Flet 客户端...")
-        if not pack_flet_client():
-            print("\n❌ Flet 客户端打包失败")
-            return False
+    # 调用 prepare_flet_client，它会自动检查缓存
+    flet_client_path = prepare_flet_client(
+        enable_upx_compression=enable_upx,
+        upx_path=upx_path
+    )
     
-    return True
+    if not flet_client_path:
+        print("\n❌ Flet 客户端准备失败")
+        return None
+    
+    return flet_client_path
 
 
 def check_dependencies():
@@ -796,7 +823,7 @@ def check_compiler():
         print("\n✅ 继续构建，Nuitka 将自动处理编译器下载...\n")
         return True, "nuitka-auto"  # Nuitka 会自动下载
 
-def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
+def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2, flet_client_path=None):
     """获取 Nuitka 构建命令
     
     Args:
@@ -842,9 +869,29 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2):
         "--follow-imports",
         # 资源控制 - 防止系统卡死
         f"--jobs={jobs}",  # 并行编译进程数
+        # 显式包含 Flet 相关包（避免被 Nuitka 忽略）
+        "--include-package=flet",
+        "--include-package=flet_desktop",
+        "--include-package=flet.core",
         # 数据文件
         f"--include-data-dir={ASSETS_DIR}=src/assets",
     ]
+    
+    # 特别包含 Flet 客户端到 flet_desktop 包的 app 目录
+    # flet_desktop 会从 flet_desktop/app/flet/ 查找客户端
+    if flet_client_path and flet_client_path.exists():
+        print(f"   🔧 包含 Flet 客户端到 flet_desktop/app/: {flet_client_path.name}")
+        # 递归包含所有文件，包括 .exe 和 .dll
+        # 打包到 flet_desktop/app/ 目录下
+        for flet_file in flet_client_path.rglob('*'):
+            if flet_file.is_file():
+                # 计算相对于 flet_client_path 的路径
+                rel_path = flet_file.relative_to(flet_client_path)
+                # 打包到 flet_desktop/app/flet/...
+                cmd.append(f"--include-data-files={flet_file}=flet_desktop/app/{rel_path}")
+        print("   ✅ Flet 客户端已添加到 flet_desktop 包")
+    else:
+        print("   ⚠️  未找到 Flet 客户端，flet_desktop 将从网络下载")
     
     # 根据模式设置优化参数
     if mode == "release":
@@ -1137,7 +1184,7 @@ def cleanup_sherpa_onnx_libs():
         # 不是致命错误，继续构建
         return False
 
-def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=None):
+def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=None, flet_client_path=None):
     """执行构建
     
     Args:
@@ -1146,6 +1193,7 @@ def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=N
         upx_path: UPX 工具路径（可选）
         jobs: 并行编译进程数（默认 2）
         mingw64: MinGW64 安装路径（可选）
+        flet_client_path: Flet 客户端目录路径（可选）
     """
     clean_dist(mode)
     
@@ -1168,7 +1216,7 @@ def run_build(mode="release", enable_upx=False, upx_path=None, jobs=2, mingw64=N
         else:
             print(f"   ⚠️  指定的 MinGW64 路径不存在: {mingw64}")
     
-    cmd = get_nuitka_cmd(mode, enable_upx, upx_path, jobs)
+    cmd = get_nuitka_cmd(mode, enable_upx, upx_path, jobs, flet_client_path)
     cmd_str = " ".join(cmd)
     
     print("\n🚀 开始 Nuitka 构建...")
@@ -1245,7 +1293,7 @@ def organize_output(mode="release"):
 def cleanup_assets_in_output(output_dir: Path):
     """清理输出目录中多余的资源文件
     
-    注意：.flet.zip / .flet.tar.gz 必须保留！程序首次启动时需要解压。
+    注意：flet_client/ 目录必须保留！程序运行时需要通过 FLET_VIEW_PATH 使用。
     
     Args:
         output_dir: 输出目录路径
@@ -1259,7 +1307,7 @@ def cleanup_assets_in_output(output_dir: Path):
     print("   🧹 清理多余的资源文件...")
     
     # 根据平台删除不需要的图标文件
-    # 注意：不要删除 .flet.zip / .flet.tar.gz，程序启动时需要！
+    # 注意：不要删除 flet_client/ 目录，程序运行时需要！
     files_to_remove = []
     
     if system == "Windows":
@@ -1380,7 +1428,7 @@ def parse_args():
     parser.add_argument(
         "--pack-flet",
         action="store_true",
-        help="仅打包 Flet 客户端，不进行编译（通常无需手动执行，构建时会自动打包）"
+        help="仅准备 Flet 客户端目录，不进行编译（通常无需手动执行，构建时会自动准备）"
     )
     
     parser.add_argument(
@@ -1434,9 +1482,9 @@ def main():
         print(f"🔨 {APP_NAME} v{VERSION} 构建工具")
         print("=" * 50)
         
-        # 如果指定了 --pack-flet，只执行打包操作
+        # 如果指定了 --pack-flet，只执行准备操作
         if args.pack_flet:
-            if pack_flet_client():
+            if prepare_flet_client():
                 sys.exit(0)
             else:
                 sys.exit(1)
@@ -1446,13 +1494,13 @@ def main():
             print("\n❌ 依赖检查失败，已取消构建")
             sys.exit(1)
         
-        # 自动检查并打包 Flet 客户端
-        print("\n🔍 检查 Flet 客户端...")
-        if not check_and_pack_flet_client():
+        # 自动检查并准备 Flet 客户端（支持 UPX 压缩）
+        flet_client_path = check_and_prepare_flet_client(enable_upx=args.upx, upx_path=args.upx_path)
+        if not flet_client_path:
             print("❌ Flet 客户端准备失败，已取消构建")
             sys.exit(1)
         
-        if run_build(mode=args.mode, enable_upx=args.upx, upx_path=args.upx_path, jobs=args.jobs, mingw64=args.mingw64):
+        if run_build(mode=args.mode, enable_upx=args.upx, upx_path=args.upx_path, jobs=args.jobs, mingw64=args.mingw64, flet_client_path=flet_client_path):
             if platform.system() != "Darwin":  # macOS app bundle 不需要重命名步骤
                 if not organize_output(args.mode):
                     print("\n❌ 构建未完成")

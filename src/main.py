@@ -9,8 +9,6 @@
 
 # 补丁，请勿删除
 from utils import patch  # noqa: F401
-# Nuitka 打包初始化（必须在导入 flet 之前执行）
-from utils import nuitka_setup  # noqa: F401
 
 import flet as ft
 
