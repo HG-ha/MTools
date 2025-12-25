@@ -544,7 +544,7 @@ class MediaView(ft.Container):
                 view.add_files(pending_files)
     
     def _back_to_main(self, e=None) -> None:
-        """返回主视图。
+        """返回主视图（使用路由导航）。
         
         Args:
             e: 事件对象（可选）
@@ -596,12 +596,11 @@ class MediaView(ft.Container):
         # 强制垃圾回收释放内存
         gc.collect()
         
-        # 切换回主视图
-        self.parent_container.content = self
-        self._safe_page_update()
-        
-        # 显示搜索按钮（在页面更新之后）
-        self._show_search_button()
+        # 直接恢复主界面（不依赖路由，因为打开工具时也是直接切换内容的）
+        if self.parent_container:
+            self.parent_container.content = self
+            self._show_search_button()
+            self._safe_page_update()
     
     def _open_ffmpeg_terminal(self) -> None:
         """打开FFmpeg终端。"""

@@ -275,6 +275,22 @@ def cleanup_incomplete_build(mode="release"):
     except Exception as e:
         print(f"   清理临时文件时出错: {e}")
 
+
+def cleanup_build_cache():
+    """清理构建缓存目录（dist/.build_cache）
+    
+    这个目录包含 flet_client 等缓存文件，可在多次构建之间复用。
+    如果需要节省磁盘空间，可以在构建完成后清理。
+    """
+    cache_dir = PROJECT_ROOT / "dist" / ".build_cache"
+    if cache_dir.exists():
+        try:
+            print("🧹 清理构建缓存目录...")
+            shutil.rmtree(cache_dir)
+            print(f"   已删除: {cache_dir}")
+        except Exception as e:
+            print(f"   ❌ 清理缓存失败: {e}")
+
 def check_upx(upx_path=None):
     """检查 UPX 是否可用
     
@@ -644,22 +660,6 @@ def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base
         import traceback
         traceback.print_exc()
         return None
-
-
-def pack_flet_client():
-    """打包 Flet 客户端（已废弃，保留用于兼容性）
-    
-    ⚠️ 此函数已废弃！
-    新版本直接使用 prepare_flet_client() 准备 Flet 客户端目录，
-    不再需要打包成 .zip/.tar.gz 文件。
-    
-    为了保持向后兼容，此函数现在调用 prepare_flet_client()。
-    
-    Returns:
-        bool: 准备成功返回 True
-    """
-    print("⚠️  注意: pack_flet_client() 已废弃，现在使用 prepare_flet_client()")
-    return prepare_flet_client()
 
 
 def check_and_prepare_flet_client(enable_upx=False, upx_path=None):
@@ -1421,14 +1421,7 @@ def parse_args():
   python build.py --mode release --upx      # release 模式 + UPX 压缩
   python build.py --upx --upx-path "C:\\upx\\upx.exe"  # 指定 UPX 路径
   python build.py --jobs 4                  # 使用 4 个并行任务编译
-  python build.py --pack-flet               # 仅打包 Flet 客户端（通常无需手动执行）
         """
-    )
-    
-    parser.add_argument(
-        "--pack-flet",
-        action="store_true",
-        help="仅准备 Flet 客户端目录，不进行编译（通常无需手动执行，构建时会自动准备）"
     )
     
     parser.add_argument(
@@ -1482,13 +1475,6 @@ def main():
         print(f"🔨 {APP_NAME} v{VERSION} 构建工具")
         print("=" * 50)
         
-        # 如果指定了 --pack-flet，只执行准备操作
-        if args.pack_flet:
-            if prepare_flet_client():
-                sys.exit(0)
-            else:
-                sys.exit(1)
-        
         # 检查依赖（包括 onnxruntime 版本检查）
         if not check_dependencies():
             print("\n❌ 依赖检查失败，已取消构建")
@@ -1507,6 +1493,9 @@ def main():
                     sys.exit(1)
             
             compress_output(args.mode)
+            
+            # 编译完成后自动清理构建缓存
+            cleanup_build_cache()
             
             print("\n" + "=" * 50)
             print(f"🎉 全部完成！构建文件位于 dist/{args.mode} 目录")

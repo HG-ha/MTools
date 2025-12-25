@@ -75,33 +75,30 @@ class OCRView(ft.Container):
         self.current_model: OCRModelInfo = OCR_MODELS[self.current_model_key]
         
         self.expand: bool = True
-        # 不需要外层padding，内部header和content已经设置了padding
-        # self.padding = ft.padding.all(0)
+        # 与其他视图保持一致的 padding 设置
+        self.padding: ft.padding = ft.padding.only(
+            left=PADDING_MEDIUM,
+            right=PADDING_MEDIUM,
+            top=PADDING_MEDIUM,
+            bottom=PADDING_MEDIUM
+        )
         
         # 构建界面
         self._build_ui()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
-        # 顶部：标题和返回按钮
-        header = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.IconButton(
-                        icon=ft.Icons.ARROW_BACK,
-                        tooltip="返回",
-                        on_click=self._on_back_click,
-                    ),
-                    ft.Text("OCR 文字识别", size=28, weight=ft.FontWeight.BOLD),
-                ],
-                spacing=PADDING_MEDIUM,
-            ),
-            padding=ft.padding.only(
-                left=PADDING_MEDIUM,
-                right=PADDING_MEDIUM,
-                top=PADDING_MEDIUM,
-                bottom=PADDING_SMALL,
-            ),
+        # 顶部：标题和返回按钮（与其他视图保持一致，直接用 Row）
+        header = ft.Row(
+            controls=[
+                ft.IconButton(
+                    icon=ft.Icons.ARROW_BACK,
+                    tooltip="返回",
+                    on_click=self._on_back_click,
+                ),
+                ft.Text("OCR 文字识别", size=28, weight=ft.FontWeight.BOLD),
+            ],
+            spacing=PADDING_MEDIUM,
         )
         
         # 文件选择区域

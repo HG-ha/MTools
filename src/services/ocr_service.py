@@ -350,10 +350,12 @@ class OCRService:
             self.rec_image_height = 32  # 重置为默认值
             self.use_angle_cls = True  # 重置为默认值
             
-            # 强制多次垃圾回收（确保循环引用被清理）
+            # 激进垃圾回收（回收所有代，确保循环引用被清理）
+            gc.collect(0)  # 年轻代
+            gc.collect(1)  # 中间代
+            gc.collect(2)  # 老年代
             gc.collect()
-            gc.collect()
-            gc.collect()
+            gc.collect()  # 再来一次确保彻底
             
             # 额外释放 ONNX Runtime 全局线程池，缓解内存水位上涨
             try:
@@ -415,6 +417,10 @@ class OCRService:
         # 后处理
         boxes = self._postprocess_det(outputs[0], ratio_h, ratio_w, image.shape[:2])
         
+        # 显式释放中间变量防止内存泄漏
+        del img_resized
+        del outputs
+        
         return boxes
     
     def recognize_text(self, image: np.ndarray, boxes: List[np.ndarray]) -> List[Tuple[str, float]]:
@@ -433,6 +439,9 @@ class OCRService:
         results = []
         
         for i, box in enumerate(boxes):
+            text_img = None
+            img_preprocessed = None
+            outputs = None
             try:
                 # 裁剪文本区域
                 text_img = self._crop_text_region(image, box)
@@ -447,7 +456,9 @@ class OCRService:
                     angle_idx, angle_conf = self._classify_text_angle(text_img)
                     # 如果是180度（angle_idx=1）且置信度>0.9，旋转图像
                     if angle_idx == 1 and angle_conf > 0.9:
+                        old_img = text_img
                         text_img = self._rotate_image_180(text_img)
+                        del old_img  # 释放旧图像
                         logger.debug(f"区域 {i+1}: 检测到180度旋转 (置信度: {angle_conf:.3f})")
                 
                 # 预处理
@@ -470,6 +481,14 @@ class OCRService:
                 logger.warning(f"识别文本区域 {i+1} 失败: {e}，跳过此区域")
                 results.append(("", 0.0))
                 continue
+            finally:
+                # 显式释放中间变量防止内存泄漏
+                if text_img is not None:
+                    del text_img
+                if img_preprocessed is not None:
+                    del img_preprocessed
+                if outputs is not None:
+                    del outputs
         
         return results
     
@@ -487,6 +506,9 @@ class OCRService:
         Returns:
             (是否成功, 结果列表) 结果格式: [(box, text, confidence), ...]
         """
+        image = None
+        boxes = None
+        texts = None
         try:
             if not self.det_session or not self.rec_session:
                 return False, []
@@ -516,12 +538,9 @@ class OCRService:
             texts = self.recognize_text(image, boxes)
             
             # 在最后统一过滤 score >= 0.5
-            all_results = []
             filtered_results = []
             
             for box, (text, conf) in zip(boxes, texts):
-                all_results.append((box.tolist(), text, conf))
-                
                 # 最终过滤：score >= 0.5
                 if conf >= 0.5:
                     filtered_results.append((box.tolist(), text, conf))
@@ -539,6 +558,18 @@ class OCRService:
         except Exception as e:
             logger.error(f"OCR识别失败: {e}")
             return False, []
+        finally:
+            # 显式释放大对象
+            if image is not None:
+                del image
+            if boxes is not None:
+                del boxes
+            if texts is not None:
+                del texts
+            # 激进垃圾回收
+            gc.collect(0)
+            gc.collect(1)
+            gc.collect(2)
     
     def ocr_image(
         self,
@@ -554,6 +585,8 @@ class OCRService:
         Returns:
             (是否成功, 结果列表) 结果格式: [(box, text, confidence), ...]
         """
+        boxes = None
+        texts = None
         try:
             if not self.det_session or not self.rec_session:
                 return False, []
@@ -593,6 +626,16 @@ class OCRService:
         except Exception as e:
             logger.error(f"OCR图像识别失败: {e}")
             return False, []
+        finally:
+            # 显式释放中间变量
+            if boxes is not None:
+                del boxes
+            if texts is not None:
+                del texts
+            # 激进垃圾回收
+            gc.collect(0)
+            gc.collect(1)
+            gc.collect(2)
     
     def _preprocess_det(self, image: np.ndarray) -> Tuple[np.ndarray, float, float]:
         """预处理检测输入（PaddleOCR v5 DBNet标准）。
@@ -623,26 +666,27 @@ class OCRService:
         ratio_h = target_h / h
         ratio_w = target_w / w
         
+        # 使用原地操作减少内存分配
         # 调整大小
         img_resized = cv2.resize(image, (target_w, target_h))
         
-        # BGR -> RGB（PaddleOCR标准）
-        img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+        # BGR -> RGB（PaddleOCR标准）- 原地转换
+        cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB, dst=img_resized)
         
-        # 归一化 (PaddleOCR DBNet标准)
-        # scale=1.0/255.0, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        img_float = img_rgb.astype(np.float32) / 255.0
+        # 归一化 (PaddleOCR DBNet标准) - 直接在 float32 上操作
+        img_float = img_resized.astype(np.float32)
+        del img_resized  # 立即释放
         
-        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 3)
-        std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 3)
+        img_float /= 255.0
+        img_float -= np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        img_float /= np.array([0.229, 0.224, 0.225], dtype=np.float32)
         
-        img_normalized = (img_float - mean) / std
-        
-        # HWC -> CHW: (H, W, 3) -> (3, H, W)
-        img_chw = np.transpose(img_normalized, (2, 0, 1))
-        
-        # 添加batch维度: (3, H, W) -> (1, 3, H, W)
-        img_batch = np.expand_dims(img_chw, axis=0).astype(np.float32)
+        # HWC -> CHW -> batch（连续操作）
+        img_batch = np.expand_dims(
+            np.transpose(img_float, (2, 0, 1)), 
+            axis=0
+        ).astype(np.float32)
+        del img_float  # 立即释放
         
         return img_batch, ratio_h, ratio_w
     
@@ -661,24 +705,37 @@ class OCRService:
         - max_candidates: 1000 (最大候选框数)
         - unclip_ratio: 1.5 (框扩展比例)
         """
-        # 二值化阈值
-        thresh = 0.3  # 二值化阈值
-        box_thresh = 0.6  # 框置信度阈值
-        unclip_ratio = 1.5  # 框扩展比例
-        min_size = 3  # 最小尺寸
+        # 提前导入（避免循环内重复导入）
+        try:
+            from shapely.geometry import Polygon
+            import pyclipper
+            has_clipper = True
+        except ImportError:
+            has_clipper = False
+            Polygon = None
+            pyclipper = None
         
-        # 获取概率图
-        pred = pred[0, 0]
+        # 二值化阈值
+        thresh = 0.3
+        box_thresh = 0.6
+        unclip_ratio = 1.5
+        min_size = 3
+        
+        # 获取概率图（避免修改原数组）
+        pred_map = pred[0, 0]
         
         # 二值化
-        bitmap = pred > thresh
+        bitmap = pred_map > thresh
         mask_uint8 = (bitmap * 255).astype(np.uint8)
+        del bitmap  # 立即释放
         
         # 查找轮廓
         contours, _ = cv2.findContours(mask_uint8, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        del mask_uint8  # 立即释放
         
         boxes = []
         orig_h, orig_w = orig_shape
+        pred_h, pred_w = pred_map.shape
         
         for contour in contours:
             # 轮廓点数检查
@@ -695,53 +752,55 @@ class OCRService:
             points = np.array(points)
             
             # 计算框的得分
-            score = self._box_score_fast(pred, points.reshape(-1, 2))
+            score = self._box_score_fast(pred_map, points.reshape(-1, 2))
             
             # 置信度过滤
             if score < box_thresh:
+                del points
                 continue
             
             # 框扩展（unclip）
-            try:
-                from shapely.geometry import Polygon
-                import pyclipper
-                
-                poly = Polygon(points)
-                distance = poly.area * unclip_ratio / poly.length
-                
-                pco = pyclipper.PyclipperOffset()
-                pco.AddPath(points.astype(np.int32).tolist(), pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
-                expanded = pco.Execute(distance)
-                
-                if len(expanded) > 0 and expanded[0] is not None:
-                    expanded_contour = np.array(expanded[0]).reshape(-1, 1, 2)
-                    # 再次调用get_mini_boxes获取最终box
-                    box, sside = self._get_mini_boxes(expanded_contour)
-                    
-                    # 最小尺寸检查（unclip后）
-                    if sside < min_size + 2:
-                        continue
-                    
-                    box = np.array(box)
-                else:
-                    # unclip失败，使用原始points
-                    box = points
-            except ImportError:
-                # pyclipper未安装，使用原始points
+            box = None
+            if has_clipper:
+                try:
+                    poly = Polygon(points)
+                    if poly.length > 0:
+                        distance = poly.area * unclip_ratio / poly.length
+                        
+                        pco = pyclipper.PyclipperOffset()
+                        pco.AddPath(points.astype(np.int32).tolist(), pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                        expanded = pco.Execute(distance)
+                        
+                        if len(expanded) > 0 and expanded[0] is not None:
+                            expanded_contour = np.array(expanded[0]).reshape(-1, 1, 2)
+                            box, sside = self._get_mini_boxes(expanded_contour)
+                            del expanded_contour
+                            
+                            if sside < min_size + 2:
+                                del points
+                                continue
+                            
+                            box = np.array(box)
+                        del expanded
+                        del pco
+                    del poly
+                except Exception:
+                    pass
+            
+            if box is None:
                 box = points
-            except Exception as e:
-                logger.debug(f"Unclip失败: {e}，使用原始框")
-                box = points
+            del points
             
             # 坐标clip和round
             box = np.array(box)
-            box[:, 0] = np.clip(np.round(box[:, 0]), 0, pred.shape[1])
-            box[:, 1] = np.clip(np.round(box[:, 1]), 0, pred.shape[0])
+            box[:, 0] = np.clip(np.round(box[:, 0]), 0, pred_w)
+            box[:, 1] = np.clip(np.round(box[:, 1]), 0, pred_h)
             
-            # 检查尺寸（在resize后的图像上）
+            # 检查尺寸
             rect_width = int(np.linalg.norm(box[0] - box[1]))
             rect_height = int(np.linalg.norm(box[0] - box[3]))
             if rect_width <= min_size or rect_height <= min_size:
+                del box
                 continue
             
             # 还原到原图坐标
@@ -754,6 +813,7 @@ class OCRService:
             
             boxes.append(box.astype(np.int32))
         
+        del pred_map
         return boxes
     
     def _crop_text_region(self, image: np.ndarray, box: np.ndarray) -> Optional[np.ndarray]:
@@ -825,17 +885,13 @@ class OCRService:
         """
         import math
         
-        # 确保是3通道格式
-        if len(image.shape) == 2:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        
-        # BGR -> RGB 转换（PaddleOCR标准）
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
         imgC = 3
         imgH = self.rec_image_height  # 动态获取（32或48）
         imgW = 320  # 最大宽度
-        max_wh_ratio = imgW / imgH
+        
+        # 确保是3通道格式
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         
         h, w = image.shape[:2]
         ratio = w / float(h)
@@ -846,26 +902,28 @@ class OCRService:
         else:
             resized_w = int(math.ceil(imgH * ratio))
         
-        # Resize图像
+        # BGR -> RGB + Resize 合并操作，减少中间数组
         resized_image = cv2.resize(image, (resized_w, imgH))
+        cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB, dst=resized_image)
         
-        # 转换为CHW格式
-        resized_image = resized_image.transpose((2, 0, 1))
-        resized_image = resized_image.astype(np.float32)
+        # 直接创建最终的 padding 数组（float32）
+        padding_im = np.zeros((1, imgC, imgH, imgW), dtype=np.float32)
         
-        # 归一化
-        resized_image /= 255.0
-        resized_image -= 0.5
-        resized_image /= 0.5
+        # 原地转换和归一化（避免创建中间数组）
+        resized_chw = np.ascontiguousarray(resized_image.transpose((2, 0, 1)))
+        del resized_image  # 立即释放
         
-        # 创建padding图像
-        padding_im = np.zeros((imgC, imgH, imgW), dtype=np.float32)
-        padding_im[:, :, 0:resized_w] = resized_image
+        # 原地归一化
+        resized_chw = resized_chw.astype(np.float32)
+        resized_chw /= 255.0
+        resized_chw -= 0.5
+        resized_chw /= 0.5
         
-        # 添加batch维度
-        img_batch = np.expand_dims(padding_im, axis=0)
+        # 复制到 padding 数组
+        padding_im[0, :, :, 0:resized_w] = resized_chw
+        del resized_chw  # 立即释放
         
-        return img_batch
+        return padding_im
     
     def _decode_text(self, pred: np.ndarray) -> Tuple[str, float]:
         """解码识别结果（CTC解码，参考PaddleOCR标准）。
@@ -918,6 +976,8 @@ class OCRService:
         if not self.cls_session:
             return 0, 1.0  # 如果没有分类模型，假设是0度
         
+        img_preprocessed = None
+        outputs = None
         try:
             # 预处理
             img_preprocessed = self._preprocess_cls(image)
@@ -936,6 +996,12 @@ class OCRService:
         except Exception as e:
             logger.warning(f"方向分类失败: {e}")
             return 0, 1.0
+        finally:
+            # 显式释放中间变量防止内存泄漏
+            if img_preprocessed is not None:
+                del img_preprocessed
+            if outputs is not None:
+                del outputs
     
     def _preprocess_cls(self, image: np.ndarray) -> np.ndarray:
         """预处理方向分类输入（PaddleOCR标准）。
@@ -949,15 +1015,12 @@ class OCRService:
         """
         import math
         
+        # 模型输入尺寸
+        imgC, imgH, imgW = 3, 80, 160
+        
         # 确保是3通道格式
         if len(image.shape) == 2:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        
-        # BGR -> RGB 转换（PaddleOCR标准）
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # 模型输入尺寸
-        imgC, imgH, imgW = 3, 80, 160
         
         h, w = image.shape[:2]
         ratio = w / float(h)
@@ -968,26 +1031,26 @@ class OCRService:
         else:
             resized_w = int(math.ceil(imgH * ratio))
         
-        # Resize图像
+        # BGR -> RGB + Resize 合并操作
         resized_image = cv2.resize(image, (resized_w, imgH))
+        cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB, dst=resized_image)
         
-        # 转换为CHW格式
-        resized_image = resized_image.transpose((2, 0, 1))
-        resized_image = resized_image.astype(np.float32)
+        # 直接创建最终的 padding 数组
+        padding_im = np.zeros((1, imgC, imgH, imgW), dtype=np.float32)
         
-        # 归一化
-        resized_image /= 255.0
-        resized_image -= 0.5
-        resized_image /= 0.5
+        # 转换和归一化
+        resized_chw = np.ascontiguousarray(resized_image.transpose((2, 0, 1)))
+        del resized_image
         
-        # 创建padding图像
-        padding_im = np.zeros((imgC, imgH, imgW), dtype=np.float32)
-        padding_im[:, :, 0:resized_w] = resized_image
+        resized_chw = resized_chw.astype(np.float32)
+        resized_chw /= 255.0
+        resized_chw -= 0.5
+        resized_chw /= 0.5
         
-        # 添加batch维度
-        img_batch = np.expand_dims(padding_im, axis=0)
+        padding_im[0, :, :, 0:resized_w] = resized_chw
+        del resized_chw
         
-        return img_batch
+        return padding_im
     
     def _rotate_image_180(self, image: np.ndarray) -> np.ndarray:
         """旋转图像180度。"""
@@ -1061,6 +1124,8 @@ class OCRService:
         Returns:
             图像数组，如果读取失败返回None
         """
+        file_data = None
+        file_array = None
         try:
             # 使用 numpy 和 cv2.imdecode 来支持中文路径
             # cv2.imread 在 Windows 上不支持 Unicode 路径
@@ -1089,3 +1154,9 @@ class OCRService:
         except Exception as e:
             logger.error(f"读取图像失败: {image_path}, 错误: {e}")
             return None
+        finally:
+            # 显式释放中间变量
+            if file_data is not None:
+                del file_data
+            if file_array is not None:
+                del file_array

@@ -4,11 +4,44 @@
 在应用启动时注册全局热键，支持 OCR 截图识别和屏幕录制功能。
 """
 
+import gc
 import sys
 import threading
+import time
+from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from utils import logger
+
+# Windows 专用模块（条件导入）
+if sys.platform == 'win32':
+    import ctypes
+    from ctypes import wintypes, POINTER
+    import tkinter as tk
+    from PIL import Image, ImageTk, ImageGrab
+    import cv2
+    import numpy as np
+    
+    # 预定义 RECT 类（避免函数内重复定义）
+    class RECT(ctypes.Structure):
+        """Windows RECT 结构体。"""
+        _fields_ = [
+            ("left", ctypes.c_long),
+            ("top", ctypes.c_long),
+            ("right", ctypes.c_long),
+            ("bottom", ctypes.c_long)
+        ]
+else:
+    ctypes = None
+    wintypes = None
+    POINTER = None
+    tk = None
+    Image = None
+    ImageTk = None
+    ImageGrab = None
+    cv2 = None
+    np = None
+    RECT = None
 
 
 class GlobalHotkeyService:
@@ -148,9 +181,6 @@ class GlobalHotkeyService:
         self._hotkey_stop_event = threading.Event()
         
         def hotkey_loop():
-            import ctypes
-            from ctypes import wintypes
-            
             user32 = ctypes.windll.user32
             kernel32 = ctypes.windll.kernel32
             
@@ -267,7 +297,6 @@ class GlobalHotkeyService:
             pass
         
         try:
-            import ctypes
             user32 = ctypes.windll.user32
             WM_QUIT = 0x0012
             if self._hotkey_thread_id:
@@ -283,7 +312,6 @@ class GlobalHotkeyService:
         """重启热键监听（配置更改后调用）。"""
         self.stop()
         # 等待线程结束
-        import time
         time.sleep(0.1)
         self.start()
     
@@ -319,18 +347,6 @@ class GlobalHotkeyService:
         """
         logger.info("进入区域选择方法")
         try:
-            logger.debug("导入依赖库...")
-            try:
-                import tkinter as tk
-                logger.debug("tkinter 导入成功")
-            except Exception as e:
-                logger.error(f"tkinter 导入失败: {e}")
-                self._show_notification("区域选择功能不可用（tkinter 未安装）")
-                return None
-            from PIL import Image, ImageTk, ImageGrab
-            import ctypes
-            from ctypes import POINTER
-            from typing import Optional, Tuple
             
             # 设置 DPI 感知
             try:
@@ -354,7 +370,7 @@ class GlobalHotkeyService:
             # 截取屏幕
             screenshot = ImageGrab.grab(bbox=(v_left, v_top, v_left + v_w, v_top + v_h), all_screens=True)
             
-            # 获取所有窗口
+            # 获取所有窗口（使用模块级别的 RECT 类）
             window_rects = []
             try:
                 WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -367,10 +383,6 @@ class GlobalHotkeyService:
                             user32.GetWindowTextW(hwnd, buff, length + 1)
                             title = buff.value
                             
-                            class RECT(ctypes.Structure):
-                                _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                                           ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-                            
                             rect = RECT()
                             if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
                                 w = rect.right - rect.left
@@ -382,12 +394,18 @@ class GlobalHotkeyService:
                                         window_rects.append((title, rel_left, rel_top, w, h))
                     return True
                 
-                user32.EnumWindows(WNDENUMPROC(enum_callback), 0)
+                # 保持回调引用防止被 GC
+                callback_ref = WNDENUMPROC(enum_callback)
+                user32.EnumWindows(callback_ref, 0)
+                del callback_ref  # 使用完后释放
             except Exception:
                 pass
             
-            # 创建暗化版本
-            darkened = Image.blend(screenshot, Image.new('RGB', screenshot.size, (0, 0, 0)), 0.5)
+            # 创建暗化版本（注意释放临时黑色图像）
+            black_overlay = Image.new('RGB', screenshot.size, (0, 0, 0))
+            darkened = Image.blend(screenshot, black_overlay, 0.5)
+            black_overlay.close()  # 立即释放临时图像
+            del black_overlay
             
             result = {"rect": None}
             
@@ -408,13 +426,9 @@ class GlobalHotkeyService:
             screenshot_tk = ImageTk.PhotoImage(screenshot)
             canvas.create_image(0, 0, anchor="nw", image=darkened_tk, tags="bg")
             
-            # 获取显示器信息
+            # 获取显示器信息（使用模块级别的 RECT 类）
             monitors = []
             try:
-                class RECT(ctypes.Structure):
-                    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                               ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-                
                 MONITORENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p,
                                                       ctypes.c_void_p, POINTER(RECT), ctypes.c_void_p)
                 
@@ -423,7 +437,10 @@ class GlobalHotkeyService:
                     monitors.append((r.left - v_left, r.top - v_top, r.right - v_left, r.bottom - v_top))
                     return 1
                 
-                user32.EnumDisplayMonitors(None, None, MONITORENUMPROC(mon_callback), 0)
+                # 保持回调引用防止被 GC（与 WNDENUMPROC 一样）
+                mon_callback_ref = MONITORENUMPROC(mon_callback)
+                user32.EnumDisplayMonitors(None, None, mon_callback_ref, 0)
+                del mon_callback_ref  # 使用完后释放
             except Exception:
                 monitors = [(0, 0, v_w, v_h)]
             
@@ -487,6 +504,15 @@ class GlobalHotkeyService:
                 canvas.delete("highlight")
                 canvas.delete("highlight_border")
                 
+                # 释放旧的 PhotoImage 对象以防止内存泄漏
+                old_image = state.get("hover_image")
+                if old_image:
+                    try:
+                        del old_image
+                    except Exception:
+                        pass
+                    state["hover_image"] = None
+                
                 if window:
                     title, wl, wt, ww, wh = window
                     try:
@@ -495,6 +521,7 @@ class GlobalHotkeyService:
                         if cr > cl and cb > ct:
                             cropped = screenshot.crop((cl, ct, cr, cb))
                             cropped_tk = ImageTk.PhotoImage(cropped)
+                            cropped.close()  # 显式关闭 PIL Image
                             state["hover_image"] = cropped_tk
                             canvas.create_image(cl, ct, anchor="nw", image=cropped_tk, tags="highlight")
                             canvas.create_rectangle(cl, ct, cr, cb, outline="#00BFFF", width=3, tags="highlight_border")
@@ -508,6 +535,7 @@ class GlobalHotkeyService:
                     try:
                         cropped = screenshot.crop((ml, mt, ml + mw, mt + mh))
                         cropped_tk = ImageTk.PhotoImage(cropped)
+                        cropped.close()  # 显式关闭 PIL Image
                         state["hover_image"] = cropped_tk
                         canvas.create_image(ml, mt, anchor="nw", image=cropped_tk, tags="highlight")
                         canvas.create_rectangle(ml, mt, ml + mw, mt + mh, outline="#FF6B6B", width=3, tags="highlight_border")
@@ -543,10 +571,20 @@ class GlobalHotkeyService:
                     canvas.delete("selection")
                     canvas.delete("selection_area")
                     
+                    # 释放旧的 PhotoImage 对象以防止内存泄漏
+                    old_image = state.get("hover_image")
+                    if old_image:
+                        try:
+                            del old_image
+                        except Exception:
+                            pass
+                        state["hover_image"] = None
+                    
                     if right > left and bottom > top:
                         try:
                             cropped = screenshot.crop((left, top, right, bottom))
                             cropped_tk = ImageTk.PhotoImage(cropped)
+                            cropped.close()  # 显式关闭 PIL Image
                             state["hover_image"] = cropped_tk
                             canvas.create_image(left, top, anchor="nw", image=cropped_tk, tags="selection_area")
                         except Exception:
@@ -615,7 +653,7 @@ class GlobalHotkeyService:
             except Exception as e:
                 logger.error(f"mainloop 异常: {e}")
             finally:
-                # 确保完全销毁
+                # 确保完全销毁（先 quit 停止事件循环，再 destroy 销毁窗口）
                 try:
                     root.quit()
                 except Exception:
@@ -626,11 +664,6 @@ class GlobalHotkeyService:
                     pass
                 try:
                     root.destroy()
-                except Exception:
-                    pass
-                # 强制更新以确保销毁
-                try:
-                    root.update_idletasks()
                 except Exception:
                     pass
             
@@ -666,9 +699,11 @@ class GlobalHotkeyService:
                 window_rects.clear()
                 monitors.clear()
                 
-                # 强制垃圾回收
-                import gc
-                gc.collect()
+                # 激进垃圾回收（回收所有代，多次调用处理循环引用）
+                gc.collect(0)  # 年轻代
+                gc.collect(1)  # 中间代
+                gc.collect(2)  # 老年代
+                gc.collect()   # 完整回收
             except Exception:
                 pass
             
@@ -696,11 +731,6 @@ class GlobalHotkeyService:
             should_unload = False
             
             try:
-                from PIL import ImageGrab
-                import cv2
-                import numpy as np
-                import gc
-                
                 logger.info("开始区域选择...")
                 # 设置区域选择锁
                 self._ocr_selecting = True
@@ -810,7 +840,6 @@ class GlobalHotkeyService:
                         # 尝试备用方法（确保 tkinter 正确清理）
                         temp_root = None
                         try:
-                            import tkinter as tk
                             temp_root = tk.Tk()
                             temp_root.withdraw()
                             temp_root.clipboard_clear()
@@ -861,9 +890,11 @@ class GlobalHotkeyService:
                 if should_unload and self._ocr_service is not None:
                     self._schedule_ocr_unload()
                 
-                # 强制垃圾回收
+                # 激进垃圾回收（回收所有代）
                 try:
-                    import gc
+                    gc.collect(0)
+                    gc.collect(1)
+                    gc.collect(2)
                     gc.collect()
                 except Exception:
                     pass
@@ -903,11 +934,12 @@ class GlobalHotkeyService:
                 self._ocr_service = None
                 logger.info("OCR 模型已自动卸载，内存已释放")
             
-            # 强制多次垃圾回收（确保循环引用被清理）
-            import gc
+            # 激进垃圾回收（确保循环引用被清理）
+            gc.collect(0)
+            gc.collect(1)
+            gc.collect(2)
             gc.collect()
-            gc.collect()
-            gc.collect()
+            gc.collect()  # 再来一次确保彻底
         except Exception as e:
             logger.warning(f"自动卸载 OCR 模型失败: {e}")
         finally:
@@ -918,8 +950,6 @@ class GlobalHotkeyService:
         def do_screen_record():
             try:
                 import subprocess
-                import time
-                from pathlib import Path
                 
                 # 使用完整的区域选择器
                 region = self._select_region_interactive(
@@ -1117,7 +1147,6 @@ class GlobalHotkeyService:
                     self._recording_output_file = None
                     
                     # 检查文件是否有效
-                    import time
                     time.sleep(0.3)  # 等待文件系统同步
                     
                     if output_file.exists() and output_file.stat().st_size > 1000:
@@ -1155,9 +1184,6 @@ class GlobalHotkeyService:
             return False
         
         try:
-            import ctypes
-            from ctypes import wintypes
-            
             user32 = ctypes.windll.user32
             kernel32 = ctypes.windll.kernel32
             
@@ -1189,7 +1215,6 @@ class GlobalHotkeyService:
                 if user32.OpenClipboard(None):
                     opened = True
                     break
-                import time
                 time.sleep(0.1)
             
             if not opened:

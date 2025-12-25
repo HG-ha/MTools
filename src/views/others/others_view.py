@@ -390,7 +390,7 @@ class OthersView(ft.Container):
             tool_map[tool_name]()
     
     def _restore_main_view(self) -> None:
-        """恢复到主视图。"""
+        """恢复到主视图（使用路由导航）。"""
         import gc
         
         # 销毁当前子视图并清理资源
@@ -411,14 +411,11 @@ class OthersView(ft.Container):
         # 强制垃圾回收释放内存
         gc.collect()
         
-        # 先恢复容器内容
+        # 直接恢复主界面（不依赖路由，因为打开工具时也是直接切换内容的）
         if self.parent_container:
             self.parent_container.content = self
-            # 使用安全的页面更新方法，而不是直接更新容器
+            self._show_search_button()
             self._safe_page_update()
-        
-        # 显示搜索按钮
-        self._show_search_button()
     
     def _show_message(self, message: str) -> None:
         """显示消息提示。

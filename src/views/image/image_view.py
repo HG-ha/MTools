@@ -977,7 +977,7 @@ class ImageView(ft.Container):
         self._safe_page_update()
     
     def _back_to_main(self, e: ft.ControlEvent = None) -> None:
-        """返回主界面。
+        """返回主界面（使用路由导航）。
         
         Args:
             e: 控件事件对象（可选）
@@ -1027,14 +1027,11 @@ class ImageView(ft.Container):
         # 强制垃圾回收释放内存
         gc.collect()
         
-        # 先恢复容器内容
+        # 直接恢复主界面（不依赖路由，因为打开工具时也是直接切换内容的）
         if self.parent_container:
             self.parent_container.content = self
-            # 使用安全的页面更新方法，而不是直接更新容器
+            self._show_search_button()
             self._safe_page_update()
-        
-        # 显示搜索按钮
-        self._show_search_button()
     
     def _show_image_tools_install_view(self) -> None:
         """显示图片压缩工具安装视图。"""

@@ -60,6 +60,7 @@ class MainView(ft.Column):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用，防止丢失
         self.expand: bool = True
         self.spacing: int = 0
         
@@ -371,82 +372,194 @@ class MainView(ft.Column):
             )
         return self.others_view
     
+    def handle_route_change(self, route: str) -> None:
+        """处理路由变更。
+        
+        Args:
+            route: 路由路径，如 "/", "/image", "/media", "/image/compress" 等
+        
+        注意：为了兼容桌面应用，不使用 page.views 栈，
+        而是直接更新 content_container 的内容。
+        这样可以避免 Flet 路由系统导致的 page 引用丢失问题。
+        """
+        # 使用保存的页面引用
+        page = self.page if self.page else self._saved_page
+        if not page:
+            return
+        
+        # 防止重复处理相同路由
+        if hasattr(self, '_last_route') and self._last_route == route:
+            return
+        self._last_route = route
+        
+        # 解析路由
+        parts = route.strip("/").split("/") if route.strip("/") else []
+        
+        # 根据路由路径确定要显示的内容和导航栏选中项
+        if not parts or parts[0] == "":
+            # 根路径 "/" - 推荐页
+            if self.show_recommendations:
+                self.content_container.content = self.recommendations_view
+                self.navigation_rail.selected_index = 0
+                self.show_search_button()
+                # 刷新推荐列表
+                if hasattr(self.recommendations_view, 'refresh'):
+                    self.recommendations_view.refresh()
+            else:
+                # 如果不显示推荐页，重定向到图片处理
+                self._last_route = None  # 清除记录，允许重定向
+                page.go("/image")
+                return
+        
+        elif parts[0] == "image":
+            # 图片处理路由
+            offset = 0 if self.show_recommendations else -1
+            self.navigation_rail.selected_index = 1 + offset
+            
+            view = self._get_or_create_image_view()
+            
+            if len(parts) == 1:
+                # 只有 "/image"，尝试恢复之前的工具子视图
+                if hasattr(view, 'current_sub_view') and view.current_sub_view:
+                    # 有之前打开的工具，恢复它
+                    self.content_container.content = view.current_sub_view
+                    self.hide_search_button()
+                else:
+                    # 没有之前打开的工具，显示主视图
+                    self.content_container.content = view
+                    self.show_search_button()
+            else:
+                # 有子路径，如 "/image/compress"
+                tool_name = "/".join(parts[1:])
+                if hasattr(view, 'open_tool'):
+                    view.open_tool(tool_name)
+                self.hide_search_button()
+        
+        elif parts[0] == "media":
+            # 媒体处理路由
+            offset = 0 if self.show_recommendations else -1
+            self.navigation_rail.selected_index = 2 + offset
+            
+            view = self._get_or_create_media_view()
+            
+            if len(parts) == 1:
+                # 只有 "/media"，尝试恢复之前的工具子视图
+                if hasattr(view, 'current_sub_view') and view.current_sub_view:
+                    # 有之前打开的工具，恢复它
+                    self.content_container.content = view.current_sub_view
+                    self.hide_search_button()
+                else:
+                    # 没有之前打开的工具，显示主视图
+                    self.content_container.content = view
+                    self.show_search_button()
+            else:
+                # 有子路径，如 "/media/video_compress"
+                sub_view_name = parts[1]
+                if hasattr(view, '_open_view'):
+                    view._open_view(sub_view_name)
+                self.hide_search_button()
+        
+        elif parts[0] == "dev":
+            # 开发工具路由
+            offset = 0 if self.show_recommendations else -1
+            self.navigation_rail.selected_index = 3 + offset
+            
+            view = self._get_or_create_dev_tools_view()
+            
+            if len(parts) == 1:
+                # 只有 "/dev"，尝试恢复之前的工具子视图
+                if hasattr(view, 'current_sub_view') and view.current_sub_view:
+                    # 有之前打开的工具，恢复它
+                    self.content_container.content = view.current_sub_view
+                    self.hide_search_button()
+                else:
+                    # 没有之前打开的工具，显示主视图
+                    self.content_container.content = view
+                    self.show_search_button()
+            else:
+                # 有子路径，如 "/dev/json_viewer"
+                tool_name = "/".join(parts[1:])
+                if hasattr(view, 'open_tool'):
+                    view.open_tool(tool_name)
+                self.hide_search_button()
+        
+        elif parts[0] == "others":
+            # 其他工具路由
+            offset = 0 if self.show_recommendations else -1
+            self.navigation_rail.selected_index = 4 + offset
+            
+            view = self._get_or_create_others_view()
+            
+            if len(parts) == 1:
+                # 只有 "/others"，尝试恢复之前的工具子视图
+                if hasattr(view, 'current_sub_view') and view.current_sub_view:
+                    # 有之前打开的工具，恢复它
+                    self.content_container.content = view.current_sub_view
+                    self.hide_search_button()
+                else:
+                    # 没有之前打开的工具，显示主视图
+                    self.content_container.content = view
+                    self.show_search_button()
+            else:
+                # 有子路径，如 "/others/weather"
+                tool_name = "/".join(parts[1:])
+                if hasattr(view, 'open_tool'):
+                    view.open_tool(tool_name)
+                self.hide_search_button()
+        
+        elif parts[0] == "settings":
+            # 设置页面路由
+            self.navigation_rail.selected_index = None
+            self.content_container.content = self.settings_view
+            self.hide_search_button()
+        
+        else:
+            # 未知路由，重定向到首页
+            self._last_route = None  # 清除记录，允许重定向
+            if self.show_recommendations:
+                page.go("/")
+            else:
+                page.go("/image")
+            return
+        
+        # 更新页面
+        page.update()
+    
     def _on_navigation_change(self, e: ft.ControlEvent) -> None:
-        """导航变更事件处理。
+        """导航变更事件处理（使用路由系统）。
         
         Args:
             e: 控件事件对象
         """
         selected_index: int = e.control.selected_index
         
-        # 标记是否恢复了子视图
-        restored = False
+        # 使用保存的页面引用
+        page = self.page if self.page else self._saved_page
+        if not page:
+            return
         
         # 如果没有显示推荐页面，所有索引需要偏移
         offset = 0 if self.show_recommendations else -1
         
-        # 根据选中的索引切换视图（懒加载：按需创建）
+        # 根据选中的索引导航到对应路由
         if selected_index == 0 and self.show_recommendations:
-            # 推荐
-            view = self.recommendations_view
-            # 刷新推荐列表（获取最新的使用统计）
-            if hasattr(view, 'refresh'):
-                view.refresh()
-            # 确保内容已设置
-            if self.content_container.content != view:
-                self.content_container.content = view
+            # 推荐页
+            page.go("/")
         elif selected_index == 1 + offset:
-            # 图片处理（懒加载）
-            view = self._get_or_create_image_view()
-            # 尝试恢复图片处理页面的状态（如果之前在子视图中）
-            if hasattr(view, 'restore_state'):
-                restored = view.restore_state()
-            
-            # 如果没有恢复子视图，则显示主视图
-            if not restored:
-                self.content_container.content = view
+            # 图片处理
+            page.go("/image")
         elif selected_index == 2 + offset:
-            # 媒体处理（懒加载）
-            view = self._get_or_create_media_view()
-            # 尝试恢复媒体处理页面的状态
-            if hasattr(view, 'restore_state'):
-                restored = view.restore_state()
-            
-            if not restored:
-                self.content_container.content = view
+            # 媒体处理
+            page.go("/media")
         elif selected_index == 3 + offset:
-            # 开发工具（懒加载）
-            view = self._get_or_create_dev_tools_view()
-            # 尝试恢复开发工具页面的状态
-            if hasattr(view, 'restore_state'):
-                restored = view.restore_state()
-            
-            if not restored:
-                self.content_container.content = view
+            # 开发工具
+            page.go("/dev")
         elif selected_index == 4 + offset:
-            # 其他工具（懒加载）
-            view = self._get_or_create_others_view()
-            # 尝试恢复其他工具页面的状态
-            if hasattr(view, 'restore_state'):
-                restored = view.restore_state()
-            
-            if not restored:
-                self.content_container.content = view
-        else:
-            return
-        
-        # 如果恢复了子视图（在具体工具中），隐藏搜索按钮；否则显示
-        if restored:
-            self.hide_search_button()
-        else:
-            self.show_search_button()
-        
-        # 统一使用page.update()更新整个页面
-        if self.page:
-            self.page.update()
+            # 其他工具
+            page.go("/others")
     
     def _open_tool_by_id(self, tool_id: str) -> None:
-        """根据工具ID打开工具。
+        """根据工具ID打开工具（使用路由导航）。
         
         Args:
             tool_id: 工具ID，格式如 "image.compress", "audio.format"
@@ -465,80 +578,51 @@ class MainView(ft.Column):
         category = parts[0]
         tool_name = ".".join(parts[1:])  # 支持多级，如 "puzzle.merge"
         
-        # 计算索引偏移（如果没有推荐页面，索引会减1）
-        offset = 0 if self.show_recommendations else -1
+        # 使用保存的页面引用
+        page = self.page if self.page else self._saved_page
+        if not page:
+            return
         
-        # 先切换到对应的分类（使用懒加载获取视图）
+        # 保存待处理的文件（如果有）
+        if hasattr(page, '_pending_drop_files'):
+            # 待处理文件会在路由处理时被对应视图处理
+            pass
+        
+        # 根据分类构建路由路径
         if category == "image":
-            self.navigation_rail.selected_index = 1 + offset  # 图片处理
-            view = self._get_or_create_image_view()
-            self.content_container.content = view
-            # 调用图片视图的方法打开子工具
-            if hasattr(view, 'open_tool'):
-                view.open_tool(tool_name)
-        elif category == "audio" or category == "video":
-            # 音频和视频都属于媒体处理
-            self.navigation_rail.selected_index = 2 + offset  # 媒体处理
-            view = self._get_or_create_media_view()
-            self.content_container.content = view
-            # 媒体视图使用 _open_view 方法
-            if hasattr(view, '_open_view'):
-                # 根据原始分类和工具名转换为媒体视图的view_name
-                if category == "audio":
-                    if tool_name == "format":
-                        view._open_view('audio_format')
-                    elif tool_name == "compress":
-                        view._open_view('audio_compress')
-                    elif tool_name == "speed":
-                        view._open_view('audio_speed')
-                    elif tool_name == "vocal_extraction":
-                        view._open_view('vocal_extraction')
-                    elif tool_name == "to_text":
-                        view._open_view('audio_to_text')
-                elif category == "video":
-                    if tool_name == "compress":
-                        view._open_view('video_compress')
-                    elif tool_name == "convert":
-                        view._open_view('video_convert')
-                    elif tool_name == "extract_audio":
-                        view._open_view('video_extract_audio')
-                    elif tool_name == "repair":
-                        view._open_view('video_repair')
-                    elif tool_name == "speed":
-                        view._open_view('video_speed')
-                    elif tool_name == "vocal_separation":
-                        view._open_view('video_vocal_separation')
-                    elif tool_name == "watermark":
-                        view._open_view('video_watermark')
-                    elif tool_name == "enhance":
-                        view._open_view('video_enhance')
-                    elif tool_name == "interpolation":
-                        view._open_view('video_interpolation')
-                    elif tool_name == "subtitle":
-                        view._open_view('video_subtitle')
-                    elif tool_name == "subtitle_remove":
-                        view._open_view('subtitle_remove')
+            page.go(f"/image/{tool_name}")
+        elif category == "audio":
+            # 音频工具映射到媒体视图的子路径
+            audio_tool_map = {
+                "format": "audio_format",
+                "compress": "audio_compress",
+                "speed": "audio_speed",
+                "vocal_extraction": "vocal_extraction",
+                "to_text": "audio_to_text",
+            }
+            sub_view = audio_tool_map.get(tool_name, tool_name)
+            page.go(f"/media/{sub_view}")
+        elif category == "video":
+            # 视频工具映射到媒体视图的子路径
+            video_tool_map = {
+                "compress": "video_compress",
+                "convert": "video_convert",
+                "extract_audio": "video_extract_audio",
+                "repair": "video_repair",
+                "speed": "video_speed",
+                "vocal_separation": "video_vocal_separation",
+                "watermark": "video_watermark",
+                "enhance": "video_enhance",
+                "interpolation": "video_interpolation",
+                "subtitle": "video_subtitle",
+                "subtitle_remove": "subtitle_remove",
+            }
+            sub_view = video_tool_map.get(tool_name, tool_name)
+            page.go(f"/media/{sub_view}")
         elif category == "dev":
-            self.navigation_rail.selected_index = 3 + offset  # 开发工具
-            view = self._get_or_create_dev_tools_view()
-            self.content_container.content = view
-            if hasattr(view, 'open_tool'):
-                view.open_tool(tool_name)
+            page.go(f"/dev/{tool_name}")
         elif category == "others":
-            self.navigation_rail.selected_index = 4 + offset  # 其他工具
-            view = self._get_or_create_others_view()
-            self.content_container.content = view
-            if hasattr(view, 'open_tool'):
-                view.open_tool(tool_name)
-        
-        # 打开具体工具时隐藏搜索按钮
-        self.hide_search_button()
-        
-        # 使用page.update()而不是单独更新控件
-        if self.page:
-            self.page.update()
-        
-        # 注意：从推荐视图传递的待处理文件由各分类视图的 open_tool 方法处理
+            page.go(f"/others/{tool_name}")
     
     def _open_search(self, e: ft.ControlEvent = None) -> None:
         """打开搜索对话框。"""
@@ -583,32 +667,18 @@ class MainView(ft.Column):
             self.page.update()
     
     def navigate_to_screen_record(self) -> None:
-        """导航到屏幕录制工具（供全局热键调用）。"""
+        """导航到屏幕录制工具（供全局热键调用，使用路由）。"""
         try:
-            # 计算导航索引偏移
-            offset = 0 if self.show_recommendations else -1
-            
-            # 切换到媒体处理视图
-            self.navigation_rail.selected_index = 2 + offset
-            view = self._get_or_create_media_view()
-            self.content_container.content = view
-            
-            # 打开屏幕录制子视图
-            if hasattr(view, '_open_view'):
-                view._open_view('screen_record')
-            
-            # 隐藏搜索按钮
-            self.hide_search_button()
-            
-            if self.page:
-                self.page.update()
-                
+            # 使用保存的页面引用
+            page = self.page if self.page else self._saved_page
+            if page:
+                page.go("/media/screen_record")
         except Exception as ex:
             from utils import logger
             logger.error(f"导航到屏幕录制失败: {ex}")
     
     def update_recommendations_visibility(self, show: bool) -> None:
-        """更新推荐工具页面的显示状态
+        """更新推荐工具页面的显示状态（使用路由系统）。
         
         Args:
             show: 是否显示推荐工具页面
@@ -617,13 +687,13 @@ class MainView(ft.Column):
         if self.show_recommendations == show:
             return
         
-        # 保存当前选中的索引（处理可能的空值）
-        try:
-            current_index = self.navigation_rail.selected_index
-            if current_index is None:
-                current_index = 0
-        except (ValueError, TypeError):
-            current_index = 0
+        # 使用保存的页面引用
+        page = self.page if self.page else self._saved_page
+        if not page:
+            return
+        
+        # 获取当前路由
+        current_route = page.route
         
         # 更新状态
         self.show_recommendations = show
@@ -668,34 +738,20 @@ class MainView(ft.Column):
         # 更新导航栏的 destinations
         self.navigation_rail.destinations = destinations
         
-        # 调整选中的索引
-        # 检查当前是否在设置页面
-        is_in_settings = self.content_container.content == self.settings_view
+        # 使用保存的页面引用
+        page = self.page if self.page else self._saved_page
+        if not page:
+            return
         
-        # 更新导航栏内容
-        if show and not is_in_settings:
-            self.navigation_rail.selected_index = 0
-        elif not show and not is_in_settings:
-            if current_index == 0:
-                self.navigation_rail.selected_index = 0
-            elif current_index > 0:
-                self.navigation_rail.selected_index = current_index - 1
-        
-        self.page.update()
-        
-        # 内容切换
-        if show:
-            # 显示推荐页面
-            if not is_in_settings:
-                # 刷新推荐列表
-                if hasattr(self.recommendations_view, 'refresh'):
-                    self.recommendations_view.refresh()
-                self._switch_content_with_animation(self.recommendations_view)
+        # 如果隐藏推荐页且当前在根路由，重定向到图片处理
+        if not show and (not current_route or current_route == "/"):
+            page.go("/image")
+        elif show and not current_route.startswith("/image") and not current_route.startswith("/media") and not current_route.startswith("/dev") and not current_route.startswith("/others") and not current_route.startswith("/settings"):
+            # 如果显示推荐页且当前不在其他页面，导航到首页
+            page.go("/")
         else:
-            # 隐藏推荐页面
-            if not is_in_settings and current_index == 0:
-                # 使用懒加载获取图片视图
-                self._switch_content_with_animation(self._get_or_create_image_view())
+            # 重新处理当前路由以更新导航栏选中状态
+            self.handle_route_change(current_route)
     
     def _switch_content_with_animation(self, new_content):
         """带动画切换内容
@@ -723,23 +779,14 @@ class MainView(ft.Column):
     
     
     def _open_settings(self, e: ft.ControlEvent) -> None:
-        """打开设置视图。
+        """打开设置视图（使用路由导航）。
         
         Args:
             e: 控件事件对象
         """
-        # 取消导航栏的选中状态
-        self.navigation_rail.selected_index = None
-        
-        # 隐藏搜索按钮
-        self.hide_search_button()
-        
-        # 切换到设置视图
-        self.content_container.content = self.settings_view
-        
-        # 使用page.update()而不是单独更新控件
-        if self.page:
-            self.page.update()
+        page = self.page if self.page else self._saved_page
+        if page:
+            page.go("/settings")
     
     def _check_update_on_startup(self) -> None:
         """启动时在后台检测更新。"""

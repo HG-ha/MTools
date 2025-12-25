@@ -32,7 +32,7 @@ from utils import logger
 def main(page: ft.Page) -> None:
     """应用主入口函数。
     
-    配置页面属性并初始化主视图。
+    配置页面属性并初始化主视图，使用路由系统管理页面导航。
     
     Args:
         page: Flet页面对象
@@ -154,19 +154,36 @@ def main(page: ft.Page) -> None:
     page.padding = 0
     page.spacing = 0
     
-    # 创建并添加主视图
+    # 创建主视图实例（但不直接添加到页面）
     main_view: MainView = MainView(page)
+    
+    # 保存主视图引用到page，供路由处理器使用
+    page._main_view_instance = main_view
+    
+    # 将主视图添加到页面（不使用 page.views，避免 page 引用丢失）
     page.add(main_view)
     
-    # 更新页面
-    page.update()
+    # 设置路由变更处理器（仅用于管理内容切换逻辑）
+    def route_change(e):
+        """处理路由变更事件。"""
+        # 让主视图处理路由变更
+        main_view.handle_route_change(page.route)
+    
+    page.on_route_change = route_change
     
     # 启动全局热键服务
     global_hotkey_service = GlobalHotkeyService(config_service, page)
     main_view.global_hotkey_service = global_hotkey_service  # 保存引用
     global_hotkey_service.start()
     
-    # 应用窗口透明度（必须在page.update()之后）
+    # 导航到初始路由（根据配置决定显示推荐页还是图片处理页）
+    show_recommendations = config_service.get_config_value("show_recommendations_page", True)
+    if show_recommendations:
+        page.go("/")  # 推荐页
+    else:
+        page.go("/image")  # 图片处理页
+    
+    # 应用窗口透明度（在首次路由后应用）
     if hasattr(main_view, '_pending_opacity'):
         page.window.opacity = main_view._pending_opacity
         page.update()

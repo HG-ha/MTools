@@ -74,6 +74,7 @@ class CustomTitleBar(ft.Container):
         """
         super().__init__()
         self.page: ft.Page = page
+        self._saved_page: ft.Page = page  # 保存页面引用，防止丢失
         self.config_service: Optional[ConfigService] = config_service
         
         # 初始化天气服务
@@ -103,6 +104,14 @@ class CustomTitleBar(ft.Container):
         # 异步加载天气数据（如果启用）
         if self.show_weather:
             self.page.run_task(self._load_weather_data)
+    
+    def _get_page(self) -> Optional[ft.Page]:
+        """获取页面引用（带容错）。
+        
+        Returns:
+            页面对象，如果不存在则返回 None
+        """
+        return self.page if self.page else self._saved_page
     
     def _build_title_bar(self) -> None:
         """构建标题栏UI。"""
@@ -269,18 +278,26 @@ class CustomTitleBar(ft.Container):
         Args:
             e: 控件事件对象
         """
+        page = self._get_page()
+        if not page:
+            return
+        
         # 一键切换主题，所有组件自动更新
-        if self.page.theme_mode == ft.ThemeMode.LIGHT:
-            self.page.theme_mode = ft.ThemeMode.DARK
+        if page.theme_mode == ft.ThemeMode.LIGHT:
+            page.theme_mode = ft.ThemeMode.DARK
         else:
-            self.page.theme_mode = ft.ThemeMode.LIGHT
+            page.theme_mode = ft.ThemeMode.LIGHT
         
         self._update_theme_icon()
-        self.page.update()
+        page.update()
     
     def _update_theme_icon(self) -> None:
         """更新主题图标。"""
-        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+        page = self._get_page()
+        if not page:
+            return
+            
+        if page.theme_mode == ft.ThemeMode.LIGHT:
             self.theme_icon.icon = ft.Icons.LIGHT_MODE_OUTLINED
             self.theme_icon.tooltip = "切换到深色模式"
         else:
@@ -307,8 +324,12 @@ class CustomTitleBar(ft.Container):
         Args:
             e: 控件事件对象
         """
-        self.page.window.minimized = True
-        self.page.update()
+        page = self._get_page()
+        if not page:
+            return
+            
+        page.window.minimized = True
+        page.update()
     
     def _toggle_maximize(self, e: ft.ControlEvent = None) -> None:
         """切换最大化/还原窗口。
@@ -528,19 +549,25 @@ class CustomTitleBar(ft.Container):
             self._hide_to_tray()
             return
         
+        page = self._get_page()
+        if not page:
+            # 如果页面引用丢失，强制退出
+            sys.exit(0)
+            return
+        
         # 在关闭前保存窗口位置、大小和最大化状态
         if self.config_service:
             # 保存最大化状态
-            self.config_service.set_config_value("window_maximized", self.page.window.maximized)
+            self.config_service.set_config_value("window_maximized", page.window.maximized)
             
             # 只在非最大化时保存窗口位置和大小
-            if not self.page.window.maximized:
-                if self.page.window.left is not None and self.page.window.top is not None:
-                    self.config_service.set_config_value("window_left", self.page.window.left)
-                    self.config_service.set_config_value("window_top", self.page.window.top)
-                if self.page.window.width is not None and self.page.window.height is not None:
-                    self.config_service.set_config_value("window_width", self.page.window.width)
-                    self.config_service.set_config_value("window_height", self.page.window.height)
+            if not page.window.maximized:
+                if page.window.left is not None and page.window.top is not None:
+                    self.config_service.set_config_value("window_left", page.window.left)
+                    self.config_service.set_config_value("window_top", page.window.top)
+                if page.window.width is not None and page.window.height is not None:
+                    self.config_service.set_config_value("window_width", page.window.width)
+                    self.config_service.set_config_value("window_height", page.window.height)
         
         # 停止托盘图标
         if self.tray_icon:
@@ -570,7 +597,7 @@ class CustomTitleBar(ft.Container):
                     pass
         
         # 关闭窗口
-        self.page.window.close()
+        page.window.close()
     
     async def _load_weather_data(self):
         """加载天气数据"""
@@ -711,12 +738,16 @@ class CustomTitleBar(ft.Container):
         """
         self.show_weather = visible
         
+        page = self._get_page()
+        if not page:
+            return
+        
         if visible:
             # 显示天气：先设为可见但透明，然后淡入+缩放
             self.weather_container.visible = True
             self.weather_container.opacity = 0
             self.weather_container.scale = 0.8
-            self.page.update()
+            page.update()
             
             # 使用定时器实现非阻塞动画
             import threading
@@ -725,7 +756,9 @@ class CustomTitleBar(ft.Container):
                 time.sleep(0.05)
                 self.weather_container.opacity = 1.0
                 self.weather_container.scale = 1.0
-                self.page.update()
+                p = self._get_page()
+                if p:
+                    p.update()
             
             timer = threading.Timer(0.001, show_animation)
             timer.daemon = True
@@ -733,12 +766,12 @@ class CustomTitleBar(ft.Container):
             
             # 如果还没有加载数据，则加载
             if self.weather_data is None:
-                self.page.run_task(self._load_weather_data)
+                page.run_task(self._load_weather_data)
         else:
             # 隐藏天气：淡出+缩小
             self.weather_container.opacity = 0
             self.weather_container.scale = 0.8
-            self.page.update()
+            page.update()
             
             # 使用定时器延迟隐藏
             import threading
@@ -746,7 +779,9 @@ class CustomTitleBar(ft.Container):
                 import time
                 time.sleep(0.2)
                 self.weather_container.visible = False
-                self.page.update()
+                p = self._get_page()
+                if p:
+                    p.update()
             
             timer = threading.Timer(0.001, hide_animation)
             timer.daemon = True
