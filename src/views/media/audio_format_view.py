@@ -795,7 +795,7 @@ class AudioFormatView(ft.Container):
             self._update_process_button()
             self._show_snackbar(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
-            self._show_message("音频格式转换不支持该格式", ft.Colors.ORANGE)
+            self._show_snackbar("音频格式转换不支持该格式", ft.Colors.ORANGE)
         
         self.page.update()
     

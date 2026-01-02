@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 
 def create_session_options(
     enable_memory_arena: bool = True,
+    enable_mem_pattern: bool = True,
+    enable_mem_reuse: bool = True,
     cpu_threads: int = 0,
     execution_mode: str = "sequential",
     enable_model_cache: bool = False,
@@ -63,9 +65,9 @@ def create_session_options(
     
     sess_options = ort.SessionOptions()
     
-    # 基础内存优化
-    sess_options.enable_mem_pattern = True
-    sess_options.enable_mem_reuse = True
+    # 基础内存优化（可按需关闭以便更好释放）
+    sess_options.enable_mem_pattern = enable_mem_pattern
+    sess_options.enable_mem_reuse = enable_mem_reuse
     sess_options.enable_cpu_mem_arena = enable_memory_arena
     
     # 图优化
@@ -155,6 +157,8 @@ def create_onnx_session_config(
     gpu_device_id: Optional[int] = None,
     gpu_memory_limit: Optional[int] = None,
     enable_memory_arena: Optional[bool] = None,
+    enable_mem_pattern: Optional[bool] = None,
+    enable_mem_reuse: Optional[bool] = None,
     cpu_threads: Optional[int] = None,
     execution_mode: Optional[str] = None,
     enable_model_cache: Optional[bool] = None,
@@ -200,6 +204,10 @@ def create_onnx_session_config(
             gpu_memory_limit = config_service.get_config_value("gpu_memory_limit", 2048)
         if enable_memory_arena is None:
             enable_memory_arena = config_service.get_config_value("gpu_enable_memory_arena", True)
+        if enable_mem_pattern is None:
+            enable_mem_pattern = config_service.get_config_value("onnx_enable_mem_pattern", True)
+        if enable_mem_reuse is None:
+            enable_mem_reuse = config_service.get_config_value("onnx_enable_mem_reuse", True)
         if cpu_threads is None:
             cpu_threads = config_service.get_config_value("onnx_cpu_threads", 0)
         if execution_mode is None:
@@ -214,6 +222,10 @@ def create_onnx_session_config(
         gpu_memory_limit = 2048
     if enable_memory_arena is None:
         enable_memory_arena = True
+    if enable_mem_pattern is None:
+        enable_mem_pattern = True
+    if enable_mem_reuse is None:
+        enable_mem_reuse = True
     if cpu_threads is None:
         cpu_threads = 0
     if execution_mode is None:
@@ -224,6 +236,8 @@ def create_onnx_session_config(
     # 创建 SessionOptions
     sess_options = create_session_options(
         enable_memory_arena=enable_memory_arena,
+        enable_mem_pattern=enable_mem_pattern,
+        enable_mem_reuse=enable_mem_reuse,
         cpu_threads=cpu_threads,
         execution_mode=execution_mode,
         enable_model_cache=enable_model_cache,
@@ -246,6 +260,8 @@ def create_onnx_session(
     gpu_device_id: Optional[int] = None,
     gpu_memory_limit: Optional[int] = None,
     enable_memory_arena: Optional[bool] = None,
+    enable_mem_pattern: Optional[bool] = None,
+    enable_mem_reuse: Optional[bool] = None,
     cpu_threads: Optional[int] = None,
     execution_mode: Optional[str] = None,
     enable_model_cache: Optional[bool] = None,
@@ -299,6 +315,8 @@ def create_onnx_session(
         gpu_device_id=gpu_device_id,
         gpu_memory_limit=gpu_memory_limit,
         enable_memory_arena=enable_memory_arena,
+        enable_mem_pattern=enable_mem_pattern,
+        enable_mem_reuse=enable_mem_reuse,
         cpu_threads=cpu_threads,
         execution_mode=execution_mode,
         enable_model_cache=enable_model_cache,

@@ -886,9 +886,17 @@ class GlobalHotkeyService:
                 except Exception:
                     pass
                 
-                # 如果非预加载模式，启动延迟卸载定时器
-                if should_unload and self._ocr_service is not None:
-                    self._schedule_ocr_unload()
+                if self._ocr_service is not None:
+                    if should_unload:
+                        # 非预加载模式：用完即卸载，尽快回收 ORT/DML 资源
+                        try:
+                            self._ocr_service.unload_model()
+                        except Exception:
+                            pass
+                        self._ocr_service = None
+                    else:
+                        # 预加载模式：仍然安排空闲卸载，避免模型一直常驻占用高水位
+                        self._schedule_ocr_unload()
                 
                 # 激进垃圾回收（回收所有代）
                 try:

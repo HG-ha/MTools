@@ -5,6 +5,7 @@
 """
 
 import gc
+import os
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -202,10 +203,15 @@ class OCRService:
             if progress_callback:
                 progress_callback(0.2, "正在加载检测模型...")
             
-            # 使用统一的工具函数加载检测模型
+            # 使用统一的工具函数加载检测模型（禁用内存池，便于释放）
+            os.environ.setdefault("ORT_DISABLE_MEMORY_ARENA", "1")
             self.det_session = create_onnx_session(
                 model_path=det_path,
-                config_service=self.config_service
+                config_service=self.config_service,
+                enable_memory_arena=False,
+                enable_mem_pattern=False,
+                enable_mem_reuse=False,
+                enable_model_cache=False,
             )
             
             # 加载方向分类模型（如果启用）
@@ -215,7 +221,11 @@ class OCRService:
                 
                 self.cls_session = create_onnx_session(
                     model_path=cls_path,
-                    config_service=self.config_service
+                    config_service=self.config_service,
+                    enable_memory_arena=False,
+                    enable_mem_pattern=False,
+                    enable_mem_reuse=False,
+                    enable_model_cache=False,
                 )
                 logger.info("  方向分类模型已加载 ✓")
             
@@ -225,7 +235,11 @@ class OCRService:
             # 加载识别模型
             self.rec_session = create_onnx_session(
                 model_path=rec_path,
-                config_service=self.config_service
+                config_service=self.config_service,
+                enable_memory_arena=False,
+                enable_mem_pattern=False,
+                enable_mem_reuse=False,
+                enable_model_cache=False,
             )
             
             if progress_callback:

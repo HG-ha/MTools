@@ -450,16 +450,46 @@ class WindowsDropHandler:
                     last_rect = current
         threading.Thread(target=track, daemon=True).start()
     
-    def _start_drag_detector(self):
-        """检测拖放操作，动态切换透明状态
+    def _is_occluded_by_foreground(self) -> bool:
+        """检测我们的窗口是否被前台窗口遮挡
         
-        改进策略：综合多个条件判断是否是文件拖放操作
-        1. 拖放必须从窗口外部开始
-        2. 当前焦点必须不在我们的应用上（用户在操作其他软件）
-        3. 鼠标位置不能被其他窗口遮挡
+        通过检查前台窗口是否是我们的应用来判断。
+        如果前台窗口不是我们的应用，说明用户正在操作其他软件，
+        此时应该隐藏覆盖窗口避免干扰。
+        
+        Returns:
+            True 如果被其他窗口遮挡（前台窗口不是我们的应用）
+        """
+        foreground_hwnd = user32.GetForegroundWindow()
+        
+        if not foreground_hwnd:
+            return False
+        
+        # 如果前台窗口就是我们的父窗口，没有遮挡
+        if foreground_hwnd == self._parent_hwnd:
+            return False
+        
+        # 获取前台窗口的根窗口
+        foreground_root = user32.GetAncestor(foreground_hwnd, 2)  # GA_ROOT = 2
+        
+        # 如果前台窗口的根窗口是我们的父窗口，没有遮挡
+        if foreground_root == self._parent_hwnd:
+            return False
+        
+        # 前台窗口不是我们的应用，认为被遮挡
+        return True
+    
+    def _start_drag_detector(self):
+        """检测拖放操作，动态切换透明状态和覆盖窗口可见性
+        
+        改进策略：
+        1. 当鼠标位置被其他窗口遮挡时，隐藏覆盖窗口，避免干扰其他软件操作
+        2. 只有在检测到有效的文件拖放操作时，才显示并激活覆盖窗口
+        3. 有效的拖放操作需满足：从窗口外部开始 + 焦点在其他应用
         """
         def detect():
             is_transparent = True
+            is_overlay_hidden = False  # 覆盖窗口是否被隐藏
             restore_delay = 0
             
             # 记录拖放起始状态
@@ -473,6 +503,12 @@ class WindowsDropHandler:
                 if not user32.IsWindow(self._overlay_hwnd):
                     break
                 
+                # 检查父窗口是否可见
+                if not user32.IsWindowVisible(self._parent_hwnd) or user32.IsIconic(self._parent_hwnd):
+                    # 父窗口不可见时，由 position_tracker 处理隐藏
+                    was_button_down = (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
+                    continue
+                
                 # 检查鼠标左键状态
                 lbutton_down = (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
                 
@@ -482,7 +518,7 @@ class WindowsDropHandler:
                 
                 # 获取窗口区域
                 rect = wintypes.RECT()
-                user32.GetWindowRect(self._overlay_hwnd, ctypes.byref(rect))
+                user32.GetWindowRect(self._parent_hwnd, ctypes.byref(rect))
                 
                 # 检测鼠标是否在窗口内部
                 in_window = user32.PtInRect(ctypes.byref(rect), pt)
@@ -496,28 +532,20 @@ class WindowsDropHandler:
                 
                 in_expanded = user32.PtInRect(ctypes.byref(expanded_rect), pt)
                 
+                # 检测是否被前台窗口遮挡（前台窗口不是我们的应用）
+                is_other_app_foreground = self._is_occluded_by_foreground()
+                
                 # 检测左键按下的瞬间（从未按下变为按下）
                 button_just_pressed = lbutton_down and not was_button_down
                 
                 if button_just_pressed:
                     # 左键刚按下，记录起始状态
-                    
-                    # 检查焦点是否在我们的应用上
-                    foreground_hwnd = user32.GetForegroundWindow()
-                    drag_started_other_app = (foreground_hwnd != self._parent_hwnd)
-                    
-                    # 检测起始位置是否被遮挡
-                    start_is_occluded = False
-                    top_hwnd = user32.WindowFromPoint(pt)
-                    if top_hwnd and top_hwnd != self._parent_hwnd and top_hwnd != self._overlay_hwnd:
-                        parent_of_top = user32.GetAncestor(top_hwnd, 2)  # GA_ROOT = 2
-                        if parent_of_top != self._parent_hwnd:
-                            start_is_occluded = True
+                    drag_started_other_app = is_other_app_foreground
                     
                     # 判断是否从窗口外部开始：
                     # 1. 不在窗口内 OR
-                    # 2. 在窗口内但被其他窗口遮挡（用户实际在操作上层窗口）
-                    drag_started_outside = (not in_window) or start_is_occluded
+                    # 2. 在窗口内但前台是其他应用（用户实际在操作其他软件）
+                    drag_started_outside = (not in_window) or is_other_app_foreground
                 
                 # 左键释放时重置状态
                 if not lbutton_down:
@@ -526,38 +554,53 @@ class WindowsDropHandler:
                 
                 was_button_down = lbutton_down
                 
-                # 综合判断：只有满足所有条件才变为不透明
-                # 1. 左键按下
-                # 2. 在扩展区域内
-                # 3. 拖放从窗口外部开始（包括被遮挡的区域）
-                # 4. 拖放开始时焦点在其他应用
-                # 
-                # 注意：不再持续检测遮挡，因为：
-                # - 如果拖放从其他应用开始，用户的意图就是拖文件到我们的程序
-                # - 拖放过程中经过被遮挡区域是正常的
-                should_be_opaque = (
+                # 判断是否是有效的拖放操作
+                is_valid_drag = (
                     lbutton_down and 
                     in_expanded and 
                     drag_started_outside and 
                     drag_started_other_app
                 )
                 
-                if should_be_opaque and is_transparent:
-                    style = user32.GetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE)
-                    user32.SetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE, style & ~WS_EX_TRANSPARENT)
-                    is_transparent = False
-                    restore_delay = 0
+                # 决定覆盖窗口的可见性
+                # 当前台窗口不是我们的应用，且鼠标在窗口区域内，且不是有效拖放时，隐藏覆盖窗口
+                should_hide_overlay = in_window and is_other_app_foreground and not is_valid_drag
                 
-                elif should_be_opaque and not is_transparent:
-                    restore_delay = 0
+                if should_hide_overlay and not is_overlay_hidden:
+                    # 隐藏覆盖窗口，让用户可以正常操作上层窗口
+                    user32.ShowWindow(self._overlay_hwnd, SW_HIDE)
+                    is_overlay_hidden = True
+                elif not should_hide_overlay and is_overlay_hidden:
+                    # 恢复显示覆盖窗口
+                    user32.ShowWindow(self._overlay_hwnd, SW_SHOW)
+                    is_overlay_hidden = True
+                    # 重新确保在最顶层
+                    user32.SetWindowPos(
+                        self._overlay_hwnd, HWND_TOPMOST,
+                        0, 0, 0, 0,
+                        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+                    )
+                    is_overlay_hidden = False
                 
-                elif not should_be_opaque and not is_transparent:
-                    restore_delay += 1
-                    if restore_delay > 6:  # 约 100ms
+                # 决定透明状态（只有在覆盖窗口可见时才有意义）
+                if not is_overlay_hidden:
+                    if is_valid_drag and is_transparent:
+                        # 有效拖放，变为不透明以接收拖放
                         style = user32.GetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE)
-                        user32.SetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT)
-                        is_transparent = True
+                        user32.SetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE, style & ~WS_EX_TRANSPARENT)
+                        is_transparent = False
                         restore_delay = 0
+                    
+                    elif is_valid_drag and not is_transparent:
+                        restore_delay = 0
+                    
+                    elif not is_valid_drag and not is_transparent:
+                        restore_delay += 1
+                        if restore_delay > 6:  # 约 100ms
+                            style = user32.GetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE)
+                            user32.SetWindowLongW(self._overlay_hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT)
+                            is_transparent = True
+                            restore_delay = 0
         
         threading.Thread(target=detect, daemon=True).start()
     
