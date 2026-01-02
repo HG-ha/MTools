@@ -319,14 +319,13 @@ class ImageView(ft.Container):
             return
         
         # 计算点击的是哪个工具卡片
-        # 注意：需要考虑导航栏宽度、标题栏高度和分类标题高度
+        # 注意：需要考虑导航栏宽度和标题栏高度
         nav_width = 100  # 导航栏宽度
-        title_height = 32  # 系统标题栏高度（自定义标题栏）
-        category_header_height = 60  # 分类标题区域高度（包含标题和描述）
+        title_height = 32  # 自定义标题栏高度
         
-        # 调整坐标（减去导航栏、标题栏和分类标题，加上滚动偏移量）
+        # 调整坐标（减去导航栏、标题栏和内容padding，加上滚动偏移量）
         local_x = x - nav_width - self._content_padding
-        local_y = y - title_height - category_header_height - self._content_padding + self._scroll_offset_y
+        local_y = y - title_height - self._content_padding + self._scroll_offset_y
         
         
         if local_x < 0 or local_y < 0:
@@ -387,13 +386,33 @@ class ImageView(ft.Container):
             return
         
         view_attr = getattr(self, '_pending_view_attr', None)
-        if view_attr:
-            view = getattr(self, view_attr, None)
-            if view and hasattr(view, 'add_files'):
-                view.add_files(self._pending_drop_files)
+        pending_files = self._pending_drop_files
         
+        # 清空待处理状态
         self._pending_drop_files = []
         self._pending_view_attr = None
+        
+        if not view_attr:
+            return
+        
+        def delayed_import():
+            """延迟导入，等待视图创建完成（某些视图使用 Timer 延迟创建）"""
+            import time
+            max_wait = 1.0  # 最多等待1秒
+            wait_interval = 0.05  # 每50ms检查一次
+            waited = 0
+            
+            while waited < max_wait:
+                view = getattr(self, view_attr, None)
+                if view and hasattr(view, 'add_files'):
+                    view.add_files(pending_files)
+                    return
+                time.sleep(wait_interval)
+                waited += wait_interval
+        
+        # 在后台线程中执行延迟导入
+        import threading
+        threading.Thread(target=delayed_import, daemon=True).start()
     
     def _on_scroll(self, e: ft.OnScrollEvent) -> None:
         """跟踪滚动位置。"""

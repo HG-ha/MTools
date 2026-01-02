@@ -59,6 +59,7 @@ if sys.platform == "win32":
     user32 = ctypes.windll.user32
     shell32 = ctypes.windll.shell32
     kernel32 = ctypes.windll.kernel32
+    ole32 = ctypes.windll.ole32
 
     # 64位/32位兼容
     if ctypes.sizeof(c_void_p) == 8:
@@ -89,6 +90,10 @@ if sys.platform == "win32":
     GWL_EXSTYLE = -20
     VK_LBUTTON = 0x01
     HWND_TOPMOST = -1
+    
+    # 光标相关常量
+    OCR_NORMAL = 32512  # 普通箭头光标
+    OCR_NO = 32648      # 禁止光标
 
     # 设置函数签名
     user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, WPARAM, LPARAM]
@@ -149,6 +154,27 @@ if sys.platform == "win32":
     
     user32.IsIconic.argtypes = [wintypes.HWND]
     user32.IsIconic.restype = wintypes.BOOL
+    
+    # 光标检测相关
+    user32.GetCursor.argtypes = []
+    user32.GetCursor.restype = wintypes.HANDLE  # HCURSOR 实际上是 HANDLE
+    
+    # LoadCursorW 的第二个参数可以是字符串或整数资源ID (MAKEINTRESOURCE)
+    # 使用 c_void_p 可以同时接受两种类型
+    user32.LoadCursorW.argtypes = [wintypes.HINSTANCE, c_void_p]
+    user32.LoadCursorW.restype = wintypes.HANDLE  # HCURSOR 实际上是 HANDLE
+    
+    # CURSORINFO 结构体
+    class CURSORINFO(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("flags", wintypes.DWORD),
+            ("hCursor", wintypes.HANDLE),  # HCURSOR
+            ("ptScreenPos", wintypes.POINT),
+        ]
+    
+    user32.GetCursorInfo.argtypes = [ctypes.POINTER(CURSORINFO)]
+    user32.GetCursorInfo.restype = wintypes.BOOL
 
     WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, WPARAM, LPARAM)
 
@@ -479,23 +505,48 @@ class WindowsDropHandler:
         # 前台窗口不是我们的应用，认为被遮挡
         return True
     
+    def _is_drag_drop_cursor(self) -> bool:
+        """检测当前光标是否是拖放相关的光标
+        
+        当进行文件拖放时，光标会变成特殊的拖放光标（带有文件图标或禁止符号）。
+        普通的窗口拖动使用的是标准箭头光标。
+        
+        Returns:
+            True 如果当前光标是拖放光标
+        """
+        try:
+            # 获取当前光标
+            current_cursor = user32.GetCursor()
+            if not current_cursor:
+                return False
+            
+            # 获取标准光标
+            arrow_cursor = user32.LoadCursorW(None, OCR_NORMAL)
+            
+            # 如果当前光标不是标准箭头光标，可能是拖放光标
+            # 拖放时光标通常会变成：
+            # - 带有文件图标的光标
+            # - 禁止符号光标（当目标不接受拖放时）
+            # - 复制/移动光标
+            if current_cursor != arrow_cursor:
+                return True
+            
+            return False
+        except Exception:
+            return False
+    
     def _start_drag_detector(self):
         """检测拖放操作，动态切换透明状态和覆盖窗口可见性
         
         改进策略：
-        1. 当鼠标位置被其他窗口遮挡时，隐藏覆盖窗口，避免干扰其他软件操作
-        2. 只有在检测到有效的文件拖放操作时，才显示并激活覆盖窗口
-        3. 有效的拖放操作需满足：从窗口外部开始 + 焦点在其他应用
+        1. 当前台窗口是其他应用且不是拖放操作时，隐藏覆盖窗口避免干扰
+        2. 通过检测光标类型来区分文件拖放和窗口拖动
+        3. 当检测到拖放光标时，显示覆盖窗口并变为不透明以接收拖放
         """
         def detect():
             is_transparent = True
             is_overlay_hidden = False  # 覆盖窗口是否被隐藏
             restore_delay = 0
-            
-            # 记录拖放起始状态
-            drag_started_outside = False  # 拖放是否从窗口外部开始
-            drag_started_other_app = False  # 拖放开始时焦点是否在其他应用
-            was_button_down = False  # 上一帧左键是否按下
             
             while not WindowsDropHandler._stop_event.is_set():
                 time.sleep(0.016)
@@ -506,7 +557,6 @@ class WindowsDropHandler:
                 # 检查父窗口是否可见
                 if not user32.IsWindowVisible(self._parent_hwnd) or user32.IsIconic(self._parent_hwnd):
                     # 父窗口不可见时，由 position_tracker 处理隐藏
-                    was_button_down = (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
                     continue
                 
                 # 检查鼠标左键状态
@@ -523,48 +573,25 @@ class WindowsDropHandler:
                 # 检测鼠标是否在窗口内部
                 in_window = user32.PtInRect(ctypes.byref(rect), pt)
                 
-                # 扩展区域（窗口外围，用于检测拖入）
-                expanded_rect = wintypes.RECT()
-                expanded_rect.left = rect.left - 100
-                expanded_rect.top = rect.top - 100
-                expanded_rect.right = rect.right + 100
-                expanded_rect.bottom = rect.bottom + 100
-                
-                in_expanded = user32.PtInRect(ctypes.byref(expanded_rect), pt)
-                
                 # 检测是否被前台窗口遮挡（前台窗口不是我们的应用）
                 is_other_app_foreground = self._is_occluded_by_foreground()
                 
-                # 检测左键按下的瞬间（从未按下变为按下）
-                button_just_pressed = lbutton_down and not was_button_down
+                # 检测是否是拖放光标（关键：区分文件拖放和窗口拖动）
+                is_drag_cursor = self._is_drag_drop_cursor()
                 
-                if button_just_pressed:
-                    # 左键刚按下，记录起始状态
-                    drag_started_other_app = is_other_app_foreground
-                    
-                    # 判断是否从窗口外部开始：
-                    # 1. 不在窗口内 OR
-                    # 2. 在窗口内但前台是其他应用（用户实际在操作其他软件）
-                    drag_started_outside = (not in_window) or is_other_app_foreground
-                
-                # 左键释放时重置状态
-                if not lbutton_down:
-                    drag_started_outside = False
-                    drag_started_other_app = False
-                
-                was_button_down = lbutton_down
-                
-                # 判断是否是有效的拖放操作
+                # 判断是否是有效的文件拖放操作
+                # 条件：左键按下 + 在窗口内 + 是拖放光标
+                # 注意：不再要求前台是其他应用，因为从下层窗口拖文件时我们的应用可能在前台
                 is_valid_drag = (
                     lbutton_down and 
-                    in_expanded and 
-                    drag_started_outside and 
-                    drag_started_other_app
+                    in_window and
+                    is_drag_cursor  # 必须是拖放光标
                 )
                 
                 # 决定覆盖窗口的可见性
-                # 当前台窗口不是我们的应用，且鼠标在窗口区域内，且不是有效拖放时，隐藏覆盖窗口
-                should_hide_overlay = in_window and is_other_app_foreground and not is_valid_drag
+                # 当前台窗口是其他应用，且鼠标在窗口内，且不是拖放操作时，隐藏覆盖窗口
+                # 这样可以让用户正常操作覆盖在上面的其他窗口
+                should_hide_overlay = is_other_app_foreground and in_window and not is_valid_drag
                 
                 if should_hide_overlay and not is_overlay_hidden:
                     # 隐藏覆盖窗口，让用户可以正常操作上层窗口
@@ -573,7 +600,6 @@ class WindowsDropHandler:
                 elif not should_hide_overlay and is_overlay_hidden:
                     # 恢复显示覆盖窗口
                     user32.ShowWindow(self._overlay_hwnd, SW_SHOW)
-                    is_overlay_hidden = True
                     # 重新确保在最顶层
                     user32.SetWindowPos(
                         self._overlay_hwnd, HWND_TOPMOST,
