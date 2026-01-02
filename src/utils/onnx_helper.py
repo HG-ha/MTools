@@ -98,7 +98,7 @@ def create_session_options(
 def create_provider_options(
     use_gpu: bool = True,
     gpu_device_id: int = 0,
-    gpu_memory_limit: int = 2048,
+    gpu_memory_limit: int = 6144,
     config_service: Optional['ConfigService'] = None
 ) -> List[Union[str, Tuple[str, dict]]]:
     """创建统一的Execution Provider配置。
@@ -172,8 +172,8 @@ def create_onnx_session_config(
     Args:
         config_service: 配置服务实例（可选，用于自动读取配置）
         gpu_device_id: GPU设备ID（None则从配置读取，默认0）
-        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认2048）
-        enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认True）
+        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认6144）
+        enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认False）
         cpu_threads: CPU推理线程数（None则从配置读取，默认0=自动）
         execution_mode: 执行模式sequential/parallel（None则从配置读取，默认sequential）
         enable_model_cache: 是否启用模型缓存（None则从配置读取，默认False）
@@ -201,7 +201,7 @@ def create_onnx_session_config(
         if gpu_device_id is None:
             gpu_device_id = config_service.get_config_value("gpu_device_id", 0)
         if gpu_memory_limit is None:
-            gpu_memory_limit = config_service.get_config_value("gpu_memory_limit", 2048)
+            gpu_memory_limit = config_service.get_config_value("gpu_memory_limit", 6144)
         if enable_memory_arena is None:
             enable_memory_arena = config_service.get_config_value("gpu_enable_memory_arena", True)
         if enable_mem_pattern is None:
@@ -219,9 +219,9 @@ def create_onnx_session_config(
     if gpu_device_id is None:
         gpu_device_id = 0
     if gpu_memory_limit is None:
-        gpu_memory_limit = 2048
+        gpu_memory_limit = 6144
     if enable_memory_arena is None:
-        enable_memory_arena = True
+        enable_memory_arena = False
     if enable_mem_pattern is None:
         enable_mem_pattern = True
     if enable_mem_reuse is None:
@@ -275,8 +275,8 @@ def create_onnx_session(
         model_path: 模型文件路径
         config_service: 配置服务实例（可选，用于自动读取配置）
         gpu_device_id: GPU设备ID（None则从配置读取，默认0）
-        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认2048）
-        enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认True）
+        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认6144）
+        enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认False）
         cpu_threads: CPU推理线程数（None则从配置读取，默认0=自动）
         execution_mode: 执行模式sequential/parallel（None则从配置读取，默认sequential）
         enable_model_cache: 是否启用模型缓存（None则从配置读取，默认False）

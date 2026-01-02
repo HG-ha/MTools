@@ -693,8 +693,8 @@ class VideoEnhanceView(ft.Container):
         try:
             use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
             gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
-            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
             
             self.enhancer = ImageEnhancer(
                 self.model_path,
@@ -799,8 +799,8 @@ class VideoEnhanceView(ft.Container):
                 # 加载模型
                 use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
                 gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
-                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
                 
                 self.enhancer = ImageEnhancer(
                     self.model_path,

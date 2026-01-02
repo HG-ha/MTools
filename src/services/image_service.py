@@ -2305,7 +2305,7 @@ class ImageEnhancer:
         data_path: Optional[Path] = None,
         use_gpu: bool = False,
         gpu_device_id: int = 0,
-        gpu_memory_limit: int = 2048,
+        gpu_memory_limit: int = 6144,
         enable_memory_arena: bool = True,
         scale: int = 4,
         cpu_threads: int = 0,
@@ -2319,8 +2319,8 @@ class ImageEnhancer:
             data_path: 模型权重数据路径（.data文件），如果模型使用外部数据格式
             use_gpu: 是否启用GPU加速
             gpu_device_id: GPU设备ID，默认0（第一个GPU）
-            gpu_memory_limit: GPU内存限制（MB），默认2048MB
-            enable_memory_arena: 是否启用内存池优化，默认True
+            gpu_memory_limit: GPU内存限制（MB），默认6144MB
+            enable_memory_arena: 是否启用内存池优化，默认False
             scale: 放大倍数，默认4
             cpu_threads: CPU推理线程数，0=自动检测
             execution_mode: 执行模式（sequential/parallel）

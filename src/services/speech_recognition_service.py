@@ -359,7 +359,7 @@ class SpeechRecognitionService:
         config_path: Optional[Path] = None,
         use_gpu: bool = True,
         gpu_device_id: int = 0,
-        gpu_memory_limit: int = 2048,
+        gpu_memory_limit: int = 6144,
         enable_memory_arena: bool = True,
         language: str = "auto",
         task: str = "transcribe"

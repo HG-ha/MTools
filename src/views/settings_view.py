@@ -1942,9 +1942,9 @@ class SettingsView(ft.Container):
         )
 
         gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
-        gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
+        gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
         gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-        enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+        enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
 
         # GPU开关
         self.gpu_acceleration_switch = ft.Switch(

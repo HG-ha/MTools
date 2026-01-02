@@ -1195,8 +1195,8 @@ class AudioToTextView(ft.Container):
             # GPU设置
             gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
             gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 2048)
-            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", True)
+            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
             
             # 获取选择的语言和任务类型
             language = self.config_service.get_config_value("whisper_language", "auto")
