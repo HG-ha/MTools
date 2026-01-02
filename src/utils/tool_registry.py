@@ -691,8 +691,8 @@ def register_all_tools():
     )
     
     register_tool_manual(
-        name="Markdown 预览器",
-        description="实时预览 Markdown，导出 HTML",
+        name="Markdown 编辑器",
+        description="编辑 Markdown，实时预览，导出 HTML",
         category="开发工具",
         keywords=[
             "Markdown", "MD", "预览", "HTML", "格式化", "编辑器", "文档",

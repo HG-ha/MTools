@@ -193,11 +193,11 @@ class DevToolsView(ft.Container):
                     gradient_colors=("#FF9A9E", "#FAD0C4"),
                     on_click=self._open_color_tool,
                 ),
-                # Markdown 预览器
+                # Markdown 编辑器
                 FeatureCard(
                     icon=ft.Icons.DESCRIPTION,
-                    title="Markdown 预览器",
-                    description="实时预览 Markdown，导出 HTML",
+                    title="Markdown 编辑器",
+                    description="编辑 Markdown，实时预览，导出 HTML",
                     gradient_colors=("#A8CABA", "#5D4E6D"),
                     on_click=self._open_markdown_viewer,
                 ),
@@ -301,7 +301,7 @@ class DevToolsView(ft.Container):
             ("JWT 工具", set(), None, None, False),
             ("UUID/随机数生成器", set(), None, None, False),
             ("颜色工具", set(), None, None, False),
-            ("Markdown 预览器", _md_exts, self._open_markdown_viewer, "markdown_viewer_view", False),
+            ("Markdown 编辑器", _md_exts, self._open_markdown_viewer, "markdown_viewer_view", False),
             ("DNS 查询", set(), None, None, False),
             ("端口扫描", set(), None, None, False),
             ("数据格式转换", _data_exts, self._open_format_convert, "format_convert_view", False),
@@ -531,7 +531,7 @@ class DevToolsView(ft.Container):
         self._safe_page_update()
     
     def _open_markdown_viewer(self, e: ft.ControlEvent) -> None:
-        """打开 Markdown 预览器。"""
+        """打开 Markdown 编辑器。"""
         self._hide_search_button()
         
         if self.markdown_viewer_view is None:
