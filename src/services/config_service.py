@@ -108,9 +108,9 @@ class ConfigService:
             "background_image": None,  # 背景图片路径，None表示无背景图片
             "background_image_fit": "cover",  # 背景图片适应模式: cover, contain, fill, none
             "gpu_acceleration": True,  # GPU加速开关，默认开启
-            "gpu_memory_limit": 2048,  # GPU内存限制（MB），默认2048MB
+            "gpu_memory_limit": 6144,  # GPU内存限制（MB），默认6144MB
             "gpu_device_id": 0,  # GPU设备ID，默认使用第一个GPU（0）
-            "gpu_enable_memory_arena": True,  # 是否启用GPU内存池优化，默认开启
+            "gpu_enable_memory_arena": False,  # 是否启用GPU内存池优化，默认开启
             # ONNX Runtime 性能优化参数
             "onnx_cpu_threads": 0,  # CPU推理线程数，0=自动检测
             "onnx_execution_mode": "sequential",  # 执行模式: sequential(顺序,省内存) 或 parallel(并行,多核快)
