@@ -542,11 +542,14 @@ class WindowsDropHandler:
         1. 当前台窗口是其他应用且不是拖放操作时，隐藏覆盖窗口避免干扰
         2. 通过检测光标类型来区分文件拖放和窗口拖动
         3. 当检测到拖放光标时，显示覆盖窗口并变为不透明以接收拖放
+        4. 增加按下持续时间检测，避免快速双击被误判为拖放
         """
         def detect():
             is_transparent = True
             is_overlay_hidden = False  # 覆盖窗口是否被隐藏
             restore_delay = 0
+            lbutton_down_duration = 0  # 鼠标左键按下持续时间计数
+            DRAG_THRESHOLD = 8  # 约 128ms (8 * 16ms)，需要按住这么久才认为是拖放
             
             while not WindowsDropHandler._stop_event.is_set():
                 time.sleep(0.016)
@@ -557,10 +560,17 @@ class WindowsDropHandler:
                 # 检查父窗口是否可见
                 if not user32.IsWindowVisible(self._parent_hwnd) or user32.IsIconic(self._parent_hwnd):
                     # 父窗口不可见时，由 position_tracker 处理隐藏
+                    lbutton_down_duration = 0
                     continue
                 
                 # 检查鼠标左键状态
                 lbutton_down = (user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
+                
+                # 更新按下持续时间
+                if lbutton_down:
+                    lbutton_down_duration += 1
+                else:
+                    lbutton_down_duration = 0
                 
                 # 获取鼠标位置
                 pt = wintypes.POINT()
@@ -580,10 +590,11 @@ class WindowsDropHandler:
                 is_drag_cursor = self._is_drag_drop_cursor()
                 
                 # 判断是否是有效的文件拖放操作
-                # 条件：左键按下 + 在窗口内 + 是拖放光标
-                # 注意：不再要求前台是其他应用，因为从下层窗口拖文件时我们的应用可能在前台
+                # 条件：左键按下 + 按下持续时间超过阈值 + 在窗口内 + 是拖放光标
+                # 增加持续时间检测，避免快速双击被误判为拖放操作
                 is_valid_drag = (
                     lbutton_down and 
+                    lbutton_down_duration >= DRAG_THRESHOLD and  # 必须按住足够长时间
                     in_window and
                     is_drag_cursor  # 必须是拖放光标
                 )
