@@ -62,9 +62,16 @@ class ColorToolView(ft.Container):
         self.hsl_h = ft.Ref[ft.TextField]()
         self.hsl_s = ft.Ref[ft.TextField]()
         self.hsl_l = ft.Ref[ft.TextField]()
+        self.cmyk_c = ft.Ref[ft.TextField]()
+        self.cmyk_m = ft.Ref[ft.TextField]()
+        self.cmyk_y = ft.Ref[ft.TextField]()
+        self.cmyk_k = ft.Ref[ft.TextField]()
         self.preset_colors = ft.Ref[ft.Row]()
         self.picker_image = ft.Ref[ft.Image]()
         self.picker_container = ft.Ref[ft.Container]()
+        
+        # 用于防止循环更新的标志
+        self._updating = False
         
         # 文件选择器
         self.file_picker = ft.FilePicker(on_result=self._on_file_selected)
@@ -168,12 +175,7 @@ class ColorToolView(ft.Container):
                                 label="HEX",
                                 hint_text="#3498DB",
                                 expand=True,
-                                on_submit=self._on_hex_change,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.REFRESH,
-                                tooltip="应用",
-                                on_click=self._on_hex_change,
+                                on_change=self._on_hex_change,
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.COPY,
@@ -202,24 +204,19 @@ class ColorToolView(ft.Container):
                                 ref=self.rgb_r,
                                 label="R (0-255)",
                                 width=100,
-                                on_submit=self._on_rgb_change,
+                                on_change=self._on_rgb_change,
                             ),
                             ft.TextField(
                                 ref=self.rgb_g,
                                 label="G (0-255)",
                                 width=100,
-                                on_submit=self._on_rgb_change,
+                                on_change=self._on_rgb_change,
                             ),
                             ft.TextField(
                                 ref=self.rgb_b,
                                 label="B (0-255)",
                                 width=100,
-                                on_submit=self._on_rgb_change,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.REFRESH,
-                                tooltip="应用",
-                                on_click=self._on_rgb_change,
+                                on_change=self._on_rgb_change,
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.COPY,
@@ -248,29 +245,71 @@ class ColorToolView(ft.Container):
                                 ref=self.hsl_h,
                                 label="H (0-360)",
                                 width=100,
-                                on_submit=self._on_hsl_change,
+                                on_change=self._on_hsl_change,
                             ),
                             ft.TextField(
                                 ref=self.hsl_s,
                                 label="S (0-100)",
                                 width=100,
-                                on_submit=self._on_hsl_change,
+                                on_change=self._on_hsl_change,
                             ),
                             ft.TextField(
                                 ref=self.hsl_l,
                                 label="L (0-100)",
                                 width=100,
-                                on_submit=self._on_hsl_change,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.REFRESH,
-                                tooltip="应用",
-                                on_click=self._on_hsl_change,
+                                on_change=self._on_hsl_change,
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.COPY,
                                 tooltip="复制",
                                 on_click=self._copy_hsl,
+                            ),
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                ],
+                spacing=5,
+            ),
+            padding=PADDING_SMALL,
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=8,
+        )
+        
+        # CMYK 格式
+        cmyk_section = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("CMYK 格式", weight=ft.FontWeight.BOLD, size=15),
+                    ft.Row(
+                        controls=[
+                            ft.TextField(
+                                ref=self.cmyk_c,
+                                label="C (0-100)",
+                                width=100,
+                                on_change=self._on_cmyk_change,
+                            ),
+                            ft.TextField(
+                                ref=self.cmyk_m,
+                                label="M (0-100)",
+                                width=100,
+                                on_change=self._on_cmyk_change,
+                            ),
+                            ft.TextField(
+                                ref=self.cmyk_y,
+                                label="Y (0-100)",
+                                width=100,
+                                on_change=self._on_cmyk_change,
+                            ),
+                            ft.TextField(
+                                ref=self.cmyk_k,
+                                label="K (0-100)",
+                                width=100,
+                                on_change=self._on_cmyk_change,
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.COPY,
+                                tooltip="复制",
+                                on_click=self._copy_cmyk,
                             ),
                         ],
                         spacing=PADDING_SMALL,
@@ -315,6 +354,8 @@ class ColorToolView(ft.Container):
                 rgb_section,
                 ft.Container(height=PADDING_SMALL),
                 hsl_section,
+                ft.Container(height=PADDING_SMALL),
+                cmyk_section,
                 ft.Container(height=PADDING_SMALL),
                 preset_colors_section,
             ],
@@ -371,6 +412,50 @@ class ColorToolView(ft.Container):
         self._update_all_formats()
         self.update()
     
+    def _set_color_from_input(self, color: str, source: str):
+        """从输入框设置颜色，排除触发源以避免干扰用户输入。
+        
+        Args:
+            color: HEX 颜色值
+            source: 触发源 ("hex", "rgb", "hsl", "cmyk")
+        """
+        self._updating = True
+        try:
+            self.current_color = color
+            self.color_display.current.bgcolor = color
+            
+            # 获取 RGB 值
+            r, g, b = self._hex_to_rgb(color)
+            
+            # 更新 HEX（如果不是来源）
+            if source != "hex":
+                self.hex_input.current.value = color
+            
+            # 更新 RGB（如果不是来源）
+            if source != "rgb":
+                self.rgb_r.current.value = str(r)
+                self.rgb_g.current.value = str(g)
+                self.rgb_b.current.value = str(b)
+            
+            # 更新 HSL（如果不是来源）
+            if source != "hsl":
+                h, s, l = self._rgb_to_hsl(r, g, b)
+                self.hsl_h.current.value = str(h)
+                self.hsl_s.current.value = str(s)
+                self.hsl_l.current.value = str(l)
+            
+            # 更新 CMYK（如果不是来源）
+            if source != "cmyk":
+                c, m, y, k = self._rgb_to_cmyk(r, g, b)
+                self.cmyk_c.current.value = str(c)
+                self.cmyk_m.current.value = str(m)
+                self.cmyk_y.current.value = str(y)
+                self.cmyk_k.current.value = str(k)
+            
+            self.update()
+        finally:
+            self._updating = False
+    
     def _hex_to_rgb(self, hex_color: str) -> Tuple[int, int, int]:
         """HEX 转 RGB。"""
         hex_color = hex_color.lstrip('#')
@@ -390,6 +475,44 @@ class ColorToolView(ft.Container):
         r, g, b = colorsys.hls_to_rgb(h/360, l/100, s/100)
         return (int(r * 255), int(g * 255), int(b * 255))
     
+    def _rgb_to_cmyk(self, r: int, g: int, b: int) -> Tuple[int, int, int, int]:
+        """RGB 转 CMYK。"""
+        if r == 0 and g == 0 and b == 0:
+            return (0, 0, 0, 100)
+        
+        # 将 RGB 归一化到 0-1
+        r_norm = r / 255.0
+        g_norm = g / 255.0
+        b_norm = b / 255.0
+        
+        # 计算 K
+        k = 1 - max(r_norm, g_norm, b_norm)
+        
+        if k == 1:
+            return (0, 0, 0, 100)
+        
+        # 计算 CMY
+        c = (1 - r_norm - k) / (1 - k)
+        m = (1 - g_norm - k) / (1 - k)
+        y = (1 - b_norm - k) / (1 - k)
+        
+        return (int(c * 100), int(m * 100), int(y * 100), int(k * 100))
+    
+    def _cmyk_to_rgb(self, c: int, m: int, y: int, k: int) -> Tuple[int, int, int]:
+        """CMYK 转 RGB。"""
+        # 将 CMYK 归一化到 0-1
+        c_norm = c / 100.0
+        m_norm = m / 100.0
+        y_norm = y / 100.0
+        k_norm = k / 100.0
+        
+        # 计算 RGB
+        r = 255 * (1 - c_norm) * (1 - k_norm)
+        g = 255 * (1 - m_norm) * (1 - k_norm)
+        b = 255 * (1 - y_norm) * (1 - k_norm)
+        
+        return (int(r), int(g), int(b))
+    
     def _update_all_formats(self):
         """更新所有格式显示。"""
         # 更新 HEX
@@ -406,57 +529,113 @@ class ColorToolView(ft.Container):
         self.hsl_h.current.value = str(h)
         self.hsl_s.current.value = str(s)
         self.hsl_l.current.value = str(l)
+        
+        # 更新 CMYK
+        c, m, y, k = self._rgb_to_cmyk(r, g, b)
+        self.cmyk_c.current.value = str(c)
+        self.cmyk_m.current.value = str(m)
+        self.cmyk_y.current.value = str(y)
+        self.cmyk_k.current.value = str(k)
     
     def _on_hex_change(self, e):
         """HEX 值改变。"""
+        if self._updating:
+            return
+        
         hex_value = self.hex_input.current.value
         if not hex_value:
             return
         
         # 验证 HEX 格式
         if not re.match(r'^#?[0-9A-Fa-f]{6}$', hex_value):
-            self._show_snack("无效的 HEX 颜色值", error=True)
             return
         
         if not hex_value.startswith('#'):
             hex_value = '#' + hex_value
         
-        self._set_color(hex_value.upper())
+        self._set_color_from_input(hex_value.upper(), "hex")
     
     def _on_rgb_change(self, e):
         """RGB 值改变。"""
+        if self._updating:
+            return
+        
         try:
-            r = int(self.rgb_r.current.value)
-            g = int(self.rgb_g.current.value)
-            b = int(self.rgb_b.current.value)
+            r_val = self.rgb_r.current.value
+            g_val = self.rgb_g.current.value
+            b_val = self.rgb_b.current.value
+            
+            if not r_val or not g_val or not b_val:
+                return
+            
+            r = int(r_val)
+            g = int(g_val)
+            b = int(b_val)
             
             if not all(0 <= v <= 255 for v in (r, g, b)):
-                self._show_snack("RGB 值必须在 0-255 之间", error=True)
                 return
             
             hex_color = self._rgb_to_hex(r, g, b)
-            self._set_color(hex_color)
+            self._set_color_from_input(hex_color, "rgb")
             
         except ValueError:
-            self._show_snack("请输入有效的 RGB 值", error=True)
+            pass
     
     def _on_hsl_change(self, e):
         """HSL 值改变。"""
+        if self._updating:
+            return
+        
         try:
-            h = int(self.hsl_h.current.value)
-            s = int(self.hsl_s.current.value)
-            l = int(self.hsl_l.current.value)
+            h_val = self.hsl_h.current.value
+            s_val = self.hsl_s.current.value
+            l_val = self.hsl_l.current.value
+            
+            if not h_val or not s_val or not l_val:
+                return
+            
+            h = int(h_val)
+            s = int(s_val)
+            l = int(l_val)
             
             if not (0 <= h <= 360 and 0 <= s <= 100 and 0 <= l <= 100):
-                self._show_snack("HSL 值范围不正确", error=True)
                 return
             
             r, g, b = self._hsl_to_rgb(h, s, l)
             hex_color = self._rgb_to_hex(r, g, b)
-            self._set_color(hex_color)
+            self._set_color_from_input(hex_color, "hsl")
             
         except ValueError:
-            self._show_snack("请输入有效的 HSL 值", error=True)
+            pass
+    
+    def _on_cmyk_change(self, e):
+        """CMYK 值改变。"""
+        if self._updating:
+            return
+        
+        try:
+            c_val = self.cmyk_c.current.value
+            m_val = self.cmyk_m.current.value
+            y_val = self.cmyk_y.current.value
+            k_val = self.cmyk_k.current.value
+            
+            if not c_val or not m_val or not y_val or not k_val:
+                return
+            
+            c = int(c_val)
+            m = int(m_val)
+            y = int(y_val)
+            k = int(k_val)
+            
+            if not all(0 <= v <= 100 for v in (c, m, y, k)):
+                return
+            
+            r, g, b = self._cmyk_to_rgb(c, m, y, k)
+            hex_color = self._rgb_to_hex(r, g, b)
+            self._set_color_from_input(hex_color, "cmyk")
+            
+        except ValueError:
+            pass
     
     def _copy_rgb(self, e):
         """复制 RGB 值。"""
@@ -468,6 +647,12 @@ class ColorToolView(ft.Container):
         """复制 HSL 值。"""
         hsl_str = f"hsl({self.hsl_h.current.value}, {self.hsl_s.current.value}%, {self.hsl_l.current.value}%)"
         self.page.set_clipboard(hsl_str)
+        self._show_snack("已复制到剪贴板")
+    
+    def _copy_cmyk(self, e):
+        """复制 CMYK 值。"""
+        cmyk_str = f"cmyk({self.cmyk_c.current.value}%, {self.cmyk_m.current.value}%, {self.cmyk_y.current.value}%, {self.cmyk_k.current.value}%)"
+        self.page.set_clipboard(cmyk_str)
         self._show_snack("已复制到剪贴板")
     
     def _copy_text(self, text: str):
@@ -651,9 +836,9 @@ class ColorToolView(ft.Container):
 
 **功能：**
 - 🎨 图片取色器 - 从图片中精确取色
-- 颜色格式转换（HEX ↔ RGB ↔ HSL）
+- 颜色格式转换（HEX ↔ RGB ↔ HSL ↔ CMYK）
 - 预设颜色选择
-- 实时预览
+- 实时预览与自动同步
 - 一键复制各种格式
 
 **图片取色使用方法：**
@@ -679,9 +864,14 @@ class ColorToolView(ft.Container):
    - 格式: hsl(204, 70%, 53%)
    - 便于调整颜色
 
+4. **CMYK (印刷四色)**
+   - 范围: C(0-100), M(0-100), Y(0-100), K(0-100)
+   - 格式: cmyk(78%, 32%, 0%, 14%)
+   - 常用于印刷设计
+
 **使用技巧：**
 - 点击预设颜色快速选择
-- 修改任一格式，其他格式自动更新
+- 修改任一格式，其他格式自动同步更新
 - 点击复制按钮复制对应格式
 - 从设计稿、截图中精确提取颜色
 - 支持点击图片多次取色
