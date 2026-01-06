@@ -2640,6 +2640,7 @@ class VideoSubtitleView(ft.Container):
                     tokens_path=tokens_path,
                     use_gpu=False,
                     language="auto",
+                    model_type=self.current_model.model_type,  # 传递模型类型
                 )
             elif isinstance(self.current_model, WhisperModelInfo):
                 encoder_path = model_dir / self.current_model.encoder_filename
@@ -3093,6 +3094,7 @@ class VideoSubtitleView(ft.Container):
                         tokens_path=tokens_path,
                         use_gpu=False,  # 默认使用 CPU
                         language="auto",
+                        model_type=self.current_model.model_type,  # 传递模型类型
                     )
                 elif isinstance(self.current_model, WhisperModelInfo):
                     # 加载 Whisper 模型
