@@ -3,7 +3,7 @@
 <img src="./src/assets/icon.png" alt="MTools Logo" width="128" height="128">
 
 # MTools
-*一款功能强大、界面精美的现代化桌面工具集*
+一款功能强大、界面精美的现代化桌面工具集
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![Flet](https://img.shields.io/badge/Flet-0.28.3-brightgreen.svg)](https://flet.dev/)
@@ -15,67 +15,8 @@
 
 集成图片处理、音视频编辑、AI 智能工具、开发辅助等功能，支持跨平台GPU加速
 
-[快速开始](#-快速开始) · [功能特性](#-核心特性) · [界面预览](#-界面预览) · [下载发布版](https://github.com/HG-ha/MTools/releases)
 
 </div>
-
----
-
-## 界面预览
-
-### 多主题支持
-
-<table>
-  <tr>
-    <td align="center"><b>浅色模式</b></td>
-    <td align="center"><b>深色模式</b></td>
-  </tr>
-  <tr>
-    <td><img src="./assets/Light_Image_View.png" alt="浅色模式" width="400"/></td>
-    <td><img src="./assets/Dark_Image_View.png" alt="深色模式" width="400"/></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><b>自定义背景模式</b></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="./assets/Custom_background_Image_View.png" alt="自定义背景" width="600"/></td>
-  </tr>
-</table>
-
----
-
-## 部分工具展示
-
-### AI 智能处理
-
-- **AI 智能抠图** - 一键移除图片背景，支持人像、动漫、通用场景等多种模型，GPU 加速提速 3-10 倍
-- **AI 证件照制作** - 智能生成各类证件照，支持多种尺寸和背景，自动美颜和人脸矫正
-- **AI 音视频人声分离** - 专业级人声/伴奏分离，支持 UVR MDX-Net 模型，轻松制作卡拉OK伴奏
-- **AI 音视频转文字** - 直接处理视频或音频，从中提取字幕，支持输出字幕文件
-- **AI 视频插帧** - 将低帧率视频进行补帧，提高视频流畅度
-- **AI 图片、视频超分** - 支持对图片、视频进行修复和放大，例如720p修复到2k
-
-### 图片工具箱
-
-- **格式转换 & 压缩** - 支持 12+ 种格式，集成 mozjpeg、pngquant 专业引擎
-- **智能编辑** - 尺寸调整、裁剪、旋转、水印、去除 EXIF
-- **创意拼接** - 九宫格、单图切分、横向/纵向拼接
-- **实用工具** - 二维码生成、GIF 调整、信息查看
-
-### 音视频处理
-
-- **格式转换** - 支持主流音视频格式互转（MP3/WAV/FLAC/MP4/AVI/MKV...）
-- **智能压缩** - H.264/H.265 编码，自定义比特率和质量
-- **速度调整** - 音视频加速/减速，不改变音调
-- **提取 & 合成** - 提取音轨、添加水印、视频修复
-
-### 开发辅助
-
-- **编码转换** - 自动检测文件编码，一键解决乱码问题
-- **Base64 工具** - 图片与 Base64 互转
-- **代码格式化** - JSON/XML/SQL 美化与验证
-
-### 还有其他数十种工具，请下载后自行查看
 
 ---
 
@@ -167,16 +108,6 @@ uv add onnxruntime-gpu==1.22.0
 
 ---
 
-## 界面特色
-
-- **Material Design 3** - 遵循最新设计规范，界面精美流畅
-- **深色模式** - 自动跟随系统主题，保护视力
-- **毛玻璃效果** - 现代化的视觉体验
-- **自定义主题** - 支持多种主题颜色和字体选择
-- **全局搜索** - `Ctrl+K` 快速查找任何功能
-- **批量处理** - 所有功能均支持批量操作
-
----
 
 ## 致谢
 
@@ -244,9 +175,7 @@ uv add onnxruntime-gpu==1.22.0
 
 **Made with ❤️ using Python & Flet**
 
-👨‍💻 **作者**：[HG-ha](https://github.com/HG-ha)
-
-[GitHub](https://github.com/HG-ha) · [更多项目](https://github.com/HG-ha?tab=repositories) · [加入Q群 1029212047](https://qm.qq.com/q/gHf7f0R3zy)
+👨‍💻 **作者**：[HG-ha](https://github.com/HG-ha) · [加入Q群 1029212047](https://qm.qq.com/q/gHf7f0R3zy)
 
 **如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
 
