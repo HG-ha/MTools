@@ -1976,11 +1976,19 @@ class AudioToTextView(ft.Container):
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
                     
-                    # 保存结果
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(content)
+                    # 保存结果（使用系统默认编码，避免乱码）
+                    import locale
+                    system_encoding = locale.getpreferredencoding(False)
+                    try:
+                        with open(output_path, 'w', encoding=system_encoding) as f:
+                            f.write(content)
+                    except UnicodeEncodeError:
+                        # 如果系统编码无法编码某些字符，回退到 UTF-8
+                        with open(output_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
                     
-                    logger.info(f"识别完成: {file_path} -> {output_path}")
+                    logger.info(f"识别完成: {file_path} -> {output_path} (编码: {system_encoding})")
                     
                     # 清理人声分离临时目录
                     if self.use_vocal_separation and input_path != file_path:

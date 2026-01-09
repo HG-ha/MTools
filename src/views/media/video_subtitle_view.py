@@ -3704,21 +3704,37 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                             # 根据全局设置决定是否添加序号
                             add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                             
+                            # 使用系统默认编码，避免乱码
+                            import locale
+                            system_encoding = locale.getpreferredencoding(False)
+                            
                             if subtitle_format == "ass":
                                 # 导出 ASS 格式
                                 subtitle_path = subtitle_dir / f"{file_path.stem}.ass"
                                 subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
-                                with open(subtitle_path, 'w', encoding='utf-8') as f:
-                                    f.write(ass_content)
-                                logger.info(f"已导出 ASS 字幕: {subtitle_path}")
+                                try:
+                                    with open(subtitle_path, 'w', encoding=system_encoding) as f:
+                                        f.write(ass_content)
+                                except UnicodeEncodeError:
+                                    # 如果系统编码无法编码某些字符，回退到 UTF-8
+                                    with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                        f.write(ass_content)
+                                    logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                                logger.info(f"已导出 ASS 字幕: {subtitle_path} (编码: {system_encoding})")
                             else:
                                 # 导出 SRT 格式
                                 subtitle_path = subtitle_dir / f"{file_path.stem}.srt"
                                 subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
                                 srt_content = self._segments_to_srt(segments)
-                                with open(subtitle_path, 'w', encoding='utf-8') as f:
-                                    f.write(srt_content)
-                                logger.info(f"已导出 SRT 字幕: {subtitle_path}")
+                                try:
+                                    with open(subtitle_path, 'w', encoding=system_encoding) as f:
+                                        f.write(srt_content)
+                                except UnicodeEncodeError:
+                                    # 如果系统编码无法编码某些字符，回退到 UTF-8
+                                    with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                        f.write(srt_content)
+                                    logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                                logger.info(f"已导出 SRT 字幕: {subtitle_path} (编码: {system_encoding})")
                         
                         # 步骤5：烧录字幕到视频（如果不是"仅导出字幕"模式）
                         if not only_subtitle:

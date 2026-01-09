@@ -167,6 +167,73 @@ class VideoWatermarkView(ft.Container):
             label="{value}",
         )
         
+        # 字体选择
+        self.font_dropdown = ft.Dropdown(
+            label="字体",
+            width=200,
+            options=[
+                ft.dropdown.Option("system", "系统默认"),
+                ft.dropdown.Option("msyh", "微软雅黑"),
+                ft.dropdown.Option("simsun", "宋体"),
+                ft.dropdown.Option("simhei", "黑体"),
+                ft.dropdown.Option("kaiti", "楷体"),
+                ft.dropdown.Option("arial", "Arial"),
+                ft.dropdown.Option("times", "Times New Roman"),
+                ft.dropdown.Option("courier", "Courier New"),
+                ft.dropdown.Option("custom", "📁 自定义字体..."),
+            ],
+            value="msyh",
+            on_change=self._on_font_change,
+        )
+        
+        # 自定义字体文件路径
+        self.custom_font_path: Optional[Path] = None
+        
+        # 自定义字体显示
+        self.custom_font_text = ft.Text(
+            "未选择字体文件",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        custom_font_button = ft.ElevatedButton(
+            text="选择字体文件",
+            icon=ft.Icons.FONT_DOWNLOAD,
+            on_click=self._on_select_font_file,
+            height=36,
+        )
+        
+        self.custom_font_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            custom_font_button,
+                            self.custom_font_text,
+                        ],
+                        spacing=PADDING_MEDIUM,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text(
+                                    "支持格式: TTF, TTC, OTF",
+                                    size=11,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                ),
+                            ],
+                            spacing=4,
+                        ),
+                        margin=ft.margin.only(top=4),
+                    ),
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            visible=False,
+        )
+        
         # 颜色选择
         self.current_color = "white"
         self.color_dropdown = ft.Dropdown(
@@ -187,6 +254,10 @@ class VideoWatermarkView(ft.Container):
             content=ft.Column(
                 controls=[
                     self.watermark_text_field,
+                    ft.Container(height=PADDING_SMALL),
+                    ft.Text("字体", size=12),
+                    self.font_dropdown,
+                    self.custom_font_container,
                     ft.Container(height=PADDING_SMALL),
                     ft.Text("字体大小", size=12),
                     self.font_size_slider,
@@ -513,6 +584,112 @@ class VideoWatermarkView(ft.Container):
         self.text_watermark_container.update()
         self.image_watermark_container.update()
     
+    def _on_font_change(self, e: ft.ControlEvent) -> None:
+        """字体选择改变事件。"""
+        font_choice = e.control.value
+        
+        if font_choice == "custom":
+            # 显示自定义字体选择区域
+            self.custom_font_container.visible = True
+        else:
+            # 隐藏自定义字体选择区域
+            self.custom_font_container.visible = False
+        
+        self.custom_font_container.update()
+    
+    def _on_select_font_file(self, e: ft.ControlEvent) -> None:
+        """选择字体文件按钮点击事件。"""
+        def on_file_picked(result: ft.FilePickerResultEvent) -> None:
+            if result.files and len(result.files) > 0:
+                self.custom_font_path = Path(result.files[0].path)
+                self.custom_font_text.value = self.custom_font_path.name
+                self.custom_font_text.update()
+        
+        file_picker = ft.FilePicker(on_result=on_file_picked)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        
+        file_picker.pick_files(
+            dialog_title="选择字体文件",
+            allowed_extensions=["ttf", "ttc", "otf", "TTF", "TTC", "OTF"],
+            allow_multiple=False,
+        )
+    
+    def _get_font_path(self) -> Optional[str]:
+        """获取选择的字体文件路径。
+        
+        Returns:
+            字体文件路径（必须返回支持中文的字体）
+        """
+        font_choice = self.font_dropdown.value
+        
+        # 如果选择自定义字体
+        if font_choice == "custom":
+            if self.custom_font_path and self.custom_font_path.exists():
+                return str(self.custom_font_path)
+            else:
+                # 没有选择自定义字体文件，降级到微软雅黑
+                font_choice = "msyh"
+        
+        # 如果选择系统默认，使用微软雅黑（确保支持中文）
+        if font_choice == "system":
+            font_choice = "msyh"
+        
+        # 字体文件映射（Windows路径）
+        import platform
+        system = platform.system()
+        
+        if system == "Windows":
+            fonts_dir = Path("C:/Windows/Fonts")
+            font_map = {
+                "msyh": ["msyh.ttc", "msyh.ttf", "msyhbd.ttc"],
+                "simsun": ["simsun.ttc", "simsun.ttf"],
+                "simhei": ["simhei.ttf"],
+                "kaiti": ["simkai.ttf", "kaiti.ttf"],
+                "arial": ["arial.ttf"],
+                "times": ["times.ttf", "Times.ttf"],
+                "courier": ["cour.ttf", "Courier.ttf"],
+            }
+            # 用于回退的中文字体列表
+            fallback_fonts = [
+                "msyh.ttc", "msyh.ttf", "msyhbd.ttc",  # 微软雅黑
+                "simsun.ttc", "simsun.ttf",  # 宋体
+                "simhei.ttf",  # 黑体
+                "simkai.ttf",  # 楷体
+            ]
+        else:
+            # macOS / Linux
+            fonts_dir = Path("/usr/share/fonts") if system == "Linux" else Path("/System/Library/Fonts")
+            font_map = {
+                "msyh": ["Microsoft YaHei.ttf", "msyh.ttf"],
+                "simsun": ["SimSun.ttf", "simsun.ttf"],
+                "simhei": ["SimHei.ttf", "simhei.ttf"],
+                "kaiti": ["Kaiti.ttf", "kaiti.ttf"],
+                "arial": ["Arial.ttf", "arial.ttf"],
+                "times": ["Times New Roman.ttf", "times.ttf"],
+                "courier": ["Courier New.ttf", "cour.ttf"],
+            }
+            fallback_fonts = []
+        
+        # 尝试找到选择的字体文件
+        if font_choice in font_map:
+            for font_file in font_map[font_choice]:
+                font_path = fonts_dir / font_file
+                if font_path.exists():
+                    logger.info(f"使用字体: {font_path}")
+                    return str(font_path)
+        
+        # 如果选择的字体找不到，尝试回退到任意中文字体
+        for font_file in fallback_fonts:
+            font_path = fonts_dir / font_file
+            if font_path.exists():
+                logger.info(f"回退使用字体: {font_path}")
+                return str(font_path)
+        
+        # 最后的回退：返回 None（可能会乱码）
+        logger.warning("未找到支持中文的字体文件")
+        return None
+    
     def _on_image_size_mode_change(self, e: ft.ControlEvent) -> None:
         """图片大小模式改变事件。"""
         mode = e.control.value
@@ -757,6 +934,9 @@ class VideoWatermarkView(ft.Container):
         if not ffprobe_path:
             return False, "未找到 FFprobe"
         
+        # 用于存储临时文件路径，以便在 finally 中清理
+        temp_text_path = None
+        
         try:
             # 先检测输入视频是否有音频流
             probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
@@ -771,7 +951,11 @@ class VideoWatermarkView(ft.Container):
             stream = ffmpeg.input(str(input_path))
             
             if watermark_type == "text":
-                # 文字水印 - 使用 drawtext 滤镜
+                # 文字水印 - 使用 subprocess 直接调用 FFmpeg 解决中文编码问题
+                import subprocess
+                import tempfile
+                import os
+                
                 text = self.watermark_text_field.value.strip()
                 if not text:
                     return False, "请输入水印文字"
@@ -779,64 +963,99 @@ class VideoWatermarkView(ft.Container):
                 font_size = int(self.font_size_slider.value)
                 color = self.color_dropdown.value
                 
-                # 转义特殊字符
-                text = text.replace(":", "\\:").replace("'", "\\'").replace(",", "\\,")
+                # 获取字体路径
+                font_path = self._get_font_path()
                 
                 # 为 drawtext 构建位置表达式
-                # drawtext 中使用: main_w/main_h=视频尺寸, text_w/text_h=文本框尺寸
                 text_position_map = {
-                    "top_left": (margin, margin),
-                    "top_right": (f"main_w-text_w-{margin}", margin),
-                    "bottom_left": (margin, f"main_h-text_h-{margin}"),
-                    "bottom_right": (f"main_w-text_w-{margin}", f"main_h-text_h-{margin}"),
-                    "center": ("(main_w-text_w)/2", "(main_h-text_h)/2"),
+                    "top_left": (str(margin), str(margin)),
+                    "top_right": (f"w-tw-{margin}", str(margin)),
+                    "bottom_left": (str(margin), f"h-th-{margin}"),
+                    "bottom_right": (f"w-tw-{margin}", f"h-th-{margin}"),
+                    "center": ("(w-tw)/2", "(h-th)/2"),
                 }
                 x_pos, y_pos = text_position_map[position]
                 
-                # 应用文字滤镜
-                video_stream = ffmpeg.drawtext(
-                    stream,
-                    text=text,
-                    fontsize=font_size,
-                    fontcolor=f"{color}@{opacity}",
-                    x=str(x_pos),
-                    y=str(y_pos)
+                # 创建临时文件存储水印文本（UTF-8 编码，不带 BOM）
+                temp_text_file = tempfile.NamedTemporaryFile(
+                    mode='w',
+                    encoding='utf-8',
+                    suffix='.txt',
+                    delete=False
                 )
+                temp_text_file.write(text)
+                temp_text_file.close()
+                temp_text_path = temp_text_file.name
+                
+                # 构建 drawtext 滤镜字符串
+                # 使用 Windows 原生路径格式
+                filter_parts = [f"fontsize={font_size}"]
+                filter_parts.append(f"fontcolor={color}@{opacity}")
+                filter_parts.append(f"x={x_pos}")
+                filter_parts.append(f"y={y_pos}")
+                
+                # textfile 使用 Windows 原生路径（反斜杠需要双重转义）
+                escaped_text_path = temp_text_path.replace("\\", "\\\\").replace(":", "\\:")
+                filter_parts.append(f"textfile='{escaped_text_path}'")
+                
+                if font_path:
+                    # fontfile 也需要转义
+                    escaped_font_path = font_path.replace("\\", "\\\\").replace(":", "\\:")
+                    filter_parts.append(f"fontfile='{escaped_font_path}'")
+                    logger.info(f"FFmpeg 字体路径: {escaped_font_path}")
+                else:
+                    logger.warning("未指定字体路径，可能导致中文乱码")
+                
+                drawtext_filter = "drawtext=" + ":".join(filter_parts)
                 
                 # 检测GPU编码器
                 gpu_encoder = self.ffmpeg_service.get_preferred_gpu_encoder()
                 
-                output_params = {
-                    'acodec': 'copy',  # 复制音频流
-                }
+                # 构建 FFmpeg 命令
+                cmd = [ffmpeg_path, '-y', '-i', str(input_path)]
+                cmd.extend(['-vf', drawtext_filter])
                 
-                # 设置视频编码器
+                # 添加编码器参数
                 if gpu_encoder:
-                    output_params['vcodec'] = gpu_encoder
-                    # 根据编码器类型设置参数
+                    cmd.extend(['-c:v', gpu_encoder])
                     if gpu_encoder.startswith("h264_nvenc") or gpu_encoder.startswith("hevc_nvenc"):
-                        output_params['preset'] = 'p4'
-                        output_params['cq'] = 23
+                        cmd.extend(['-preset', 'p4', '-cq', '23'])
                     elif gpu_encoder.startswith("h264_amf") or gpu_encoder.startswith("hevc_amf"):
-                        output_params['quality'] = 'balanced'
-                        output_params['rc'] = 'vbr_peak'
+                        cmd.extend(['-quality', 'balanced', '-rc', 'vbr_peak'])
                     elif gpu_encoder.startswith("h264_qsv") or gpu_encoder.startswith("hevc_qsv"):
-                        output_params['preset'] = 'medium'
-                        output_params['global_quality'] = 23
+                        cmd.extend(['-preset', 'medium', '-global_quality', '23'])
                 else:
-                    # 使用CPU编码器
-                    output_params['vcodec'] = 'libx264'
-                    output_params['crf'] = 23
-                    output_params['preset'] = 'medium'
+                    cmd.extend(['-c:v', 'libx264', '-crf', '23', '-preset', 'medium'])
                 
-                # 根据是否有音频流决定输出方式
+                # 音频处理
                 if has_audio:
-                    # 有音频流：显式提取并映射音频流
-                    audio_stream = ffmpeg.input(str(input_path)).audio
-                    stream = ffmpeg.output(video_stream, audio_stream, str(output_path), **output_params)
-                else:
-                    # 无音频流：只输出视频
-                    stream = ffmpeg.output(video_stream, str(output_path), **output_params)
+                    cmd.extend(['-c:a', 'copy'])
+                
+                cmd.append(str(output_path))
+                
+                logger.info(f"FFmpeg 命令: {' '.join(cmd)}")
+                
+                # 使用 subprocess 执行 FFmpeg
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=False,  # 使用 bytes 模式
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                )
+                
+                # 清理临时文件
+                try:
+                    os.unlink(temp_text_path)
+                    temp_text_path = None  # 标记已清理
+                except Exception:
+                    pass
+                
+                if result.returncode != 0:
+                    error_msg = result.stderr.decode('utf-8', errors='ignore')
+                    logger.error(f"FFmpeg错误: {error_msg}")
+                    return False, f"FFmpeg错误: {error_msg}"
+                
+                return True, "处理成功"
                 
             else:
                 # 图片水印 - 使用 overlay 滤镜
@@ -950,6 +1169,14 @@ class VideoWatermarkView(ft.Container):
         except Exception as e:
             logger.error(f"处理失败: {str(e)}")
             return False, str(e)
+        finally:
+            # 清理临时文件
+            if temp_text_path:
+                try:
+                    import os
+                    os.unlink(temp_text_path)
+                except Exception:
+                    pass
     
     def _on_process(self, e: ft.ControlEvent) -> None:
         """处理按钮点击事件。"""
