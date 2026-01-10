@@ -92,55 +92,150 @@ def get_gpu_devices() -> List[Dict[str, str]]:
     return gpus if gpus else [{"index": 0, "name": "Unknown GPU", "vendor": "Unknown"}]
 
 
-def _get_gpu_devices_windows() -> List[Dict[str, str]]:
-    """Windows 平台获取 GPU 设备信息。"""
+def get_cuda_devices() -> List[Dict[str, str]]:
+    """获取 CUDA 可见的 GPU 设备列表（仅 NVIDIA GPU）。
+    
+    使用 nvidia-smi 获取设备信息，确保 device_id 与 CUDA 一致。
+    
+    Returns:
+        CUDA 设备列表，每个设备包含:
+        - index: CUDA device_id
+        - name: GPU 名称
+        - vendor: "NVIDIA"
+    """
     gpus = []
+    
+    # 使用 nvidia-smi 获取 CUDA 设备列表
+    try:
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=index,name', '--format=csv,noheader,nounits'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if is_windows() and hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            for line in result.stdout.strip().split('\n'):
+                parts = line.split(', ')
+                if len(parts) >= 2:
+                    idx = int(parts[0].strip())
+                    name = parts[1].strip()
+                    gpus.append({
+                        "index": idx,
+                        "name": name,
+                        "vendor": "NVIDIA",
+                    })
+            if gpus:
+                return gpus
+    except Exception:
+        pass
+    
+    # 回退：从 WMI 过滤 NVIDIA GPU（顺序可能不准确）
+    all_gpus = get_gpu_devices()
+    nvidia_gpus = [g for g in all_gpus if g.get("vendor") == "NVIDIA"]
+    for i, gpu in enumerate(nvidia_gpus):
+        gpus.append({
+            "index": i,
+            "name": gpu["name"],
+            "vendor": "NVIDIA",
+        })
+    
+    return gpus
+
+
+def _is_virtual_adapter(name: str) -> bool:
+    """检查是否为虚拟显示适配器（应排除）。
+    
+    Args:
+        name: GPU 名称
+        
+    Returns:
+        True 表示是虚拟适配器，应排除
+    """
+    name_upper = name.upper()
+    
+    # 虚拟显示适配器关键词
+    virtual_keywords = [
+        "VIRTUAL",
+        "REMOTE DESKTOP",
+        "BASIC DISPLAY",
+        "MICROSOFT BASIC",
+        "VMWARE",
+        "VIRTUALBOX",
+        "PARSEC",
+        "SUNSHINE",
+        "GAMEVIEWER",
+        "SPACEDESK",
+        "DUET",
+        "SPLASHTOP",
+        "ANYDESK",
+        "IDD",  # Indirect Display Driver
+    ]
+    
+    for keyword in virtual_keywords:
+        if keyword in name_upper:
+            return True
+    
+    return False
+
+
+def _get_gpu_devices_windows() -> List[Dict[str, str]]:
+    """Windows 平台获取 GPU 设备信息（排除虚拟适配器）。"""
+    gpus = []
+    all_adapters = []
     
     # 方法1: 使用 WMI (需要 wmi 库)
     try:
         import wmi
         c = wmi.WMI()
-        for i, gpu in enumerate(c.Win32_VideoController()):
-            gpus.append({
-                "index": i,
-                "name": gpu.Name or "Unknown GPU",
-                "vendor": _detect_vendor(gpu.Name or "", gpu.AdapterCompatibility or ""),
+        for gpu in c.Win32_VideoController():
+            name = gpu.Name or "Unknown GPU"
+            all_adapters.append({
+                "name": name,
+                "vendor": _detect_vendor(name, gpu.AdapterCompatibility or ""),
             })
-        if gpus:
-            return gpus
     except ImportError:
         pass
     except Exception:
         pass
     
     # 方法2: 使用 PowerShell 作为备用方案
-    try:
-        result = subprocess.run(
-            [
-                "powershell", "-Command",
-                "Get-WmiObject Win32_VideoController | Select-Object Name, AdapterCompatibility | ConvertTo-Json"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            import json
-            data = json.loads(result.stdout)
-            # 单个设备时返回的是 dict，多个设备时是 list
-            if isinstance(data, dict):
-                data = [data]
-            for i, gpu in enumerate(data):
-                name = gpu.get("Name", "Unknown GPU")
-                vendor = _detect_vendor(name, gpu.get("AdapterCompatibility", ""))
-                gpus.append({
-                    "index": i,
-                    "name": name,
-                    "vendor": vendor,
-                })
-    except Exception:
-        pass
+    if not all_adapters:
+        try:
+            result = subprocess.run(
+                [
+                    "powershell", "-Command",
+                    "Get-WmiObject Win32_VideoController | Select-Object Name, AdapterCompatibility | ConvertTo-Json"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                import json
+                data = json.loads(result.stdout)
+                # 单个设备时返回的是 dict，多个设备时是 list
+                if isinstance(data, dict):
+                    data = [data]
+                for gpu in data:
+                    name = gpu.get("Name", "Unknown GPU")
+                    vendor = _detect_vendor(name, gpu.get("AdapterCompatibility", ""))
+                    all_adapters.append({
+                        "name": name,
+                        "vendor": vendor,
+                    })
+        except Exception:
+            pass
+    
+    # 过滤掉虚拟适配器，重新分配索引
+    for adapter in all_adapters:
+        if not _is_virtual_adapter(adapter["name"]):
+            gpus.append({
+                "index": len(gpus),  # 使用过滤后的索引
+                "name": adapter["name"],
+                "vendor": adapter["vendor"],
+            })
     
     return gpus
 

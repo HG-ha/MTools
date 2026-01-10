@@ -612,7 +612,7 @@ class ImageEnhanceView(ft.Container):
         try:
             use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
             gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
             enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
             
             # 获取ONNX性能优化参数
@@ -726,7 +726,7 @@ class ImageEnhanceView(ft.Container):
                 # 加载模型
                 use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
                 gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
                 enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
                 
                 # 获取ONNX性能优化参数
@@ -1332,6 +1332,7 @@ class ImageEnhanceView(ft.Container):
         def process_task():
             total_files = len(self.selected_files)
             success_count = 0
+            oom_error_count = 0  # 记录显存不足错误次数
             
             for i, file_path in enumerate(self.selected_files):
                 try:
@@ -1397,10 +1398,21 @@ class ImageEnhanceView(ft.Container):
                     success_count += 1
                     
                 except Exception as ex:
-                    logger.error(f"处理失败 {file_path.name}: {ex}")
+                    error_msg = str(ex)
+                    logger.error(f"处理失败 {file_path.name}: {error_msg}")
+                    
+                    # 检测显存不足错误
+                    if any(keyword in error_msg.lower() for keyword in [
+                        "available memory", "out of memory", "显存不足"
+                    ]):
+                        oom_error_count += 1
+                        self._update_progress(
+                            i / total_files,
+                            f"⚠️ GPU 显存不足: {file_path.name}"
+                        )
             
             # 处理完成
-            self._on_process_complete(success_count, total_files, output_dir)
+            self._on_process_complete(success_count, total_files, output_dir, oom_error_count)
         
         threading.Thread(target=process_task, daemon=True).start()
     
@@ -1413,8 +1425,15 @@ class ImageEnhanceView(ft.Container):
         except:
             pass
     
-    def _on_process_complete(self, success_count: int, total: int, output_dir: Path) -> None:
-        """处理完成回调。"""
+    def _on_process_complete(self, success_count: int, total: int, output_dir: Path, oom_error_count: int = 0) -> None:
+        """处理完成回调。
+        
+        Args:
+            success_count: 成功处理的数量
+            total: 总数量
+            output_dir: 输出目录
+            oom_error_count: 显存不足错误次数
+        """
         self.progress_bar.value = 1.0
         self.progress_text.value = f"处理完成! 成功: {success_count}/{total}"
         button = self.process_button.content
@@ -1425,7 +1444,13 @@ class ImageEnhanceView(ft.Container):
         except:
             pass
         
-        if self.output_mode_radio.value == "new":
+        # 如果有显存不足错误，优先显示警告
+        if oom_error_count > 0:
+            self._show_snackbar(
+                f"⚠️ {oom_error_count} 个文件因 GPU 显存不足处理失败！建议：降低显存限制、处理较小图片或关闭 GPU 加速",
+                ft.Colors.ORANGE
+            )
+        elif self.output_mode_radio.value == "new":
             self._show_snackbar(
                 f"处理完成! 成功增强 {success_count} 个文件，保存在原文件旁边",
                 ft.Colors.GREEN

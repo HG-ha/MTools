@@ -2232,7 +2232,9 @@ class BackgroundRemover:
             try:
                 result = self.sess.run([self.output_name], {self.input_name: image_tensor})[0]
             except Exception as e:
-                raise RuntimeError(f"模型推理失败: {e}")
+                from utils import parse_onnx_error
+                error_info = parse_onnx_error(e)
+                raise RuntimeError(f"{error_info['message']}: {error_info['suggestion']}")
             
             # 后处理图像
             mask = self._postprocess_image(result, orig_im_size)
@@ -2275,7 +2277,9 @@ class BackgroundRemover:
                 try:
                     result = self.sess.run([self.output_name], {self.input_name: image_tensor})[0]
                 except Exception as e:
-                    raise RuntimeError(f"模型推理失败: {e}")
+                    from utils import parse_onnx_error
+                    error_info = parse_onnx_error(e)
+                    raise RuntimeError(f"{error_info['message']}: {error_info['suggestion']}")
                 
                 mask = self._postprocess_image(result, orig_im_size)
                 rgba_image = Image.new("RGBA", orig_im.size)
@@ -2305,7 +2309,7 @@ class ImageEnhancer:
         data_path: Optional[Path] = None,
         use_gpu: bool = False,
         gpu_device_id: int = 0,
-        gpu_memory_limit: int = 6144,
+        gpu_memory_limit: int = 8192,
         enable_memory_arena: bool = True,
         scale: int = 4,
         cpu_threads: int = 0,
@@ -2319,7 +2323,7 @@ class ImageEnhancer:
             data_path: 模型权重数据路径（.data文件），如果模型使用外部数据格式
             use_gpu: 是否启用GPU加速
             gpu_device_id: GPU设备ID，默认0（第一个GPU）
-            gpu_memory_limit: GPU内存限制（MB），默认6144MB
+            gpu_memory_limit: GPU内存限制（MB），默认8192MB
             enable_memory_arena: 是否启用内存池优化，默认False
             scale: 放大倍数，默认4
             cpu_threads: CPU推理线程数，0=自动检测
@@ -2374,9 +2378,13 @@ class ImageEnhancer:
             if 'CUDAExecutionProvider' in available_providers:
                 providers.append(('CUDAExecutionProvider', {
                     'device_id': gpu_device_id,
-                    'arena_extend_strategy': 'kNextPowerOfTwo',
+                    # kSameAsRequested: 精确分配所需内存，减少浪费
+                    # kNextPowerOfTwo: 分配2的幂次方大小，可能浪费内存
+                    'arena_extend_strategy': 'kSameAsRequested',
                     'gpu_mem_limit': gpu_memory_limit * 1024 * 1024,
-                    'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                    # HEURISTIC: 启发式快速选择算法，显存占用低
+                    # EXHAUSTIVE: 尝试所有算法找最快的，但需要大量额外显存（不推荐）
+                    'cudnn_conv_algo_search': 'HEURISTIC',
                     'do_copy_in_default_stream': True,
                 }))
                 self.using_gpu = True
@@ -2567,7 +2575,12 @@ class ImageEnhancer:
         input_tensor = self._preprocess_image(tile)
         
         # 推理
-        output = self.sess.run([self.output_name], {self.input_name: input_tensor})[0]
+        try:
+            output = self.sess.run([self.output_name], {self.input_name: input_tensor})[0]
+        except Exception as e:
+            from utils import parse_onnx_error
+            error_info = parse_onnx_error(e)
+            raise RuntimeError(f"{error_info['message']}: {error_info['suggestion']}")
         
         # 后处理
         result = self._postprocess_image(output)
@@ -2575,7 +2588,7 @@ class ImageEnhancer:
         return result
     
     def _process_tiles_batch(self, tiles: list[np.ndarray], batch_size: int = 4) -> list[np.ndarray]:
-        """批量处理多个图像块（性能优化）。
+        """批量处理多个图像块（性能优化，含显存自适应降级）。
         
         Args:
             tiles: 输入图像块列表 [(H, W, C), ...]，BGR格式
@@ -2583,16 +2596,24 @@ class ImageEnhancer:
         
         Returns:
             处理后的图像块列表 [(H*scale, W*scale, C), ...]
+            
+        Note:
+            显存不足时会自动降级：
+            1. 先尝试减小 batch_size 到一半
+            2. 如果仍然失败，回退到逐个处理
+            3. 如果逐个处理也失败，抛出错误（让上层处理）
         """
         if not tiles:
             return []
         
         results = []
         total_tiles = len(tiles)
+        current_batch_size = batch_size
+        oom_occurred = False  # 标记是否发生过显存不足
         
-        # 分批处理
-        for i in range(0, total_tiles, batch_size):
-            batch_tiles = tiles[i:i + batch_size]
+        i = 0
+        while i < total_tiles:
+            batch_tiles = tiles[i:i + current_batch_size]
             actual_batch_size = len(batch_tiles)
             
             # 预处理整个批次
@@ -2607,19 +2628,52 @@ class ImageEnhancer:
             # 批量推理 - 关键优化点！
             try:
                 batch_output = self.sess.run([self.output_name], {self.input_name: batch_input})[0]
-            except Exception as e:
-                # 如果批量推理失败（可能是显存不足），回退到逐个处理
-                logger.warning(f"批量推理失败({actual_batch_size}个tile)，回退到逐个处理: {e}")
-                for tile in batch_tiles:
-                    result = self._process_tile(tile)
+                
+                # 后处理每个输出
+                for j in range(actual_batch_size):
+                    output_single = batch_output[j:j+1]  # 保持维度
+                    result = self._postprocess_image(output_single)
                     results.append(result)
-                continue
-            
-            # 后处理每个输出
-            for j in range(actual_batch_size):
-                output_single = batch_output[j:j+1]  # 保持维度
-                result = self._postprocess_image(output_single)
-                results.append(result)
+                
+                i += actual_batch_size
+                
+            except Exception as e:
+                # 检测是否是显存不足
+                from utils import parse_onnx_error
+                error_info = parse_onnx_error(e)
+                
+                if error_info['type'] == 'gpu_memory':
+                    oom_occurred = True
+                    
+                    # 尝试降低 batch_size
+                    if current_batch_size > 1:
+                        new_batch_size = max(1, current_batch_size // 2)
+                        logger.warning(
+                            f"GPU 显存不足（batch_size={current_batch_size}），"
+                            f"自动降级到 batch_size={new_batch_size}"
+                        )
+                        current_batch_size = new_batch_size
+                        # 清理显存后重试
+                        gc.collect()
+                        continue  # 重试当前批次
+                    else:
+                        # batch_size 已经是 1，尝试逐个处理
+                        logger.warning("GPU 显存不足，回退到逐个处理...")
+                        for tile in batch_tiles:
+                            result = self._process_tile(tile)
+                            results.append(result)
+                        i += actual_batch_size
+                else:
+                    # 非显存错误，回退到逐个处理
+                    logger.warning(f"批量推理失败({actual_batch_size}个tile)，回退到逐个处理: {e}")
+                    for tile in batch_tiles:
+                        result = self._process_tile(tile)
+                        results.append(result)
+                    i += actual_batch_size
+        
+        # 如果发生过 OOM，记录最终使用的 batch_size 供下次参考
+        if oom_occurred and current_batch_size < batch_size:
+            logger.info(f"✓ 处理完成，建议下次使用 batch_size={current_batch_size} 或降低显存限制设置")
         
         return results
     

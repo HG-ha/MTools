@@ -693,7 +693,7 @@ class VideoEnhanceView(ft.Container):
         try:
             use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
             gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
             enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
             
             self.enhancer = ImageEnhancer(
@@ -799,7 +799,7 @@ class VideoEnhanceView(ft.Container):
                 # 加载模型
                 use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
                 gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
                 enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
                 
                 self.enhancer = ImageEnhancer(
@@ -2169,9 +2169,17 @@ class VideoEnhanceView(ft.Container):
             
         except Exception as e:
             # 如果批量处理失败，回退到逐个处理
-            logger.warning(f"帧批量增强失败，回退到逐帧处理: {e}")
-            import traceback
-            logger.warning(traceback.format_exc())
+            error_msg = str(e)
+            
+            # 检测显存不足错误
+            if any(keyword in error_msg.lower() for keyword in [
+                "available memory", "out of memory", "显存不足"
+            ]):
+                logger.warning(f"GPU 显存不足，回退到逐帧处理...")
+            else:
+                logger.warning(f"帧批量增强失败，回退到逐帧处理: {e}")
+                import traceback
+                logger.warning(traceback.format_exc())
             
             enhanced_frames.clear()
             
@@ -2191,9 +2199,16 @@ class VideoEnhanceView(ft.Container):
                 logger.info(f"✓ 逐帧处理完成，返回 {len(enhanced_frames)} 帧")
                 return enhanced_frames
             except Exception as e2:
-                logger.error(f"逐帧处理也失败: {e2}")
-                import traceback
-                logger.error(traceback.format_exc())
+                error_msg = str(e2)
+                # 检测显存不足错误并给出友好提示
+                if any(keyword in error_msg.lower() for keyword in [
+                    "available memory", "out of memory", "显存不足"
+                ]):
+                    logger.error(f"GPU 显存不足，无法处理。建议：降低内存限制、处理较小视频或使用 CPU 模式")
+                else:
+                    logger.error(f"逐帧处理也失败: {e2}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                 return []
     
     def _update_progress(self, value: float, text: str) -> None:

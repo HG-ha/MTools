@@ -45,6 +45,67 @@ if TYPE_CHECKING:
 
 # 缓存检测到的 Provider 类型，避免重复检测
 _cached_provider_type: Optional[str] = None
+# 缓存 CUDA 设备数量
+_cached_cuda_device_count: Optional[int] = None
+
+
+def _get_cuda_device_count() -> int:
+    """获取 CUDA 可见的 GPU 设备数量。
+    
+    使用 nvidia-smi 检测，确保与 CUDA 一致。
+    
+    注意：这与 WMI 检测到的 GPU 数量可能不同，因为：
+    - WMI 检测所有显示适配器（包括 Intel/AMD 集成显卡）
+    - CUDA 只能看到 NVIDIA GPU
+    
+    Returns:
+        CUDA 设备数量，如果无法检测则返回 0
+    """
+    global _cached_cuda_device_count
+    
+    if _cached_cuda_device_count is not None:
+        return _cached_cuda_device_count
+    
+    # 使用 nvidia-smi 获取 CUDA 设备数量
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            # 每行一个 GPU
+            lines = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
+            _cached_cuda_device_count = len(lines)
+            return _cached_cuda_device_count
+    except:
+        pass
+    
+    # 未检测到 NVIDIA GPU
+    _cached_cuda_device_count = 0
+    return _cached_cuda_device_count
+
+
+def _validate_cuda_device_id(device_id: int) -> int:
+    """验证 CUDA device_id 是否有效，无效则回退到 0。
+    
+    Args:
+        device_id: 用户配置的设备 ID
+        
+    Returns:
+        有效的设备 ID（0 到 device_count-1）
+    """
+    cuda_count = _get_cuda_device_count()
+    
+    if device_id < 0 or device_id >= cuda_count:
+        # 设备 ID 无效，回退到 0
+        from utils.logger import logger
+        logger.warning(
+            f"CUDA device_id={device_id} 无效（只有 {cuda_count} 个 CUDA 设备），已回退到 device_id=0"
+        )
+        return 0
+    
+    return device_id
 
 
 def get_primary_provider() -> str:
@@ -194,7 +255,7 @@ def create_session_options(
 def create_provider_options(
     use_gpu: bool = True,
     gpu_device_id: int = 0,
-    gpu_memory_limit: int = 6144,
+    gpu_memory_limit: int = 8192,
     config_service: Optional['ConfigService'] = None
 ) -> List[Union[str, Tuple[str, dict]]]:
     """创建统一的Execution Provider配置。
@@ -228,11 +289,17 @@ def create_provider_options(
         
         # 1. CUDA (NVIDIA GPU) - 支持完整的设备配置
         if 'CUDAExecutionProvider' in available_providers:
+            # 验证 device_id 是否有效（CUDA 设备数量可能少于 WMI 检测到的 GPU 数量）
+            valid_device_id = _validate_cuda_device_id(gpu_device_id)
             providers.append(('CUDAExecutionProvider', {
-                'device_id': gpu_device_id,
-                'arena_extend_strategy': 'kNextPowerOfTwo',
+                'device_id': valid_device_id,
+                # kSameAsRequested: 精确分配所需内存，减少浪费
+                # kNextPowerOfTwo: 分配2的幂次方大小，可能浪费内存
+                'arena_extend_strategy': 'kSameAsRequested',
                 'gpu_mem_limit': gpu_memory_limit * 1024 * 1024,
-                'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                # HEURISTIC: 启发式快速选择算法，显存占用低
+                # EXHAUSTIVE: 尝试所有算法找最快的，但需要大量额外显存（不推荐）
+                'cudnn_conv_algo_search': 'HEURISTIC',
                 'do_copy_in_default_stream': True,
             }))
         # 2. DirectML (Windows 通用 GPU)
@@ -328,7 +395,7 @@ def create_onnx_session_config(
     Args:
         config_service: 配置服务实例（可选，用于自动读取配置）
         gpu_device_id: GPU设备ID（None则从配置读取，默认0）
-        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认6144）
+        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认8192）
         enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认False）
         enable_mem_pattern: 是否启用内存模式优化（None则从配置读取）
         enable_mem_reuse: 是否启用内存重用（None则从配置读取）
@@ -361,7 +428,7 @@ def create_onnx_session_config(
         if gpu_device_id is None:
             gpu_device_id = config_service.get_config_value("gpu_device_id", 0)
         if gpu_memory_limit is None:
-            gpu_memory_limit = config_service.get_config_value("gpu_memory_limit", 6144)
+            gpu_memory_limit = config_service.get_config_value("gpu_memory_limit", 8192)
         if enable_memory_arena is None:
             enable_memory_arena = config_service.get_config_value("gpu_enable_memory_arena", True)
         if enable_mem_pattern is None:
@@ -379,7 +446,7 @@ def create_onnx_session_config(
     if gpu_device_id is None:
         gpu_device_id = 0
     if gpu_memory_limit is None:
-        gpu_memory_limit = 6144
+        gpu_memory_limit = 8192
     if enable_memory_arena is None:
         enable_memory_arena = False
     if enable_mem_pattern is None:
@@ -436,7 +503,7 @@ def create_onnx_session(
         model_path: 模型文件路径
         config_service: 配置服务实例（可选，用于自动读取配置）
         gpu_device_id: GPU设备ID（None则从配置读取，默认0）
-        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认6144）
+        gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认8192）
         enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认False）
         cpu_threads: CPU推理线程数（None则从配置读取，默认0=自动）
         execution_mode: 执行模式sequential/parallel（None则从配置读取，默认sequential）
@@ -492,4 +559,120 @@ def create_onnx_session(
     )
     
     return session
+
+
+def parse_onnx_error(error: Exception) -> Dict[str, Any]:
+    """解析 ONNX Runtime 错误，返回友好的错误信息。
+    
+    Args:
+        error: ONNX Runtime 抛出的异常
+        
+    Returns:
+        包含以下键的字典:
+        - type: 错误类型 ("gpu_memory", "cuda_not_available", "model_error", "unknown")
+        - message: 用户友好的错误消息
+        - suggestion: 建议的解决方案
+        - original: 原始错误消息
+    """
+    error_msg = str(error).lower()
+    original_msg = str(error)
+    
+    # 1. GPU 显存不足
+    if any(keyword in error_msg for keyword in [
+        "available memory of",
+        "smaller than requested bytes",
+        "bfcarena::allocaterawinternal",
+        "out of memory",
+        "cuda out of memory",
+        "failed to allocate",
+        "memory allocation failed",
+        "insufficient memory",
+    ]):
+        return {
+            "type": "gpu_memory",
+            "message": "GPU 显存不足",
+            "suggestion": (
+                "建议：\n"
+                "1. 在设置中降低 GPU 内存限制\n"
+                "2. 关闭其他占用显存的程序\n"
+                "3. 处理较小尺寸的图片/视频\n"
+                "4. 切换到 CPU 模式运行"
+            ),
+            "original": original_msg,
+        }
+    
+    # 2. CUDA 不可用
+    if any(keyword in error_msg for keyword in [
+        "cuda driver",
+        "cuda not available",
+        "no cuda-capable device",
+        "cudnn",
+        "cudarterror",
+    ]):
+        return {
+            "type": "cuda_not_available",
+            "message": "CUDA 不可用",
+            "suggestion": (
+                "建议：\n"
+                "1. 确保已安装 NVIDIA 显卡驱动\n"
+                "2. 更新 CUDA 驱动版本\n"
+                "3. 重启计算机后重试\n"
+                "4. 或下载 DirectML 普通版本"
+            ),
+            "original": original_msg,
+        }
+    
+    # 3. 模型文件错误
+    if any(keyword in error_msg for keyword in [
+        "invalid model",
+        "protobuf parsing failed",
+        "onnx format",
+        "model format",
+        "failed to load",
+    ]):
+        return {
+            "type": "model_error",
+            "message": "模型文件损坏或格式错误",
+            "suggestion": (
+                "建议：\n"
+                "1. 删除并重新下载模型\n"
+                "2. 检查磁盘空间是否充足\n"
+                "3. 检查网络下载是否完整"
+            ),
+            "original": original_msg,
+        }
+    
+    # 4. 设备 ID 无效
+    if "invalid device id" in error_msg:
+        return {
+            "type": "invalid_device",
+            "message": "GPU 设备 ID 无效",
+            "suggestion": (
+                "建议：\n"
+                "1. 在设置中选择正确的 GPU 设备\n"
+                "2. 或将 GPU 设备设为 0（默认）"
+            ),
+            "original": original_msg,
+        }
+    
+    # 5. 未知错误
+    return {
+        "type": "unknown",
+        "message": "模型推理失败",
+        "suggestion": "请查看日志获取详细错误信息，或尝试重新加载模型。",
+        "original": original_msg,
+    }
+
+
+def get_friendly_error_message(error: Exception) -> str:
+    """获取用户友好的错误消息（简短版本）。
+    
+    Args:
+        error: ONNX Runtime 抛出的异常
+        
+    Returns:
+        用户友好的错误消息字符串
+    """
+    parsed = parse_onnx_error(error)
+    return f"{parsed['message']}。{parsed['suggestion'].split(chr(10))[1] if chr(10) in parsed['suggestion'] else parsed['suggestion']}"
 

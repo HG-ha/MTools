@@ -1332,50 +1332,87 @@ class ImageWatermarkRemoveView(ft.Container):
         def process_task():
             try:
                 total = len(self.selected_files)
+                success_count = 0
+                oom_error_count = 0
                 
                 for idx, file_path in enumerate(self.selected_files):
-                    # 更新进度
-                    self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
-                    self.progress_bar.value = idx / total
-                    self.page.update()
+                    try:
+                        # 更新进度
+                        self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
+                        self.progress_bar.value = idx / total
+                        self.page.update()
+                        
+                        # 读取图片（支持中文路径）
+                        image = self._read_image_unicode(file_path)
+                        if image is None:
+                            continue
+                        
+                        height, width = image.shape[:2]
+                        
+                        # 创建遮罩
+                        mask = self._create_mask(height, width, file_path)
+                        
+                        # 处理图片
+                        result = self._process_single_image(image, mask)
+                        
+                        # 确定输出路径
+                        if output_dir:
+                            output_path = output_dir / f"{file_path.stem}_no_watermark{file_path.suffix}"
+                        else:
+                            output_path = file_path.parent / f"{file_path.stem}_no_watermark{file_path.suffix}"
+                        
+                        # 根据全局设置决定是否添加序号
+                        add_sequence = self.config_service.get_config_value("output_add_sequence", False)
+                        output_path = get_unique_path(output_path, add_sequence=add_sequence)
+                        
+                        # 保存结果（支持中文路径）
+                        if self._save_image_unicode(result, output_path):
+                            logger.info(f"已保存: {output_path}")
+                            success_count += 1
+                        else:
+                            logger.error(f"保存失败: {output_path}")
                     
-                    # 读取图片（支持中文路径）
-                    image = self._read_image_unicode(file_path)
-                    if image is None:
-                        continue
-                    
-                    height, width = image.shape[:2]
-                    
-                    # 创建遮罩
-                    mask = self._create_mask(height, width, file_path)
-                    
-                    # 处理图片
-                    result = self._process_single_image(image, mask)
-                    
-                    # 确定输出路径
-                    if output_dir:
-                        output_path = output_dir / f"{file_path.stem}_no_watermark{file_path.suffix}"
-                    else:
-                        output_path = file_path.parent / f"{file_path.stem}_no_watermark{file_path.suffix}"
-                    
-                    # 根据全局设置决定是否添加序号
-                    add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                    output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
-                    # 保存结果（支持中文路径）
-                    if self._save_image_unicode(result, output_path):
-                        logger.info(f"已保存: {output_path}")
-                    else:
-                        logger.error(f"保存失败: {output_path}")
+                    except Exception as ex:
+                        error_msg = str(ex)
+                        logger.error(f"处理失败 {file_path.name}: {error_msg}")
+                        
+                        # 检测显存不足错误
+                        if any(keyword in error_msg.lower() for keyword in [
+                            "available memory", "out of memory", "显存不足"
+                        ]):
+                            oom_error_count += 1
+                            self.progress_text.value = f"⚠️ GPU 显存不足: {file_path.name}"
+                            self.page.update()
                 
                 # 处理完成
-                self.progress_text.value = f"处理完成，共处理 {total} 张图片"
+                self.progress_text.value = f"处理完成，成功: {success_count}/{total}"
                 self.progress_bar.value = 1.0
                 self.page.update()
                 
+                # 显示结果提示
+                if oom_error_count > 0:
+                    self._show_snackbar(
+                        f"⚠️ {oom_error_count} 个文件因 GPU 显存不足处理失败！建议：降低显存限制或关闭 GPU 加速",
+                        ft.Colors.ORANGE
+                    )
+                elif success_count > 0:
+                    self._show_snackbar(f"处理完成! 成功处理 {success_count} 个文件", ft.Colors.GREEN)
+                
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"处理失败: {e}", exc_info=True)
-                self.progress_text.value = f"处理失败: {str(e)}"
+                
+                # 检测显存不足错误
+                if any(keyword in error_msg.lower() for keyword in [
+                    "available memory", "out of memory", "显存不足"
+                ]):
+                    self.progress_text.value = "⚠️ GPU 显存不足"
+                    self._show_snackbar(
+                        "GPU 显存不足！建议：降低显存限制、处理较小图片或关闭 GPU 加速",
+                        ft.Colors.ORANGE
+                    )
+                else:
+                    self.progress_text.value = f"处理失败: {error_msg}"
                 self.page.update()
             finally:
                 self.is_processing = False

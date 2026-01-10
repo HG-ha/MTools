@@ -54,6 +54,8 @@ from .onnx_helper import (
     get_device_display_name,
     get_session_device_info,
     is_directml_provider,
+    parse_onnx_error,
+    get_friendly_error_message,
 )
 from .platform_utils import (
     get_windows_version,
@@ -64,6 +66,7 @@ from .platform_utils import (
     is_linux,
     supports_file_drop,
     get_gpu_devices,
+    get_cuda_devices,
     get_available_compute_devices,
 )
 from .windows_drop import WindowsDropHandler, DropInfo
@@ -111,6 +114,8 @@ __all__ = [
     "get_device_display_name",
     "get_session_device_info",
     "is_directml_provider",
+    "parse_onnx_error",
+    "get_friendly_error_message",
     "get_windows_version",
     "is_windows",
     "is_windows_10_or_later",
@@ -119,6 +124,7 @@ __all__ = [
     "is_linux",
     "supports_file_drop",
     "get_gpu_devices",
+    "get_cuda_devices",
     "get_available_compute_devices",
     "WindowsDropHandler",
     "DropInfo",

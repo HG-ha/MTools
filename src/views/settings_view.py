@@ -1016,24 +1016,47 @@ class SettingsView(ft.Container):
     def _get_gpu_device_options(self) -> list:
         """获取可用的GPU设备选项列表。
         
-        结合实际硬件设备和当前版本支持的加速方式。
+        根据当前的加速方式（CUDA/DirectML/CoreML）返回对应的设备列表：
+        - CUDA: 只显示 NVIDIA GPU（因为 CUDA 只能看到 NVIDIA 设备）
+        - DirectML: 显示所有 GPU，但设备选择不生效
+        - 其他: 显示所有检测到的 GPU
         
         Returns:
             GPU设备选项列表
         """
-        from utils import get_available_compute_devices
+        from utils import get_available_compute_devices, get_primary_provider
         
         gpu_options = []
+        primary_provider = get_primary_provider()
         
         try:
             # 获取计算设备信息（硬件 + ONNX Runtime Provider）
             compute_info = get_available_compute_devices()
             gpus = compute_info.get("gpus", [])
             
+            # CUDA 模式：使用 nvidia-smi 获取准确的 CUDA 设备列表
+            if primary_provider == "CUDA":
+                from utils import get_cuda_devices
+                cuda_gpus = get_cuda_devices()
+                
+                if cuda_gpus:
+                    for gpu in cuda_gpus:
+                        cuda_idx = gpu.get("index", 0)
+                        name = gpu.get("name", "Unknown GPU")
+                        display_text = f"🎮 CUDA {cuda_idx}: {name}"
+                        gpu_options.append(ft.dropdown.Option(str(cuda_idx), display_text))
+                    return gpu_options
+                else:
+                    # 没有检测到 NVIDIA GPU，但用户使用的是 CUDA 版本
+                    # 显示提示选项，程序会自动回退到 CPU
+                    return [
+                        ft.dropdown.Option("0", "⚠️ 未检测到 NVIDIA GPU (将使用 CPU)"),
+                    ]
+            
+            # 其他模式：显示所有 GPU
             for gpu in gpus:
                 index = gpu.get("index", 0)
                 name = gpu.get("name", "Unknown GPU")
-                vendor = gpu.get("vendor", "Unknown")
                 acceleration = gpu.get("acceleration", [])
                 
                 # 构建显示文本
@@ -1931,7 +1954,7 @@ class SettingsView(ft.Container):
         )
 
         gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
-        gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 6144)
+        gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
         gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
         enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
 
@@ -2004,7 +2027,8 @@ class SettingsView(ft.Container):
 
         # GPU 内存限制说明（DirectML 不支持内存限制）
         self.gpu_memory_hint = ft.Text(
-            "⚠️ 注意：此设置仅对 NVIDIA CUDA 有效。Windows DirectML 不支持显存限制，显存由系统自动管理。",
+            "⚠️ 此设置限制 ONNX 内存池大小，不包括模型权重和 cuDNN 工作空间。\n"
+            "如遇显存不足，请降低此值或处理较小尺寸的图片。DirectML 版本不支持此设置。",
             size=11,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
@@ -2012,29 +2036,49 @@ class SettingsView(ft.Container):
         # 动态检测GPU设备数量
         gpu_device_options = self._get_gpu_device_options()
 
-        # 检查是否为 DirectML 模式（不支持 GPU 设备选择）
-        from utils import get_primary_provider
+        # 检查 Provider 模式和 CUDA 设备可用性
+        from utils import get_primary_provider, get_cuda_devices
         primary_provider = get_primary_provider()
         is_directml = primary_provider == "DirectML"
+        is_cuda = primary_provider == "CUDA"
+        cuda_available = bool(get_cuda_devices()) if is_cuda else False
+        
+        # 确定是否禁用 GPU 设备选择
+        disable_gpu_select = is_directml or (is_cuda and not cuda_available)
         
         self.gpu_device_dropdown = ft.Dropdown(
             label="GPU设备",
-            hint_text="在多GPU系统中选择一个设备" if not is_directml else "DirectML 模式不支持设备选择",
-            value=str(gpu_device_id),
+            hint_text="在多GPU系统中选择一个设备" if not disable_gpu_select else (
+                "DirectML 模式不支持设备选择" if is_directml else "未检测到 NVIDIA GPU"
+            ),
+            value=str(gpu_device_id) if cuda_available or not is_cuda else "0",
             options=gpu_device_options,
             on_change=self._on_gpu_device_change,
             width=500,
-            disabled=is_directml,  # DirectML 不支持 device_id
+            disabled=disable_gpu_select,
         )
         
-        # GPU 设备选择提示（DirectML 限制说明）
+        # GPU 设备选择提示
+        if is_directml:
+            hint_text = (
+                "DirectML 不支持设备选择，默认使用 Windows 设置中的首要 GPU。\n"
+                "如需切换 GPU，请在 Windows 设置 > 显示 > 图形 中配置应用程序的 GPU 首选项。"
+            )
+            hint_color = ft.Colors.ORANGE
+        elif is_cuda and not cuda_available:
+            hint_text = (
+                "您使用的是 CUDA 版本，但未检测到 NVIDIA GPU。程序将自动使用 CPU 运行。\n"
+                "如需 GPU 加速，请确保安装了 NVIDIA 显卡和驱动，或下载 DirectML 普通版本。"
+            )
+            hint_color = ft.Colors.ORANGE
+        else:
+            hint_text = "CUDA/ROCm 支持多 GPU 选择，可在此指定使用的 GPU 设备。"
+            hint_color = ft.Colors.ON_SURFACE_VARIANT
+        
         self.gpu_device_hint = ft.Text(
-            "DirectML 不支持设备选择，默认使用 Windows 设置中的首要 GPU。\n"
-            "如需切换 GPU，请在 Windows 设置 > 显示 > 图形 中配置应用程序的 GPU 首选项。"
-            if is_directml else
-            "CUDA/ROCm 支持多 GPU 选择，可在此指定使用的 GPU 设备。",
+            hint_text,
             size=11,
-            color=ft.Colors.ORANGE if is_directml else ft.Colors.ON_SURFACE_VARIANT,
+            color=hint_color,
         )
 
         self.memory_arena_switch = ft.Switch(
