@@ -1016,55 +1016,44 @@ class SettingsView(ft.Container):
     def _get_gpu_device_options(self) -> list:
         """获取可用的GPU设备选项列表。
         
+        结合实际硬件设备和当前版本支持的加速方式。
+        
         Returns:
             GPU设备选项列表
         """
+        from utils import get_available_compute_devices
+        
         gpu_options = []
         
-        # 方法1: 尝试使用ONNX Runtime检测GPU
         try:
-            import onnxruntime as ort
-            available_providers = ort.get_available_providers()
+            # 获取计算设备信息（硬件 + ONNX Runtime Provider）
+            compute_info = get_available_compute_devices()
+            gpus = compute_info.get("gpus", [])
             
-            # 检测可用的加速方案
-            gpu_types = []
-            if 'CUDAExecutionProvider' in available_providers:
-                gpu_types.append("CUDA")
-            if 'DmlExecutionProvider' in available_providers:
-                gpu_types.append("DirectML")
-            if 'ROCMExecutionProvider' in available_providers:
-                gpu_types.append("ROCm")
-            if 'CoreMLExecutionProvider' in available_providers:
-                gpu_types.append("CoreML")
-            
-            if gpu_types:
-                # 构建通用的GPU选项
-                provider_text = "/".join(gpu_types)
+            for gpu in gpus:
+                index = gpu.get("index", 0)
+                name = gpu.get("name", "Unknown GPU")
+                vendor = gpu.get("vendor", "Unknown")
+                acceleration = gpu.get("acceleration", [])
                 
-                # CUDA 和 ROCm 支持多GPU，DirectML 和 CoreML 通常只支持单GPU
-                if 'CUDAExecutionProvider' in available_providers or 'ROCMExecutionProvider' in available_providers:
-                    # 支持多GPU的情况
-                    gpu_options = [
-                        ft.dropdown.Option("0", f"🎮 GPU 0 ({provider_text})"),
-                        ft.dropdown.Option("1", f"GPU 1 ({provider_text})"),
-                        ft.dropdown.Option("2", f"GPU 2 ({provider_text})"),
-                        ft.dropdown.Option("3", f"GPU 3 ({provider_text})"),
-                    ]
+                # 构建显示文本
+                if acceleration:
+                    accel_text = "/".join(acceleration)
+                    display_text = f"🎮 GPU {index}: {name} ({accel_text})"
                 else:
-                    # 只支持单GPU的情况（DirectML/CoreML）
-                    gpu_options = [
-                        ft.dropdown.Option("0", f"🎮 GPU 0 ({provider_text})"),
-                    ]
+                    display_text = f"🎮 GPU {index}: {name} (CPU 回退)"
+                
+                gpu_options.append(ft.dropdown.Option(str(index), display_text))
+            
+            if gpu_options:
                 return gpu_options
-        except Exception:
-            pass
+                
+        except Exception as e:
+            logger.warning(f"获取 GPU 设备列表失败: {e}")
         
-        # 方法2: 默认选项（如果ONNX Runtime未检测到GPU）
+        # 后备选项（如果检测失败）
         return [
-            ft.dropdown.Option("0", "🎮 GPU 0 (通用)"),
-            ft.dropdown.Option("1", "GPU 1 (通用)"),
-            ft.dropdown.Option("2", "GPU 2 (通用)"),
-            ft.dropdown.Option("3", "GPU 3 (通用)"),
+            ft.dropdown.Option("0", "🎮 GPU 0 (默认)"),
         ]
     
     def _build_appearance_section(self) -> ft.Container:
@@ -2023,13 +2012,29 @@ class SettingsView(ft.Container):
         # 动态检测GPU设备数量
         gpu_device_options = self._get_gpu_device_options()
 
+        # 检查是否为 DirectML 模式（不支持 GPU 设备选择）
+        from utils import get_primary_provider
+        primary_provider = get_primary_provider()
+        is_directml = primary_provider == "DirectML"
+        
         self.gpu_device_dropdown = ft.Dropdown(
             label="GPU设备",
-            hint_text="在多GPU系统中选择一个设备",
+            hint_text="在多GPU系统中选择一个设备" if not is_directml else "DirectML 模式不支持设备选择",
             value=str(gpu_device_id),
             options=gpu_device_options,
             on_change=self._on_gpu_device_change,
             width=500,
+            disabled=is_directml,  # DirectML 不支持 device_id
+        )
+        
+        # GPU 设备选择提示（DirectML 限制说明）
+        self.gpu_device_hint = ft.Text(
+            "DirectML 不支持设备选择，默认使用 Windows 设置中的首要 GPU。\n"
+            "如需切换 GPU，请在 Windows 设置 > 显示 > 图形 中配置应用程序的 GPU 首选项。"
+            if is_directml else
+            "CUDA/ROCm 支持多 GPU 选择，可在此指定使用的 GPU 设备。",
+            size=11,
+            color=ft.Colors.ORANGE if is_directml else ft.Colors.ON_SURFACE_VARIANT,
         )
 
         self.memory_arena_switch = ft.Switch(
@@ -2044,6 +2049,7 @@ class SettingsView(ft.Container):
                 self.gpu_memory_slider,
                 self.gpu_memory_hint,
                 self.gpu_device_dropdown,
+                self.gpu_device_hint,
                 self.memory_arena_switch,
             ],
             spacing=16,
@@ -2212,7 +2218,7 @@ class SettingsView(ft.Container):
         enabled = e.control.value
         if self.config_service.set_config_value("gpu_acceleration", enabled):
             status = "已启用" if enabled else "已禁用"
-            self._show_snackbar(f"GPU加速{status}", ft.Colors.GREEN)
+            self._show_snackbar(f"GPU加速{status}，需重新加载模型生效", ft.Colors.GREEN)
             self._update_gpu_controls_state(enabled)
         else:
             self._show_snackbar("GPU加速设置更新失败", ft.Colors.RED)
@@ -2231,7 +2237,7 @@ class SettingsView(ft.Container):
                     self.gpu_memory_value_text.update()
             except:
                 pass
-            self._show_snackbar(f"GPU内存限制已设置为 {memory_limit} MB", ft.Colors.GREEN)
+            self._show_snackbar(f"GPU内存限制已设置为 {memory_limit} MB，需重新加载模型生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("GPU内存限制设置更新失败", ft.Colors.RED)
     
@@ -2243,7 +2249,7 @@ class SettingsView(ft.Container):
         """
         device_id = int(e.control.value)
         if self.config_service.set_config_value("gpu_device_id", device_id):
-            self._show_snackbar(f"GPU设备已设置为 GPU {device_id}", ft.Colors.GREEN)
+            self._show_snackbar(f"GPU设备已设置为 GPU {device_id}，需重新加载模型生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("GPU设备设置更新失败", ft.Colors.RED)
     
@@ -2256,7 +2262,7 @@ class SettingsView(ft.Container):
         enabled = e.control.value
         if self.config_service.set_config_value("gpu_enable_memory_arena", enabled):
             status = "已启用" if enabled else "已禁用"
-            self._show_snackbar(f"内存池优化{status}", ft.Colors.GREEN)
+            self._show_snackbar(f"内存池优化{status}，需重新加载模型生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("内存池优化设置更新失败", ft.Colors.RED)
     

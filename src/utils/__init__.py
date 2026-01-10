@@ -50,6 +50,10 @@ from .onnx_helper import (
     create_provider_options,
     create_onnx_session_config,
     create_onnx_session,
+    get_primary_provider,
+    get_device_display_name,
+    get_session_device_info,
+    is_directml_provider,
 )
 from .platform_utils import (
     get_windows_version,
@@ -59,6 +63,8 @@ from .platform_utils import (
     is_macos,
     is_linux,
     supports_file_drop,
+    get_gpu_devices,
+    get_available_compute_devices,
 )
 from .windows_drop import WindowsDropHandler, DropInfo
 
@@ -101,6 +107,10 @@ __all__ = [
     "create_provider_options",
     "create_onnx_session_config",
     "create_onnx_session",
+    "get_primary_provider",
+    "get_device_display_name",
+    "get_session_device_info",
+    "is_directml_provider",
     "get_windows_version",
     "is_windows",
     "is_windows_10_or_later",
@@ -108,6 +118,8 @@ __all__ = [
     "is_macos",
     "is_linux",
     "supports_file_drop",
+    "get_gpu_devices",
+    "get_available_compute_devices",
     "WindowsDropHandler",
     "DropInfo",
 ]

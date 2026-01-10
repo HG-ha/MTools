@@ -1377,18 +1377,27 @@ class AudioToTextView(ft.Container):
         # 获取模型目录
         model_dir = self.speech_service.get_model_dir(self.current_model_key)
         
-        # 删除所有模型文件
-        encoder_path = model_dir / self.current_model.encoder_filename
-        decoder_path = model_dir / self.current_model.decoder_filename
-        config_path = model_dir / self.current_model.config_filename
-        
-        files_to_delete = [encoder_path, decoder_path, config_path]
-        
-        # 添加外部权重文件（如果有）
-        if self.current_model.encoder_weights_filename:
-            files_to_delete.append(model_dir / self.current_model.encoder_weights_filename)
-        if self.current_model.decoder_weights_filename:
-            files_to_delete.append(model_dir / self.current_model.decoder_weights_filename)
+        # 根据模型类型删除对应的文件
+        if isinstance(self.current_model, SenseVoiceModelInfo):
+            # SenseVoice/Paraformer 单文件结构
+            files_to_delete = [
+                model_dir / self.current_model.model_filename,
+                model_dir / self.current_model.tokens_filename,
+            ]
+        elif isinstance(self.current_model, WhisperModelInfo):
+            # Whisper encoder-decoder 结构
+            files_to_delete = [
+                model_dir / self.current_model.encoder_filename,
+                model_dir / self.current_model.decoder_filename,
+                model_dir / self.current_model.config_filename,
+            ]
+            # 添加外部权重文件（如果有）
+            if hasattr(self.current_model, 'encoder_weights_filename') and self.current_model.encoder_weights_filename:
+                files_to_delete.append(model_dir / self.current_model.encoder_weights_filename)
+            if hasattr(self.current_model, 'decoder_weights_filename') and self.current_model.decoder_weights_filename:
+                files_to_delete.append(model_dir / self.current_model.decoder_weights_filename)
+        else:
+            files_to_delete = []
         
         try:
             deleted_files = []

@@ -1,6 +1,6 @@
 [project]
 name = "MTools"
-version = "0.0.9-beta"
+version = "0.0.10-beta"
 description = "Multi-functional desktop application with media processing, encoding conversion, and more"
 readme = "README.md"
 license = {text = "MIT"}
@@ -35,6 +35,8 @@ dependencies = [
   "pystray==0.19.5",
   "psutil==6.1.1", # 系统和进程工具（用于自动更新）
   "pywin32>=311 ; sys_platform == 'win32'", # Windows 专用
+  "pynvml>=13.0.1",
+  "wmi>=1.5.1",
 ]
 
 [tool.flet]

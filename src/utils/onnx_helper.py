@@ -25,10 +25,14 @@
    >>> session = ort.InferenceSession(model_path, sess_options, providers)
 
 4. 完全自定义：直接手动配置 SessionOptions 和 Providers
+
+5. 获取设备信息：使用 get_device_display_name()
+   >>> device_name = get_device_display_name(gpu_device_id=0)
+   >>> print(device_name)  # 如 "NVIDIA GeForce RTX 4090 (CUDA)"
 """
 
 from pathlib import Path
-from typing import Optional, Tuple, List, Union, TYPE_CHECKING, Any
+from typing import Optional, Tuple, List, Union, TYPE_CHECKING, Any, Dict
 
 try:
     import onnxruntime as ort
@@ -39,6 +43,87 @@ if TYPE_CHECKING:
     from services import ConfigService
 
 
+# 缓存检测到的 Provider 类型，避免重复检测
+_cached_provider_type: Optional[str] = None
+
+
+def get_primary_provider() -> str:
+    """获取当前环境的主要 GPU 加速 Provider。
+    
+    Returns:
+        Provider 名称，如 "CUDA", "DirectML", "CoreML", "ROCm", "CPU"
+    """
+    global _cached_provider_type
+    
+    if _cached_provider_type is not None:
+        return _cached_provider_type
+    
+    if ort is None:
+        _cached_provider_type = "CPU"
+        return _cached_provider_type
+    
+    available = ort.get_available_providers()
+    
+    if 'CUDAExecutionProvider' in available:
+        _cached_provider_type = "CUDA"
+    elif 'DmlExecutionProvider' in available:
+        _cached_provider_type = "DirectML"
+    elif 'CoreMLExecutionProvider' in available:
+        _cached_provider_type = "CoreML"
+    elif 'ROCMExecutionProvider' in available:
+        _cached_provider_type = "ROCm"
+    elif 'OpenVINOExecutionProvider' in available:
+        _cached_provider_type = "OpenVINO"
+    else:
+        _cached_provider_type = "CPU"
+    
+    return _cached_provider_type
+
+
+def get_device_display_name(gpu_device_id: int = 0, use_gpu: bool = True) -> str:
+    """获取设备的显示名称（结合硬件信息和加速方式）。
+    
+    Args:
+        gpu_device_id: GPU 设备 ID
+        use_gpu: 是否使用 GPU
+        
+    Returns:
+        设备显示名称，如 "NVIDIA GeForce RTX 4090 (CUDA)" 或 "CPU"
+    """
+    if not use_gpu:
+        return "CPU"
+    
+    provider = get_primary_provider()
+    
+    if provider == "CPU":
+        return "CPU"
+    
+    # 获取实际的 GPU 设备信息
+    try:
+        from utils.platform_utils import get_gpu_devices
+        gpus = get_gpu_devices()
+        
+        if gpu_device_id < len(gpus):
+            gpu_name = gpus[gpu_device_id].get("name", "Unknown GPU")
+            return f"{gpu_name} ({provider})"
+        elif gpus:
+            # 如果指定的 ID 超出范围，使用第一个 GPU
+            gpu_name = gpus[0].get("name", "Unknown GPU")
+            return f"{gpu_name} ({provider})"
+    except Exception:
+        pass
+    
+    return f"GPU {gpu_device_id} ({provider})"
+
+
+def is_directml_provider() -> bool:
+    """检查当前是否使用 DirectML Provider。
+    
+    DirectML 有特殊的配置要求。
+    """
+    return get_primary_provider() == "DirectML"
+
+
 def create_session_options(
     enable_memory_arena: bool = True,
     enable_mem_pattern: bool = True,
@@ -46,16 +131,21 @@ def create_session_options(
     cpu_threads: int = 0,
     execution_mode: str = "sequential",
     enable_model_cache: bool = False,
-    model_path: Optional[Path] = None
+    model_path: Optional[Path] = None,
+    auto_optimize_for_provider: bool = True
 ) -> Any:  # ort.SessionOptions
     """创建统一配置的SessionOptions。
     
     Args:
         enable_memory_arena: 是否启用CPU内存池
+        enable_mem_pattern: 是否启用内存模式优化
+        enable_mem_reuse: 是否启用内存重用
         cpu_threads: CPU推理线程数，0=自动检测
         execution_mode: 执行模式（sequential/parallel）
         enable_model_cache: 是否启用模型缓存优化
         model_path: 模型路径（用于缓存）
+        auto_optimize_for_provider: 是否根据 Provider 自动优化配置
+            - DirectML 需要禁用 mem_pattern 并使用 sequential 模式
         
     Returns:
         配置好的SessionOptions对象
@@ -64,6 +154,12 @@ def create_session_options(
         raise ImportError("需要安装 onnxruntime 库")
     
     sess_options = ort.SessionOptions()
+    
+    # DirectML 特殊处理：需要禁用 mem_pattern 和使用 sequential 模式
+    # 参考: https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html
+    if auto_optimize_for_provider and is_directml_provider():
+        enable_mem_pattern = False
+        execution_mode = "sequential"
     
     # 基础内存优化（可按需关闭以便更好释放）
     sess_options.enable_mem_pattern = enable_mem_pattern
@@ -106,6 +202,10 @@ def create_provider_options(
     Args:
         use_gpu: 是否使用GPU加速（如果提供config_service，会优先读取gpu_acceleration配置）
         gpu_device_id: GPU设备ID
+            - CUDA: ✅ 支持多 GPU 选择
+            - ROCm: ✅ 支持多 GPU 选择
+            - DirectML: ❌ 不支持，默认使用 Windows "首要 GPU"
+            - CoreML: ❌ 通常只有一个设备
         gpu_memory_limit: GPU内存限制（MB）
             - 仅对 CUDA Provider 有效
             - DirectML (Windows) 不支持此参数，显存由系统自动管理
@@ -126,7 +226,7 @@ def create_provider_options(
     if use_gpu:
         available_providers = ort.get_available_providers()
         
-        # 1. CUDA (NVIDIA GPU)
+        # 1. CUDA (NVIDIA GPU) - 支持完整的设备配置
         if 'CUDAExecutionProvider' in available_providers:
             providers.append(('CUDAExecutionProvider', {
                 'device_id': gpu_device_id,
@@ -136,20 +236,75 @@ def create_provider_options(
                 'do_copy_in_default_stream': True,
             }))
         # 2. DirectML (Windows 通用 GPU)
-        # 注意：DirectML 不支持 gpu_mem_limit 配置，显存由 Windows WDDM 自动管理
+        # 注意：
+        # - DirectML 不支持 gpu_mem_limit 配置，显存由 Windows WDDM 自动管理
+        # - DirectML 不支持 device_id，默认使用 Windows 设置中的"首要 GPU"
+        # - 如需切换 GPU，需要在 Windows 设置 > 显示 > 图形 中配置
         elif 'DmlExecutionProvider' in available_providers:
             providers.append('DmlExecutionProvider')
-        # 3. CoreML (macOS Apple Silicon)
+        # 3. CoreML (macOS Apple Silicon) - 通常只有一个设备
         elif 'CoreMLExecutionProvider' in available_providers:
             providers.append('CoreMLExecutionProvider')
-        # 4. ROCm (AMD)
+        # 4. ROCm (AMD) - 支持 device_id
         elif 'ROCMExecutionProvider' in available_providers:
-            providers.append('ROCMExecutionProvider')
+            providers.append(('ROCMExecutionProvider', {
+                'device_id': gpu_device_id,
+            }))
+        # 5. OpenVINO (Intel)
+        elif 'OpenVINOExecutionProvider' in available_providers:
+            providers.append('OpenVINOExecutionProvider')
     
     # CPU作为后备
     providers.append('CPUExecutionProvider')
     
     return providers
+
+
+def get_session_device_info(session: Any) -> Dict[str, Any]:
+    """获取 ONNX Runtime 会话实际使用的设备信息。
+    
+    Args:
+        session: ONNX Runtime InferenceSession 对象
+        
+    Returns:
+        包含设备信息的字典:
+        - provider: 实际使用的 Provider 名称
+        - device_name: 设备显示名称
+        - is_gpu: 是否使用 GPU
+    """
+    if session is None:
+        return {"provider": "Unknown", "device_name": "Unknown", "is_gpu": False}
+    
+    try:
+        providers = session.get_providers()
+        if not providers:
+            return {"provider": "CPU", "device_name": "CPU", "is_gpu": False}
+        
+        primary_provider = providers[0]
+        
+        # 解析 Provider 名称
+        provider_name = primary_provider
+        if isinstance(primary_provider, tuple):
+            provider_name = primary_provider[0]
+        
+        is_gpu = provider_name != 'CPUExecutionProvider'
+        
+        # 获取简短的 Provider 名称
+        short_name = provider_name.replace('ExecutionProvider', '')
+        
+        # 获取设备显示名称
+        if is_gpu:
+            device_name = get_device_display_name(gpu_device_id=0, use_gpu=True)
+        else:
+            device_name = "CPU"
+        
+        return {
+            "provider": short_name,
+            "device_name": device_name,
+            "is_gpu": is_gpu,
+        }
+    except Exception:
+        return {"provider": "Unknown", "device_name": "Unknown", "is_gpu": False}
 
 
 def create_onnx_session_config(
@@ -162,7 +317,8 @@ def create_onnx_session_config(
     cpu_threads: Optional[int] = None,
     execution_mode: Optional[str] = None,
     enable_model_cache: Optional[bool] = None,
-    model_path: Optional[Path] = None
+    model_path: Optional[Path] = None,
+    auto_optimize_for_provider: bool = True
 ) -> Tuple[Any, List[Union[str, Tuple[str, dict]]]]:
     """创建完整的ONNX Runtime会话配置（SessionOptions + Providers）。
     
@@ -174,10 +330,14 @@ def create_onnx_session_config(
         gpu_device_id: GPU设备ID（None则从配置读取，默认0）
         gpu_memory_limit: GPU内存限制MB（None则从配置读取，默认6144）
         enable_memory_arena: 是否启用CPU内存池（None则从配置读取，默认False）
+        enable_mem_pattern: 是否启用内存模式优化（None则从配置读取）
+        enable_mem_reuse: 是否启用内存重用（None则从配置读取）
         cpu_threads: CPU推理线程数（None则从配置读取，默认0=自动）
         execution_mode: 执行模式sequential/parallel（None则从配置读取，默认sequential）
         enable_model_cache: 是否启用模型缓存（None则从配置读取，默认False）
         model_path: 模型路径（用于缓存）
+        auto_optimize_for_provider: 是否根据 Provider 自动优化配置
+            - DirectML 需要禁用 mem_pattern 并使用 sequential 模式
         
     Returns:
         (sess_options, providers) 元组
@@ -241,7 +401,8 @@ def create_onnx_session_config(
         cpu_threads=cpu_threads,
         execution_mode=execution_mode,
         enable_model_cache=enable_model_cache,
-        model_path=model_path
+        model_path=model_path,
+        auto_optimize_for_provider=auto_optimize_for_provider
     )
     
     # 创建 Providers
