@@ -459,7 +459,6 @@ dependencies = [
     { name = "flet" },
     { name = "httpx", extra = ["socks"] },
     { name = "numpy" },
-    { name = "nvidia-ml-py" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
     { name = "opencv-python-headless" },
@@ -476,7 +475,7 @@ dependencies = [
     { name = "sqlparse" },
     { name = "tomli-w" },
     { name = "websockets" },
-    { name = "wmi" },
+    { name = "wmi", marker = "sys_platform == 'win32'" },
     { name = "xmltodict" },
 ]
 
@@ -496,7 +495,6 @@ requires-dist = [
     { name = "flet", specifier = "==0.28.3" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
     { name = "numpy", specifier = "==1.26.4" },
-    { name = "nvidia-ml-py", specifier = ">=13.590.44" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'", specifier = "==1.22.0" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = "==1.22.0" },
     { name = "opencv-python-headless", specifier = "==4.11.0.86" },
@@ -513,7 +511,7 @@ requires-dist = [
     { name = "sqlparse", specifier = "==0.5.3" },
     { name = "tomli-w", specifier = "==1.1.0" },
     { name = "websockets", specifier = "==12.0" },
-    { name = "wmi", specifier = ">=1.5.1" },
+    { name = "wmi", marker = "sys_platform == 'win32'", specifier = ">=1.5.1" },
     { name = "xmltodict", specifier = "==0.14.2" },
 ]
 
@@ -548,15 +546,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/df/a0/4e0f14d847cfc2a633a1c8621d00724f3206cfeddeb66d35698c4e2cf3d2/numpy-1.26.4-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:60dedbb91afcbfdc9bc0b1f3f402804070deed7392c23eb7a7f07fa857868e8a", size = 18093567, upload-time = "2024-02-05T23:54:11.696Z" },
     { url = "https://files.pythonhosted.org/packages/d2/b7/a734c733286e10a7f1a8ad1ae8c90f2d33bf604a96548e0a4a3a6739b468/numpy-1.26.4-cp311-cp311-win32.whl", hash = "sha256:1af303d6b2210eb850fcf03064d364652b7120803a0b872f5211f5234b399f20", size = 5968812, upload-time = "2024-02-05T23:54:26.453Z" },
     { url = "https://files.pythonhosted.org/packages/3f/6b/5610004206cf7f8e7ad91c5a85a8c71b2f2f8051a0c0c4d5916b76d6cbb2/numpy-1.26.4-cp311-cp311-win_amd64.whl", hash = "sha256:cd25bcecc4974d09257ffcd1f098ee778f7834c3ad767fe5db785be9a4aa9cb2", size = 15811913, upload-time = "2024-02-05T23:54:53.933Z" },
-]
-
-[[package]]
-name = "nvidia-ml-py"
-version = "13.590.44"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1b/23/3871537f204aee823c574ba25cbeb08cae779979d4d43c01adddda00bab9/nvidia_ml_py-13.590.44.tar.gz", hash = "sha256:b358c7614b0fdeea4b95f046f1c90123bfe25d148ab93bb1c00248b834703373", size = 49737, upload-time = "2025-12-08T14:41:10.872Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/47/4c822bd37a008e72fd5a0eae33524ae3ac97b13f7030f63bae1728b8957e/nvidia_ml_py-13.590.44-py3-none-any.whl", hash = "sha256:18feb54eca7d0e3cdc8d1a040a771eda72d9ec3148e5443087970dbfd7377ecc", size = 50683, upload-time = "2025-12-08T14:41:09.597Z" },
 ]
 
 [[package]]
@@ -1258,7 +1247,7 @@ name = "wmi"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pywin32" },
+    { name = "pywin32", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d4/66/6364deb0a03415f96c66803d8c4379f808f2401da3bdb183348487b10510/WMI-1.5.1.tar.gz", hash = "sha256:b6a6be5711b1b6c8d55bda7a8befd75c48c12b770b9d227d31c1737dbf0d40a6", size = 26254, upload-time = "2020-04-28T08:22:58.096Z" }
 wheels = [

@@ -282,6 +282,21 @@ def register_all_tools():
         gradient_colors=("#667EEA", "#764BA2"),
     )
     
+    register_tool_manual(
+        name="颜色空间转换",
+        description="批量转换图片颜色空间，灰度、反色、复古等",
+        category="图片处理",
+        keywords=[
+            "颜色", "色彩", "空间", "转换", "灰度", "黑白", "反色",
+            "color", "space", "convert", "grayscale", "invert", "sepia",
+            "RGB", "CMYK", "HSV", "LAB", "RGBA", "二值化", "棕褐色",
+            "复古", "滤镜", "批量", "颜色转换", "色彩空间", "印刷"
+        ],
+        icon="COLOR_LENS",
+        tool_id="image.color_space",
+        gradient_colors=("#00B4DB", "#0083B0"),
+    )
+    
     # ==================== 媒体处理工具 ====================
     
     register_tool_manual(

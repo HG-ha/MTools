@@ -18,6 +18,7 @@ from views.image.qrcode_view import QRCodeGeneratorView
 from views.image.watermark_view import ImageWatermarkView
 from views.image.watermark_remove_view import ImageWatermarkRemoveView
 from views.image.puzzle import ImagePuzzleView, ImagePuzzleSplitView, ImagePuzzleMergeView
+from views.image.color_space_view import ColorSpaceView
 
 __all__ = [
     'ImageView',
@@ -36,5 +37,6 @@ __all__ = [
     'ImagePuzzleView',
     'ImagePuzzleSplitView',
     'ImagePuzzleMergeView',
+    'ColorSpaceView',
 ]
 
