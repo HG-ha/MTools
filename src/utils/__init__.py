@@ -69,6 +69,7 @@ from .platform_utils import (
     get_cuda_devices,
     get_available_compute_devices,
 )
+# 拖放处理器 - 使用透明覆盖窗口实现
 from .windows_drop import WindowsDropHandler, DropInfo
 
 __all__ = [

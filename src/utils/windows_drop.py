@@ -339,8 +339,10 @@ class WindowsDropHandler:
         # 窗口过程
         def wnd_proc(hwnd, msg, wparam, lparam):
             if msg == WM_DROPFILES:
+                logger.debug(f"收到 WM_DROPFILES 消息")
                 try:
                     files = self._extract_files(wparam)
+                    logger.debug(f"拖放文件数量: {len(files)}")
                     if files and WindowsDropHandler._drop_callback:
                         if WindowsDropHandler._include_position:
                             # 获取鼠标位置
@@ -549,7 +551,7 @@ class WindowsDropHandler:
             is_overlay_hidden = False  # 覆盖窗口是否被隐藏
             restore_delay = 0
             lbutton_down_duration = 0  # 鼠标左键按下持续时间计数
-            DRAG_THRESHOLD = 8  # 约 128ms (8 * 16ms)，需要按住这么久才认为是拖放
+            DRAG_THRESHOLD = 2  # 约 32ms (2 * 16ms)，快速响应拖放操作
             
             while not WindowsDropHandler._stop_event.is_set():
                 time.sleep(0.016)
@@ -589,20 +591,19 @@ class WindowsDropHandler:
                 # 检测是否是拖放光标（关键：区分文件拖放和窗口拖动）
                 is_drag_cursor = self._is_drag_drop_cursor()
                 
-                # 判断是否是有效的文件拖放操作
-                # 条件：左键按下 + 按下持续时间超过阈值 + 在窗口内 + 是拖放光标
-                # 增加持续时间检测，避免快速双击被误判为拖放操作
-                is_valid_drag = (
-                    lbutton_down and 
-                    lbutton_down_duration >= DRAG_THRESHOLD and  # 必须按住足够长时间
-                    in_window and
-                    is_drag_cursor  # 必须是拖放光标
-                )
+                # 判断是否是文件拖放操作
+                # 关键改进：必须同时满足 左键按下 AND 是拖放光标
+                # 这样普通点击不会干扰
+                is_possible_drag = lbutton_down and is_drag_cursor
+                
+                # 判断是否是有效的文件拖放操作（用于切换透明状态）
+                # 必须是拖放光标才移除点击穿透，避免干扰正常点击
+                is_valid_drag = lbutton_down and is_drag_cursor
                 
                 # 决定覆盖窗口的可见性
-                # 当前台窗口是其他应用，且鼠标在窗口内，且不是拖放操作时，隐藏覆盖窗口
-                # 这样可以让用户正常操作覆盖在上面的其他窗口
-                should_hide_overlay = is_other_app_foreground and in_window and not is_valid_drag
+                # 当前台窗口是其他应用，且鼠标在窗口内，但不是拖放操作时，隐藏覆盖窗口
+                # 关键改进：如果可能是拖放操作（左键按下），不隐藏覆盖窗口
+                should_hide_overlay = is_other_app_foreground and in_window and not is_possible_drag
                 
                 if should_hide_overlay and not is_overlay_hidden:
                     # 隐藏覆盖窗口，让用户可以正常操作上层窗口

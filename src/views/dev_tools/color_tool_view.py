@@ -910,6 +910,48 @@ class ColorToolView(ft.Container):
         self.page.snack_bar.open = True
         self.page.update()
     
+    def add_files(self, files: list) -> None:
+        """从拖放添加文件（图片取色）。
+        
+        支持图片格式：png, jpg, jpeg, gif, bmp, webp
+        
+        Args:
+            files: 文件路径列表（Path 对象）
+        """
+        from pathlib import Path
+        
+        # 支持的图片扩展名
+        supported_exts = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+        
+        # 收集所有文件
+        all_files = []
+        for f in files:
+            path = Path(f) if not isinstance(f, Path) else f
+            if path.is_dir():
+                for item in path.iterdir():
+                    if item.is_file():
+                        all_files.append(item)
+            else:
+                all_files.append(path)
+        
+        # 过滤支持的图片文件
+        image_files = [f for f in all_files if f.suffix.lower() in supported_exts]
+        
+        if not image_files:
+            self._show_snack("请拖放图片文件（PNG, JPG, GIF 等）", error=True)
+            return
+        
+        # 只处理第一个图片
+        file_path = image_files[0]
+        
+        try:
+            self.current_image_path = str(file_path)
+            self.current_image = Image.open(file_path)
+            self._display_picker_image()
+            self._show_snack(f"已加载图片，点击图片取色")
+        except Exception as ex:
+            self._show_snack(f"加载图片失败: {str(ex)}", error=True)
+    
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""
         import gc

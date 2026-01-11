@@ -287,6 +287,7 @@ class DevToolsView(ft.Container):
         _data_exts = {'.json', '.yaml', '.yml', '.xml', '.toml'}
         _sql_exts = {'.sql'}
         _base64_exts = {'.txt', '.base64', '.b64', '.text'}
+        _image_exts = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
         _any_file = set()  # 空集合表示接受任意文件类型（编码转换）
         
         self._drop_tool_map = [
@@ -300,7 +301,7 @@ class DevToolsView(ft.Container):
             ("时间工具", set(), None, None, False),
             ("JWT 工具", set(), None, None, False),
             ("UUID/随机数生成器", set(), None, None, False),
-            ("颜色工具", set(), None, None, False),
+            ("颜色工具", _image_exts, self._open_color_tool, "color_tool_view", False),
             ("Markdown 编辑器", _md_exts, self._open_markdown_viewer, "markdown_viewer_view", False),
             ("DNS 查询", set(), None, None, False),
             ("端口扫描", set(), None, None, False),

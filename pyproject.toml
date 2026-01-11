@@ -34,8 +34,8 @@ dependencies = [
   "tomli-w==1.1.0",
   "pystray==0.19.5",
   "psutil==6.1.1", # 系统和进程工具（用于自动更新）
-  "pywin32>=311 ; sys_platform == 'win32'",  # Windows 专用
-  "wmi>=1.5.1 ; sys_platform == 'win32'",  # Windows Management Instrumentation
+  "pywin32>=311 ; sys_platform == 'win32'", # Windows 专用
+  "wmi>=1.5.1 ; sys_platform == 'win32'",
 ]
 
 [tool.flet]
