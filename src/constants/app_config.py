@@ -9,7 +9,7 @@ from typing import Final
 
 # 应用基本信息
 APP_TITLE: Final[str] = "MTools"
-APP_VERSION: Final[str] = "0.0.10-beta"
+APP_VERSION: Final[str] = "0.0.11-beta"
 APP_DESCRIPTION: Final[str] = "MTools 是一个功能强大的全能桌面应用程序，集成了音视频处理、图片编辑、文本操作和编码工具，内置AI功能。旨在简化您的工作流程，提升生产效率。"
 
 # CUDA 变体信息（在构建时由 build.py 写入）

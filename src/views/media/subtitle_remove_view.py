@@ -924,6 +924,31 @@ class SubtitleRemoveView(ft.Container):
             self._update_file_list()
             logger.info(f"已保存 {file_path.name} 的 {len(regions_list)} 个区域")
         
+        def on_apply_to_all(e):
+            """应用到所有文件"""
+            if not regions_list:
+                status_text.value = "请先标注区域"
+                status_text.color = ft.Colors.ORANGE
+                self.page.update()
+                return
+            
+            # 保存当前文件的区域
+            self.file_regions[str(file_path)] = regions_list
+            
+            # 应用到所有其他文件（注意：时间范围可能需要根据视频时长调整）
+            applied_count = 0
+            for other_file in self.selected_files:
+                if other_file != file_path:
+                    # 复制区域设置（需要深拷贝）
+                    self.file_regions[str(other_file)] = [r.copy() for r in regions_list]
+                    applied_count += 1
+            
+            dialog.open = False
+            self.page.update()
+            self._update_file_list()
+            self._show_snackbar(f"已将区域设置应用到所有 {applied_count + 1} 个文件")
+            logger.info(f"已将 {len(regions_list)} 个区域应用到 {applied_count + 1} 个文件")
+        
         def on_clear_all(e):
             regions_list.clear()
             refresh_preview()
@@ -1014,6 +1039,12 @@ class SubtitleRemoveView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=close_dialog),
+                ft.OutlinedButton(
+                    "应用到所有文件", 
+                    icon=ft.Icons.COPY_ALL, 
+                    on_click=on_apply_to_all,
+                    tooltip="将当前区域设置应用到列表中所有文件",
+                ),
                 ft.ElevatedButton("保存", icon=ft.Icons.SAVE, on_click=on_confirm),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -1023,9 +1054,9 @@ class SubtitleRemoveView(ft.Container):
         dialog.open = True
         self.page.update()
     
-    def _show_snackbar(self, message: str) -> None:
+    def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示 snackbar 提示。"""
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
+        self.page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
         self.page.snack_bar.open = True
         self.page.update()
     
