@@ -652,54 +652,51 @@ class AudioCompressView(ft.Container):
     
     def _update_progress(self, value: float, text: str) -> None:
         """更新进度显示。"""
-        def update():
-            self.progress_bar.value = value
-            self.progress_text.value = text
-            self.progress_bar.update()
-            self.progress_text.update()
-        
-        self.page.run_task(update)
+        self.progress_bar.value = value
+        self.progress_text.value = text
+        try:
+            self.page.update()
+        except:
+            pass
     
     def _set_processing_state(self, processing: bool) -> None:
         """设置处理状态。"""
-        def update():
-            self.process_button.content.disabled = processing
-            self.progress_bar.visible = processing
-            self.progress_text.visible = processing
-            
-            if processing:
-                self.progress_bar.value = 0
-                self.progress_text.value = "准备中..."
-            
-            self.process_button.update()
-            self.progress_bar.update()
-            self.progress_text.update()
+        self.process_button.content.disabled = processing
+        self.progress_bar.visible = processing
+        self.progress_text.visible = processing
         
-        self.page.run_task(update)
+        if processing:
+            self.progress_bar.value = 0
+            self.progress_text.value = "准备中..."
+        
+        try:
+            self.page.update()
+        except:
+            pass
     
     def _on_processing_complete(self, success_count: int, error_count: int) -> None:
         """处理完成。"""
-        def update():
-            self._set_processing_state(False)
-            
-            # 显示结果
-            if error_count == 0:
-                message = f"成功压缩 {success_count} 个文件"
-                color = ft.Colors.GREEN
-            else:
-                message = f"完成: {success_count} 成功, {error_count} 失败"
-                color = ft.Colors.ORANGE
-            
-            snackbar = ft.SnackBar(
-                content=ft.Text(message),
-                bgcolor=color,
-                duration=3000,
-            )
-            self.page.overlay.append(snackbar)
-            snackbar.open = True
-            self.page.update()
+        self._set_processing_state(False)
         
-        self.page.run_task(update)
+        # 显示结果
+        if error_count == 0:
+            message = f"成功压缩 {success_count} 个文件"
+            color = ft.Colors.GREEN
+        else:
+            message = f"完成: {success_count} 成功, {error_count} 失败"
+            color = ft.Colors.ORANGE
+        
+        snackbar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=color,
+            duration=3000,
+        )
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        try:
+            self.page.update()
+        except:
+            pass
     
     def _show_error(self, message: str) -> None:
         """显示错误消息。"""
