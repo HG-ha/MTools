@@ -274,15 +274,16 @@ class FeatureCard(ft.Container):
         # 菜单容器（定位在鼠标位置附近）
         menu_card = ft.Container(
             content=menu_item,
-            bgcolor="#2d2d2d",  # 深色背景
-            border_radius=12,
+            bgcolor=ft.Colors.SURFACE,  # 跟随主题
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=8,
+            padding=4,
             shadow=ft.BoxShadow(
-                spread_radius=1,
-                blur_radius=10,
-                color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK),
                 offset=ft.Offset(0, 4),
             ),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
         
         # 透明遮罩层，点击关闭菜单
