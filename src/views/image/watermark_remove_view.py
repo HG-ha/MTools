@@ -62,6 +62,13 @@ class ImageWatermarkRemoveView(ft.Container):
         self.current_model_key: str = DEFAULT_SUBTITLE_REMOVE_MODEL_KEY
         self.file_regions: dict = {}  # 每个文件的区域设置 {file_path: [region_list]}
         
+        # 处理模式: "ai" = AI修复, "mask" = 遮挡模式
+        self.process_mode: str = self.config_service.get_config_value("image_watermark_process_mode", "ai")
+        # 遮挡类型: "blur" = 模糊, "color" = 纯色
+        self.mask_type: str = self.config_service.get_config_value("image_watermark_mask_type", "blur")
+        # 遮挡颜色 (RGB)
+        self.mask_color: str = self.config_service.get_config_value("image_watermark_mask_color", "#000000")
+        
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_MEDIUM,
@@ -227,7 +234,7 @@ class ImageWatermarkRemoveView(ft.Container):
             on_change=self._on_auto_load_change,
         )
         
-        model_management_area = ft.Column(
+        self.model_management_area = ft.Column(
             controls=[
                 ft.Text("模型管理", size=14, weight=ft.FontWeight.W_500),
                 model_status_row,
@@ -235,6 +242,74 @@ class ImageWatermarkRemoveView(ft.Container):
                 self.auto_load_checkbox,
             ],
             spacing=PADDING_SMALL,
+            visible=self.process_mode == "ai",
+        )
+        
+        # 处理模式选择
+        self.process_mode_radio = ft.RadioGroup(
+            content=ft.Row([
+                ft.Radio(value="ai", label="AI修复"),
+                ft.Radio(value="mask", label="遮挡模式"),
+            ], spacing=PADDING_MEDIUM),
+            value=self.process_mode,
+            on_change=self._on_process_mode_change,
+        )
+        
+        # 遮挡类型选择
+        self.mask_type_radio = ft.RadioGroup(
+            content=ft.Row([
+                ft.Radio(value="blur", label="模糊"),
+                ft.Radio(value="color", label="纯色填充"),
+            ], spacing=PADDING_MEDIUM),
+            value=self.mask_type,
+            on_change=self._on_mask_type_change,
+        )
+        
+        # 颜色选择
+        self.mask_color_btn = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    width=24,
+                    height=24,
+                    bgcolor=self.mask_color,
+                    border_radius=4,
+                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                ),
+                ft.Text("选择颜色", size=12),
+            ], spacing=PADDING_SMALL),
+            on_click=self._show_color_picker,
+            ink=True,
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=4,
+        )
+        
+        self.mask_options_row = ft.Row(
+            controls=[
+                ft.Text("遮挡方式:", size=13),
+                self.mask_type_radio,
+                self.mask_color_btn,
+            ],
+            spacing=PADDING_MEDIUM,
+            visible=self.process_mode == "mask",
+        )
+        
+        # 更新颜色按钮可见性
+        self.mask_color_btn.visible = self.mask_type == "color"
+        
+        process_mode_area = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row([
+                        ft.Text("处理模式:", size=14, weight=ft.FontWeight.W_500),
+                        self.process_mode_radio,
+                    ], spacing=PADDING_MEDIUM),
+                    self.mask_options_row,
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            padding=PADDING_MEDIUM,
         )
         
         # 区域标注说明
@@ -344,7 +419,8 @@ class ImageWatermarkRemoveView(ft.Container):
         scrollable_content = ft.Column(
             controls=[
                 file_select_area,
-                model_management_area,
+                process_mode_area,
+                self.model_management_area,
                 mask_settings_area,
                 output_settings_area,
                 self.progress_text,
@@ -411,6 +487,86 @@ class ImageWatermarkRemoveView(ft.Container):
         """返回按钮点击事件。"""
         if self.on_back:
             self.on_back()
+    
+    def _on_process_mode_change(self, e: ft.ControlEvent) -> None:
+        """处理模式变化事件。"""
+        self.process_mode = e.control.value
+        self.config_service.set_config_value("image_watermark_process_mode", self.process_mode)
+        
+        # 切换模式时更新UI
+        is_ai_mode = self.process_mode == "ai"
+        self.model_management_area.visible = is_ai_mode
+        self.mask_options_row.visible = not is_ai_mode
+        
+        # 更新处理按钮状态
+        self._update_process_button_state()
+        self.page.update()
+    
+    def _on_mask_type_change(self, e: ft.ControlEvent) -> None:
+        """遮挡类型变化事件。"""
+        self.mask_type = e.control.value
+        self.config_service.set_config_value("image_watermark_mask_type", self.mask_type)
+        
+        # 只有纯色模式才显示颜色选择
+        self.mask_color_btn.visible = self.mask_type == "color"
+        self.page.update()
+    
+    def _show_color_picker(self, e: ft.ControlEvent) -> None:
+        """显示颜色选择器。"""
+        def on_color_selected(color: str):
+            self.mask_color = color
+            self.config_service.set_config_value("image_watermark_mask_color", color)
+            # 更新颜色预览
+            self.mask_color_btn.content.controls[0].bgcolor = color
+            dialog.open = False
+            self.page.update()
+        
+        # 预设颜色
+        colors = [
+            "#000000", "#FFFFFF", "#808080", "#C0C0C0",
+            "#FF0000", "#00FF00", "#0000FF", "#FFFF00",
+            "#FF00FF", "#00FFFF", "#FFA500", "#800080",
+        ]
+        
+        color_grid = ft.GridView(
+            runs_count=4,
+            spacing=8,
+            run_spacing=8,
+            max_extent=50,
+            controls=[
+                ft.Container(
+                    width=40,
+                    height=40,
+                    bgcolor=c,
+                    border_radius=4,
+                    border=ft.border.all(2, ft.Colors.OUTLINE if c != self.mask_color else ft.Colors.PRIMARY),
+                    on_click=lambda e, color=c: on_color_selected(color),
+                    ink=True,
+                )
+                for c in colors
+            ],
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("选择遮挡颜色"),
+            content=ft.Container(
+                content=color_grid,
+                width=250,
+                height=150,
+            ),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: self._close_dialog(dialog)),
+            ],
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        """关闭对话框。"""
+        dialog.open = False
+        self.page.update()
     
     def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
@@ -1036,11 +1192,21 @@ class ImageWatermarkRemoveView(ft.Container):
                 return
         
         # 更新处理按钮状态
-        model_loaded = self.remove_service.is_model_loaded()
-        has_files = len(self.selected_files) > 0
-        self.process_btn.content.disabled = not (model_loaded and has_files)
+        self._update_process_button_state()
         
         self.page.update()
+    
+    def _update_process_button_state(self) -> None:
+        """更新处理按钮状态。"""
+        has_files = len(self.selected_files) > 0
+        
+        if self.process_mode == "mask":
+            # 遮挡模式不需要模型
+            self.process_btn.content.disabled = not has_files
+        else:
+            # AI模式需要模型已加载
+            model_loaded = self.remove_service.is_model_loaded()
+            self.process_btn.content.disabled = not (model_loaded and has_files)
     
     def _download_model(self) -> None:
         """下载模型。"""
@@ -1339,6 +1505,48 @@ class ImageWatermarkRemoveView(ft.Container):
         
         return result
     
+    def _process_single_image_mask(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """使用遮挡模式处理单张图片。
+        
+        Args:
+            image: 输入图像 (BGR格式)
+            mask: 遮罩数组
+        
+        Returns:
+            处理后的图像
+        """
+        result = image.copy()
+        height, width = image.shape[:2]
+        
+        if self.mask_type == "blur":
+            # 模糊遮挡
+            # 创建模糊版本的图像
+            blur_strength = max(width, height) // 10  # 根据图片大小动态调整模糊强度
+            blur_strength = blur_strength if blur_strength % 2 == 1 else blur_strength + 1  # 必须是奇数
+            blur_strength = max(21, blur_strength)  # 最小模糊强度
+            blurred = cv2.GaussianBlur(image, (blur_strength, blur_strength), 0)
+            
+            # 使用遮罩合成
+            mask_3d = mask[:, :, np.newaxis] / 255.0
+            result = (mask_3d * blurred + (1 - mask_3d) * result).astype(np.uint8)
+        else:
+            # 纯色填充
+            # 解析颜色
+            color_hex = self.mask_color.lstrip('#')
+            r = int(color_hex[0:2], 16)
+            g = int(color_hex[2:4], 16)
+            b = int(color_hex[4:6], 16)
+            
+            # 创建纯色图层
+            color_layer = np.zeros_like(image)
+            color_layer[:, :] = (b, g, r)  # OpenCV使用BGR格式
+            
+            # 使用遮罩合成
+            mask_3d = mask[:, :, np.newaxis] / 255.0
+            result = (mask_3d * color_layer + (1 - mask_3d) * result).astype(np.uint8)
+        
+        return result
+    
     def _start_processing(self) -> None:
         """开始处理。"""
         if self.is_processing or not self.selected_files:
@@ -1383,8 +1591,11 @@ class ImageWatermarkRemoveView(ft.Container):
                         # 创建遮罩
                         mask = self._create_mask(height, width, file_path)
                         
-                        # 处理图片
-                        result = self._process_single_image(image, mask)
+                        # 根据模式处理图片
+                        if self.process_mode == "mask":
+                            result = self._process_single_image_mask(image, mask)
+                        else:
+                            result = self._process_single_image(image, mask)
                         
                         # 确定输出路径
                         if output_dir:

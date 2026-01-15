@@ -65,6 +65,13 @@ class SubtitleRemoveView(ft.Container):
         self.file_regions: dict = {}  # 每个文件的区域设置 {file_path: [region_list]}
         self.visual_region: Optional[dict] = None  # 可视化选择的区域（兼容旧代码）
         
+        # 处理模式: "ai" = AI修复, "mask" = 遮挡模式
+        self.process_mode: str = self.config_service.get_config_value("video_subtitle_process_mode", "ai")
+        # 遮挡类型: "blur" = 模糊, "color" = 纯色
+        self.mask_type: str = self.config_service.get_config_value("video_subtitle_mask_type", "blur")
+        # 遮挡颜色 (RGB)
+        self.mask_color: str = self.config_service.get_config_value("video_subtitle_mask_color", "#000000")
+        
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
             left=PADDING_MEDIUM,
@@ -243,7 +250,7 @@ class SubtitleRemoveView(ft.Container):
             on_change=self._on_auto_load_change,
         )
         
-        model_management_area = ft.Column(
+        self.model_management_area = ft.Column(
             controls=[
                 ft.Text("模型管理", size=14, weight=ft.FontWeight.W_500),
                 model_status_row,
@@ -251,6 +258,74 @@ class SubtitleRemoveView(ft.Container):
                 self.auto_load_checkbox,
             ],
             spacing=PADDING_SMALL,
+            visible=self.process_mode == "ai",
+        )
+        
+        # 处理模式选择
+        self.process_mode_radio = ft.RadioGroup(
+            content=ft.Row([
+                ft.Radio(value="ai", label="AI修复"),
+                ft.Radio(value="mask", label="遮挡模式"),
+            ], spacing=PADDING_MEDIUM),
+            value=self.process_mode,
+            on_change=self._on_process_mode_change,
+        )
+        
+        # 遮挡类型选择
+        self.mask_type_radio = ft.RadioGroup(
+            content=ft.Row([
+                ft.Radio(value="blur", label="模糊"),
+                ft.Radio(value="color", label="纯色填充"),
+            ], spacing=PADDING_MEDIUM),
+            value=self.mask_type,
+            on_change=self._on_mask_type_change,
+        )
+        
+        # 颜色选择
+        self.mask_color_btn = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    width=24,
+                    height=24,
+                    bgcolor=self.mask_color,
+                    border_radius=4,
+                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                ),
+                ft.Text("选择颜色", size=12),
+            ], spacing=PADDING_SMALL),
+            on_click=self._show_color_picker,
+            ink=True,
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=4,
+        )
+        
+        self.mask_options_row = ft.Row(
+            controls=[
+                ft.Text("遮挡方式:", size=13),
+                self.mask_type_radio,
+                self.mask_color_btn,
+            ],
+            spacing=PADDING_MEDIUM,
+            visible=self.process_mode == "mask",
+        )
+        
+        # 更新颜色按钮可见性
+        self.mask_color_btn.visible = self.mask_type == "color"
+        
+        process_mode_area = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row([
+                        ft.Text("处理模式:", size=14, weight=ft.FontWeight.W_500),
+                        self.process_mode_radio,
+                    ], spacing=PADDING_MEDIUM),
+                    self.mask_options_row,
+                ],
+                spacing=PADDING_SMALL,
+            ),
+            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            padding=PADDING_MEDIUM,
         )
         
         # 区域标注说明
@@ -360,7 +435,8 @@ class SubtitleRemoveView(ft.Container):
         scrollable_content = ft.Column(
             controls=[
                 file_select_area,
-                model_management_area,
+                process_mode_area,
+                self.model_management_area,
                 mask_settings_area,
                 output_settings_area,
                 self.progress_text,
@@ -427,6 +503,86 @@ class SubtitleRemoveView(ft.Container):
         """返回按钮点击处理。"""
         if self.on_back:
             self.on_back()
+    
+    def _on_process_mode_change(self, e: ft.ControlEvent) -> None:
+        """处理模式变化事件。"""
+        self.process_mode = e.control.value
+        self.config_service.set_config_value("video_subtitle_process_mode", self.process_mode)
+        
+        # 切换模式时更新UI
+        is_ai_mode = self.process_mode == "ai"
+        self.model_management_area.visible = is_ai_mode
+        self.mask_options_row.visible = not is_ai_mode
+        
+        # 更新处理按钮状态
+        self._update_process_button_state()
+        self.page.update()
+    
+    def _on_mask_type_change(self, e: ft.ControlEvent) -> None:
+        """遮挡类型变化事件。"""
+        self.mask_type = e.control.value
+        self.config_service.set_config_value("video_subtitle_mask_type", self.mask_type)
+        
+        # 只有纯色模式才显示颜色选择
+        self.mask_color_btn.visible = self.mask_type == "color"
+        self.page.update()
+    
+    def _show_color_picker(self, e: ft.ControlEvent) -> None:
+        """显示颜色选择器。"""
+        def on_color_selected(color: str):
+            self.mask_color = color
+            self.config_service.set_config_value("video_subtitle_mask_color", color)
+            # 更新颜色预览
+            self.mask_color_btn.content.controls[0].bgcolor = color
+            dialog.open = False
+            self.page.update()
+        
+        # 预设颜色
+        colors = [
+            "#000000", "#FFFFFF", "#808080", "#C0C0C0",
+            "#FF0000", "#00FF00", "#0000FF", "#FFFF00",
+            "#FF00FF", "#00FFFF", "#FFA500", "#800080",
+        ]
+        
+        color_grid = ft.GridView(
+            runs_count=4,
+            spacing=8,
+            run_spacing=8,
+            max_extent=50,
+            controls=[
+                ft.Container(
+                    width=40,
+                    height=40,
+                    bgcolor=c,
+                    border_radius=4,
+                    border=ft.border.all(2, ft.Colors.OUTLINE if c != self.mask_color else ft.Colors.PRIMARY),
+                    on_click=lambda e, color=c: on_color_selected(color),
+                    ink=True,
+                )
+                for c in colors
+            ],
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("选择遮挡颜色"),
+            content=ft.Container(
+                content=color_grid,
+                width=250,
+                height=150,
+            ),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: self._close_dialog(dialog)),
+            ],
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        """关闭对话框。"""
+        dialog.open = False
+        self.page.update()
     
     def _on_select_files(self) -> None:
         """选择文件。"""
@@ -1118,11 +1274,21 @@ class SubtitleRemoveView(ft.Container):
                 return
         
         # 更新处理按钮状态
-        model_loaded = self.subtitle_service.is_model_loaded()
-        has_files = len(self.selected_files) > 0
-        self.process_btn.content.disabled = not (model_loaded and has_files)
+        self._update_process_button_state()
         
         self.page.update()
+    
+    def _update_process_button_state(self) -> None:
+        """更新处理按钮状态。"""
+        has_files = len(self.selected_files) > 0
+        
+        if self.process_mode == "mask":
+            # 遮挡模式不需要模型
+            self.process_btn.content.disabled = not has_files
+        else:
+            # AI模式需要模型已加载
+            model_loaded = self.subtitle_service.is_model_loaded()
+            self.process_btn.content.disabled = not (model_loaded and has_files)
     
     def _download_model(self) -> None:
         """下载模型。"""
@@ -1459,6 +1625,121 @@ class SubtitleRemoveView(ft.Container):
         
         return mask
     
+    def _apply_mask_to_frame(self, frame: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """使用遮挡模式处理单帧。
+        
+        Args:
+            frame: 输入帧 (BGR格式)
+            mask: 遮罩数组
+        
+        Returns:
+            处理后的帧
+        """
+        result = frame.copy()
+        height, width = frame.shape[:2]
+        
+        if self.mask_type == "blur":
+            # 模糊遮挡
+            blur_strength = max(width, height) // 15
+            blur_strength = blur_strength if blur_strength % 2 == 1 else blur_strength + 1
+            blur_strength = max(21, blur_strength)
+            blurred = cv2.GaussianBlur(frame, (blur_strength, blur_strength), 0)
+            
+            # 使用遮罩合成
+            mask_3d = mask[:, :, np.newaxis] / 255.0
+            result = (mask_3d * blurred + (1 - mask_3d) * result).astype(np.uint8)
+        else:
+            # 纯色填充
+            color_hex = self.mask_color.lstrip('#')
+            r = int(color_hex[0:2], 16)
+            g = int(color_hex[2:4], 16)
+            b = int(color_hex[4:6], 16)
+            
+            # 创建纯色图层
+            color_layer = np.zeros_like(frame)
+            color_layer[:, :] = (b, g, r)  # OpenCV使用BGR格式
+            
+            # 使用遮罩合成
+            mask_3d = mask[:, :, np.newaxis] / 255.0
+            result = (mask_3d * color_layer + (1 - mask_3d) * result).astype(np.uint8)
+        
+        return result
+    
+    def _process_video_mask_mode(
+        self,
+        file_path: Path,
+        temp_video_file: Path,
+        idx: int,
+        total: int
+    ) -> bool:
+        """使用遮挡模式处理视频。
+        
+        Args:
+            file_path: 输入视频路径
+            temp_video_file: 临时输出视频路径
+            idx: 当前文件索引
+            total: 总文件数
+        
+        Returns:
+            处理是否成功
+        """
+        try:
+            # 打开视频
+            cap = cv2.VideoCapture(str(file_path))
+            if not cap.isOpened():
+                logger.error(f"无法打开视频: {file_path}")
+                return False
+            
+            # 获取视频信息
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # 创建视频写入器
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(str(temp_video_file), fourcc, fps, (width, height))
+            
+            if not out.isOpened():
+                logger.error(f"无法创建输出视频: {temp_video_file}")
+                cap.release()
+                return False
+            
+            frame_idx = 0
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # 计算当前时间
+                current_time = frame_idx / fps if fps > 0 else 0
+                
+                # 创建遮罩
+                mask = self._create_mask(height, width, file_path, current_time)
+                
+                # 应用遮挡效果
+                if np.any(mask > 0):
+                    frame = self._apply_mask_to_frame(frame, mask)
+                
+                out.write(frame)
+                frame_idx += 1
+                
+                # 更新进度
+                if frame_idx % 30 == 0:  # 每30帧更新一次
+                    progress = (idx + frame_idx / total_frames) / total
+                    self.progress_bar.value = progress
+                    self.page.update()
+            
+            cap.release()
+            out.release()
+            
+            logger.info(f"遮挡模式处理完成: {file_path.name}, 共 {frame_idx} 帧")
+            return True
+            
+        except Exception as e:
+            logger.error(f"遮挡模式处理失败: {e}", exc_info=True)
+            return False
+    
     def _start_processing(self) -> None:
         """开始处理。"""
         if self.is_processing or not self.selected_files:
@@ -1540,27 +1821,36 @@ class SubtitleRemoveView(ft.Container):
                     
                     logger.info(f"视频信息: {width}x{height}, {fps}fps, {total_frames}帧")
                     
-                    # 创建mask回调函数（支持按时间动态创建mask）
-                    current_file_path = file_path  # 捕获当前文件路径
-                    def mask_callback(h: int, w: int, current_time: float) -> np.ndarray:
-                        return self._create_mask(h, w, current_file_path, current_time)
-                    
-                    # 步骤3：流式处理视频并直接输出到临时文件
+                    # 步骤3：处理视频
                     temp_video_file = Path(tempfile.gettempdir()) / f"temp_video_{file_path.stem}.mp4"
                     
-                    def update_progress(current, total_f):
-                        progress = (idx + current / total_f) / total
-                        self.progress_bar.value = progress
-                        self.page.update()
-                    
-                    success = self.subtitle_service.process_video_streaming(
-                        video_path=str(file_path),
-                        output_path=str(temp_video_file),
-                        mask_callback=mask_callback,
-                        fps=fps,
-                        progress_callback=update_progress,
-                        batch_size=10  # 每批处理10帧，可根据内存情况调整
-                    )
+                    if self.process_mode == "mask":
+                        # 遮挡模式：不使用AI模型
+                        success = self._process_video_mask_mode(
+                            file_path=file_path,
+                            temp_video_file=temp_video_file,
+                            idx=idx,
+                            total=total
+                        )
+                    else:
+                        # AI修复模式
+                        current_file_path = file_path  # 捕获当前文件路径
+                        def mask_callback(h: int, w: int, current_time: float) -> np.ndarray:
+                            return self._create_mask(h, w, current_file_path, current_time)
+                        
+                        def update_progress(current, total_f):
+                            progress = (idx + current / total_f) / total
+                            self.progress_bar.value = progress
+                            self.page.update()
+                        
+                        success = self.subtitle_service.process_video_streaming(
+                            video_path=str(file_path),
+                            output_path=str(temp_video_file),
+                            mask_callback=mask_callback,
+                            fps=fps,
+                            progress_callback=update_progress,
+                            batch_size=10
+                        )
                     
                     if not success:
                         logger.error(f"视频处理失败: {file_path}")
