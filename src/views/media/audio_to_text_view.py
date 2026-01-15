@@ -68,6 +68,8 @@ class AudioToTextView(ft.Container):
         
         self.selected_files: List[Path] = []
         self.is_processing: bool = False
+        # 缓存：文件路径 -> 是否有音频流
+        self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -1762,6 +1764,30 @@ class AudioToTextView(ft.Container):
         except:
             pass
     
+    def _check_has_audio_stream(self, file_path: Path) -> bool:
+        """检测文件是否包含音频流。"""
+        # 音频文件默认有音频
+        audio_exts = {'.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.opus'}
+        if file_path.suffix.lower() in audio_exts:
+            return True
+        
+        cache_key = str(file_path)
+        if cache_key in self._audio_stream_cache:
+            return self._audio_stream_cache[cache_key]
+        
+        has_audio = True
+        try:
+            import ffmpeg
+            ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+            if ffprobe_path:
+                probe = ffmpeg.probe(str(file_path), cmd=ffprobe_path)
+                has_audio = any(s.get('codec_type') == 'audio' for s in probe.get('streams', []))
+        except Exception:
+            has_audio = True
+        
+        self._audio_stream_cache[cache_key] = has_audio
+        return has_audio
+    
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         if not self.selected_files:
@@ -1769,17 +1795,37 @@ class AudioToTextView(ft.Container):
             return
         
         file_items = []
+        no_audio_count = 0
+        audio_exts = {'.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.opus'}
+        
         for file_path in self.selected_files:
             file_size = format_file_size(file_path.stat().st_size)
+            is_audio_file = file_path.suffix.lower() in audio_exts
+            has_audio = self._check_has_audio_stream(file_path)
+            
+            if not has_audio:
+                no_audio_count += 1
+            
+            # 根据是否有音频流显示不同样式
+            if has_audio:
+                icon = ft.Icon(ft.Icons.AUDIOTRACK if is_audio_file else ft.Icons.VIDEO_FILE, size=20)
+                subtitle = file_size
+                subtitle_color = ft.Colors.ON_SURFACE_VARIANT
+                border_color = ft.Colors.OUTLINE
+            else:
+                icon = ft.Icon(ft.Icons.VOLUME_OFF, size=20, color=ft.Colors.ORANGE)
+                subtitle = f"⚠️ 无音频流 • {file_size}"
+                subtitle_color = ft.Colors.ORANGE
+                border_color = ft.Colors.ORANGE
             
             file_item = ft.Container(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.AUDIOTRACK if file_path.suffix.lower() in [".mp3", ".wav", ".flac", ".m4a"] else ft.Icons.VIDEO_FILE, size=20),
+                        icon,
                         ft.Column(
                             controls=[
                                 ft.Text(file_path.name, size=13, weight=ft.FontWeight.W_500),
-                                ft.Text(file_size, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text(subtitle, size=11, color=subtitle_color),
                             ],
                             spacing=2,
                             expand=True,
@@ -1794,10 +1840,21 @@ class AudioToTextView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_SMALL,
-                border=ft.border.all(1, ft.Colors.OUTLINE),
+                border=ft.border.all(1, border_color),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             file_items.append(file_item)
+        
+        # 显示警告
+        if no_audio_count > 0:
+            warning = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
+                    ft.Text(f"{no_audio_count} 个文件不包含音频流，将被跳过", size=12, color=ft.Colors.ORANGE),
+                ], spacing=8),
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            )
+            file_items.insert(0, warning)
         
         self.file_list_view.controls = file_items
         try:

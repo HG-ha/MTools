@@ -68,6 +68,8 @@ class VideoSubtitleView(ft.Container):
         
         self.selected_files: List[Path] = []
         self.is_processing: bool = False
+        # 缓存：文件路径 -> 是否有音频流
+        self._audio_stream_cache: dict = {}
         
         # 每个视频的独立字幕设置 {file_path: {setting_key: value}}
         self.video_settings: Dict[str, Dict[str, Any]] = {}
@@ -1093,6 +1095,25 @@ class VideoSubtitleView(ft.Container):
             self._update_file_list()
             self._update_process_button()
     
+    def _check_has_audio_stream(self, file_path: Path) -> bool:
+        """检测视频文件是否包含音频流。"""
+        cache_key = str(file_path)
+        if cache_key in self._audio_stream_cache:
+            return self._audio_stream_cache[cache_key]
+        
+        has_audio = True
+        try:
+            import ffmpeg
+            ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+            if ffprobe_path:
+                probe = ffmpeg.probe(str(file_path), cmd=ffprobe_path)
+                has_audio = any(s.get('codec_type') == 'audio' for s in probe.get('streams', []))
+        except Exception:
+            has_audio = True
+        
+        self._audio_stream_cache[cache_key] = has_audio
+        return has_audio
+    
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         if not self.selected_files:
@@ -1100,6 +1121,7 @@ class VideoSubtitleView(ft.Container):
             return
         
         self.file_list_view.controls.clear()
+        no_audio_count = 0
         
         for file_path in self.selected_files:
             try:
@@ -1111,16 +1133,31 @@ class VideoSubtitleView(ft.Container):
             file_key = str(file_path)
             has_custom_settings = file_key in self.video_settings
             
+            # 检测是否有音频流
+            has_audio = self._check_has_audio_stream(file_path)
+            if not has_audio:
+                no_audio_count += 1
+            
+            # 根据音频流状态显示不同图标
+            if has_audio:
+                icon = ft.Icon(ft.Icons.VIDEO_FILE, size=20, color=ft.Colors.PRIMARY)
+                size_text = file_size
+                size_color = ft.Colors.ON_SURFACE_VARIANT
+            else:
+                icon = ft.Icon(ft.Icons.VOLUME_OFF, size=20, color=ft.Colors.ORANGE)
+                size_text = f"⚠️ 无音频 • {file_size}"
+                size_color = ft.Colors.ORANGE
+            
             file_row = ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.VIDEO_FILE, size=20, color=ft.Colors.PRIMARY),
+                    icon,
                     ft.Text(
                         file_path.name,
                         size=13,
                         expand=True,
                         overflow=ft.TextOverflow.ELLIPSIS,
                     ),
-                    ft.Text(file_size, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text(size_text, size=11, color=size_color),
                     # 自定义设置标记
                     ft.Container(
                         content=ft.Text("已设置", size=10, color=ft.Colors.PRIMARY),
@@ -1152,6 +1189,17 @@ class VideoSubtitleView(ft.Container):
                 spacing=PADDING_SMALL,
             )
             self.file_list_view.controls.append(file_row)
+        
+        # 显示警告
+        if no_audio_count > 0:
+            warning = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
+                    ft.Text(f"{no_audio_count} 个视频无音频流，无法识别语音生成字幕", size=12, color=ft.Colors.ORANGE),
+                ], spacing=8),
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            )
+            self.file_list_view.controls.insert(0, warning)
         
         self.page.update()
     

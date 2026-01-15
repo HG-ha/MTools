@@ -23,16 +23,17 @@ from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
 class VideoExtractAudioView(ft.Container):
-    """视频提取音频视图类。"""
+    """视频提取音频视图类。
     
-    SUPPORTED_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.mpg'}
-    
-    """提供视频提取音频功能，包括：
+    提供视频提取音频功能，包括：
     - 单文件和批量提取
     - 多种音频格式支持（MP3, AAC, WAV, FLAC等）
     - 比特率调整
     - 实时进度显示
+    - 自动检测视频是否包含音频流
     """
+    
+    SUPPORTED_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.mpg'}
 
     def __init__(
         self,
@@ -56,6 +57,8 @@ class VideoExtractAudioView(ft.Container):
         self.on_back: Optional[Callable] = on_back
         
         self.selected_files: List[Path] = []
+        # 缓存：文件路径 -> 是否有音频流
+        self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -457,6 +460,35 @@ class VideoExtractAudioView(ft.Container):
         
         self._update_file_list()
     
+    def _check_has_audio_stream(self, file_path: Path) -> bool:
+        """检测视频文件是否包含音频流。
+        
+        Args:
+            file_path: 视频文件路径
+            
+        Returns:
+            是否包含音频流
+        """
+        # 检查缓存
+        cache_key = str(file_path)
+        if cache_key in self._audio_stream_cache:
+            return self._audio_stream_cache[cache_key]
+        
+        has_audio = True  # 默认假设有音频
+        try:
+            import ffmpeg
+            ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+            if ffprobe_path:
+                probe = ffmpeg.probe(str(file_path), cmd=ffprobe_path)
+                has_audio = any(s.get('codec_type') == 'audio' for s in probe.get('streams', []))
+        except Exception as e:
+            logger.debug(f"检测音频流失败: {file_path.name}, {e}")
+            # 检测失败时假设有音频，让后续处理来报错
+            has_audio = True
+        
+        self._audio_stream_cache[cache_key] = has_audio
+        return has_audio
+    
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         self.file_list_view.controls.clear()
@@ -465,20 +497,34 @@ class VideoExtractAudioView(ft.Container):
             self._init_empty_state()
             self.process_button.content.disabled = True
         else:
+            no_audio_count = 0
             for file_path in self.selected_files:
                 file_size = format_file_size(file_path.stat().st_size)
+                
+                # 检测是否有音频流
+                has_audio = self._check_has_audio_stream(file_path)
+                if not has_audio:
+                    no_audio_count += 1
+                
+                # 根据是否有音频流显示不同的图标和提示
+                if has_audio:
+                    icon = ft.Icon(ft.Icons.VIDEO_FILE, size=20)
+                    subtitle = f"{file_path.parent} • {file_size}"
+                else:
+                    icon = ft.Icon(ft.Icons.VOLUME_OFF, size=20, color=ft.Colors.ORANGE)
+                    subtitle = f"⚠️ 无音频流 • {file_size}"
                 
                 file_item = ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.VIDEO_FILE, size=20),
+                            icon,
                             ft.Column(
                                 controls=[
                                     ft.Text(file_path.name, size=13, weight=ft.FontWeight.W_500),
                                     ft.Text(
-                                        f"{file_path.parent} • {file_size}",
+                                        subtitle,
                                         size=11,
-                                        color=ft.Colors.ON_SURFACE_VARIANT,
+                                        color=ft.Colors.ORANGE if not has_audio else ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                 ],
                                 spacing=2,
@@ -494,11 +540,29 @@ class VideoExtractAudioView(ft.Container):
                         spacing=PADDING_SMALL,
                     ),
                     padding=PADDING_SMALL,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.border.all(1, ft.Colors.ORANGE if not has_audio else ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                 )
                 
                 self.file_list_view.controls.append(file_item)
+            
+            # 如果有无音频的文件，显示警告
+            if no_audio_count > 0:
+                warning_text = ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
+                            ft.Text(
+                                f"{no_audio_count} 个文件不包含音频流，将被跳过",
+                                size=12,
+                                color=ft.Colors.ORANGE,
+                            ),
+                        ],
+                        spacing=8,
+                    ),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                )
+                self.file_list_view.controls.insert(0, warning_text)
             
             self.process_button.content.disabled = False
         
@@ -507,6 +571,11 @@ class VideoExtractAudioView(ft.Container):
     
     def _remove_file(self, file_path: Path) -> None:
         """移除文件。"""
+        # 同时从缓存中移除
+        cache_key = str(file_path)
+        if cache_key in self._audio_stream_cache:
+            del self._audio_stream_cache[cache_key]
+        
         if file_path in self.selected_files:
             self.selected_files.remove(file_path)
             self._update_file_list()
@@ -579,9 +648,21 @@ class VideoExtractAudioView(ft.Container):
         total_files = len(self.selected_files)
         success_count = 0
         error_count = 0
+        no_audio_count = 0
         
         for i, file_path in enumerate(self.selected_files):
             try:
+                # 先检查是否有音频流（使用缓存）
+                has_audio = self._check_has_audio_stream(file_path)
+                if not has_audio:
+                    self._update_progress(
+                        (i + 1) / total_files,
+                        f"跳过(无音频): {file_path.name} ({i + 1}/{total_files})"
+                    )
+                    no_audio_count += 1
+                    logger.info(f"跳过无音频流文件: {file_path.name}")
+                    continue
+                
                 # 更新进度
                 progress = (i + 1) / total_files
                 self._update_progress(
@@ -633,7 +714,7 @@ class VideoExtractAudioView(ft.Container):
                 error_count += 1
         
         # 完成处理
-        self._on_processing_complete(success_count, error_count)
+        self._on_processing_complete(success_count, error_count, no_audio_count)
     
     def _extract_audio(
         self,
@@ -754,16 +835,30 @@ class VideoExtractAudioView(ft.Container):
         except:
             pass
     
-    def _on_processing_complete(self, success_count: int, error_count: int) -> None:
-        """处理完成。"""
+    def _on_processing_complete(self, success_count: int, error_count: int, no_audio_count: int = 0) -> None:
+        """处理完成。
+        
+        Args:
+            success_count: 成功数量
+            error_count: 失败数量
+            no_audio_count: 无音频流跳过的数量
+        """
         self._set_processing_state(False)
         
         # 显示结果
-        if error_count == 0:
+        if error_count == 0 and no_audio_count == 0:
             message = f"成功提取 {success_count} 个音频文件"
             color = ft.Colors.GREEN
+        elif no_audio_count > 0 and error_count == 0:
+            message = f"成功: {success_count} 个，跳过: {no_audio_count} 个(无音频流)"
+            color = ft.Colors.ORANGE
         else:
-            message = f"完成: {success_count} 成功, {error_count} 失败"
+            parts = [f"成功: {success_count}"]
+            if error_count > 0:
+                parts.append(f"失败: {error_count}")
+            if no_audio_count > 0:
+                parts.append(f"跳过: {no_audio_count}(无音频)")
+            message = "，".join(parts)
             color = ft.Colors.ORANGE
         
         snackbar = ft.SnackBar(

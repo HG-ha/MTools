@@ -59,6 +59,8 @@ class VideoVocalSeparationView(ft.Container):
         
         self.selected_files: List[Path] = []
         self.is_processing: bool = False
+        # 缓存：文件路径 -> 是否有音频流
+        self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
         self.padding: ft.padding = ft.padding.only(
@@ -566,6 +568,25 @@ class VideoVocalSeparationView(ft.Container):
         
         self._update_file_list()
     
+    def _check_has_audio_stream(self, file_path: Path) -> bool:
+        """检测视频文件是否包含音频流。"""
+        cache_key = str(file_path)
+        if cache_key in self._audio_stream_cache:
+            return self._audio_stream_cache[cache_key]
+        
+        has_audio = True
+        try:
+            import ffmpeg
+            ffprobe_path = self.ffmpeg_service.get_ffprobe_path()
+            if ffprobe_path:
+                probe = ffmpeg.probe(str(file_path), cmd=ffprobe_path)
+                has_audio = any(s.get('codec_type') == 'audio' for s in probe.get('streams', []))
+        except Exception:
+            has_audio = True  # 检测失败时假设有音频
+        
+        self._audio_stream_cache[cache_key] = has_audio
+        return has_audio
+    
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
         self.file_list_view.controls.clear()
@@ -574,16 +595,32 @@ class VideoVocalSeparationView(ft.Container):
             self._init_empty_state()
             self.process_button.content.disabled = True
         else:
+            no_audio_count = 0
             for file_path in self.selected_files:
+                has_audio = self._check_has_audio_stream(file_path)
+                if not has_audio:
+                    no_audio_count += 1
                 self.file_list_view.controls.append(
-                    self._create_file_item(file_path)
+                    self._create_file_item(file_path, has_audio)
                 )
+            
+            # 显示警告
+            if no_audio_count > 0:
+                warning = ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
+                        ft.Text(f"{no_audio_count} 个文件不包含音频流，将被跳过", size=12, color=ft.Colors.ORANGE),
+                    ], spacing=8),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                )
+                self.file_list_view.controls.insert(0, warning)
+            
             self.process_button.content.disabled = False
         
         self.file_list_view.update()
         self.process_button.update()
     
-    def _create_file_item(self, file_path: Path) -> ft.Container:
+    def _create_file_item(self, file_path: Path, has_audio: bool = True) -> ft.Container:
         """创建文件列表项。"""
         try:
             file_size = file_path.stat().st_size
@@ -591,10 +628,22 @@ class VideoVocalSeparationView(ft.Container):
         except:
             size_text = "未知大小"
         
-        return ft.Container(
+        # 根据是否有音频流显示不同样式
+        if has_audio:
+            icon = ft.Icon(ft.Icons.VIDEO_FILE, size=20)
+            subtitle = size_text
+            subtitle_color = ft.Colors.ON_SURFACE_VARIANT
+            border_color = None
+        else:
+            icon = ft.Icon(ft.Icons.VOLUME_OFF, size=20, color=ft.Colors.ORANGE)
+            subtitle = f"⚠️ 无音频流 • {size_text}"
+            subtitle_color = ft.Colors.ORANGE
+            border_color = ft.Colors.ORANGE
+        
+        container = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.VIDEO_FILE, size=20),
+                    icon,
                     ft.Column(
                         controls=[
                             ft.Text(
@@ -603,9 +652,9 @@ class VideoVocalSeparationView(ft.Container):
                                 weight=ft.FontWeight.W_500,
                             ),
                             ft.Text(
-                                f"{size_text}",
+                                subtitle,
                                 size=11,
-                                color=ft.Colors.ON_SURFACE_VARIANT,
+                                color=subtitle_color,
                             ),
                         ],
                         spacing=2,
@@ -624,6 +673,11 @@ class VideoVocalSeparationView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
         )
+        
+        if border_color:
+            container.border = ft.border.all(1, border_color)
+        
+        return container
     
     def _remove_file(self, file_path: Path) -> None:
         """移除文件。"""
