@@ -111,143 +111,195 @@ class ImageView(ft.Container):
         if hasattr(self.page, '_main_view'):
             self.page._main_view.show_search_button()
     
+    def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
+        """处理置顶状态变化。"""
+        if is_pinned:
+            self.config_service.pin_tool(tool_id)
+            self._show_snackbar("已置顶到推荐")
+        else:
+            self.config_service.unpin_tool(tool_id)
+            self._show_snackbar("已取消置顶")
+        
+        # 刷新推荐视图
+        if hasattr(self.page, '_main_view') and self.page._main_view.recommendations_view:
+            self.page._main_view.recommendations_view.refresh()
+    
+    def _show_snackbar(self, message: str) -> None:
+        """显示提示消息。"""
+        snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
+    
+    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
+        """创建带置顶功能的卡片。"""
+        return FeatureCard(
+            icon=icon,
+            title=title,
+            description=description,
+            gradient_colors=gradient_colors,
+            on_click=on_click,
+            tool_id=tool_id,
+            is_pinned=self.config_service.is_tool_pinned(tool_id),
+            on_pin_change=self._on_pin_change,
+        )
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域 - 自适应布局，确保从左到右、从上到下排列
         feature_cards: ft.Row = ft.Row(
             controls=[
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.COMPRESS_ROUNDED,
                     title="图片压缩",
                     description="专业压缩工具，最高减小80%体积",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=self._open_compress_dialog,
+                    tool_id="image.compress",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.PHOTO_SIZE_SELECT_LARGE_ROUNDED,
                     title="尺寸调整",
                     description="批量调整图片尺寸和分辨率",
                     gradient_colors=("#F093FB", "#F5576C"),
                     on_click=self._open_resize_dialog,
+                    tool_id="image.resize",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.TRANSFORM_ROUNDED,
                     title="格式转换",
                     description="支持JPG、PNG、WebP等格式互转",
                     gradient_colors=("#4FACFE", "#00F2FE"),
                     on_click=self._open_format_dialog,
+                    tool_id="image.format",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.AUTO_FIX_HIGH,
                     title="背景移除",
                     description="AI智能抠图，一键去除背景",
                     gradient_colors=("#FA709A", "#FEE140"),
                     on_click=self._open_background_dialog,
+                    tool_id="image.background",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.AUTO_AWESOME,
                     title="图像增强",
                     description="AI超分辨率，4倍放大清晰化",
                     gradient_colors=("#30CFD0", "#330867"),
                     on_click=self._open_enhance_dialog,
+                    tool_id="image.enhance",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.GRID_ON,
                     title="单图切分",
                     description="单图切分为九宫格，可设置间距",
                     gradient_colors=("#FF6B6B", "#FFE66D"),
                     on_click=self._open_split_dialog,
+                    tool_id="image.puzzle.split",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.VIEW_MODULE,
                     title="多图拼接",
                     description="横向、纵向、网格拼接图片",
                     gradient_colors=("#4ECDC4", "#44A08D"),
                     on_click=self._open_merge_dialog,
+                    tool_id="image.puzzle.merge",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.CROP,
                     title="图片裁剪",
                     description="可视化裁剪，实时预览效果",
                     gradient_colors=("#A8EDEA", "#FED6E3"),
                     on_click=self._open_crop_dialog,
+                    tool_id="image.crop",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.INFO,
                     title="图片信息",
                     description="查看图片详细信息和EXIF数据",
                     gradient_colors=("#FFA8A8", "#FCFF82"),
                     on_click=self._open_info_dialog,
+                    tool_id="image.info",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.GIF_BOX,
                     title="GIF/Live Photo 编辑",
                     description="调整 GIF / 实况图的速度、循环等参数，支持导出为视频",
                     gradient_colors=("#FF9A9E", "#FAD0C4"),
                     on_click=self._open_gif_adjustment_dialog,
+                    tool_id="image.gif",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.CODE,
                     title="图片转Base64",
                     description="将图片转换为Base64编码，支持Data URI格式",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=self._open_to_base64_dialog,
+                    tool_id="image.to_base64",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.ROTATE_90_DEGREES_CCW,
                     title="旋转/翻转",
                     description="支持GIF动图、实时预览、自定义角度、批量处理",
                     gradient_colors=("#F77062", "#FE5196"),
                     on_click=self._open_rotate_dialog,
+                    tool_id="image.rotate",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.SECURITY,
                     title="去除EXIF",
                     description="删除图片元数据，保护隐私",
                     gradient_colors=("#C471F5", "#FA71CD"),
                     on_click=self._open_remove_exif_dialog,
+                    tool_id="image.exif",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.QR_CODE_2,
                     title="二维码生成",
                     description="生成二维码，支持自定义样式",
                     gradient_colors=("#20E2D7", "#F9FEA5"),
                     on_click=self._open_qrcode_dialog,
+                    tool_id="image.qrcode",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.BRANDING_WATERMARK,
                     title="添加水印",
                     description="支持单个水印和全屏平铺水印，批量处理，实时预览",
                     gradient_colors=("#FF6FD8", "#3813C2"),
                     on_click=self._open_watermark_dialog,
+                    tool_id="image.watermark",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.AUTO_FIX_HIGH,
                     title="去水印",
                     description="AI智能去除图片水印，支持自定义区域",
                     gradient_colors=("#11998E", "#38EF7D"),
                     on_click=self._open_watermark_remove_dialog,
+                    tool_id="image.watermark_remove",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.IMAGE_SEARCH,
                     title="图片搜索",
                     description="以图搜图，搜索相似图片",
                     gradient_colors=("#FFA726", "#FB8C00"),
                     on_click=self._open_search_dialog,
+                    tool_id="image.search",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.TEXT_FIELDS,
                     title="OCR 文字识别",
                     description="AI识别图片中的文字，支持中英文",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=self._open_ocr_dialog,
+                    tool_id="image.ocr",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.COLOR_LENS,
                     title="颜色空间转换",
                     description="批量转换图片颜色空间，灰度、反色、复古等",
                     gradient_colors=("#00B4DB", "#0083B0"),
                     on_click=self._open_color_space_dialog,
+                    tool_id="image.color_space",
                 ),
             ],
             wrap=True,  # 自动换行

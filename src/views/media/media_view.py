@@ -127,132 +127,182 @@ class MediaView(ft.Container):
         if hasattr(self.page, '_main_view'):
             self.page._main_view.show_search_button()
     
+    def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
+        """处理置顶状态变化。"""
+        if is_pinned:
+            self.config_service.pin_tool(tool_id)
+            self._show_snackbar("已置顶到推荐")
+        else:
+            self.config_service.unpin_tool(tool_id)
+            self._show_snackbar("已取消置顶")
+        
+        # 刷新推荐视图
+        if hasattr(self.page, '_main_view') and self.page._main_view.recommendations_view:
+            self.page._main_view.recommendations_view.refresh()
+    
+    def _show_snackbar(self, message: str) -> None:
+        """显示提示消息。"""
+        snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
+    
+    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
+        """创建带置顶功能的卡片。"""
+        return FeatureCard(
+            icon=icon,
+            title=title,
+            description=description,
+            gradient_colors=gradient_colors,
+            on_click=on_click,
+            tool_id=tool_id,
+            is_pinned=self.config_service.is_tool_pinned(tool_id),
+            on_pin_change=self._on_pin_change,
+        )
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 所有媒体处理功能卡片
         feature_cards = [
             # 音频处理
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.AUDIO_FILE_ROUNDED,
                 title="音频格式转换",
                 description="转换音频格式(MP3/WAV/AAC等)",
                 on_click=lambda e: self._open_view('audio_format'),
                 gradient_colors=("#a8edea", "#fed6e3"),
+                tool_id="audio.format",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.COMPRESS,
                 title="音频压缩",
                 description="压缩音频文件大小",
                 on_click=lambda e: self._open_view('audio_compress'),
                 gradient_colors=("#fbc2eb", "#a6c1ee"),
+                tool_id="audio.compress",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.SPEED,
                 title="音频倍速调整",
                 description="调整音频播放速度(0.1x-10x)",
                 on_click=lambda e: self._open_view('audio_speed'),
                 gradient_colors=("#f093fb", "#f5576c"),
+                tool_id="audio.speed",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.MUSIC_NOTE,
                 title="人声提取",
                 description="AI智能分离人声和伴奏",
                 on_click=lambda e: self._open_view('vocal_extraction'),
                 gradient_colors=("#ffecd2", "#fcb69f"),
+                tool_id="audio.vocal_extraction",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.TRANSCRIBE,
                 title="音视频转文字",
                 description="AI语音识别，音视频转文字字幕",
                 on_click=lambda e: self._open_view('audio_to_text'),
                 gradient_colors=("#a8c0ff", "#3f2b96"),
+                tool_id="audio.to_text",
             ),
             # 视频处理
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.AUTO_AWESOME,
                 title="视频增强",
                 description="AI视频超分辨率增强，提升画质清晰度",
                 on_click=lambda e: self._open_view('video_enhance'),
                 gradient_colors=("#fa709a", "#fee140"),
+                tool_id="video.enhance",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.SLOW_MOTION_VIDEO,
                 title="视频插帧",
                 description="AI帧率提升，让视频更流畅",
                 on_click=lambda e: self._open_view('video_interpolation'),
                 gradient_colors=("#667eea", "#764ba2"),
+                tool_id="video.interpolation",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.AUTO_FIX_HIGH,
                 title="视频去字幕/水印",
                 description="AI智能移除视频字幕和水印",
                 on_click=lambda e: self._open_view('subtitle_remove'),
                 gradient_colors=("#FA709A", "#FEE140"),
+                tool_id="video.subtitle_remove",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.SUBTITLES,
                 title="视频配字幕",
                 description="AI语音识别自动生成字幕并烧录到视频",
                 on_click=lambda e: self._open_view('video_subtitle'),
                 gradient_colors=("#4776E6", "#8E54E9"),
+                tool_id="video.subtitle",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.COMPRESS,
                 title="视频压缩",
                 description="减小视频文件大小，支持CRF和分辨率调整",
                 on_click=lambda e: self._open_view('video_compress'),
                 gradient_colors=("#84fab0", "#8fd3f4"),
+                tool_id="video.compress",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.VIDEO_FILE_ROUNDED,
                 title="视频格式转换",
                 description="支持MP4、AVI、MKV等格式互转",
                 on_click=lambda e: self._open_view('video_convert'),
                 gradient_colors=("#a8edea", "#fed6e3"),
+                tool_id="video.convert",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.AUDIO_FILE_ROUNDED,
                 title="视频提取音频",
                 description="从视频中提取音频轨道",
                 on_click=lambda e: self._open_view('video_extract_audio'),
                 gradient_colors=("#ff9a9e", "#fad0c4"),
+                tool_id="video.extract_audio",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.SPEED,
                 title="视频倍速调整",
                 description="调整视频播放速度(0.1x-10x)",
                 on_click=lambda e: self._open_view('video_speed'),
                 gradient_colors=("#667eea", "#764ba2"),
+                tool_id="video.speed",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.GRAPHIC_EQ,
                 title="视频人声分离",
                 description="分离视频中的人声和背景音",
                 on_click=lambda e: self._open_view('video_vocal_separation'),
                 gradient_colors=("#fbc2eb", "#a6c1ee"),
+                tool_id="video.vocal_separation",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.BRANDING_WATERMARK,
                 title="视频添加水印",
                 description="为视频添加文字或图片水印",
                 on_click=lambda e: self._open_view('video_watermark'),
                 gradient_colors=("#ffecd2", "#fcb69f"),
+                tool_id="video.watermark",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.HEALING,
                 title="视频修复",
                 description="修复损坏、卡顿、无法播放的视频",
                 on_click=lambda e: self._open_view('video_repair'),
                 gradient_colors=("#30cfd0", "#330867"),
+                tool_id="video.repair",
             ),
-            FeatureCard(
+            self._create_card(
                 icon=ft.Icons.VIDEOCAM,
                 title="屏幕录制",
                 description="使用 FFmpeg 录制屏幕，支持多种格式",
                 on_click=lambda e: self._open_view('screen_record'),
                 gradient_colors=("#FF416C", "#FF4B2B"),
+                tool_id="video.screen_record",
             ),
-            # 工具类
+            # 工具类（FFmpeg 终端不需要置顶功能）
             FeatureCard(
                 icon=ft.Icons.TERMINAL,
                 title="FFmpeg 终端",

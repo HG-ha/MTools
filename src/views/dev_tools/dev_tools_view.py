@@ -100,162 +100,214 @@ class DevToolsView(ft.Container):
         if hasattr(self.page, '_main_view'):
             self.page._main_view.show_search_button()
     
+    def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
+        """处理置顶状态变化。"""
+        if is_pinned:
+            self.config_service.pin_tool(tool_id)
+            self._show_snackbar("已置顶到推荐")
+        else:
+            self.config_service.unpin_tool(tool_id)
+            self._show_snackbar("已取消置顶")
+        
+        # 刷新推荐视图
+        if hasattr(self.page, '_main_view') and self.page._main_view.recommendations_view:
+            self.page._main_view.recommendations_view.refresh()
+    
+    def _show_snackbar(self, message: str) -> None:
+        """显示提示消息。"""
+        snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
+    
+    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
+        """创建带置顶功能的卡片。"""
+        return FeatureCard(
+            icon=icon,
+            title=title,
+            description=description,
+            gradient_colors=gradient_colors,
+            on_click=on_click,
+            tool_id=tool_id,
+            is_pinned=self.config_service.is_tool_pinned(tool_id),
+            on_pin_change=self._on_pin_change,
+        )
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域
         feature_cards: ft.Row = ft.Row(
             controls=[
                 # 编码转换
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.TRANSFORM_ROUNDED,
                     title="编码转换",
                     description="检测和转换文件编码格式",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=self._open_encoding_convert,
+                    tool_id="dev.encoding",
                 ),
                 # JSON 查看器
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.DATA_OBJECT,
                     title="JSON 查看器",
                     description="格式化并以树形结构查看 JSON",
                     gradient_colors=("#FA8BFF", "#2BD2FF"),
                     on_click=self._open_json_viewer,
+                    tool_id="dev.json_viewer",
                 ),
                 # Base64转图片
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.IMAGE_OUTLINED,
                     title="Base64转图片",
                     description="Base64转图片，自动识别格式",
                     gradient_colors=("#4FACFE", "#00F2FE"),
                     on_click=self._open_base64_to_image,
+                    tool_id="dev.base64_to_image",
                 ),
                 # HTTP 客户端
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.HTTP,
                     title="HTTP 客户端",
                     description="发送 HTTP 请求，测试 API 接口",
                     gradient_colors=("#F093FB", "#F5576C"),
                     on_click=self._open_http_client,
+                    tool_id="dev.http_client",
                 ),
                 # WebSocket 客户端
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.CABLE,
                     title="WebSocket 客户端",
                     description="连接 WebSocket，实时收发消息",
                     gradient_colors=("#A8EDEA", "#FED6E3"),
                     on_click=self._open_websocket_client,
+                    tool_id="dev.websocket_client",
                 ),
                 # 编码/解码工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.LOCK_OPEN,
                     title="编码/解码",
                     description="Base64、URL、HTML、Unicode 编解码",
                     gradient_colors=("#FFD89B", "#19547B"),
                     on_click=self._open_encoder_decoder,
+                    tool_id="dev.encoder_decoder",
                 ),
                 # 正则表达式测试器
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.PATTERN,
                     title="正则表达式测试器",
                     description="实时测试正则表达式，可视化匹配结果",
                     gradient_colors=("#FC466B", "#3F5EFB"),
                     on_click=self._open_regex_tester,
+                    tool_id="dev.regex_tester",
                 ),
                 # 时间工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.ACCESS_TIME,
                     title="时间工具",
                     description="时间戳转换、时间计算、格式转换",
                     gradient_colors=("#11998E", "#38EF7D"),
                     on_click=self._open_timestamp_tool,
+                    tool_id="dev.timestamp_tool",
                 ),
                 # JWT 工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.KEY,
                     title="JWT 工具",
                     description="解析 JWT Token，查看头部和载荷",
                     gradient_colors=("#00C9FF", "#92FE9D"),
                     on_click=self._open_jwt_tool,
+                    tool_id="dev.jwt_tool",
                 ),
                 # UUID 生成器
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.FINGERPRINT,
                     title="UUID/随机数生成器",
                     description="生成 UUID、随机字符串、随机密码",
                     gradient_colors=("#F857A6", "#FF5858"),
                     on_click=self._open_uuid_generator,
+                    tool_id="dev.uuid_generator",
                 ),
                 # 颜色工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.PALETTE,
                     title="颜色工具",
                     description="颜色格式转换、图片取色器、调色板",
                     gradient_colors=("#FF9A9E", "#FAD0C4"),
                     on_click=self._open_color_tool,
+                    tool_id="dev.color_tool",
                 ),
                 # Markdown 编辑器
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.DESCRIPTION,
                     title="Markdown 编辑器",
                     description="编辑 Markdown，实时预览，导出 HTML",
                     gradient_colors=("#A8CABA", "#5D4E6D"),
                     on_click=self._open_markdown_viewer,
+                    tool_id="dev.markdown_viewer",
                 ),
                 # DNS 查询
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.DNS,
                     title="DNS 查询",
                     description="多种记录类型、反向查询、批量查询、指定服务器",
                     gradient_colors=("#4CA1AF", "#C4E0E5"),
                     on_click=self._open_dns_lookup,
+                    tool_id="dev.dns_lookup",
                 ),
                 # 端口扫描
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.ROUTER,
                     title="端口扫描",
                     description="端口检测、批量端口、常用端口、范围扫描",
                     gradient_colors=("#FC466B", "#3F5EFB"),
                     on_click=self._open_port_scanner,
+                    tool_id="dev.port_scanner",
                 ),
                 # 数据格式转换
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.SWAP_HORIZ,
                     title="数据格式转换",
                     description="JSON、YAML、XML、TOML 互转",
                     gradient_colors=("#11998E", "#38EF7D"),
                     on_click=self._open_format_convert,
+                    tool_id="dev.format_convert",
                 ),
                 # 文本对比
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.COMPARE,
                     title="文本对比",
                     description="左右分栏、高亮显示差异",
                     gradient_colors=("#3A7BD5", "#00D2FF"),
                     on_click=self._open_text_diff,
+                    tool_id="dev.text_diff",
                 ),
                 # 加解密工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.SECURITY,
                     title="加解密工具",
                     description="AES, DES, RC4, MD5, SHA 等",
                     gradient_colors=("#2C3E50", "#4CA1AF"),
                     on_click=self._open_crypto_tool,
+                    tool_id="dev.crypto_tool",
                 ),
                 # SQL 格式化
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.CODE,
                     title="SQL 格式化",
                     description="格式化/压缩 SQL，支持多种方言",
                     gradient_colors=("#1FA2FF", "#12D8FA"),
                     on_click=self._open_sql_formatter,
+                    tool_id="dev.sql_formatter",
                 ),
                 # Cron 表达式工具
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.SCHEDULE,
                     title="Cron 表达式",
                     description="解析 Cron 表达式，预测执行时间",
                     gradient_colors=("#A770EF", "#CF8BF3"),
                     on_click=self._open_cron_tool,
+                    tool_id="dev.cron_tool",
                 ),
             ],
             wrap=True,

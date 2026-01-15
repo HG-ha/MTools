@@ -99,52 +99,91 @@ class OthersView(ft.Container):
         if hasattr(self.page, '_main_view'):
             self.page._main_view.show_search_button()
     
+    def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
+        """处理置顶状态变化。"""
+        if is_pinned:
+            self.config_service.pin_tool(tool_id)
+            self._show_snackbar("已置顶到推荐")
+        else:
+            self.config_service.unpin_tool(tool_id)
+            self._show_snackbar("已取消置顶")
+        
+        # 刷新推荐视图
+        if hasattr(self.page, '_main_view') and self.page._main_view.recommendations_view:
+            self.page._main_view.recommendations_view.refresh()
+    
+    def _show_snackbar(self, message: str) -> None:
+        """显示提示消息。"""
+        snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
+    
+    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
+        """创建带置顶功能的卡片。"""
+        return FeatureCard(
+            icon=icon,
+            title=title,
+            description=description,
+            gradient_colors=gradient_colors,
+            on_click=on_click,
+            tool_id=tool_id,
+            is_pinned=self.config_service.is_tool_pinned(tool_id),
+            on_pin_change=self._on_pin_change,
+        )
+    
     def _build_ui(self) -> None:
         """构建用户界面。"""
         # 功能卡片区域
         feature_cards: ft.Row = ft.Row(
             controls=[
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.UPDATE_DISABLED,
                     title="Windows更新管理",
                     description="禁用或恢复Windows自动更新",
                     gradient_colors=("#FF6B6B", "#FFA500"),
                     on_click=lambda _: self._open_windows_update_view(),
+                    tool_id="others.windows_update",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.LINK,
                     title="图片转URL",
                     description="上传图片生成分享链接",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=lambda _: self._open_image_to_url_view(),
+                    tool_id="others.image_to_url",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.UPLOAD_FILE,
                     title="文件转URL",
                     description="上传文件获取分享链接",
                     gradient_colors=("#F093FB", "#F5576C"),
                     on_click=lambda _: self._open_file_to_url_view(),
+                    tool_id="others.file_to_url",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.SEARCH,
                     title="ICP备案查询",
                     description="查询域名、APP、小程序的备案信息",
                     gradient_colors=("#43E97B", "#38F9D7"),
                     on_click=lambda _: self._open_icp_query_view(),
+                    tool_id="others.icp_query",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.BADGE,
                     title="AI证件照",
                     description="智能抠图换底，一键生成证件照",
                     gradient_colors=("#667EEA", "#764BA2"),
                     on_click=lambda _: self._open_id_photo_view(),
+                    tool_id="others.id_photo",
                 ),
-                FeatureCard(
+                self._create_card(
                     icon=ft.Icons.TRANSLATE,
                     title="文本翻译",
                     description="支持 AI 翻译和 Bing 翻译，多语言互译",
                     gradient_colors=("#00C9FF", "#92FE9D"),
                     on_click=lambda _: self._open_translate_view(),
+                    tool_id="others.translate",
                 ),
             ],
             wrap=True,

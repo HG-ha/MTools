@@ -60,48 +60,18 @@ class RecommendationsView(ft.Container):
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
-        # 获取使用历史
-        tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
+        # 获取推荐的工具ID列表（置顶优先）
+        recommended_tool_ids = self._get_recommended_tool_ids()
         
-        # 推荐的工具卡片
-        recommended_cards = []
-        
-        if tool_usage_count:
-            # 有使用历史，显示基于历史的推荐
-            # 获取最常用的8个工具
-            sorted_tools = sorted(tool_usage_count.items(), key=lambda x: x[1], reverse=True)
-            recommended_tool_names = [name for name, count in sorted_tools[:8]]
-            
-            # 根据工具名称找到对应的tool_id
-            all_tools_meta = get_all_tools()
-            recommended_tool_ids = []
-            for tool_meta in all_tools_meta:
-                if tool_meta.name in recommended_tool_names:
-                    recommended_tool_ids.append(tool_meta.tool_id)
-            
-            recommended_cards = self._build_tool_cards(recommended_tool_ids)
-        else:
-            # 没有使用历史，显示智能推荐
-            # 推荐一些常用工具
-            smart_recommended = [
-                "image.compress",    # 图片压缩
-                "video.compress",    # 视频压缩
-                "video.convert",     # 视频格式转换
-                "audio.format",      # 音频格式转换
-                "dev.json_viewer",   # JSON查看器
-                "dev.encoding",      # 编码转换
-                "image.format",      # 图片格式转换
-                "video.speed",       # 视频倍速
-            ]
-            
-            recommended_cards = self._build_tool_cards(smart_recommended)
+        # 构建工具卡片
+        recommended_cards = self._build_tool_cards(recommended_tool_ids)
         
         # 组装内容 - 只显示工具卡片
         self.content = ft.Column(
             controls=[
                 ft.Row(
                     controls=recommended_cards if recommended_cards else [
-                        ft.Text("暂无推荐工具", color=ft.Colors.ON_SURFACE_VARIANT)
+                        ft.Text("暂无推荐工具，右键点击任意工具卡片可置顶", color=ft.Colors.ON_SURFACE_VARIANT)
                     ],
                     wrap=True,
                     spacing=PADDING_LARGE,
@@ -117,6 +87,49 @@ class RecommendationsView(ft.Container):
             spacing=0,
         )
     
+    def _get_recommended_tool_ids(self) -> List[str]:
+        """获取推荐的工具ID列表（置顶优先）。
+        
+        Returns:
+            工具ID列表
+        """
+        # 获取置顶工具
+        pinned_tools = self.config_service.get_pinned_tools()
+        
+        # 获取使用历史
+        tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
+        
+        # 推荐的工具ID（不包括已置顶的）
+        recommended_tool_ids = []
+        
+        if tool_usage_count:
+            # 有使用历史，显示基于历史的推荐
+            sorted_tools = sorted(tool_usage_count.items(), key=lambda x: x[1], reverse=True)
+            recommended_tool_names = [name for name, count in sorted_tools[:8]]
+            
+            # 根据工具名称找到对应的tool_id
+            all_tools_meta = get_all_tools()
+            for tool_meta in all_tools_meta:
+                if tool_meta.name in recommended_tool_names:
+                    if tool_meta.tool_id not in pinned_tools:
+                        recommended_tool_ids.append(tool_meta.tool_id)
+        else:
+            # 没有使用历史，显示智能推荐
+            smart_recommended = [
+                "image.compress",    # 图片压缩
+                "video.compress",    # 视频压缩
+                "video.convert",     # 视频格式转换
+                "audio.format",      # 音频格式转换
+                "dev.json_viewer",   # JSON查看器
+                "dev.encoding",      # 编码转换
+                "image.format",      # 图片格式转换
+                "video.speed",       # 视频倍速
+            ]
+            recommended_tool_ids = [tid for tid in smart_recommended if tid not in pinned_tools]
+        
+        # 置顶的放在最前面
+        return pinned_tools + recommended_tool_ids
+    
     def _build_tool_cards(self, tool_ids: list) -> list:
         """构建工具卡片列表。
         
@@ -126,6 +139,9 @@ class RecommendationsView(ft.Container):
         Returns:
             工具卡片列表
         """
+        # 获取置顶工具列表
+        pinned_tools = self.config_service.get_pinned_tools()
+        
         cards = []
         for tool_id in tool_ids:
             tool_meta = get_tool(tool_id)
@@ -138,17 +154,40 @@ class RecommendationsView(ft.Container):
             # 使用工具自己的渐变色
             gradient_colors = tool_meta.gradient_colors
             
+            # 检查是否已置顶
+            is_pinned = tool_id in pinned_tools
+            
             card = FeatureCard(
                 icon=icon,
                 title=tool_meta.name,
                 description=tool_meta.description,
                 on_click=lambda e, tid=tool_id: self._on_tool_click(tid),
                 gradient_colors=gradient_colors,
+                tool_id=tool_id,
+                is_pinned=is_pinned,
+                on_pin_change=self._on_pin_change,
             )
             
             cards.append(card)
         
         return cards
+    
+    def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
+        """处理置顶状态变化。
+        
+        Args:
+            tool_id: 工具ID
+            is_pinned: 是否置顶
+        """
+        if is_pinned:
+            self.config_service.pin_tool(tool_id)
+            self._show_snackbar("已置顶到推荐")
+        else:
+            self.config_service.unpin_tool(tool_id)
+            self._show_snackbar("已取消置顶")
+        
+        # 刷新视图
+        self.refresh()
     
     def _get_gradient_for_category(self, category: str) -> tuple:
         """根据分类获取渐变色。"""
@@ -167,40 +206,11 @@ class RecommendationsView(ft.Container):
     
     def refresh(self) -> None:
         """刷新推荐列表。"""
-        # 重新获取使用历史
-        tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
+        # 获取推荐的工具ID列表（置顶优先）
+        recommended_tool_ids = self._get_recommended_tool_ids()
         
-        # 推荐的工具卡片
-        recommended_cards = []
-        
-        if tool_usage_count:
-            # 有使用历史，显示基于历史的推荐
-            # 获取最常用的8个工具
-            sorted_tools = sorted(tool_usage_count.items(), key=lambda x: x[1], reverse=True)
-            recommended_tool_names = [name for name, count in sorted_tools[:8]]
-            
-            # 根据工具名称找到对应的tool_id
-            all_tools_meta = get_all_tools()
-            recommended_tool_ids = []
-            for tool_meta in all_tools_meta:
-                if tool_meta.name in recommended_tool_names:
-                    recommended_tool_ids.append(tool_meta.tool_id)
-            
-            recommended_cards = self._build_tool_cards(recommended_tool_ids)
-        else:
-            # 没有使用历史，显示智能推荐
-            smart_recommended = [
-                "image.compress",    # 图片压缩
-                "video.compress",    # 视频压缩
-                "video.convert",     # 视频格式转换
-                "audio.format",      # 音频格式转换
-                "dev.json_viewer",   # JSON查看器
-                "dev.encoding",      # 编码转换
-                "image.format",      # 图片格式转换
-                "video.speed",       # 视频倍速
-            ]
-            
-            recommended_cards = self._build_tool_cards(smart_recommended)
+        # 构建工具卡片
+        recommended_cards = self._build_tool_cards(recommended_tool_ids)
         
         # 更新内容
         if hasattr(self, 'content') and self.content and isinstance(self.content, ft.Column):
@@ -210,7 +220,7 @@ class RecommendationsView(ft.Container):
                 if isinstance(row, ft.Row):
                     # 更新 Row 中的卡片
                     row.controls = recommended_cards if recommended_cards else [
-                        ft.Text("暂无推荐工具", color=ft.Colors.ON_SURFACE_VARIANT)
+                        ft.Text("暂无推荐工具，右键点击任意工具卡片可置顶", color=ft.Colors.ON_SURFACE_VARIANT)
                     ]
                     
                     # 更新页面
@@ -287,29 +297,7 @@ class RecommendationsView(ft.Container):
     
     def _get_current_tool_ids(self) -> List[str]:
         """获取当前推荐的工具ID列表。"""
-        tool_usage_count = self.config_service.get_config_value("tool_usage_count", {})
-        
-        if tool_usage_count:
-            sorted_tools = sorted(tool_usage_count.items(), key=lambda x: x[1], reverse=True)
-            recommended_tool_names = [name for name, count in sorted_tools[:8]]
-            
-            all_tools_meta = get_all_tools()
-            tool_ids = []
-            for tool_meta in all_tools_meta:
-                if tool_meta.name in recommended_tool_names:
-                    tool_ids.append(tool_meta.tool_id)
-            return tool_ids
-        else:
-            return [
-                "image.compress",
-                "video.compress",
-                "video.convert",
-                "audio.format",
-                "dev.json_viewer",
-                "dev.encoding",
-                "image.format",
-                "video.speed",
-            ]
+        return self._get_recommended_tool_ids()
     
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""

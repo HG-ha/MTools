@@ -311,6 +311,47 @@ class ConfigService:
         # 保存
         self.set_config_value("tool_usage_count", tool_usage_count)
     
+    def get_pinned_tools(self) -> list:
+        """获取置顶工具列表。
+        
+        Returns:
+            置顶工具ID列表
+        """
+        return self.get_config_value("pinned_tools", [])
+    
+    def pin_tool(self, tool_id: str) -> None:
+        """置顶工具。
+        
+        Args:
+            tool_id: 工具ID
+        """
+        pinned = self.get_pinned_tools()
+        if tool_id not in pinned:
+            pinned.insert(0, tool_id)  # 新置顶的放在最前面
+            self.set_config_value("pinned_tools", pinned)
+    
+    def unpin_tool(self, tool_id: str) -> None:
+        """取消置顶工具。
+        
+        Args:
+            tool_id: 工具ID
+        """
+        pinned = self.get_pinned_tools()
+        if tool_id in pinned:
+            pinned.remove(tool_id)
+            self.set_config_value("pinned_tools", pinned)
+    
+    def is_tool_pinned(self, tool_id: str) -> bool:
+        """检查工具是否已置顶。
+        
+        Args:
+            tool_id: 工具ID
+            
+        Returns:
+            是否已置顶
+        """
+        return tool_id in self.get_pinned_tools()
+    
     def get_temp_dir(self) -> Path:
         """获取临时文件目录。
         
