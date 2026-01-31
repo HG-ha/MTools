@@ -9,6 +9,7 @@ from views.media.ffmpeg_install_view import FFmpegInstallView
 from views.media.media_view import MediaView
 from views.media.video_enhance_view import VideoEnhanceView
 from views.media.video_subtitle_view import VideoSubtitleView
+from views.media.subtitle_convert_view import SubtitleConvertView
 
 __all__ = [
     'AudioFormatView',
@@ -16,5 +17,6 @@ __all__ = [
     'MediaView',
     'VideoEnhanceView',
     'VideoSubtitleView',
+    'SubtitleConvertView',
 ]
 

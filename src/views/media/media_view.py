@@ -30,6 +30,7 @@ from views.media.video_speed_view import VideoSpeedView
 from views.media.video_vocal_separation_view import VideoVocalSeparationView
 from views.media.video_watermark_view import VideoWatermarkView
 from views.media.subtitle_remove_view import SubtitleRemoveView
+from views.media.subtitle_convert_view import SubtitleConvertView
 from views.media.video_subtitle_view import VideoSubtitleView
 from views.media.screen_record_view import ScreenRecordView
 
@@ -97,6 +98,7 @@ class MediaView(ft.Container):
         self.video_vocal_separation_view: Optional[VideoVocalSeparationView] = None
         self.video_watermark_view: Optional[VideoWatermarkView] = None
         self.subtitle_remove_view: Optional[SubtitleRemoveView] = None
+        self.subtitle_convert_view: Optional[SubtitleConvertView] = None
         self.video_subtitle_view: Optional[VideoSubtitleView] = None
         self.screen_record_view: Optional[ScreenRecordView] = None
         
@@ -237,6 +239,14 @@ class MediaView(ft.Container):
                 on_click=lambda e: self._open_view('video_subtitle'),
                 gradient_colors=("#4776E6", "#8E54E9"),
                 tool_id="video.subtitle",
+            ),
+            self._create_card(
+                icon=ft.Icons.SWAP_HORIZ,
+                title="字幕格式转换",
+                description="SRT、VTT、LRC、ASS 字幕格式互转",
+                on_click=lambda e: self._open_view('subtitle_convert'),
+                gradient_colors=("#11998E", "#38EF7D"),
+                tool_id="subtitle.convert",
             ),
             self._create_card(
                 icon=ft.Icons.COMPRESS,
@@ -464,6 +474,15 @@ class MediaView(ft.Container):
                 )
             self._switch_to_sub_view(self.subtitle_remove_view, 'subtitle_remove')
         
+        elif view_name == 'subtitle_convert':
+            if not self.subtitle_convert_view:
+                self.subtitle_convert_view = SubtitleConvertView(
+                    self._saved_page,
+                    self.config_service,
+                    on_back=self._back_to_main
+                )
+            self._switch_to_sub_view(self.subtitle_convert_view, 'subtitle_convert')
+        
         elif view_name == 'video_subtitle':
             if not self.video_subtitle_view:
                 self.video_subtitle_view = VideoSubtitleView(
@@ -617,6 +636,7 @@ class MediaView(ft.Container):
                 "video_enhance": "video_enhance_view",
                 "video_interpolation": "video_interpolation_view",
                 "subtitle_remove": "subtitle_remove_view",
+                "subtitle_convert": "subtitle_convert_view",
                 "video_subtitle": "video_subtitle_view",
                 "video_extract_audio": "video_extract_audio_view",
                 "video_repair": "video_repair_view",
@@ -751,6 +771,8 @@ cd /d "{work_dir}"
         _audio_exts = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.aiff', '.ape'}
         # 视频格式
         _video_exts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.mpg', '.3gp'}
+        # 字幕格式
+        _subtitle_exts = {'.srt', '.vtt', '.lrc', '.ass', '.ssa', '.txt'}
         # 音视频混合
         _media_exts = _audio_exts | _video_exts
         
@@ -766,6 +788,7 @@ cd /d "{work_dir}"
             ("视频插帧", _video_exts, 'video_interpolation', "video_interpolation_view"),
             ("视频去字幕/水印", _video_exts, 'subtitle_remove', "subtitle_remove_view"),
             ("视频配字幕", _video_exts, 'video_subtitle', "video_subtitle_view"),
+            ("字幕格式转换", _subtitle_exts, 'subtitle_convert', "subtitle_convert_view"),
             ("视频压缩", _video_exts, 'video_compress', "video_compress_view"),
             ("视频格式转换", _video_exts, 'video_convert', "video_convert_view"),
             ("视频提取音频", _video_exts, 'video_extract_audio', "video_extract_audio_view"),
