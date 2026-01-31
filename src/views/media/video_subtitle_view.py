@@ -119,11 +119,27 @@ class VideoSubtitleView(ft.Container):
         self.ai_fix_api_key: str = self.config_service.get_config_value("video_subtitle_ai_fix_api_key", "")
         self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
         
+        # 标点恢复设置
+        self.use_punctuation: bool = self.config_service.get_config_value("video_subtitle_use_punctuation", True)
+        
+        # 字幕分段设置
+        self.subtitle_max_length: int = self.config_service.get_config_value("video_subtitle_max_length", 30)
+        self.subtitle_split_by_punctuation: bool = self.config_service.get_config_value("video_subtitle_split_by_punctuation", True)
+        self.subtitle_keep_ending_punctuation: bool = self.config_service.get_config_value("video_subtitle_keep_ending_punctuation", True)
+        
         # 初始化语音识别服务（传入 VAD 服务）
         self.speech_service: SpeechRecognitionService = SpeechRecognitionService(
             model_dir,
             self.ffmpeg_service,
             vad_service=self.vad_service
+        )
+        
+        # 同步标点和字幕分段设置到服务
+        self.speech_service.use_punctuation = self.use_punctuation
+        self.speech_service.set_subtitle_settings(
+            max_length=self.subtitle_max_length,
+            split_by_punctuation=self.subtitle_split_by_punctuation,
+            keep_ending_punctuation=self.subtitle_keep_ending_punctuation
         )
         
         self.expand: bool = True
@@ -533,6 +549,53 @@ class VideoSubtitleView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
+        # === 标点恢复设置 ===
+        self.punctuation_checkbox = ft.Checkbox(
+            label="启用标点恢复",
+            value=self.use_punctuation,
+            on_change=self._on_punctuation_change,
+        )
+        
+        punctuation_hint = ft.Text(
+            "使用 AI 模型优化或添加标点符号，提升识别结果的可读性",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
+        # === 字幕分段设置 ===
+        self.subtitle_split_checkbox = ft.Checkbox(
+            label="在标点处自动分段",
+            value=self.subtitle_split_by_punctuation,
+            on_change=self._on_subtitle_split_change,
+        )
+        
+        self.subtitle_keep_punct_checkbox = ft.Checkbox(
+            label="保留结尾标点",
+            value=self.subtitle_keep_ending_punctuation,
+            on_change=self._on_subtitle_keep_punct_change,
+        )
+        
+        self.subtitle_length_slider = ft.Slider(
+            min=15,
+            max=60,
+            divisions=9,
+            value=self.subtitle_max_length,
+            label="{value} 字/段",
+            on_change=self._on_subtitle_length_change,
+            expand=True,
+        )
+        
+        self.subtitle_length_text = ft.Text(
+            f"每段最大 {self.subtitle_max_length} 字",
+            size=12,
+        )
+        
+        subtitle_settings_hint = ft.Text(
+            "较短的分段更易阅读，建议 25-35 字/段",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         preprocess_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -550,6 +613,26 @@ class VideoSubtitleView(ft.Container):
                     self.ai_fix_api_key_field,
                     ai_fix_link,
                     ai_fix_hint,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    self.punctuation_checkbox,
+                    punctuation_hint,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    ft.Text("字幕分段设置", size=13, weight=ft.FontWeight.W_500),
+                    ft.Row(
+                        controls=[
+                            self.subtitle_split_checkbox,
+                            self.subtitle_keep_punct_checkbox,
+                        ],
+                        spacing=PADDING_LARGE,
+                    ),
+                    ft.Row(
+                        controls=[
+                            self.subtitle_length_text,
+                            self.subtitle_length_slider,
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                    subtitle_settings_hint,
                 ],
                 spacing=4,
             ),
@@ -2527,6 +2610,35 @@ class VideoSubtitleView(ft.Container):
         self.ai_fix_api_key = e.control.value
         self.config_service.set_config_value("video_subtitle_ai_fix_api_key", self.ai_fix_api_key)
         self.ai_fix_service.set_api_key(self.ai_fix_api_key)
+    
+    def _on_punctuation_change(self, e: ft.ControlEvent) -> None:
+        """标点恢复选项变更事件。"""
+        self.use_punctuation = e.control.value
+        self.config_service.set_config_value("video_subtitle_use_punctuation", self.use_punctuation)
+        self.speech_service.use_punctuation = self.use_punctuation
+    
+    def _on_subtitle_split_change(self, e: ft.ControlEvent) -> None:
+        """字幕标点分段选项变更事件。"""
+        self.subtitle_split_by_punctuation = e.control.value
+        self.config_service.set_config_value("video_subtitle_split_by_punctuation", self.subtitle_split_by_punctuation)
+        self.speech_service.set_subtitle_settings(split_by_punctuation=self.subtitle_split_by_punctuation)
+    
+    def _on_subtitle_length_change(self, e: ft.ControlEvent) -> None:
+        """字幕最大长度变更事件。"""
+        self.subtitle_max_length = int(e.control.value)
+        self.config_service.set_config_value("video_subtitle_max_length", self.subtitle_max_length)
+        self.speech_service.set_subtitle_settings(max_length=self.subtitle_max_length)
+        self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _on_subtitle_keep_punct_change(self, e: ft.ControlEvent) -> None:
+        """保留结尾标点选项变更事件。"""
+        self.subtitle_keep_ending_punctuation = e.control.value
+        self.config_service.set_config_value("video_subtitle_keep_ending_punctuation", self.subtitle_keep_ending_punctuation)
+        self.speech_service.set_subtitle_settings(keep_ending_punctuation=self.subtitle_keep_ending_punctuation)
     
     def _on_download_vad(self, e: ft.ControlEvent) -> None:
         """下载 VAD 模型。"""

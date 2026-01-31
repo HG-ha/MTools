@@ -94,6 +94,14 @@ class AISubtitleFixService:
                 response.raise_for_status()
                 result = response.json()
                 
+                # 检查返回格式
+                if "choices" not in result:
+                    error_msg = result.get("error", {}).get("message", str(result))
+                    raise ValueError(f"API 返回格式异常: {error_msg}")
+                
+                if not result["choices"]:
+                    raise ValueError("API 返回空的 choices")
+                
                 fixed_text = result["choices"][0]["message"]["content"].strip()
                 
                 # 移除可能的思考过程标签（qwen3 可能会返回 <think>...</think>）
@@ -277,6 +285,16 @@ class AISubtitleFixService:
             response.raise_for_status()
             result = response.json()
             
+            # 检查返回格式
+            if "choices" not in result:
+                error_msg = result.get("error", {}).get("message", str(result))
+                logger.error(f"API 返回格式异常: {error_msg}")
+                raise ValueError(f"API 返回格式异常: {error_msg}")
+            
+            if not result["choices"]:
+                logger.error("API 返回空的 choices")
+                raise ValueError("API 返回空的 choices")
+            
             fixed_text = result["choices"][0]["message"]["content"].strip()
             
             # 移除可能的思考过程标签
@@ -390,6 +408,14 @@ class AISubtitleFixService:
                 response = client.post(self.API_URL, json=data, headers=headers)
                 response.raise_for_status()
                 result = response.json()
+                
+                # 检查返回格式
+                if "choices" not in result:
+                    error_msg = result.get("error", {}).get("message", str(result))
+                    raise ValueError(f"API 返回格式异常: {error_msg}")
+                
+                if not result["choices"]:
+                    raise ValueError("API 返回空的 choices")
                 
                 translated = result["choices"][0]["message"]["content"].strip()
                 
@@ -586,6 +612,16 @@ class AISubtitleFixService:
             response = client.post(self.API_URL, json=data, headers=headers)
             response.raise_for_status()
             result = response.json()
+            
+            # 检查返回格式
+            if "choices" not in result:
+                error_msg = result.get("error", {}).get("message", str(result))
+                logger.error(f"API 返回格式异常: {error_msg}")
+                raise ValueError(f"API 返回格式异常: {error_msg}")
+            
+            if not result["choices"]:
+                logger.error("API 返回空的 choices")
+                raise ValueError("API 返回空的 choices")
             
             translated = result["choices"][0]["message"]["content"].strip()
             
