@@ -10,6 +10,7 @@ from views.media.media_view import MediaView
 from views.media.video_enhance_view import VideoEnhanceView
 from views.media.video_subtitle_view import VideoSubtitleView
 from views.media.subtitle_convert_view import SubtitleConvertView
+from views.media.ts_merge_view import TSMergeView
 
 __all__ = [
     'AudioFormatView',
@@ -18,5 +19,6 @@ __all__ = [
     'VideoEnhanceView',
     'VideoSubtitleView',
     'SubtitleConvertView',
+    'TSMergeView',
 ]
 

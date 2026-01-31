@@ -69,6 +69,8 @@ from .platform_utils import (
     get_gpu_devices,
     get_cuda_devices,
     get_available_compute_devices,
+    is_admin,
+    request_admin_restart,
 )
 # 拖放处理器 - 使用透明覆盖窗口实现
 from .windows_drop import WindowsDropHandler, DropInfo
@@ -129,6 +131,8 @@ __all__ = [
     "get_gpu_devices",
     "get_cuda_devices",
     "get_available_compute_devices",
+    "is_admin",
+    "request_admin_restart",
     "WindowsDropHandler",
     "DropInfo",
 ]

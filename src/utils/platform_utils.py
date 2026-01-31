@@ -402,3 +402,72 @@ def get_available_compute_devices() -> Dict[str, List[Dict]]:
     
     return result
 
+
+def is_admin() -> bool:
+    """检测当前程序是否以管理员/root 身份运行。
+    
+    Returns:
+        True 如果是管理员/root 权限，False 否则
+    """
+    import os
+    
+    try:
+        if sys.platform == "win32":
+            # Windows: 使用 ctypes 调用 Windows API
+            import ctypes
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        else:
+            # Linux/macOS: 检测是否是 root 用户
+            return os.getuid() == 0
+    except Exception:
+        return False
+
+
+def request_admin_restart() -> bool:
+    """请求以管理员身份重新启动程序（仅 Windows）。
+    
+    Returns:
+        True 如果成功请求重启（程序将退出），False 如果失败或用户取消
+    """
+    if sys.platform != "win32":
+        return False
+    
+    try:
+        import ctypes
+        
+        # 获取当前可执行文件路径
+        executable = sys.executable
+        
+        # 获取命令行参数
+        if hasattr(sys, 'argv') and sys.argv:
+            # 如果是打包的应用，使用可执行文件本身
+            if getattr(sys, 'frozen', False):
+                params = ' '.join(sys.argv[1:]) if len(sys.argv) > 1 else ''
+            else:
+                # 开发环境，需要包含脚本路径
+                params = ' '.join(sys.argv)
+        else:
+            params = ''
+        
+        # 使用 ShellExecuteW 请求提权运行
+        # 参数: hwnd, operation, file, params, directory, show
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None,           # 父窗口句柄
+            "runas",        # 请求管理员权限
+            executable,     # 可执行文件
+            params,         # 参数
+            None,           # 工作目录
+            1               # SW_SHOWNORMAL
+        )
+        
+        # ShellExecuteW 返回值 > 32 表示成功
+        if ret > 32:
+            # 成功启动新进程，退出当前进程
+            import os
+            os._exit(0)
+            return True
+        else:
+            return False
+            
+    except Exception:
+        return False

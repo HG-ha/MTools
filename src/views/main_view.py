@@ -917,6 +917,43 @@ class MainView(ft.Column):
         # 定义按钮事件处理
         def on_auto_update(e):
             """自动更新"""
+            from utils import is_admin, request_admin_restart
+            
+            # 检查是否以管理员身份运行
+            if not is_admin():
+                # 显示提示对话框
+                admin_dialog = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("需要管理员权限"),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("自动更新需要管理员权限才能正确替换程序文件。"),
+                            ft.Text(""),
+                            ft.Text("请选择：", weight=ft.FontWeight.W_500),
+                            ft.Text("• 点击「以管理员身份重启」自动提权重启"),
+                            ft.Text("• 或手动右键程序 → 以管理员身份运行"),
+                        ],
+                        tight=True,
+                        spacing=4,
+                    ),
+                    actions=[
+                        ft.FilledButton(
+                            "以管理员身份重启",
+                            icon=ft.Icons.ADMIN_PANEL_SETTINGS,
+                            on_click=lambda _: request_admin_restart(),
+                        ),
+                        ft.TextButton(
+                            "取消",
+                            on_click=lambda _: (setattr(admin_dialog, 'open', False), self.page.update()),
+                        ),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+                self.page.overlay.append(admin_dialog)
+                admin_dialog.open = True
+                self.page.update()
+                return
+            
             auto_update_btn.disabled = True
             manual_download_btn.disabled = True
             skip_btn.disabled = True
