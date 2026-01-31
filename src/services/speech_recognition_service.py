@@ -49,12 +49,22 @@ class SpeechRecognitionService:
         
         self.recognizer = None
         self.current_model: Optional[str] = None
-        self.model_type: str = "whisper"  # whisper 或 sensevoice
+        self.model_type: str = "whisper"  # whisper 或 sensevoice 或 paraformer
         self.sample_rate: int = 16000  # 固定使用 16kHz
         self.current_provider: str = "未加载"
         
         # VAD 相关设置
         self.use_vad: bool = True  # 是否使用 VAD 智能分片
+        
+        # 标点恢复相关
+        self.punctuator = None  # 标点恢复模型
+        self.punctuation_model_path: Optional[Path] = None
+        self.use_punctuation: bool = True  # 是否启用标点恢复（仅对无标点模型生效）
+        
+        # 字幕分段设置
+        self.subtitle_max_length: int = 30  # 每段字幕最大字符数（默认30，适合阅读）
+        self.subtitle_split_by_punctuation: bool = True  # 是否在标点处分段
+        self.subtitle_keep_ending_punctuation: bool = True  # 是否保留结尾标点
         
         # 设置 FFmpeg 环境
         self._setup_ffmpeg_env()
@@ -569,6 +579,200 @@ class SpeechRecognitionService:
         except Exception as e:
             raise RuntimeError(f"加载SenseVoice模型失败: {e}")
     
+    def load_punctuation_model(
+        self,
+        model_path: Path,
+        use_gpu: bool = False,
+        num_threads: int = 4
+    ) -> None:
+        """加载标点恢复模型。
+        
+        Args:
+            model_path: 模型目录路径（包含 model.onnx 或 model.int8.onnx）
+            use_gpu: 是否使用 GPU
+            num_threads: CPU 线程数
+        """
+        try:
+            import sherpa_onnx
+            
+            # 检查模型目录是否存在
+            if not model_path.exists():
+                raise FileNotFoundError(f"标点恢复模型目录不存在: {model_path}")
+            
+            # 检查模型文件是否存在（支持多种命名）
+            model_file = None
+            for name in ["model.int8.onnx", "model.onnx"]:
+                candidate = model_path / name
+                if candidate.exists():
+                    model_file = candidate
+                    break
+            
+            if not model_file:
+                files = list(model_path.glob("*.onnx"))
+                if files:
+                    model_file = files[0]
+                else:
+                    raise FileNotFoundError(f"标点恢复模型文件不存在于: {model_path}")
+            
+            # 确定执行提供者
+            if use_gpu:
+                provider = "cuda"
+            else:
+                provider = "cpu"
+            
+            # 创建模型配置 - sherpa-onnx 期望的是完整的模型文件路径（包含 .onnx 文件）
+            # 使用正斜杠确保跨平台兼容性
+            model_file_str = str(model_file).replace("\\", "/")
+            model_config = sherpa_onnx.OfflinePunctuationModelConfig(
+                ct_transformer=model_file_str,
+                num_threads=num_threads,
+                debug=self.debug_mode,
+                provider=provider
+            )
+            
+            # 创建配置
+            config = sherpa_onnx.OfflinePunctuationConfig(model=model_config)
+            
+            # 验证配置
+            if not config.validate():
+                # 列出目录内容帮助调试
+                files_in_dir = list(model_path.iterdir()) if model_path.exists() else []
+                logger.error(f"模型目录内容: {[f.name for f in files_in_dir]}")
+                raise RuntimeError(f"标点恢复模型配置无效，请确保目录包含正确的模型文件: {model_path}")
+            
+            # 创建标点恢复器
+            self.punctuator = sherpa_onnx.OfflinePunctuation(config=config)
+            self.punctuation_model_path = model_path
+            
+            logger.info(f"标点恢复模型已加载: {model_path.name}, 执行提供者: {provider.upper()}")
+            
+        except Exception as e:
+            logger.error(f"加载标点恢复模型失败: {e}")
+            self.punctuator = None
+            raise RuntimeError(f"加载标点恢复模型失败: {e}")
+    
+    def is_punctuation_model_loaded(self) -> bool:
+        """检查标点恢复模型是否已加载。
+        
+        Returns:
+            是否已加载
+        """
+        return self.punctuator is not None
+    
+    def add_punctuation(self, text: str) -> str:
+        """为文本添加标点符号。
+        
+        Args:
+            text: 输入文本（可能无标点）
+            
+        Returns:
+            带标点的文本
+        """
+        if not text or not text.strip():
+            return text
+        
+        if not self.is_punctuation_model_loaded():
+            logger.debug("标点恢复模型未加载，跳过标点恢复")
+            return text
+        
+        try:
+            # 先去除原有标点，避免重复
+            clean_text = self._remove_punctuation(text.strip())
+            if not clean_text:
+                return text
+            
+            # 调用标点恢复模型
+            result = self.punctuator.add_punctuation(clean_text)
+            
+            # 去除可能的重复标点
+            result = self._clean_duplicate_punctuation(result)
+            
+            return result
+        except Exception as e:
+            logger.warning(f"标点恢复失败: {e}")
+            return text
+    
+    def _remove_punctuation(self, text: str) -> str:
+        """去除文本中的标点符号。
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            去除标点后的文本
+        """
+        import re
+        # 中英文标点
+        punctuation = r'[。！？!?，,、；;：:…．.～~·]'
+        return re.sub(punctuation, '', text)
+    
+    def _clean_duplicate_punctuation(self, text: str) -> str:
+        """清理文本中的重复标点符号。
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            清理后的文本
+        """
+        import re
+        
+        if not text:
+            return text
+        
+        # 去除连续重复的标点（如 。。 -> 。，，，-> ，）
+        text = re.sub(r'([。！？!?，,、；;：:…])\1+', r'\1', text)
+        
+        # 去除标点后紧跟不同标点的情况（如 。，-> 。，？。 -> ？）
+        # 保留更强的标点（句号 > 逗号）
+        text = re.sub(r'[。！？!?][，,、]', lambda m: m.group(0)[0], text)
+        text = re.sub(r'[，,、][。！？!?]', lambda m: m.group(0)[-1], text)
+        
+        # 去除开头的标点
+        text = re.sub(r'^[。！？!?，,、；;：:…]+', '', text)
+        
+        return text
+    
+    def should_add_punctuation(self) -> bool:
+        """判断是否需要对识别结果添加标点恢复。
+        
+        Returns:
+            是否需要添加标点（用户启用且模型已加载时返回 True）
+        """
+        # 所有模型都支持标点恢复功能
+        # - Paraformer 模型不输出标点，强烈建议启用
+        # - SenseVoice 和 Whisper 自带标点，但启用后可优化标点质量
+        return self.use_punctuation and self.is_punctuation_model_loaded()
+    
+    def add_punctuation_to_segments(
+        self,
+        segments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """为分段结果添加标点符号。
+        
+        用于 SenseVoice 等有真实时间戳的场景，对每个分段单独做标点恢复。
+        对于 Whisper 等场景，应在分段前对完整文本做标点恢复。
+        
+        Args:
+            segments: 分段结果列表
+            
+        Returns:
+            添加标点后的分段结果
+        """
+        if not segments or not self.should_add_punctuation():
+            return segments
+        
+        if not self.is_punctuation_model_loaded():
+            logger.debug("标点恢复模型未加载，跳过标点恢复")
+            return segments
+        
+        # 为每个分段单独添加标点
+        for segment in segments:
+            if 'text' in segment and segment['text']:
+                segment['text'] = self.add_punctuation(segment['text'])
+        
+        return segments
+    
     def _load_audio_ffmpeg(self, audio_path: Path) -> np.ndarray:
         """使用 ffmpeg 加载音频。
         
@@ -1007,6 +1211,10 @@ class SpeechRecognitionService:
             chunk_text = self._recognize_audio_chunk(chunk)
             
             if chunk_text:
+                # 先做标点恢复（对片段文本），再分段
+                if self.should_add_punctuation():
+                    chunk_text = self.add_punctuation(chunk_text)
+                
                 # 为这个片段生成带时间戳的分段
                 chunk_segments = self._split_into_segments(chunk_text, chunk_duration)
                 
@@ -1028,6 +1236,8 @@ class SpeechRecognitionService:
 
         # 过滤幻觉输出（重复字符、异常语言等）
         all_segments = self._filter_hallucination_segments(all_segments)
+        # 处理结尾标点
+        all_segments = self.process_segments_ending_punctuation(all_segments)
 
         # VAD 分段结果为空或文本过短时，回退固定分片生成分段（防止 VAD 导致输出几乎为空）
         if audio_duration > 28.0:
@@ -1035,16 +1245,18 @@ class SpeechRecognitionService:
             total_text_len = sum(len((seg.get("text") or "").strip()) for seg in all_segments)
             if len(all_segments) == 0:
                 logger.warning("VAD 时间戳识别结果为空，回退到固定分片识别")
-                return self._filter_hallucination_segments(
+                segments = self._filter_hallucination_segments(
                     self._recognize_with_fixed_chunks_timestamps(audio, audio_duration, progress_callback)
                 )
+                return self.process_segments_ending_punctuation(segments)
             if total_text_len < min_len:
                 logger.warning(
                     f"VAD 时间戳识别文本过短（{total_text_len} 字符），回退到固定分片识别"
                 )
-                return self._filter_hallucination_segments(
+                segments = self._filter_hallucination_segments(
                     self._recognize_with_fixed_chunks_timestamps(audio, audio_duration, progress_callback)
                 )
+                return self.process_segments_ending_punctuation(segments)
 
         return all_segments
 
@@ -1078,6 +1290,10 @@ class SpeechRecognitionService:
 
             chunk_text = self._recognize_audio_chunk(chunk)
             if chunk_text:
+                # 先做标点恢复（对片段文本），再分段
+                if self.should_add_punctuation():
+                    chunk_text = self.add_punctuation(chunk_text)
+                
                 chunk_segments = self._split_into_segments(chunk_text, chunk_duration)
                 for seg in chunk_segments:
                     seg["start"] += chunk_start_time
@@ -1086,7 +1302,8 @@ class SpeechRecognitionService:
 
         if progress_callback:
             progress_callback("完成!", 1.0)
-        return self._filter_hallucination_segments(all_segments)
+        segments = self._filter_hallucination_segments(all_segments)
+        return segments
     
     def recognize(
         self,
@@ -1138,15 +1355,22 @@ class SpeechRecognitionService:
             import sherpa_onnx
             
             # SenseVoice/Paraformer：可选启用 VAD（用于切静音/降噪场景）
-            if self.model_type == "sensevoice":
+            if self.model_type in ("sensevoice", "paraformer"):
                 if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
-                    return self._recognize_with_vad(audio, audio_duration, progress_callback)
+                    result = self._recognize_with_vad(audio, audio_duration, progress_callback)
+                    # 添加标点恢复（如果启用）
+                    if self.should_add_punctuation() and result and result != "[未识别到语音内容]":
+                        result = self.add_punctuation(result)
+                    return result
                 else:
                     if progress_callback:
                         progress_callback(f"正在识别语音（{audio_duration:.1f}秒）...", 0.5)
                     text = self._recognize_audio_chunk(audio)
                     if progress_callback:
                         progress_callback("完成!", 1.0)
+                    # 添加标点恢复（如果启用）
+                    if self.should_add_punctuation() and text:
+                        text = self.add_punctuation(text)
                     return text if text else "[未识别到语音内容]"
             
             # Whisper 限制：单次最多 30 秒
@@ -1164,11 +1388,18 @@ class SpeechRecognitionService:
                 if progress_callback:
                     progress_callback("完成!", 1.0)
                 
+                # 添加标点恢复（如果启用）
+                if self.should_add_punctuation() and text:
+                    text = self.add_punctuation(text)
                 return text if text else "[未识别到语音内容]"
             
             # 长音频：优先使用 VAD 智能分片
             if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
-                return self._recognize_with_vad(audio, audio_duration, progress_callback)
+                result = self._recognize_with_vad(audio, audio_duration, progress_callback)
+                # 添加标点恢复（如果启用）
+                if self.should_add_punctuation() and result and result != "[未识别到语音内容]":
+                    result = self.add_punctuation(result)
+                return result
             
             # 回退：固定时间分段识别
             # sherpa-onnx Whisper 限制：最多 30 秒，参考 https://github.com/k2-fsa/sherpa-onnx/issues/896
@@ -1209,6 +1440,10 @@ class SpeechRecognitionService:
             
             # 智能合并文本（中文直接连接，英文用空格）
             full_text = self._merge_segments_text(results)
+            
+            # 添加标点恢复（如果启用）
+            if self.should_add_punctuation() and full_text:
+                full_text = self.add_punctuation(full_text)
             
             if progress_callback:
                 progress_callback("完成!", 1.0)
@@ -1274,8 +1509,8 @@ class SpeechRecognitionService:
             
             # SenseVoice/Paraformer：
             # - 默认：直接识别并获取真实时间戳
-            # - 启用 VAD：改用 VAD 分片生成“近似时间戳”（按句子均分），避免 padding 重叠导致的时间戳/文本重复问题
-            if self.model_type == "sensevoice":
+            # - 启用 VAD：改用 VAD 分片生成"近似时间戳"（按句子均分），避免 padding 重叠导致的时间戳/文本重复问题
+            if self.model_type in ("sensevoice", "paraformer"):
                 if self.use_vad and self.vad_service and self.vad_service.is_model_loaded():
                     logger.info("SenseVoice 启用 VAD：使用 VAD 分片生成近似时间戳")
                     return self._recognize_with_vad_timestamps(audio, audio_duration, progress_callback)
@@ -1297,6 +1532,10 @@ class SpeechRecognitionService:
                     progress_callback("完成!", 1.0)
                 
                 segments = self._filter_hallucination_segments(segments)
+                # 添加标点恢复（如果启用）
+                segments = self.add_punctuation_to_segments(segments)
+                # 处理结尾标点
+                segments = self.process_segments_ending_punctuation(segments)
                 logger.info(f"识别完成，使用真实时间戳生成 {len(segments)} 个分段")
                 return segments
             
@@ -1316,9 +1555,15 @@ class SpeechRecognitionService:
                         progress_callback("完成!", 1.0)
                     return []
                 
+                # 先做标点恢复（对完整文本），再分段
+                if self.should_add_punctuation():
+                    text = self.add_punctuation(text)
+                
                 # 将文本分割成句子
                 segments = self._split_into_segments(text, audio_duration)
                 segments = self._filter_hallucination_segments(segments)
+                # 处理结尾标点
+                segments = self.process_segments_ending_punctuation(segments)
                 
                 if progress_callback:
                     progress_callback("完成!", 1.0)
@@ -1356,6 +1601,10 @@ class SpeechRecognitionService:
                 chunk_text = self._recognize_audio_chunk(chunk)
                 
                 if chunk_text:
+                    # 先做标点恢复（对片段文本），再分段
+                    if self.should_add_punctuation():
+                        chunk_text = self.add_punctuation(chunk_text)
+                    
                     # 为这个片段生成带时间戳的分段
                     chunk_segments = self._split_into_segments(chunk_text, chunk_duration)
                     
@@ -1368,6 +1617,8 @@ class SpeechRecognitionService:
                     logger.info(f"片段 {i+1}/{num_chunks} 识别完成: {len(chunk_segments)} 个分段")
             
             all_segments = self._filter_hallucination_segments(all_segments)
+            # 处理结尾标点
+            all_segments = self.process_segments_ending_punctuation(all_segments)
             
             if progress_callback:
                 progress_callback("完成!", 1.0)
@@ -1403,7 +1654,7 @@ class SpeechRecognitionService:
         text: str,
         tokens: List[str],
         timestamps: List[float],
-        max_segment_length: int = 80
+        max_segment_length: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """将 SenseVoice 的字符级时间戳转换为句子级分段。
         
@@ -1411,7 +1662,7 @@ class SpeechRecognitionService:
             text: 完整文本
             tokens: 字符列表
             timestamps: 对应的时间戳列表（秒）
-            max_segment_length: 每段的最大字符数
+            max_segment_length: 每段的最大字符数，None 时使用 self.subtitle_max_length
             
         Returns:
             分段结果列表
@@ -1421,94 +1672,111 @@ class SpeechRecognitionService:
         if not text or not tokens or not timestamps:
             return []
         
-        # 按标点符号分割句子
+        # 使用配置的最大长度
+        if max_segment_length is None:
+            max_segment_length = self.subtitle_max_length
+        
+        # 强分割符：句号、问号、感叹号、换行
         sentence_endings = r'[。！？!?\n]+'
-        sentences = re.split(f'({sentence_endings})', text)
+        # 弱分割符：逗号、顿号、分号、冒号
+        weak_endings = r'([，,、；;：:]+)'
         
-        # 合并句子和标点
-        merged_sentences = []
-        i = 0
-        while i < len(sentences):
-            if i + 1 < len(sentences) and re.match(sentence_endings, sentences[i + 1]):
-                merged_sentences.append(sentences[i] + sentences[i + 1])
-                i += 2
-            else:
-                if sentences[i].strip():
-                    merged_sentences.append(sentences[i])
-                i += 1
-        
-        if not merged_sentences:
-            merged_sentences = [text]
-        
-        # 为每个句子找到时间戳
-        segments = []
-        char_index = 0
-        
-        for sentence in merged_sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
+        # 辅助函数：添加分段
+        def add_segment(text_part: str, segments_list: list, char_idx: int) -> int:
+            """添加分段并返回更新后的字符索引。"""
+            if not text_part.strip():
+                return char_idx
+            seg_len = len(text_part)
+            start_idx = char_idx
+            end_idx = min(char_idx + seg_len, len(timestamps))
             
-            # 进一步分割过长的句子
-            if len(sentence) > max_segment_length:
-                # 按逗号分割
-                parts = re.split(r'([，,、；;])', sentence)
-                current_part = ""
+            if start_idx < len(timestamps) and end_idx <= len(timestamps):
+                start_time = timestamps[start_idx] if start_idx < len(timestamps) else 0
+                end_time = timestamps[end_idx - 1] if end_idx > 0 and end_idx <= len(timestamps) else start_time + 1.0
                 
-                for part in parts:
-                    if len(current_part + part) <= max_segment_length:
-                        current_part += part
-                    else:
-                        if current_part.strip():
-                            # 找到这部分的时间戳
-                            seg_len = len(current_part)
-                            start_idx = char_index
-                            end_idx = min(char_index + seg_len, len(timestamps))
+                segments_list.append({
+                    'text': text_part.strip(),
+                    'start': start_time,
+                    'end': end_time,
+                })
+            return end_idx
+        
+        # 如果启用标点分段
+        if self.subtitle_split_by_punctuation:
+            # 先按强分割符分割
+            sentences = re.split(f'({sentence_endings})', text)
+            
+            # 合并句子和标点
+            merged_sentences = []
+            i = 0
+            while i < len(sentences):
+                if i + 1 < len(sentences) and re.match(sentence_endings, sentences[i + 1]):
+                    merged_sentences.append(sentences[i] + sentences[i + 1])
+                    i += 2
+                else:
+                    if sentences[i].strip():
+                        merged_sentences.append(sentences[i])
+                    i += 1
+            
+            if not merged_sentences:
+                merged_sentences = [text]
+            
+            # 为每个句子找到时间戳
+            segments = []
+            char_index = 0
+            
+            for sentence in merged_sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                
+                if len(sentence) <= max_segment_length:
+                    char_index = add_segment(sentence, segments, char_index)
+                else:
+                    # 按弱分割符进一步分割
+                    parts = re.split(weak_endings, sentence)
+                    
+                    # 收集所有可能的断点（标点位置）
+                    segments_with_punct = []
+                    current_segment = ""
+                    
+                    for part in parts:
+                        if re.match(weak_endings, part):
+                            current_segment += part
+                            segments_with_punct.append((current_segment, True))
+                            current_segment = ""
+                        else:
+                            current_segment += part
+                    
+                    if current_segment:
+                        segments_with_punct.append((current_segment, False))
+                    
+                    # 智能合并：尽量在接近但不超过最大长度的标点处断开
+                    current_part = ""
+                    for segment_text, can_break in segments_with_punct:
+                        if len(current_part + segment_text) <= max_segment_length:
+                            current_part += segment_text
+                        else:
+                            if current_part.strip():
+                                char_index = add_segment(current_part, segments, char_index)
                             
-                            if start_idx < len(timestamps) and end_idx <= len(timestamps):
-                                start_time = timestamps[start_idx] if start_idx < len(timestamps) else 0
-                                end_time = timestamps[end_idx - 1] if end_idx > 0 and end_idx <= len(timestamps) else start_time + 1.0
-                                
-                                segments.append({
-                                    'text': current_part.strip(),
-                                    'start': start_time,
-                                    'end': end_time,
-                                })
-                                char_index = end_idx
-                        
-                        current_part = part
-                
-                if current_part.strip():
-                    seg_len = len(current_part)
-                    start_idx = char_index
-                    end_idx = min(char_index + seg_len, len(timestamps))
+                            if len(segment_text) > max_segment_length:
+                                for k in range(0, len(segment_text), max_segment_length):
+                                    chunk = segment_text[k:k + max_segment_length]
+                                    char_index = add_segment(chunk, segments, char_index)
+                                current_part = ""
+                            else:
+                                current_part = segment_text
                     
-                    if start_idx < len(timestamps) and end_idx <= len(timestamps):
-                        start_time = timestamps[start_idx] if start_idx < len(timestamps) else 0
-                        end_time = timestamps[end_idx - 1] if end_idx > 0 and end_idx <= len(timestamps) else start_time + 1.0
-                        
-                        segments.append({
-                            'text': current_part.strip(),
-                            'start': start_time,
-                            'end': end_time,
-                        })
-                        char_index = end_idx
-            else:
-                # 句子不太长，直接处理
-                seg_len = len(sentence)
-                start_idx = char_index
-                end_idx = min(char_index + seg_len, len(timestamps))
-                
-                if start_idx < len(timestamps) and end_idx <= len(timestamps):
-                    start_time = timestamps[start_idx] if start_idx < len(timestamps) else 0
-                    end_time = timestamps[end_idx - 1] if end_idx > 0 and end_idx <= len(timestamps) else start_time + 1.0
-                    
-                    segments.append({
-                        'text': sentence,
-                        'start': start_time,
-                        'end': end_time,
-                    })
-                    char_index = end_idx
+                    if current_part.strip():
+                        char_index = add_segment(current_part, segments, char_index)
+        else:
+            # 不按标点分段，仅按字数强制分割
+            segments = []
+            char_index = 0
+            for k in range(0, len(text), max_segment_length):
+                chunk = text[k:k + max_segment_length]
+                char_index = add_segment(chunk, segments, char_index)
         
         return segments
     
@@ -1516,78 +1784,138 @@ class SpeechRecognitionService:
         self, 
         text: str, 
         audio_duration: float,
-        max_segment_length: int = 80
+        max_segment_length: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """将长文本分割成带时间戳的段落（估算方法，用于 Whisper）。
         
         Args:
             text: 识别的完整文本
             audio_duration: 音频总时长（秒）
-            max_segment_length: 每段的最大字符数
+            max_segment_length: 每段的最大字符数，None 时使用 self.subtitle_max_length
             
         Returns:
             分段结果列表
         """
-        # 按标点符号分割
         import re
         
-        # 中文和英文标点符号
+        # 使用配置的最大长度
+        if max_segment_length is None:
+            max_segment_length = self.subtitle_max_length
+        
+        # 强分割符：句号、问号、感叹号、换行
         sentence_endings = r'[。！？!?\n]+'
+        # 弱分割符：逗号、顿号、分号、冒号
+        weak_endings = r'([，,、；;：:]+)'
         
-        # 分割句子，保留分隔符
-        sentences = re.split(f'({sentence_endings})', text)
-        
-        # 合并句子和标点
-        merged_sentences = []
-        i = 0
-        while i < len(sentences):
-            if i + 1 < len(sentences) and re.match(sentence_endings, sentences[i + 1]):
-                merged_sentences.append(sentences[i] + sentences[i + 1])
-                i += 2
-            else:
-                if sentences[i].strip():
-                    merged_sentences.append(sentences[i])
-                i += 1
-        
-        if not merged_sentences:
-            merged_sentences = [text]
-        
-        # 进一步分割过长的句子
-        final_segments = []
-        for sentence in merged_sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
+        # 如果启用标点分段，优先在标点处断开
+        if self.subtitle_split_by_punctuation:
+            # 先按强分割符分割
+            sentences = re.split(f'({sentence_endings})', text)
             
-            if len(sentence) <= max_segment_length:
-                final_segments.append(sentence)
-            else:
-                # 按逗号或空格分割
-                parts = re.split(r'([，,\s]+)', sentence)
-                current_part = ""
+            # 合并句子和标点
+            merged_sentences = []
+            i = 0
+            while i < len(sentences):
+                if i + 1 < len(sentences) and re.match(sentence_endings, sentences[i + 1]):
+                    merged_sentences.append(sentences[i] + sentences[i + 1])
+                    i += 2
+                else:
+                    if sentences[i].strip():
+                        merged_sentences.append(sentences[i])
+                    i += 1
+            
+            if not merged_sentences:
+                merged_sentences = [text]
+            
+            # 对每个句子进行进一步分割
+            final_segments = []
+            
+            for sentence in merged_sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                
+                # 如果句子长度在限制内，直接添加
+                if len(sentence) <= max_segment_length:
+                    final_segments.append(sentence)
+                    continue
+                
+                # 按弱分割符（逗号等）分割
+                parts = re.split(weak_endings, sentence)
+                
+                # 收集所有可能的断点（标点位置）
+                segments_with_punct = []
+                current_segment = ""
+                
                 for part in parts:
-                    if len(current_part + part) <= max_segment_length:
-                        current_part += part
+                    if re.match(weak_endings, part):
+                        # 标点符号：附加并标记为可断点
+                        current_segment += part
+                        segments_with_punct.append((current_segment, True))  # (文本, 是否可断)
+                        current_segment = ""
                     else:
+                        current_segment += part
+                
+                # 处理末尾没有标点的部分
+                if current_segment:
+                    segments_with_punct.append((current_segment, False))
+                
+                # 智能合并：尽量在接近但不超过最大长度的标点处断开
+                current_part = ""
+                for segment_text, can_break in segments_with_punct:
+                    # 尝试追加这个片段
+                    if len(current_part + segment_text) <= max_segment_length:
+                        current_part += segment_text
+                    else:
+                        # 追加后会超长
                         if current_part.strip():
+                            # 先保存当前累积的部分
                             final_segments.append(current_part.strip())
-                        current_part = part
+                        
+                        # 如果这个片段本身就超长，强制按字数分割
+                        if len(segment_text) > max_segment_length:
+                            for k in range(0, len(segment_text), max_segment_length):
+                                chunk = segment_text[k:k + max_segment_length].strip()
+                                if chunk:
+                                    final_segments.append(chunk)
+                            current_part = ""
+                        else:
+                            current_part = segment_text
+                
+                # 处理剩余部分
                 if current_part.strip():
                     final_segments.append(current_part.strip())
+        else:
+            # 不按标点分段，仅按字数强制分割
+            final_segments = []
+            for k in range(0, len(text), max_segment_length):
+                chunk = text[k:k + max_segment_length].strip()
+                if chunk:
+                    final_segments.append(chunk)
+        
+        # 合并过短的分段（少于5个字符且不是完整句子）
+        optimized_segments = []
+        min_merge_length = min(5, max_segment_length // 4)
+        
+        for seg in final_segments:
+            if optimized_segments and len(seg) < min_merge_length and not seg.endswith(('。', '！', '？', '!', '?')):
+                last_seg = optimized_segments[-1]
+                if not last_seg.endswith(('。', '！', '？', '!', '?')) and len(last_seg + seg) <= max_segment_length:
+                    optimized_segments[-1] = last_seg + seg
+                    continue
+            optimized_segments.append(seg)
+        
+        final_segments = optimized_segments if optimized_segments else final_segments
         
         # 为每个段落分配时间戳
-        # 简单策略：根据字符数按比例分配时间
         total_chars = sum(len(seg) for seg in final_segments)
         
         segments = []
         current_time = 0.0
         
         for segment_text in final_segments:
-            # 根据字符数占比计算段落时长
             char_ratio = len(segment_text) / total_chars if total_chars > 0 else 1.0
             segment_duration = audio_duration * char_ratio
-            
-            # 确保每段至少 0.5 秒，最多不超过音频剩余时长
             segment_duration = max(0.5, min(segment_duration, audio_duration - current_time))
             
             segments.append({
@@ -1673,3 +2001,70 @@ class SpeechRecognitionService:
             self.vad_service is not None 
             and self.vad_service.is_model_loaded()
         )
+    
+    def set_subtitle_settings(
+        self,
+        max_length: Optional[int] = None,
+        split_by_punctuation: Optional[bool] = None,
+        keep_ending_punctuation: Optional[bool] = None
+    ) -> None:
+        """设置字幕分段参数。
+        
+        Args:
+            max_length: 每段字幕最大字符数（10-100）
+            split_by_punctuation: 是否在标点处分段
+            keep_ending_punctuation: 是否保留结尾标点
+        """
+        if max_length is not None:
+            self.subtitle_max_length = max(10, min(100, max_length))
+        if split_by_punctuation is not None:
+            self.subtitle_split_by_punctuation = split_by_punctuation
+        if keep_ending_punctuation is not None:
+            self.subtitle_keep_ending_punctuation = keep_ending_punctuation
+    
+    def strip_ending_punctuation(self, text: str) -> str:
+        """去除文本结尾的标点符号。
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            去除结尾标点后的文本
+        """
+        if not text:
+            return text
+        
+        # 中英文结尾标点
+        ending_puncts = '。！？!?，,、；;：:…'
+        
+        # 从结尾开始去除标点
+        while text and text[-1] in ending_puncts:
+            text = text[:-1]
+        
+        return text
+    
+    def process_segments_ending_punctuation(
+        self,
+        segments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """根据设置处理分段结尾标点，同时清理重复标点。
+        
+        Args:
+            segments: 分段结果列表
+            
+        Returns:
+            处理后的分段结果
+        """
+        if not segments:
+            return segments
+        
+        for segment in segments:
+            if 'text' in segment and segment['text']:
+                # 先清理重复标点和开头标点
+                segment['text'] = self._clean_duplicate_punctuation(segment['text'])
+                
+                # 如果不保留结尾标点，去除
+                if not self.subtitle_keep_ending_punctuation:
+                    segment['text'] = self.strip_ending_punctuation(segment['text'])
+        
+        return segments

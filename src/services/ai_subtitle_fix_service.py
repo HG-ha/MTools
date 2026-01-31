@@ -67,6 +67,7 @@ class AISubtitleFixService:
 3. 如果文本没有明显错误，直接返回原文
 4. 只返回修复后的文本，不要添加任何解释或标注
 5. 语言：{lang_name}
+6. 【严禁】修改任何数字、时间、日期、年份、金额等数值内容，必须原样保留
 
 原文：
 {text}
@@ -119,15 +120,19 @@ class AISubtitleFixService:
         segments: List[Dict[str, Any]],
         language: str = "zh",
         progress_callback: Optional[Callable[[str, float], None]] = None,
-        batch_size: int = 5
+        batch_size: int = 50
     ) -> List[Dict[str, Any]]:
         """修复字幕分段列表。
+        
+        优化策略：
+        - 短文本（< 3000 字）：一次性处理所有分段，只需 1 次 API 调用
+        - 长文本：按批次处理，每批最多 50 个分段
         
         Args:
             segments: 字幕分段列表，每个分段包含 'text', 'start', 'end'
             language: 语言代码
             progress_callback: 进度回调函数 (message, progress)
-            batch_size: 每批处理的分段数量
+            batch_size: 每批处理的分段数量（默认 50）
             
         Returns:
             修复后的字幕分段列表
@@ -139,9 +144,51 @@ class AISubtitleFixService:
             return segments
         
         total = len(segments)
+        all_texts = [seg.get("text", "") for seg in segments]
+        total_chars = sum(len(t) for t in all_texts)
+        
+        # 一次性处理所有分段
+        if progress_callback:
+            progress_callback(f"AI 修复中 (共 {total} 段, {total_chars} 字)...", 0.3)
+        
+        combined_text = "\n---\n".join(all_texts)
+        
+        try:
+            fixed_combined = self._fix_batch(combined_text, language, total)
+            fixed_texts = fixed_combined.split("\n---\n")
+            
+            # 确保数量匹配
+            if len(fixed_texts) != total:
+                logger.warning(f"AI 返回分段数 {len(fixed_texts)} 与原始 {total} 不匹配，尝试分批处理")
+                return self._fix_segments_batched(segments, language, progress_callback, batch_size)
+            
+            fixed_segments = []
+            for i, seg in enumerate(segments):
+                new_seg = seg.copy()
+                new_seg["text"] = fixed_texts[i].strip()
+                fixed_segments.append(new_seg)
+            
+            if progress_callback:
+                progress_callback("AI 修复完成", 1.0)
+            
+            logger.info(f"AI 字幕修复完成: {total} 个分段, {total_chars} 字 (单次请求)")
+            return fixed_segments
+            
+        except Exception as e:
+            logger.warning(f"一次性修复失败，尝试分批处理: {e}")
+            return self._fix_segments_batched(segments, language, progress_callback, batch_size)
+    
+    def _fix_segments_batched(
+        self,
+        segments: List[Dict[str, Any]],
+        language: str,
+        progress_callback: Optional[Callable[[str, float], None]],
+        batch_size: int
+    ) -> List[Dict[str, Any]]:
+        """分批修复字幕分段。"""
+        total = len(segments)
         fixed_segments = []
         
-        # 分批处理以提高效率
         for i in range(0, total, batch_size):
             batch = segments[i:i + batch_size]
             batch_texts = [seg.get("text", "") for seg in batch]
@@ -150,7 +197,6 @@ class AISubtitleFixService:
                 progress = i / total
                 progress_callback(f"AI 修复中 ({i}/{total})...", progress)
             
-            # 将多个短文本合并为一个请求
             combined_text = "\n---\n".join(batch_texts)
             
             try:
@@ -159,7 +205,6 @@ class AISubtitleFixService:
                 
                 # 确保数量匹配
                 if len(fixed_texts) != len(batch):
-                    # 如果分割不匹配，逐个处理
                     fixed_texts = []
                     for text in batch_texts:
                         try:
@@ -176,13 +221,12 @@ class AISubtitleFixService:
                     
             except Exception as e:
                 logger.warning(f"批量修复失败，跳过: {e}")
-                # 失败时保留原文
                 fixed_segments.extend(batch)
         
         if progress_callback:
             progress_callback("AI 修复完成", 1.0)
         
-        logger.info(f"AI 字幕修复完成: {total} 个分段")
+        logger.info(f"AI 字幕修复完成: {total} 个分段 (分批处理)")
         return fixed_segments
     
     def _fix_batch(self, combined_text: str, language: str, count: int) -> str:
@@ -207,6 +251,7 @@ class AISubtitleFixService:
 4. 保持 "---" 分隔符，确保输出的段落数量与输入一致
 5. 只返回修复后的文本，不要添加任何解释
 6. 语言：{lang_name}
+7. 【严禁】修改任何数字、时间、日期、年份、金额等数值内容，必须原样保留
 
 原文：
 {combined_text}
@@ -373,16 +418,20 @@ class AISubtitleFixService:
         target_lang: str,
         source_lang: str = "auto",
         progress_callback: Optional[Callable[[str, float], None]] = None,
-        batch_size: int = 5
+        batch_size: int = 50
     ) -> List[Dict[str, Any]]:
         """翻译字幕分段列表。
+        
+        优化策略：
+        - 短文本（< 3000 字）：一次性处理所有分段，只需 1 次 API 调用
+        - 长文本：按批次处理，每批最多 50 个分段
         
         Args:
             segments: 字幕分段列表
             target_lang: 目标语言代码
             source_lang: 源语言代码
             progress_callback: 进度回调函数
-            batch_size: 每批处理的分段数量
+            batch_size: 每批处理的分段数量（默认 50）
             
         Returns:
             翻译后的字幕分段列表（每个分段添加 translated_text 字段）
@@ -394,9 +443,51 @@ class AISubtitleFixService:
             return segments
         
         total = len(segments)
+        all_texts = [seg.get("text", "").strip() for seg in segments]
+        total_chars = sum(len(t) for t in all_texts)
+        
+        # 一次性处理所有分段
+        if progress_callback:
+            progress_callback(f"AI 翻译中 (共 {total} 段, {total_chars} 字)...", 0.3)
+        
+        combined_text = "\n---\n".join(all_texts)
+        
+        try:
+            translated_combined = self._translate_batch(combined_text, target_lang, source_lang, total)
+            translated_texts = translated_combined.split("\n---\n")
+            
+            if len(translated_texts) != total:
+                logger.warning(f"AI 返回分段数 {len(translated_texts)} 与原始 {total} 不匹配，尝试分批处理")
+                return self._translate_segments_batched(segments, target_lang, source_lang, progress_callback, batch_size)
+            
+            translated_segments = []
+            for i, seg in enumerate(segments):
+                new_seg = seg.copy()
+                new_seg["translated_text"] = translated_texts[i].strip()
+                translated_segments.append(new_seg)
+            
+            if progress_callback:
+                progress_callback("AI 翻译完成", 1.0)
+            
+            logger.info(f"AI 字幕翻译完成: {total} 个分段, {total_chars} 字 (单次请求)")
+            return translated_segments
+            
+        except Exception as e:
+            logger.warning(f"一次性翻译失败，尝试分批处理: {e}")
+            return self._translate_segments_batched(segments, target_lang, source_lang, progress_callback, batch_size)
+    
+    def _translate_segments_batched(
+        self,
+        segments: List[Dict[str, Any]],
+        target_lang: str,
+        source_lang: str,
+        progress_callback: Optional[Callable[[str, float], None]],
+        batch_size: int
+    ) -> List[Dict[str, Any]]:
+        """分批翻译字幕分段。"""
+        total = len(segments)
         translated_segments = []
         
-        # 分批处理
         for i in range(0, total, batch_size):
             batch = segments[i:i + batch_size]
             batch_texts = [seg.get("text", "").strip() for seg in batch]
@@ -405,16 +496,13 @@ class AISubtitleFixService:
                 progress = i / total
                 progress_callback(f"AI 翻译中 ({i}/{total})...", progress)
             
-            # 将多个文本合并为一个请求
             combined_text = "\n---\n".join(batch_texts)
             
             try:
                 translated_combined = self._translate_batch(combined_text, target_lang, source_lang, len(batch))
                 translated_texts = translated_combined.split("\n---\n")
                 
-                # 确保数量匹配
                 if len(translated_texts) != len(batch):
-                    # 如果分割不匹配，逐个处理
                     translated_texts = []
                     for text in batch_texts:
                         try:
@@ -441,7 +529,7 @@ class AISubtitleFixService:
         if progress_callback:
             progress_callback("AI 翻译完成", 1.0)
         
-        logger.info(f"AI 字幕翻译完成: {total} 个分段")
+        logger.info(f"AI 字幕翻译完成: {total} 个分段 (分批处理)")
         return translated_segments
     
     def _translate_batch(self, combined_text: str, target_lang: str, source_lang: str, count: int) -> str:

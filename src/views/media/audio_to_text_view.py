@@ -16,6 +16,7 @@ from constants import (
     DEFAULT_SENSEVOICE_MODEL_KEY,
     DEFAULT_VAD_MODEL_KEY,
     DEFAULT_VOCAL_MODEL_KEY,
+    DEFAULT_PUNCTUATION_MODEL_KEY,
     PADDING_MEDIUM,
     PADDING_SMALL,
     PADDING_LARGE,
@@ -23,6 +24,7 @@ from constants import (
     SENSEVOICE_MODELS,
     VAD_MODELS,
     VOCAL_SEPARATION_MODELS,
+    PUNCTUATION_MODELS,
     SenseVoiceModelInfo,
     WhisperModelInfo,
 )
@@ -83,6 +85,7 @@ class AudioToTextView(ft.Container):
         model_dir = self.config_service.get_data_dir() / "models" / "whisper"
         vad_model_dir = self.config_service.get_data_dir() / "models" / "vad"
         vocal_model_dir = self.config_service.get_data_dir() / "models" / "vocal"
+        self.punctuation_model_dir = self.config_service.get_data_dir() / "models" / "punctuation"
         
         # VAD 服务
         self.vad_service: VADService = VADService(vad_model_dir)
@@ -102,9 +105,19 @@ class AudioToTextView(ft.Container):
             ffmpeg_service,
             vad_service=self.vad_service
         )
+        # 同步字幕分段设置到服务
+        self.speech_service.set_subtitle_settings(
+            max_length=self.config_service.get_config_value("subtitle_max_length", 30),
+            split_by_punctuation=self.config_service.get_config_value("subtitle_split_by_punctuation", True),
+            keep_ending_punctuation=self.config_service.get_config_value("subtitle_keep_ending_punctuation", True)
+        )
         self.model_loading: bool = False
         self.model_loaded: bool = False
         self.auto_load_model: bool = self.config_service.get_config_value("whisper_auto_load_model", True)
+        
+        # 标点恢复设置
+        self.punctuation_loaded: bool = False
+        self.use_punctuation: bool = self.config_service.get_config_value("whisper_use_punctuation", True)
         
         # VAD 和人声分离设置（默认启用，效果最好）
         self.use_vad: bool = self.config_service.get_config_value("asr_use_vad", True)
@@ -117,6 +130,11 @@ class AudioToTextView(ft.Container):
         self.use_ai_fix: bool = self.config_service.get_config_value("asr_use_ai_fix", False)
         self.ai_fix_api_key: str = self.config_service.get_config_value("asr_ai_fix_api_key", "")
         self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
+        
+        # 字幕分段设置
+        self.subtitle_max_length: int = self.config_service.get_config_value("subtitle_max_length", 30)
+        self.subtitle_split_by_punctuation: bool = self.config_service.get_config_value("subtitle_split_by_punctuation", True)
+        self.subtitle_keep_ending_punctuation: bool = self.config_service.get_config_value("subtitle_keep_ending_punctuation", True)
         
         # 当前选择的模型引擎（whisper 或 sensevoice）- 优先使用 SenseVoice
         self.current_engine: str = self.config_service.get_config_value("asr_engine", "sensevoice")
@@ -535,6 +553,53 @@ class AudioToTextView(ft.Container):
             spacing=4,
         )
         
+        # === 标点恢复设置 ===
+        self.punctuation_checkbox = ft.Checkbox(
+            label="启用标点恢复",
+            value=self.use_punctuation,
+            on_change=self._on_punctuation_change,
+        )
+        
+        self.punctuation_status_icon = ft.Icon(
+            ft.Icons.CLOUD_DOWNLOAD,
+            size=16,
+            color=ft.Colors.ORANGE,
+        )
+        self.punctuation_status_text = ft.Text(
+            "未加载",
+            size=11,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        self.punctuation_download_btn = ft.TextButton(
+            "下载",
+            icon=ft.Icons.DOWNLOAD,
+            on_click=self._on_download_punctuation,
+            visible=False,
+        )
+        self.punctuation_load_btn = ft.TextButton(
+            "加载",
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_load_punctuation,
+            visible=False,
+        )
+        
+        punctuation_status_row = ft.Row(
+            controls=[
+                self.punctuation_checkbox,
+                self.punctuation_status_icon,
+                self.punctuation_status_text,
+                self.punctuation_download_btn,
+                self.punctuation_load_btn,
+            ],
+            spacing=PADDING_SMALL,
+        )
+        
+        punctuation_hint = ft.Text(
+            "使用 AI 模型优化或添加标点符号，提升识别结果的可读性",
+            size=10,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+        
         preprocess_section = ft.Container(
             content=ft.Column(
                 controls=[
@@ -547,6 +612,9 @@ class AudioToTextView(ft.Container):
                     self.vocal_model_dropdown,
                     vocal_status_row,
                     vocal_hint,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    punctuation_status_row,
+                    punctuation_hint,
                     ai_fix_section,
                 ],
                 spacing=4,
@@ -557,6 +625,7 @@ class AudioToTextView(ft.Container):
         # 初始化 VAD 和人声分离状态
         self._init_vad_status()
         self._init_vocal_status()
+        self._init_punctuation_status()
         
         model_section = ft.Container(
             content=ft.Column(
@@ -767,6 +836,63 @@ class AudioToTextView(ft.Container):
             margin=ft.margin.only(top=PADDING_SMALL),
         )
         
+        # === 字幕分段设置 ===
+        self.subtitle_split_checkbox = ft.Checkbox(
+            label="在标点处自动分段",
+            value=self.subtitle_split_by_punctuation,
+            on_change=self._on_subtitle_split_change,
+        )
+        
+        self.subtitle_keep_punct_checkbox = ft.Checkbox(
+            label="保留结尾标点",
+            value=self.subtitle_keep_ending_punctuation,
+            on_change=self._on_subtitle_keep_punct_change,
+        )
+        
+        self.subtitle_length_slider = ft.Slider(
+            min=15,
+            max=60,
+            divisions=9,
+            value=self.subtitle_max_length,
+            label="{value} 字/段",
+            on_change=self._on_subtitle_length_change,
+            expand=True,
+        )
+        
+        self.subtitle_length_text = ft.Text(
+            f"每段最大 {self.subtitle_max_length} 字",
+            size=12,
+        )
+        
+        subtitle_settings = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("字幕分段设置（SRT/VTT/LRC）", size=13, weight=ft.FontWeight.W_500),
+                    ft.Row(
+                        controls=[
+                            self.subtitle_split_checkbox,
+                            self.subtitle_keep_punct_checkbox,
+                        ],
+                        spacing=PADDING_LARGE,
+                    ),
+                    ft.Row(
+                        controls=[
+                            self.subtitle_length_text,
+                            self.subtitle_length_slider,
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                    ft.Text(
+                        "较短的分段更易阅读，建议 25-35 字/段",
+                        size=10,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                ],
+                spacing=4,
+            ),
+            padding=ft.padding.only(top=PADDING_SMALL),
+        )
+        
         # 输出路径选项
         self.output_mode_radio = ft.RadioGroup(
             content=ft.Column(
@@ -803,7 +929,8 @@ class AudioToTextView(ft.Container):
                     settings_row,
                     engine_hint_row,
                     format_hint,
-                    ft.Container(height=PADDING_SMALL),
+                    subtitle_settings,
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
                     ft.Text("输出路径:", size=13),
                     self.output_mode_radio,
                     ft.Row(
@@ -1674,6 +1801,142 @@ class AudioToTextView(ft.Container):
             self.vocal_status_icon.color = ft.Colors.ERROR
             self.page.update()
     
+    def _on_punctuation_change(self, e: ft.ControlEvent) -> None:
+        """标点恢复开关变更事件。"""
+        self.use_punctuation = e.control.value
+        self.config_service.set_config_value("whisper_use_punctuation", self.use_punctuation)
+        self.speech_service.use_punctuation = self.use_punctuation
+        self.page.update()
+    
+    def _init_punctuation_status(self) -> None:
+        """初始化标点恢复模型状态。"""
+        punctuation_model_info = PUNCTUATION_MODELS[DEFAULT_PUNCTUATION_MODEL_KEY]
+        model_dir = self.punctuation_model_dir / punctuation_model_info.name
+        model_file = model_dir / punctuation_model_info.model_filename
+        
+        if model_file.exists():
+            self.punctuation_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.punctuation_status_icon.color = ft.Colors.GREEN
+            self.punctuation_status_text.value = "已下载"
+            self.punctuation_download_btn.visible = False
+            self.punctuation_load_btn.visible = True
+            
+            # 自动加载标点恢复模型
+            if self.use_punctuation and not self.punctuation_loaded:
+                self._load_punctuation_model()
+        else:
+            self.punctuation_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
+            self.punctuation_status_icon.color = ft.Colors.ORANGE
+            self.punctuation_status_text.value = f"未下载 ({punctuation_model_info.size_mb}MB)"
+            self.punctuation_download_btn.visible = True
+            self.punctuation_load_btn.visible = False
+    
+    def _on_download_punctuation(self, e: ft.ControlEvent) -> None:
+        """下载标点恢复模型。"""
+        self.punctuation_download_btn.visible = False
+        self.punctuation_status_text.value = "下载中..."
+        self.page.update()
+        
+        def download_task():
+            try:
+                import requests
+                
+                punctuation_model_info = PUNCTUATION_MODELS[DEFAULT_PUNCTUATION_MODEL_KEY]
+                
+                # 确保模型目录存在
+                model_dir = self.punctuation_model_dir / punctuation_model_info.name
+                model_dir.mkdir(parents=True, exist_ok=True)
+                
+                model_path = model_dir / punctuation_model_info.model_filename
+                tokens_path = model_dir / punctuation_model_info.tokens_filename
+                
+                # 下载模型文件
+                self.punctuation_status_text.value = "下载模型文件..."
+                try:
+                    self.page.update()
+                except:
+                    pass
+                
+                response = requests.get(punctuation_model_info.model_url, stream=True, timeout=120)
+                response.raise_for_status()
+                
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(model_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                progress = downloaded / total_size * 100
+                                self.punctuation_status_text.value = f"下载模型... {progress:.0f}%"
+                                try:
+                                    self.page.update()
+                                except:
+                                    pass
+                
+                # 下载 tokens 文件
+                self.punctuation_status_text.value = "下载 tokens 文件..."
+                try:
+                    self.page.update()
+                except:
+                    pass
+                
+                response = requests.get(punctuation_model_info.tokens_url, timeout=60)
+                response.raise_for_status()
+                
+                with open(tokens_path, 'wb') as f:
+                    f.write(response.content)
+                
+                self.punctuation_status_icon.name = ft.Icons.CHECK_CIRCLE
+                self.punctuation_status_icon.color = ft.Colors.GREEN
+                self.punctuation_status_text.value = "已下载"
+                self.punctuation_load_btn.visible = True
+                self.page.update()
+                
+                # 自动加载
+                self._load_punctuation_model()
+                
+            except Exception as ex:
+                logger.error(f"下载标点恢复模型失败: {ex}")
+                self.punctuation_status_icon.name = ft.Icons.ERROR
+                self.punctuation_status_icon.color = ft.Colors.ERROR
+                self.punctuation_status_text.value = f"下载失败: {ex}"
+                self.punctuation_download_btn.visible = True
+                self.page.update()
+        
+        self.page.run_thread(download_task)
+    
+    def _on_load_punctuation(self, e: ft.ControlEvent) -> None:
+        """加载标点恢复模型。"""
+        self._load_punctuation_model()
+    
+    def _load_punctuation_model(self) -> None:
+        """加载标点恢复模型。"""
+        try:
+            punctuation_model_info = PUNCTUATION_MODELS[DEFAULT_PUNCTUATION_MODEL_KEY]
+            model_dir = self.punctuation_model_dir / punctuation_model_info.name
+            
+            self.speech_service.load_punctuation_model(
+                model_path=model_dir,
+                use_gpu=self.config_service.get_config_value("whisper_use_gpu", True),
+                num_threads=4
+            )
+            
+            self.punctuation_loaded = True
+            self.punctuation_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.punctuation_status_icon.color = ft.Colors.GREEN
+            self.punctuation_status_text.value = "已加载"
+            self.punctuation_load_btn.visible = False
+            self.page.update()
+            
+        except Exception as ex:
+            logger.error(f"加载标点恢复模型失败: {ex}")
+            self.punctuation_status_text.value = f"加载失败: {ex}"
+            self.punctuation_status_icon.color = ft.Colors.ERROR
+            self.page.update()
+    
     def _on_language_change(self, e: ft.ControlEvent) -> None:
         """语言选择变更事件。"""
         language = e.control.value
@@ -1691,6 +1954,29 @@ class AudioToTextView(ft.Container):
         # 如果当前有模型加载，提示需要重新加载
         if self.model_loaded:
             self._show_info("提示", "任务类型已更改，需要重新加载模型才能生效。")
+    
+    def _on_subtitle_split_change(self, e: ft.ControlEvent) -> None:
+        """字幕标点分段选项变更事件。"""
+        self.subtitle_split_by_punctuation = e.control.value
+        self.config_service.set_config_value("subtitle_split_by_punctuation", self.subtitle_split_by_punctuation)
+        self.speech_service.set_subtitle_settings(split_by_punctuation=self.subtitle_split_by_punctuation)
+    
+    def _on_subtitle_length_change(self, e: ft.ControlEvent) -> None:
+        """字幕最大长度变更事件。"""
+        self.subtitle_max_length = int(e.control.value)
+        self.config_service.set_config_value("subtitle_max_length", self.subtitle_max_length)
+        self.speech_service.set_subtitle_settings(max_length=self.subtitle_max_length)
+        self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
+        try:
+            self.page.update()
+        except:
+            pass
+    
+    def _on_subtitle_keep_punct_change(self, e: ft.ControlEvent) -> None:
+        """保留结尾标点选项变更事件。"""
+        self.subtitle_keep_ending_punctuation = e.control.value
+        self.config_service.set_config_value("subtitle_keep_ending_punctuation", self.subtitle_keep_ending_punctuation)
+        self.speech_service.set_subtitle_settings(keep_ending_punctuation=self.subtitle_keep_ending_punctuation)
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式变化事件。"""
@@ -2047,27 +2333,11 @@ class AudioToTextView(ft.Container):
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
                     
                     # 保存结果
-                    # 对于字幕/歌词格式（srt/vtt/lrc），使用 UTF-8 with BOM 编码
-                    # 这样可以确保大多数播放器和编辑器正确识别编码
-                    if output_format in ['srt', 'vtt', 'lrc']:
-                        # 使用 UTF-8 with BOM，兼容性最好
-                        with open(output_path, 'w', encoding='utf-8-sig') as f:
-                            f.write(content)
-                        used_encoding = "UTF-8 with BOM"
-                    else:
-                        # txt 格式使用系统默认编码
-                        import locale
-                        system_encoding = locale.getpreferredencoding(False)
-                        try:
-                            with open(output_path, 'w', encoding=system_encoding) as f:
-                                f.write(content)
-                            used_encoding = system_encoding
-                        except UnicodeEncodeError:
-                            # 如果系统编码无法编码某些字符，回退到 UTF-8
-                            with open(output_path, 'w', encoding='utf-8') as f:
-                                f.write(content)
-                            used_encoding = "UTF-8"
-                            logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                    # 统一使用 UTF-8 with BOM 编码，确保中文正确显示
+                    # UTF-8 with BOM 可以让 Windows 记事本等程序正确识别编码
+                    with open(output_path, 'w', encoding='utf-8-sig') as f:
+                        f.write(content)
+                    used_encoding = "UTF-8 with BOM"
                     
                     logger.info(f"识别完成: {file_path} -> {output_path} (编码: {used_encoding})")
                     

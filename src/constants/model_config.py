@@ -1095,3 +1095,57 @@ VAD_MODELS: Final[dict[str, VADModelInfo]] = {
 
 # 默认 VAD 模型
 DEFAULT_VAD_MODEL_KEY: Final[str] = "silero_vad_v5"
+
+
+# 标点恢复模型配置
+@dataclass
+class PunctuationModelInfo:
+    """标点恢复模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        model_url: 模型文件下载链接
+        tokens_url: tokens 文件下载链接
+        size_mb: 文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        model_filename: 模型文件名
+        tokens_filename: tokens 文件名
+        language_support: 支持的语言
+        version: 版本号
+        model_type: 模型类型（offline/online）
+    """
+    name: str
+    display_name: str
+    model_url: str
+    tokens_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    model_filename: str
+    tokens_filename: str
+    language_support: str
+    version: str = "2024-04-12"
+    model_type: str = "offline"
+
+
+PUNCTUATION_MODELS: Final[dict[str, PunctuationModelInfo]] = {
+    "ct_transformer_zh_en_int8": PunctuationModelInfo(
+        name="ct_transformer_zh_en_int8",
+        display_name="CT-Transformer 中英文 INT8（推荐）",
+        model_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/CT-Transformer/model.int8.onnx",
+        tokens_url="https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/whisper/CT-Transformer/tokens.json",
+        size_mb=100,
+        quality="高精度标点恢复",
+        performance="快速 | 内存占用 ~200MB | 支持中英文混合",
+        model_filename="model.onnx",  # sherpa-onnx 期望的文件名
+        tokens_filename="tokens.json",
+        language_support="中文、英文",
+        version="2024-04-12",
+        model_type="offline"
+    ),
+}
+
+# 默认标点恢复模型
+DEFAULT_PUNCTUATION_MODEL_KEY: Final[str] = "ct_transformer_zh_en_int8"
