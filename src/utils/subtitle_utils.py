@@ -126,3 +126,72 @@ def segments_to_txt(segments: List[Dict[str, Any]]) -> str:
         return ""
     
     return "\n".join(segment['text'].strip() for segment in segments if segment['text'].strip())
+
+
+def format_timestamp_lrc(seconds: float) -> str:
+    """将秒数转换为 LRC 时间戳格式。
+    
+    Args:
+        seconds: 时间（秒）
+        
+    Returns:
+        LRC 格式的时间戳，如 "[01:23.45]"
+    """
+    minutes = int(seconds // 60)
+    secs = seconds % 60
+    # LRC 格式：[mm:ss.xx] 分钟:秒.百分之一秒
+    return f"[{minutes:02d}:{secs:05.2f}]"
+
+
+def segments_to_lrc(segments: List[Dict[str, Any]], title: str = "", artist: str = "", album: str = "") -> str:
+    """将分段结果转换为 LRC 歌词格式。
+    
+    LRC 是一种简单的歌词文件格式，每行包含时间戳和对应的歌词文本。
+    格式示例：
+    [ti:歌曲名]
+    [ar:艺术家]
+    [al:专辑名]
+    [00:12.00]第一句歌词
+    [00:17.20]第二句歌词
+    
+    Args:
+        segments: 分段结果列表，每个元素包含 text, start, end
+        title: 歌曲/音频标题（可选）
+        artist: 艺术家/说话人（可选）
+        album: 专辑名（可选）
+        
+    Returns:
+        LRC 格式的歌词文本
+    """
+    if not segments:
+        return ""
+    
+    lrc_lines = []
+    
+    # 添加元数据标签（如果提供）
+    if title:
+        lrc_lines.append(f"[ti:{title}]")
+    if artist:
+        lrc_lines.append(f"[ar:{artist}]")
+    if album:
+        lrc_lines.append(f"[al:{album}]")
+    
+    # 添加生成工具标识
+    lrc_lines.append("[by:MTools]")
+    
+    # 添加空行分隔元数据和歌词
+    if lrc_lines:
+        lrc_lines.append("")
+    
+    # 转换每个分段为 LRC 格式
+    for segment in segments:
+        text = segment['text'].strip()
+        if not text:
+            continue
+        
+        start_time = format_timestamp_lrc(segment['start'])
+        
+        # LRC 格式：[mm:ss.xx]歌词文本
+        lrc_lines.append(f"{start_time}{text}")
+    
+    return "\n".join(lrc_lines)

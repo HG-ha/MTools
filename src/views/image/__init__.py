@@ -19,6 +19,7 @@ from views.image.watermark_view import ImageWatermarkView
 from views.image.watermark_remove_view import ImageWatermarkRemoveView
 from views.image.puzzle import ImagePuzzleView, ImagePuzzleSplitView, ImagePuzzleMergeView
 from views.image.color_space_view import ColorSpaceView
+from views.image.border_view import ImageBorderView
 
 __all__ = [
     'ImageView',
@@ -38,5 +39,6 @@ __all__ = [
     'ImagePuzzleSplitView',
     'ImagePuzzleMergeView',
     'ColorSpaceView',
+    'ImageBorderView',
 ]
 

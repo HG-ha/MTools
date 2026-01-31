@@ -44,6 +44,7 @@ from .subtitle_utils import (
     segments_to_srt,
     segments_to_vtt,
     segments_to_txt,
+    segments_to_lrc,
 )
 from .onnx_helper import (
     create_session_options,
@@ -107,6 +108,7 @@ __all__ = [
     "segments_to_srt",
     "segments_to_vtt",
     "segments_to_txt",
+    "segments_to_lrc",
     "create_session_options",
     "create_provider_options",
     "create_onnx_session_config",

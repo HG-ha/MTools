@@ -27,7 +27,7 @@ from constants import (
     WhisperModelInfo,
 )
 from services import ConfigService, SpeechRecognitionService, FFmpegService, VADService, VocalSeparationService, AISubtitleFixService
-from utils import format_file_size, logger, segments_to_srt, segments_to_vtt, segments_to_txt, get_unique_path
+from utils import format_file_size, logger, segments_to_srt, segments_to_vtt, segments_to_txt, segments_to_lrc, get_unique_path
 from views.media.ffmpeg_install_view import FFmpegInstallView
 
 
@@ -601,6 +601,7 @@ class AudioToTextView(ft.Container):
                 ft.dropdown.Option(key="txt", text="TXT 文本文件"),
                 ft.dropdown.Option(key="srt", text="SRT 字幕文件"),
                 ft.dropdown.Option(key="vtt", text="VTT 字幕文件"),
+                ft.dropdown.Option(key="lrc", text="LRC 歌词文件"),
             ],
             width=180,
             dense=True,
@@ -1961,7 +1962,7 @@ class AudioToTextView(ft.Container):
                                 input_path = file_path
                     
                     # 根据输出格式选择识别方法
-                    if output_format in ['srt', 'vtt']:
+                    if output_format in ['srt', 'vtt', 'lrc']:
                         # 使用带时间戳的识别方法
                         segments = self.speech_service.recognize_with_timestamps(
                             input_path,
@@ -1995,8 +1996,11 @@ class AudioToTextView(ft.Container):
                         # 转换为对应的字幕格式
                         if output_format == 'srt':
                             content = segments_to_srt(segments)
-                        else:  # vtt
+                        elif output_format == 'vtt':
                             content = segments_to_vtt(segments)
+                        else:  # lrc
+                            # 使用文件名作为标题
+                            content = segments_to_lrc(segments, title=file_path.stem)
                     else:
                         # txt 格式，使用普通识别方法
                         text = self.speech_service.recognize(
@@ -2042,19 +2046,30 @@ class AudioToTextView(ft.Container):
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
                     
-                    # 保存结果（使用系统默认编码，避免乱码）
-                    import locale
-                    system_encoding = locale.getpreferredencoding(False)
-                    try:
-                        with open(output_path, 'w', encoding=system_encoding) as f:
+                    # 保存结果
+                    # 对于字幕/歌词格式（srt/vtt/lrc），使用 UTF-8 with BOM 编码
+                    # 这样可以确保大多数播放器和编辑器正确识别编码
+                    if output_format in ['srt', 'vtt', 'lrc']:
+                        # 使用 UTF-8 with BOM，兼容性最好
+                        with open(output_path, 'w', encoding='utf-8-sig') as f:
                             f.write(content)
-                    except UnicodeEncodeError:
-                        # 如果系统编码无法编码某些字符，回退到 UTF-8
-                        with open(output_path, 'w', encoding='utf-8') as f:
-                            f.write(content)
-                        logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                        used_encoding = "UTF-8 with BOM"
+                    else:
+                        # txt 格式使用系统默认编码
+                        import locale
+                        system_encoding = locale.getpreferredencoding(False)
+                        try:
+                            with open(output_path, 'w', encoding=system_encoding) as f:
+                                f.write(content)
+                            used_encoding = system_encoding
+                        except UnicodeEncodeError:
+                            # 如果系统编码无法编码某些字符，回退到 UTF-8
+                            with open(output_path, 'w', encoding='utf-8') as f:
+                                f.write(content)
+                            used_encoding = "UTF-8"
+                            logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
                     
-                    logger.info(f"识别完成: {file_path} -> {output_path} (编码: {system_encoding})")
+                    logger.info(f"识别完成: {file_path} -> {output_path} (编码: {used_encoding})")
                     
                     # 清理人声分离临时目录
                     if self.use_vocal_separation and input_path != file_path:

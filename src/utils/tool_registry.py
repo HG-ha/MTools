@@ -297,6 +297,22 @@ def register_all_tools():
         gradient_colors=("#00B4DB", "#0083B0"),
     )
     
+    register_tool_manual(
+        name="图片边框",
+        description="添加边框，支持圆角、透明、按百分比设置",
+        category="图片处理",
+        keywords=[
+            "边框", "边缘", "画框", "相框", "外框", "边界",
+            "border", "frame", "edge", "margin", "padding",
+            "透明", "颜色", "白边", "黑边", "加框", "添加边框",
+            "图片边框", "照片边框", "批量加边框", "圆角", "百分比",
+            "rounded", "corner", "percent"
+        ],
+        icon="BORDER_ALL",
+        tool_id="image.border",
+        gradient_colors=("#8E2DE2", "#4A00E0"),
+    )
+    
     # ==================== 媒体处理工具 ====================
     
     register_tool_manual(

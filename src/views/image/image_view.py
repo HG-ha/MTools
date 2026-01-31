@@ -28,6 +28,7 @@ from views.image.puzzle.merge_view import ImagePuzzleMergeView
 from views.image.resize_view import ImageResizeView
 from views.image.search_view import ImageSearchView
 from views.image.watermark_remove_view import ImageWatermarkRemoveView
+from views.image.border_view import ImageBorderView
 
 
 class ImageView(ft.Container):
@@ -86,6 +87,7 @@ class ImageView(ft.Container):
         self.search_view = None  # 图片搜索视图
         self.ocr_view = None  # OCR视图
         self.color_space_view = None  # 颜色空间转换视图
+        self.border_view = None  # 图片边框视图
         
         # 记录当前显示的视图（用于状态恢复）
         self.current_sub_view: Optional[ft.Container] = None
@@ -301,6 +303,14 @@ class ImageView(ft.Container):
                     on_click=self._open_color_space_dialog,
                     tool_id="image.color_space",
                 ),
+                self._create_card(
+                    icon=ft.Icons.BORDER_ALL,
+                    title="图片边框",
+                    description="添加边框，支持圆角、透明、按百分比设置",
+                    gradient_colors=("#8E2DE2", "#4A00E0"),
+                    on_click=self._open_border_dialog,
+                    tool_id="image.border",
+                ),
             ],
             wrap=True,  # 自动换行
             spacing=PADDING_LARGE,
@@ -351,6 +361,7 @@ class ImageView(ft.Container):
             ("图片搜索", _img_exts, self._open_search_dialog, "search_view"),
             ("OCR 文字识别", _img_no_gif, self._open_ocr_dialog, "ocr_view"),
             ("颜色空间转换", _img_no_gif, self._open_color_space_dialog, "color_space_view"),
+            ("图片边框", _img_exts, self._open_border_dialog, "border_view"),
         ]
         
         # 卡片布局参数（需要与 FeatureCard 的实际尺寸匹配）
@@ -1087,6 +1098,36 @@ class ImageView(ft.Container):
         self.parent_container.content = self.color_space_view
         self._safe_page_update()
     
+    def _open_border_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到图片边框工具界面。
+        
+        Args:
+            e: 控件事件对象
+        """
+        if not self.parent_container:
+            logger.error("错误: 未设置父容器")
+            return
+        
+        # 隐藏搜索按钮
+        self._hide_search_button()
+        
+        # 创建图片边框视图（如果还没创建）
+        if not self.border_view:
+            self.border_view = ImageBorderView(
+                self._saved_page,
+                self.config_service,
+                self.image_service,
+                on_back=self._back_to_main
+            )
+        
+        # 记录当前子视图
+        self.current_sub_view = self.border_view
+        self.current_sub_view_type = "border"
+        
+        # 切换到图片边框视图
+        self.parent_container.content = self.border_view
+        self._safe_page_update()
+    
     def _back_to_main(self, e: ft.ControlEvent = None) -> None:
         """返回主界面（使用路由导航）。
         
@@ -1117,6 +1158,7 @@ class ImageView(ft.Container):
                 "search": "search_view",
                 "ocr": "ocr_view",
                 "color_space": "color_space_view",
+                "border": "border_view",
                 "image_tools_install": "image_tools_install_view",
             }
             view_attr = view_map.get(self.current_sub_view_type)
@@ -1235,6 +1277,7 @@ class ImageView(ft.Container):
             "ocr": self._open_ocr_dialog,
             "enhance": self._open_enhance_dialog,
             "color_space": self._open_color_space_dialog,
+            "border": self._open_border_dialog,
         }
         
         # 查找并调用对应的方法
