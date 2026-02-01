@@ -31,7 +31,7 @@
 
 支持平台及预编译版本说明：
 - ✅ Windows 10/11 (x64)
-  - MTools_Windows_amd64：体积最小，并且支持nvidia、amd、intel显卡加速，但不支持手动管理显存
+  - MTools_Windows_amd64：体积最小，并且支持nvidia、amd、intel显卡加速，但不支持手动管理显存，如果您的显存低于8GB或低于nvidia30系以前的显卡，尽量使用此版本
   - MTools_Windows_amd64_CUDA：体积中等，使用CUDA进行加速，但需要手动安装CUDA 12.x + cuDNN 9.x
   - MTools_Windows_amd64_CUDA_FULL：体积最大，内置完整的CUDA加速环境，无需手动安装CUDA和cuDNN
 
