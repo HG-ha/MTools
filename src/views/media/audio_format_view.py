@@ -52,7 +52,7 @@ class AudioFormatView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.audio_service: AudioService = audio_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
@@ -97,16 +97,16 @@ class AudioFormatView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择音频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
-                            "选择文件",
-                            icon=ft.Icons.FILE_UPLOAD,
-                            on_click=self._on_select_files,
-                        ),
-                        ft.ElevatedButton(
-                            "选择文件夹",
-                            icon=ft.Icons.FOLDER_OPEN,
-                            on_click=self._on_select_folder,
-                        ),
+                    ft.Button(
+                        "选择文件",
+                        icon=ft.Icons.FILE_UPLOAD,
+                        on_click=self._on_select_files,
+                    ),
+                    ft.Button(
+                        "选择文件夹",
+                        icon=ft.Icons.FOLDER_OPEN,
+                        on_click=self._on_select_folder,
+                    ),
                         ft.TextButton(
                             "清空列表",
                             icon=ft.Icons.CLEAR_ALL,
@@ -158,7 +158,7 @@ class AudioFormatView(ft.Container):
             label="目标格式",
             width=320,
             dense=True,
-            on_change=self._on_format_change,
+            on_select=self._on_format_change,
         )
         
         # 音质设置
@@ -322,7 +322,7 @@ class AudioFormatView(ft.Container):
         
         # 底部处理按钮
         self.process_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.SYNC_ALT, size=24),
@@ -338,7 +338,7 @@ class AudioFormatView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             margin=ft.margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
         )
         
@@ -396,57 +396,50 @@ class AudioFormatView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+        """空白区域点击事件处理。"""
+        await self._on_select_files(e)
+
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择音频文件",
             allowed_extensions=["mp3", "wav", "aac", "m4a", "flac", "ogg", "wma", "opus", "ape", "alac"],
             allow_multiple=True,
         )
+        if result:
+            for file in result:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder_path = Path(result.path)
-                audio_extensions = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma", ".opus", ".ape", ".alac"}
-                for file_path in folder_path.rglob("*"):
-                    if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-                
-                if self.selected_files:
-                    self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择包含音频的文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择包含音频的文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            audio_extensions = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma", ".opus", ".ape", ".alac"}
+            for file_path in folder.rglob("*"):
+                if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
+            
+            if self.selected_files:
+                self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表按钮点击事件。
@@ -476,8 +469,8 @@ class AudioFormatView(ft.Container):
                         spacing=PADDING_SMALL,
                     ),
                     height=280,
-                    alignment=ft.alignment.center,
-                    on_click=self._on_select_files,
+                    alignment=ft.Alignment.CENTER,
+                    on_click=self._on_empty_area_click,
                     tooltip="点击选择音频",
                 )
             )
@@ -595,21 +588,16 @@ class AudioFormatView(ft.Container):
         self.custom_output_dir.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
     
     def _update_process_button(self) -> None:
         """更新处理按钮状态。"""
@@ -656,7 +644,7 @@ class AudioFormatView(ft.Container):
         self.progress_text.value = "准备转换..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -714,7 +702,7 @@ class AudioFormatView(ft.Container):
         self.progress_bar.value = value
         self.progress_text.value = text
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -733,7 +721,7 @@ class AudioFormatView(ft.Container):
         button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -761,10 +749,10 @@ class AudioFormatView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -797,7 +785,7 @@ class AudioFormatView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("音频格式转换不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

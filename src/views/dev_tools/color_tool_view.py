@@ -32,7 +32,7 @@ class ColorToolView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -73,9 +73,6 @@ class ColorToolView(ft.Container):
         # 用于防止循环更新的标志
         self._updating = False
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(on_result=self._on_file_selected)
-        
         self._build_ui()
         self._update_all_formats()
     
@@ -99,9 +96,6 @@ class ColorToolView(ft.Container):
             ],
             spacing=PADDING_MEDIUM,
         )
-        
-        # 添加文件选择器到页面
-        self.page.overlay.append(self.file_picker)
         
         # 颜色显示区
         color_display_section = ft.Container(
@@ -129,13 +123,10 @@ class ColorToolView(ft.Container):
                         controls=[
                             ft.Text("图片取色器", weight=ft.FontWeight.BOLD, size=16),
                             ft.Container(expand=True),
-                            ft.ElevatedButton(
-                                text="选择图片",
+                            ft.Button(
+                                content="选择图片",
                                 icon=ft.Icons.IMAGE,
-                                on_click=lambda _: self.file_picker.pick_files(
-                                    allowed_extensions=["png", "jpg", "jpeg", "gif", "bmp", "webp"],
-                                    allow_multiple=False,
-                                ),
+                                on_click=self._on_select_image,
                             ),
                         ],
                     ),
@@ -153,7 +144,7 @@ class ColorToolView(ft.Container):
                         height=300,
                         border=ft.border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                 ],
                 spacing=5,
@@ -640,19 +631,19 @@ class ColorToolView(ft.Container):
     def _copy_rgb(self, e):
         """复制 RGB 值。"""
         rgb_str = f"rgb({self.rgb_r.current.value}, {self.rgb_g.current.value}, {self.rgb_b.current.value})"
-        self.page.set_clipboard(rgb_str)
+        self._page.set_clipboard(rgb_str)
         self._show_snack("已复制到剪贴板")
     
     def _copy_hsl(self, e):
         """复制 HSL 值。"""
         hsl_str = f"hsl({self.hsl_h.current.value}, {self.hsl_s.current.value}%, {self.hsl_l.current.value}%)"
-        self.page.set_clipboard(hsl_str)
+        self._page.set_clipboard(hsl_str)
         self._show_snack("已复制到剪贴板")
     
     def _copy_cmyk(self, e):
         """复制 CMYK 值。"""
         cmyk_str = f"cmyk({self.cmyk_c.current.value}%, {self.cmyk_m.current.value}%, {self.cmyk_y.current.value}%, {self.cmyk_k.current.value}%)"
-        self.page.set_clipboard(cmyk_str)
+        self._page.set_clipboard(cmyk_str)
         self._show_snack("已复制到剪贴板")
     
     def _copy_text(self, text: str):
@@ -661,17 +652,22 @@ class ColorToolView(ft.Container):
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
-    def _on_file_selected(self, e: ft.FilePickerResultEvent):
-        """文件选择回调。"""
-        if not e.files or len(e.files) == 0:
+    async def _on_select_image(self, e):
+        """选择图片按钮点击事件。"""
+        result = await ft.FilePicker().pick_files(
+            allowed_extensions=["png", "jpg", "jpeg", "gif", "bmp", "webp"],
+            allow_multiple=False,
+        )
+        
+        if not result or not result.files:
             return
         
         try:
             # 获取选择的文件路径
-            file_path = e.files[0].path
+            file_path = result.files[0].path
             self.current_image_path = file_path
             
             # 加载图片
@@ -719,7 +715,7 @@ class ColorToolView(ft.Container):
                         content=ft.Image(
                             ref=self.picker_image,
                             src_base64=img_base64,
-                            fit=ft.ImageFit.CONTAIN,
+                            fit=ft.BoxFit.CONTAIN,
                         ),
                         width=container_width,
                         height=container_height,
@@ -895,20 +891,20 @@ class ColorToolView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（图片取色）。

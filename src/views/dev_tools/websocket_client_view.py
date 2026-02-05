@@ -36,7 +36,7 @@ class WebSocketClientView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
@@ -97,7 +97,7 @@ class WebSocketClientView(ft.Container):
         if not self.is_dragging:
             return
         
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 8
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 8
         if container_width <= 0:
             return
         
@@ -166,7 +166,7 @@ class WebSocketClientView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=50, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -244,7 +244,7 @@ class WebSocketClientView(ft.Container):
         # 连接按钮
         connect_button = ft.ElevatedButton(
             ref=self.connect_button,
-            text="连接",
+            content="连接",
             icon=ft.Icons.LINK,
             on_click=self._on_connect_click,
             style=ft.ButtonStyle(
@@ -318,73 +318,82 @@ class WebSocketClientView(ft.Container):
         message_tabs = ft.Tabs(
             ref=self.message_type_tabs,
             selected_index=0,
-            tabs=[
-                ft.Tab(
-                    text="Text",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.message_text_input,
-                            multiline=True,
-                            min_lines=10,
-                            hint_text='输入要发送的文本消息...',
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
+            length=2,
+            expand=True,
+            content=ft.Column(
+                expand=True,
+                controls=[
+                    ft.TabBar(
+                        tabs=[
+                            ft.Tab(label="Text"),
+                            ft.Tab(label="JSON"),
+                        ],
                     ),
-                ),
-                ft.Tab(
-                    text="JSON",
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.IconButton(
-                                            icon=ft.Icons.AUTO_FIX_HIGH,
-                                            tooltip="格式化 JSON",
-                                            on_click=self._format_json,
-                                            icon_size=20,
-                                        ),
-                                        ft.IconButton(
-                                            icon=ft.Icons.CHECK_CIRCLE,
-                                            tooltip="验证 JSON",
-                                            on_click=self._validate_json,
-                                            icon_size=20,
-                                        ),
-                                    ],
-                                    spacing=0,
-                                ),
-                                ft.TextField(
-                                    ref=self.message_json_input,
+                    ft.TabBarView(
+                        expand=True,
+                        controls=[
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.message_text_input,
                                     multiline=True,
                                     min_lines=10,
-                                    hint_text='{"type": "message", "data": "..."}',
+                                    hint_text='输入要发送的文本消息...',
                                     text_size=13,
                                     border=ft.InputBorder.NONE,
                                     expand=True,
                                 ),
-                            ],
-                            spacing=0,
-                        ),
-                        padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
+                                padding=PADDING_SMALL,
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Row(
+                                            controls=[
+                                                ft.IconButton(
+                                                    icon=ft.Icons.AUTO_FIX_HIGH,
+                                                    tooltip="格式化 JSON",
+                                                    on_click=self._format_json,
+                                                    icon_size=20,
+                                                ),
+                                                ft.IconButton(
+                                                    icon=ft.Icons.CHECK_CIRCLE,
+                                                    tooltip="验证 JSON",
+                                                    on_click=self._validate_json,
+                                                    icon_size=20,
+                                                ),
+                                            ],
+                                            spacing=0,
+                                        ),
+                                        ft.TextField(
+                                            ref=self.message_json_input,
+                                            multiline=True,
+                                            min_lines=10,
+                                            hint_text='{"type": "message", "data": "..."}',
+                                            text_size=13,
+                                            border=ft.InputBorder.NONE,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=0,
+                                ),
+                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                        ],
                     ),
-                ),
-            ],
-            expand=True,
+                ],
+            ),
         )
         
         # 发送按钮
         send_button = ft.ElevatedButton(
             ref=self.send_button,
-            text="发送消息",
+            content="发送消息",
             icon=ft.Icons.SEND,
             on_click=self._on_send_click,
             disabled=True,
@@ -412,7 +421,7 @@ class WebSocketClientView(ft.Container):
         """构建右侧面板。"""
         # 清空历史按钮
         clear_button = ft.OutlinedButton(
-            text="清空",
+            content="清空",
             icon=ft.Icons.CLEAR_ALL,
             on_click=self._clear_history,
         )
@@ -438,7 +447,7 @@ class WebSocketClientView(ft.Container):
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
                     expand=True,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 ),
             ],
             spacing=5,
@@ -475,10 +484,10 @@ class WebSocketClientView(ft.Container):
         """连接/断开按钮点击事件。"""
         if self.ws_service.is_connected:
             # 断开连接
-            self.page.run_task(self._disconnect)
+            self._page.run_task(self._disconnect)
         else:
             # 连接
-            self.page.run_task(self._connect)
+            self._page.run_task(self._connect)
     
     async def _connect(self):
         """连接到 WebSocket 服务器。"""
@@ -595,7 +604,7 @@ class WebSocketClientView(ft.Container):
     
     def _on_send_click(self, e):
         """发送消息按钮点击事件。"""
-        self.page.run_task(self._send_message)
+        self._page.run_task(self._send_message)
     
     async def _send_message(self):
         """发送消息。"""
@@ -720,7 +729,7 @@ class WebSocketClientView(ft.Container):
                                 icon=ft.Icons.COPY,
                                 icon_size=14,
                                 tooltip="复制",
-                                on_click=lambda _: self.page.set_clipboard(text),
+                                on_click=lambda _: self._page.set_clipboard(text),
                             ),
                         ],
                         spacing=3,
@@ -754,7 +763,7 @@ class WebSocketClientView(ft.Container):
                                 icon=ft.Icons.COPY,
                                 icon_size=14,
                                 tooltip="复制",
-                                on_click=lambda _: self.page.set_clipboard(text),
+                                on_click=lambda _: self._page.set_clipboard(text),
                             ),
                         ],
                         spacing=3,
@@ -801,7 +810,7 @@ class WebSocketClientView(ft.Container):
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 expand=True,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             )
         )
         try:
@@ -843,7 +852,7 @@ class WebSocketClientView(ft.Container):
         """返回按钮点击事件。"""
         # 如果已连接，先断开
         if self.ws_service.is_connected:
-            self.page.run_task(self._disconnect)
+            self._page.run_task(self._disconnect)
         
         if self.on_back:
             self.on_back()
@@ -893,20 +902,20 @@ class WebSocketClientView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

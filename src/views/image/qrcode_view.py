@@ -54,7 +54,7 @@ class QRCodeGeneratorView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -95,27 +95,27 @@ class QRCodeGeneratorView(ft.Container):
         template_buttons = ft.Row(
             controls=[
                 ft.TextButton(
-                    text="网址",
+                    content="网址",
                     on_click=lambda e: self._set_template("https://example.com"),
                     tooltip="网址模板",
                 ),
                 ft.TextButton(
-                    text="WiFi",
+                    content="WiFi",
                     on_click=lambda e: self._set_template("WIFI:T:WPA;S:我的WiFi;P:密码123456;;"),
                     tooltip="WiFi配置模板",
                 ),
                 ft.TextButton(
-                    text="电话",
+                    content="电话",
                     on_click=lambda e: self._set_template("tel:13800138000"),
                     tooltip="电话号码模板",
                 ),
                 ft.TextButton(
-                    text="邮箱",
+                    content="邮箱",
                     on_click=lambda e: self._set_template("mailto:user@example.com"),
                     tooltip="邮箱地址模板",
                 ),
                 ft.TextButton(
-                    text="短信",
+                    content="短信",
                     on_click=lambda e: self._set_template("SMSTO:13800138000:Message here"),
                     tooltip="短信模板",
                 ),
@@ -230,14 +230,14 @@ class QRCodeGeneratorView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        select_image_button = ft.ElevatedButton(
-            text="选择背景图片",
+        select_image_button = ft.Button(
+            content="选择背景图片",
             icon=ft.Icons.IMAGE_OUTLINED,
             on_click=self._on_select_image,
         )
         
         clear_image_button = ft.TextButton(
-            text="清除",
+            content="清除",
             on_click=self._on_clear_image,
         )
         
@@ -303,7 +303,7 @@ class QRCodeGeneratorView(ft.Container):
         
         # 生成按钮和进度
         self.generate_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.QR_CODE_2, size=24),
@@ -318,7 +318,7 @@ class QRCodeGeneratorView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         self.progress_bar = ft.ProgressBar(visible=False, value=0)
@@ -327,13 +327,13 @@ class QRCodeGeneratorView(ft.Container):
         # 预览区域
         self.preview_image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             width=400,
             height=400,
         )
         
-        save_button = ft.ElevatedButton(
-            text="保存图片",
+        save_button = ft.Button(
+            content="保存图片",
             icon=ft.Icons.SAVE,
             on_click=self._on_save,
             visible=False,
@@ -348,7 +348,7 @@ class QRCodeGeneratorView(ft.Container):
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
                         content=self.preview_image,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         border=ft.border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_LARGE,
@@ -415,24 +415,18 @@ class QRCodeGeneratorView(ft.Container):
         self.content_input.value = template
         self.content_input.update()
     
-    def _on_select_image(self, e: ft.ControlEvent) -> None:
+    async def _on_select_image(self, e: ft.ControlEvent) -> None:
         """选择背景图片。"""
-        def on_select_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                file_path = Path(result.files[0].path)
-                self.background_image_path = file_path
-                self.selected_image_text.value = f"已选择: {file_path.name}"
-                self.selected_image_text.update()
-        
-        file_picker = ft.FilePicker(on_result=on_select_result)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择背景图片",
             allowed_extensions=["jpg", "jpeg", "png", "bmp", "gif"],
             allow_multiple=False,
         )
+        if result and len(result) > 0:
+            file_path = Path(result[0].path)
+            self.background_image_path = file_path
+            self.selected_image_text.value = f"已选择: {file_path.name}"
+            self.selected_image_text.update()
     
     def _on_clear_image(self, e: ft.ControlEvent) -> None:
         """清除背景图片。"""
@@ -641,7 +635,7 @@ class QRCodeGeneratorView(ft.Container):
         self.progress_text.visible = True
         self.progress_text.value = "正在生成二维码..."
         self.progress_bar.value = None  # 不确定进度
-        self.page.update()
+        self._page.update()
         
         # 后台生成
         def generate_task():
@@ -685,12 +679,12 @@ class QRCodeGeneratorView(ft.Container):
                     result.save(self.qr_image_path, quality=95)
                 
                 # 更新UI
-                self.page.run_task(self._update_preview)
+                self._page.run_task(self._update_preview)
                 
             except Exception as ex:
                 import traceback
                 traceback.print_exc()
-                self.page.run_task(self._show_error, str(ex))
+                self._page.run_task(self._show_error, str(ex))
         
         thread = threading.Thread(target=generate_task, daemon=True)
         thread.start()
@@ -722,7 +716,7 @@ class QRCodeGeneratorView(ft.Container):
             # 隐藏进度
             self.progress_bar.visible = False
             self.progress_text.visible = False
-            self.page.update()
+            self._page.update()
             
             self._show_message("二维码生成成功！", ft.Colors.GREEN)
         
@@ -731,7 +725,7 @@ class QRCodeGeneratorView(ft.Container):
             # 隐藏进度
             self.progress_bar.visible = False
             self.progress_text.visible = False
-            self.page.update()
+            self._page.update()
     
     async def _show_error(self, error_msg: str) -> None:
         """显示错误（在主线程中调用）。"""
@@ -739,45 +733,40 @@ class QRCodeGeneratorView(ft.Container):
         # 隐藏进度
         self.progress_bar.visible = False
         self.progress_text.visible = False
-        self.page.update()
+        self._page.update()
     
-    def _on_save(self, e: ft.ControlEvent) -> None:
+    async def _on_save(self, e: ft.ControlEvent) -> None:
         """保存按钮点击事件。"""
         if not self.qr_image_path or not self.qr_image_path.exists():
             self._show_message("请先生成二维码", ft.Colors.ERROR)
             return
         
-        def on_save_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    save_path = Path(result.path)
-                    
-                    # 复制文件
-                    with open(self.qr_image_path, "rb") as src:
-                        with open(save_path, "wb") as dst:
-                            dst.write(src.read())
-                    
-                    self._show_message(f"二维码已保存到: {save_path}", ft.Colors.GREEN)
-                except Exception as ex:
-                    self._show_message(f"保存失败: {str(ex)}", ft.Colors.ERROR)
-        
-        save_picker = ft.FilePicker(on_result=on_save_result)
-        self.page.overlay.append(save_picker)
-        self.page.update()
-        
         # 根据原文件类型确定保存格式
         if self.qr_image_path.suffix.lower() == '.gif':
-            save_picker.save_file(
+            save_path = await ft.FilePicker().save_file(
                 dialog_title="保存二维码",
                 file_name="qrcode.gif",
                 allowed_extensions=["gif"],
             )
         else:
-            save_picker.save_file(
+            save_path = await ft.FilePicker().save_file(
                 dialog_title="保存二维码",
                 file_name="qrcode.png",
                 allowed_extensions=["png", "jpg", "jpeg"],
             )
+        
+        if save_path:
+            try:
+                save_path = Path(save_path)
+                
+                # 复制文件
+                with open(self.qr_image_path, "rb") as src:
+                    with open(save_path, "wb") as dst:
+                        dst.write(src.read())
+                
+                self._show_message(f"二维码已保存到: {save_path}", ft.Colors.GREEN)
+            except Exception as ex:
+                self._show_message(f"保存失败: {str(ex)}", ft.Colors.ERROR)
     
     def _show_message(self, message: str, color: str) -> None:
         """显示消息提示。
@@ -791,9 +780,9 @@ class QRCodeGeneratorView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -62,7 +62,7 @@ class VideoEnhanceView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -145,7 +145,7 @@ class VideoEnhanceView(ft.Container):
                 spacing=PADDING_LARGE,
             ),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         self.content = loading_content
     
@@ -172,7 +172,7 @@ class VideoEnhanceView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="视频增强"
@@ -203,12 +203,12 @@ class VideoEnhanceView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
@@ -319,7 +319,7 @@ class VideoEnhanceView(ft.Container):
             value=self.current_model_key,
             label="选择模型",
             hint_text="选择视频增强模型",
-            on_change=self._on_model_select_change,
+            on_select=self._on_model_select_change,
             width=320,
             dense=True,
             text_size=13,
@@ -346,16 +346,16 @@ class VideoEnhanceView(ft.Container):
         )
         
         # 下载按钮
-        self.download_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="下载模型",
+        self.download_model_button: ft.Button = ft.Button(
+            content="下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._start_download_model,
             visible=False,
         )
         
         # 加载模型按钮
-        self.load_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="加载模型",
+        self.load_model_button: ft.Button = ft.Button(
+            content="加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model,
             visible=False,
@@ -587,7 +587,7 @@ class VideoEnhanceView(ft.Container):
         
         # 底部大按钮
         self.process_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_AWESOME, size=24),
@@ -603,7 +603,7 @@ class VideoEnhanceView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 取消按钮
@@ -623,7 +623,7 @@ class VideoEnhanceView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             visible=False,
         )
         
@@ -923,7 +923,7 @@ class VideoEnhanceView(ft.Container):
             # 显示确认对话框
             def confirm_exit(confirm_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
                 
                 # 清理资源并取消任务
                 self.cleanup()
@@ -934,7 +934,7 @@ class VideoEnhanceView(ft.Container):
             
             def cancel_exit(cancel_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
             
             dialog = ft.AlertDialog(
                 modal=True,
@@ -945,7 +945,7 @@ class VideoEnhanceView(ft.Container):
                 ),
                 actions=[
                     ft.TextButton("继续处理", on_click=cancel_exit),
-                    ft.ElevatedButton(
+                    ft.Button(
                         "退出并取消",
                         icon=ft.Icons.EXIT_TO_APP,
                         on_click=confirm_exit
@@ -954,9 +954,9 @@ class VideoEnhanceView(ft.Container):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self.page.overlay.append(dialog)
+            self._page.overlay.append(dialog)
             dialog.open = True
-            self.page.update()
+            self._page.update()
         else:
             # 没有任务在运行，直接返回
             if self.on_back:
@@ -971,14 +971,14 @@ class VideoEnhanceView(ft.Container):
         if self.enhancer:
             def confirm_switch(confirm_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
                 self._switch_model(new_model_key)
             
             def cancel_switch(cancel_e: ft.ControlEvent) -> None:
                 dialog.open = False
                 self.model_selector.value = self.current_model_key
                 self.model_selector.update()
-                self.page.update()
+                self._page.update()
             
             dialog = ft.AlertDialog(
                 modal=True,
@@ -986,14 +986,14 @@ class VideoEnhanceView(ft.Container):
                 content=ft.Text("切换模型将卸载当前已加载的模型。是否继续？", size=14),
                 actions=[
                     ft.TextButton("取消", on_click=cancel_switch),
-                    ft.ElevatedButton("切换", on_click=confirm_switch),
+                    ft.Button("切换", on_click=confirm_switch),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self.page.overlay.append(dialog)
+            self._page.overlay.append(dialog)
             dialog.open = True
-            self.page.update()
+            self._page.update()
         else:
             self._switch_model(new_model_key)
     
@@ -1079,7 +1079,7 @@ class VideoEnhanceView(ft.Container):
         """卸载模型按钮点击事件。"""
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             if self.enhancer:
                 self.enhancer = None
@@ -1092,7 +1092,7 @@ class VideoEnhanceView(ft.Container):
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         estimated_memory = int(self.current_model.size_mb * 1.2)
         
@@ -1105,20 +1105,20 @@ class VideoEnhanceView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_unload),
-                ft.ElevatedButton("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
+                ft.Button("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             if self.enhancer:
                 self.enhancer = None
@@ -1144,7 +1144,7 @@ class VideoEnhanceView(ft.Container):
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -1155,7 +1155,7 @@ class VideoEnhanceView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_delete),
-                ft.ElevatedButton(
+                ft.Button(
                     "删除",
                     icon=ft.Icons.DELETE,
                     bgcolor=ft.Colors.ERROR,
@@ -1166,53 +1166,42 @@ class VideoEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=["mp4", "mkv", "mov", "avi", "wmv", "flv", "webm", "m4v", "3gp", "ts", "m2ts"],
             allow_multiple=True,
         )
+        if result and result.files:
+            for file in result.files:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder_path = Path(result.path)
-                video_extensions = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts", ".m2ts"}
-                for file_path in folder_path.rglob("*"):
-                    if file_path.is_file() and file_path.suffix.lower() in video_extensions:
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-                
-                if self.selected_files:
-                    self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择包含视频的文件夹")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择包含视频的文件夹")
+        if result:
+            folder_path = Path(result)
+            video_extensions = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts", ".m2ts"}
+            for file_path in folder_path.rglob("*"):
+                if file_path.is_file() and file_path.suffix.lower() in video_extensions:
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
+            
+            if self.selected_files:
+                self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表按钮点击事件。"""
@@ -1241,7 +1230,7 @@ class VideoEnhanceView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=280,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_select_files,
                     tooltip="点击选择视频",
                 )
@@ -1330,17 +1319,12 @@ class VideoEnhanceView(ft.Container):
         self.custom_output_dir.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self.custom_output_dir.update()
     
     def _update_process_button(self) -> None:
         """更新处理按钮状态。"""
@@ -1399,7 +1383,7 @@ class VideoEnhanceView(ft.Container):
         self.progress_text.value = "准备处理..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -2219,7 +2203,7 @@ class VideoEnhanceView(ft.Container):
         self.progress_bar.value = value
         self.progress_text.value = text
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2242,7 +2226,7 @@ class VideoEnhanceView(ft.Container):
         self.cancel_button.visible = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -2261,7 +2245,7 @@ class VideoEnhanceView(ft.Container):
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。"""
-        if self.is_destroyed or not self.page:
+        if self.is_destroyed or not self._page:
             logger.debug(f"视图已销毁，跳过snackbar: {message}")
             return  # 视图已销毁或page不存在，不显示消息
         
@@ -2271,9 +2255,9 @@ class VideoEnhanceView(ft.Container):
                 bgcolor=color,
                 duration=3000,
             )
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-            self.page.update()
+            self._page.update()
         except Exception as e:
             logger.debug(f"显示snackbar失败（可能视图已销毁）: {e}")
     
@@ -2308,7 +2292,7 @@ class VideoEnhanceView(ft.Container):
             self._show_snackbar(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
             self._show_snackbar("视频增强不支持该格式", ft.Colors.ORANGE)
-        self.page.update()
+        self._page.update()
     
     def _process_pending_files(self) -> None:
         """处理UI构建完成前收到的待处理文件。"""
@@ -2338,7 +2322,7 @@ class VideoEnhanceView(ft.Container):
             self._update_file_list()
             self._show_snackbar(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     

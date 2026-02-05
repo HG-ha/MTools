@@ -56,7 +56,7 @@ class WindowsUpdateView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.on_back: Optional[callable] = on_back
         
         self.expand: bool = True
@@ -127,7 +127,7 @@ class WindowsUpdateView(ft.Container):
                             alignment=ft.MainAxisAlignment.CENTER,
                         ),
                         expand=True,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                 ],
                 spacing=0,
@@ -511,9 +511,9 @@ class WindowsUpdateView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

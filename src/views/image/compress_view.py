@@ -53,7 +53,7 @@ class ImageCompressView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[callable] = on_back
@@ -100,13 +100,13 @@ class ImageCompressView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
-                            "选择文件",
+                        ft.Button(
+                            content="选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
-                            "选择文件夹",
+                        ft.Button(
+                            content="选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
                         ),
@@ -268,7 +268,7 @@ class ImageCompressView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 主内容 - 隐藏滚动条
@@ -321,54 +321,42 @@ class ImageCompressView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 height=332,  # 380 - 2*24(padding) = 332
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_empty_area_click,
                 ink=True,  # 添加水波纹效果
             )
         )
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files(e)
+        await self._on_select_files(e)
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                # 追加新文件，而不是替换
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    # 避免重复添加
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "webp", "bmp", "gif", "tiff", "tif", "ico", "avif", "heic", "heif"],
             allow_multiple=True,
         )
+        if files:
+            for f in files:
+                if f.path:
+                    new_file = Path(f.path)
+                    if new_file not in self.selected_files:
+                        self.selected_files.append(new_file)
+            self._update_file_list()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                # 获取文件夹中的所有图片
-                extensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico", ".avif", ".heic", ".heif"]
-                self.selected_files = []
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"*{ext}"))
-                    self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择图片文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择图片文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            extensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico", ".avif", ".heic", ".heif"]
+            self.selected_files = []
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"*{ext}"))
+                self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -390,7 +378,7 @@ class ImageCompressView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=332,  # 380 - 2*24(padding) = 332
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_empty_area_click,
                     ink=True,  # 添加水波纹效果
                 )
@@ -427,7 +415,7 @@ class ImageCompressView(ft.Container):
                                         color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 # 文件图标
                                 ft.Icon(ft.Icons.IMAGE, size=20, color=ft.Colors.PRIMARY),
@@ -529,7 +517,7 @@ class ImageCompressView(ft.Container):
         elif skipped_count > 0:
             self._show_message("图片压缩工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def _on_quality_change(self, e: ft.ControlEvent) -> None:
         """质量滑块变化事件。"""
@@ -551,17 +539,12 @@ class ImageCompressView(ft.Container):
         self.custom_output_dir.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
     
     
     def _on_compress(self, e: ft.ControlEvent) -> None:
@@ -677,9 +660,9 @@ class ImageCompressView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

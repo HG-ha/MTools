@@ -36,7 +36,7 @@ class CronToolView(ft.Container):
         on_back: Optional[Callable] = None
     ):
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -89,16 +89,16 @@ class CronToolView(ft.Container):
                     width=180,
                     options=[ft.dropdown.Option(k) for k in self.TEMPLATES.keys()],
                     hint_text="选择模板...",
-                    on_change=self._on_template_select,
+                    on_select=self._on_template_select,
                 ),
                 ft.Container(expand=True),
                 ft.ElevatedButton(
-                    text="解析",
+                    content="解析",
                     icon=ft.Icons.PLAY_ARROW,
                     on_click=self._parse,
                 ),
                 ft.OutlinedButton(
-                    text="清空",
+                    content="清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._clear,
                 ),
@@ -317,7 +317,7 @@ class CronToolView(ft.Container):
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
@@ -392,19 +392,19 @@ class CronToolView(ft.Container):
                 height=500,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

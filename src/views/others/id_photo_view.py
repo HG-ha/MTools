@@ -80,7 +80,7 @@ class IDPhotoView(ft.Container):
         on_back: Optional[Callable] = None
     ) -> None:
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service = config_service
         self.on_back: Optional[Callable] = on_back
         
@@ -129,7 +129,7 @@ class IDPhotoView(ft.Container):
                 spacing=PADDING_LARGE,
             ),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
     
     def _build_ui_async(self) -> None:
@@ -186,15 +186,15 @@ class IDPhotoView(ft.Container):
         
         file_select_area = ft.Column(
             controls=[
-                ft.Row(
-                    controls=[
-                        ft.Text("选择照片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton("选择文件", icon=ft.Icons.FILE_UPLOAD, on_click=self._on_select_files),
-                        ft.ElevatedButton("选择文件夹", icon=ft.Icons.FOLDER_OPEN, on_click=self._on_select_folder),
-                        ft.TextButton("清空列表", icon=ft.Icons.CLEAR_ALL, on_click=self._on_clear_files),
-                    ],
-                    spacing=PADDING_MEDIUM,
-                ),
+                    ft.Row(
+                        controls=[
+                            ft.Text("选择照片:", size=14, weight=ft.FontWeight.W_500),
+                            ft.Button("选择文件", icon=ft.Icons.FILE_UPLOAD, on_click=self._on_select_files),
+                            ft.Button("选择文件夹", icon=ft.Icons.FOLDER_OPEN, on_click=self._on_select_folder),
+                            ft.TextButton("清空列表", icon=ft.Icons.CLEAR_ALL, on_click=self._on_clear_files),
+                        ],
+                        spacing=PADDING_MEDIUM,
+                    ),
                 ft.Container(
                     content=ft.Row(
                         controls=[
@@ -234,7 +234,7 @@ class IDPhotoView(ft.Container):
             value=self.current_bg_model_key,
             label="背景移除模型",
             hint_text="选择背景移除模型",
-            on_change=self._on_bg_model_change,
+            on_select=self._on_bg_model_change,
             width=320,
             dense=True,
             text_size=13,
@@ -249,8 +249,8 @@ class IDPhotoView(ft.Container):
         # 背景模型状态
         self.bg_status_icon = ft.Icon(ft.Icons.HOURGLASS_EMPTY, size=20, color=ft.Colors.ON_SURFACE_VARIANT)
         self.bg_status_text = ft.Text("正在检查模型...", size=13, color=ft.Colors.ON_SURFACE_VARIANT)
-        self.download_bg_btn = ft.ElevatedButton("下载模型", icon=ft.Icons.DOWNLOAD, on_click=lambda _: self._start_download_model("background"), visible=False)
-        self.load_bg_btn = ft.ElevatedButton("加载模型", icon=ft.Icons.PLAY_ARROW, on_click=lambda _: self._on_load_model("background"), visible=False)
+        self.download_bg_btn = ft.Button("下载模型", icon=ft.Icons.DOWNLOAD, on_click=lambda _: self._start_download_model("background"), visible=False)
+        self.load_bg_btn = ft.Button("加载模型", icon=ft.Icons.PLAY_ARROW, on_click=lambda _: self._on_load_model("background"), visible=False)
         self.unload_bg_btn = ft.IconButton(icon=ft.Icons.POWER_SETTINGS_NEW, icon_color=ft.Colors.ORANGE, tooltip="卸载模型", on_click=lambda _: self._on_unload_model("background"), visible=False)
         self.delete_bg_btn = ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=ft.Colors.RED, tooltip="删除模型", on_click=lambda _: self._on_delete_model("background"), visible=False)
         
@@ -264,8 +264,8 @@ class IDPhotoView(ft.Container):
         self.face_model_text = ft.Text(f"人脸检测模型: {face_info.display_name}", size=13)
         self.face_status_icon = ft.Icon(ft.Icons.HOURGLASS_EMPTY, size=20, color=ft.Colors.ON_SURFACE_VARIANT)
         self.face_status_text = ft.Text("正在检查模型...", size=13, color=ft.Colors.ON_SURFACE_VARIANT)
-        self.download_face_btn = ft.ElevatedButton(f"下载模型 ({face_info.size_mb}MB)", icon=ft.Icons.DOWNLOAD, on_click=lambda _: self._start_download_model("face"), visible=False)
-        self.load_face_btn = ft.ElevatedButton("加载模型", icon=ft.Icons.PLAY_ARROW, on_click=lambda _: self._on_load_model("face"), visible=False)
+        self.download_face_btn = ft.Button(f"下载模型 ({face_info.size_mb}MB)", icon=ft.Icons.DOWNLOAD, on_click=lambda _: self._start_download_model("face"), visible=False)
+        self.load_face_btn = ft.Button("加载模型", icon=ft.Icons.PLAY_ARROW, on_click=lambda _: self._on_load_model("face"), visible=False)
         self.unload_face_btn = ft.IconButton(icon=ft.Icons.POWER_SETTINGS_NEW, icon_color=ft.Colors.ORANGE, tooltip="卸载模型", on_click=lambda _: self._on_unload_model("face"), visible=False)
         self.delete_face_btn = ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=ft.Colors.RED, tooltip="删除模型", on_click=lambda _: self._on_delete_model("face"), visible=False)
         
@@ -539,7 +539,7 @@ class IDPhotoView(ft.Container):
         )
         
         self.generate_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_AWESOME, size=24),
@@ -555,7 +555,7 @@ class IDPhotoView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # ==================== 组装界面 ====================
@@ -593,45 +593,35 @@ class IDPhotoView(ft.Container):
     
     # ==================== 文件操作 ====================
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                self._update_file_list()
-                self._update_generate_button()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择人像照片",
             allowed_extensions=["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"],
             allow_multiple=True,
         )
+        if result:
+            for file in result:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            self._update_file_list()
+            self._update_generate_button()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                for ext in ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"]:
-                    for file_path in folder.glob(f"*.{ext}"):
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                    for file_path in folder.glob(f"*.{ext.upper()}"):
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                self._update_file_list()
-                self._update_generate_button()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择包含照片的文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择包含照片的文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            for ext in ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "heic", "heif"]:
+                for file_path in folder.glob(f"*.{ext}"):
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+                for file_path in folder.glob(f"*.{ext.upper()}"):
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            self._update_file_list()
+            self._update_generate_button()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -668,7 +658,7 @@ class IDPhotoView(ft.Container):
                         spacing=8,
                     ),
                     height=260,  # 设置固定高度以填充区域
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_select_files,
                     ink=True,
                     border_radius=BORDER_RADIUS_MEDIUM,
@@ -708,7 +698,7 @@ class IDPhotoView(ft.Container):
                                         color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 # 文件图标
                                 ft.Icon(ft.Icons.PERSON, size=20, color=ft.Colors.PRIMARY),
@@ -774,7 +764,7 @@ class IDPhotoView(ft.Container):
         # 创建预览对话框
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 保存临时预览图
         if self.config_service:
@@ -815,11 +805,11 @@ class IDPhotoView(ft.Container):
                     controls=[
                         ft.Column([
                             ft.Text("标准照", size=12, weight=ft.FontWeight.W_500),
-                            ft.Image(src=str(standard_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=6),
+                            ft.Image(src=str(standard_path), width=170, height=220, fit=ft.BoxFit.CONTAIN, border_radius=6),
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
                         ft.Column([
                             ft.Text("高清照", size=12, weight=ft.FontWeight.W_500),
-                            ft.Image(src=str(hd_path), width=170, height=220, fit=ft.ImageFit.CONTAIN, border_radius=6),
+                            ft.Image(src=str(hd_path), width=170, height=220, fit=ft.BoxFit.CONTAIN, border_radius=6),
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
                     ],
                     spacing=PADDING_LARGE,
@@ -828,7 +818,7 @@ class IDPhotoView(ft.Container):
                 ft.Container(height=PADDING_SMALL),
                 ft.Column([
                     ft.Text("排版照", size=12, weight=ft.FontWeight.W_500),
-                    ft.Image(src=str(layout_path) if layout_path else "", width=380, height=240, fit=ft.ImageFit.CONTAIN, border_radius=6) if layout_path else ft.Text("未生成", color=ft.Colors.OUTLINE),
+                    ft.Image(src=str(layout_path) if layout_path else "", width=380, height=240, fit=ft.BoxFit.CONTAIN, border_radius=6) if layout_path else ft.Text("未生成", color=ft.Colors.OUTLINE),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4) if layout_path else ft.Container(),
             ],
             spacing=0,
@@ -845,9 +835,9 @@ class IDPhotoView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     # ==================== 模型管理 ====================
     
@@ -1096,11 +1086,11 @@ class IDPhotoView(ft.Container):
         
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def confirm_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._do_delete_model(model_type)
         
         dialog = ft.AlertDialog(
@@ -1114,9 +1104,9 @@ class IDPhotoView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _do_delete_model(self, model_type: str) -> None:
         """执行删除模型。"""
@@ -1178,17 +1168,12 @@ class IDPhotoView(ft.Container):
         self.kb_value_field.disabled = not self.kb_limit_checkbox.value
         self._safe_update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         if self.on_back:
@@ -1410,10 +1395,10 @@ class IDPhotoView(ft.Container):
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示提示消息。"""
         snackbar = ft.SnackBar(content=ft.Text(message), bgcolor=color, duration=3000)
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1444,9 +1429,9 @@ class IDPhotoView(ft.Container):
             self._update_file_list()
             self._update_generate_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def _process_pending_files(self) -> None:
         """处理UI构建完成前收到的待处理文件。"""
@@ -1476,10 +1461,10 @@ class IDPhotoView(ft.Container):
             self._update_file_list()
             self._update_generate_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     

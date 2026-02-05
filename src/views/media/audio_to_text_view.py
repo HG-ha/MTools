@@ -63,7 +63,7 @@ class AudioToTextView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -188,7 +188,7 @@ class AudioToTextView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="音视频转文字"
@@ -217,26 +217,20 @@ class AudioToTextView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择音视频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: self._on_select_folder(),
+                            on_click=self._on_select_folder,
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -290,7 +284,7 @@ class AudioToTextView(ft.Container):
             value=self.current_model_key,
             label="选择模型",
             hint_text="选择语音识别模型",
-            on_change=self._on_model_change,
+            on_select=self._on_model_change,
             width=690,
             dense=True,
             text_size=13,
@@ -320,14 +314,14 @@ class AudioToTextView(ft.Container):
         )
         
         # 下载模型按钮
-        self.download_model_button = ft.ElevatedButton(
+        self.download_model_button = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_download_model,
             visible=False,
         )
         
-        self.load_model_button = ft.ElevatedButton(
+        self.load_model_button = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model_click,
@@ -447,7 +441,7 @@ class AudioToTextView(ft.Container):
             value=self.current_vocal_model_key,
             label="降噪模型",
             hint_text="选择人声分离模型",
-            on_change=self._on_vocal_model_change,
+            on_select=self._on_vocal_model_change,
             width=380,
             dense=True,
             text_size=12,
@@ -698,7 +692,7 @@ class AudioToTextView(ft.Container):
             ],
             width=260,
             dense=True,
-            on_change=self._on_language_change,
+            on_select=self._on_language_change,
         )
         
         # 任务类型选择（Whisper 专用）
@@ -713,7 +707,7 @@ class AudioToTextView(ft.Container):
             ],
             width=230,
             dense=True,
-            on_change=self._on_task_change,
+            on_select=self._on_task_change,
             visible=(self.current_engine == "whisper"),  # 根据当前引擎决定是否可见
         )
         
@@ -950,7 +944,7 @@ class AudioToTextView(ft.Container):
         
         # 处理按钮区域 - 优化为大按钮样式
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.PLAY_ARROW, size=24),
@@ -966,7 +960,7 @@ class AudioToTextView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示区域
@@ -1046,7 +1040,7 @@ class AudioToTextView(ft.Container):
                     spacing=PADDING_SMALL // 2,
                 ),
                 height=188,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_empty_area_click,
                 ink=True,
             )
@@ -1107,7 +1101,7 @@ class AudioToTextView(ft.Container):
             self.reload_model_button.visible = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1186,7 +1180,7 @@ class AudioToTextView(ft.Container):
             self.engine_hint.content.controls[1].visible = not is_whisper  # SenseVoice 提示
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1239,7 +1233,7 @@ class AudioToTextView(ft.Container):
             self.model_status_icon.color = ft.Colors.BLUE
             self.model_status_text.value = "正在下载..."
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
             
@@ -1247,7 +1241,7 @@ class AudioToTextView(ft.Container):
             def progress_callback(progress: float, message: str):
                 self.model_status_text.value = message
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
             
@@ -1296,7 +1290,7 @@ class AudioToTextView(ft.Container):
             self.model_loading = False
             self.download_model_button.disabled = False
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
     
@@ -1318,7 +1312,7 @@ class AudioToTextView(ft.Container):
             self.model_status_icon.color = ft.Colors.BLUE
             self.model_status_text.value = "正在加载..."
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
             
@@ -1401,7 +1395,7 @@ class AudioToTextView(ft.Container):
             self.load_model_button.disabled = False
             self._update_process_button()
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
     
@@ -1461,7 +1455,7 @@ class AudioToTextView(ft.Container):
         finally:
             self._update_process_button()
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
     
@@ -1469,12 +1463,12 @@ class AudioToTextView(ft.Container):
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._do_delete_model()
         
         def cancel_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 显示确认对话框
         dialog = ft.AlertDialog(
@@ -1494,9 +1488,9 @@ class AudioToTextView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _do_delete_model(self) -> None:
         """执行删除模型操作。"""
@@ -1562,7 +1556,7 @@ class AudioToTextView(ft.Container):
             self._show_error("删除失败", f"无法删除模型文件: {str(e)}")
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1593,7 +1587,7 @@ class AudioToTextView(ft.Container):
         
         # 更新模型下拉框的启用状态
         self.vocal_model_dropdown.disabled = not self.use_vocal_separation
-        self.page.update()
+        self._page.update()
     
     def _on_vocal_model_change(self, e: ft.ControlEvent) -> None:
         """人声分离模型选择变更事件。"""
@@ -1608,7 +1602,7 @@ class AudioToTextView(ft.Container):
         self.use_ai_fix = e.control.value
         self.config_service.set_config_value("asr_use_ai_fix", self.use_ai_fix)
         self.ai_fix_api_key_field.disabled = not self.use_ai_fix
-        self.page.update()
+        self._page.update()
     
     def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
         """AI 修复 API Key 变更事件。"""
@@ -1665,7 +1659,7 @@ class AudioToTextView(ft.Container):
         """下载 VAD 模型。"""
         self.vad_download_btn.visible = False
         self.vad_status_text.value = "下载中..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -1674,7 +1668,7 @@ class AudioToTextView(ft.Container):
                 def progress_callback(progress: float, message: str):
                     self.vad_status_text.value = message
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                 
@@ -1688,7 +1682,7 @@ class AudioToTextView(ft.Container):
                 self.vad_status_icon.color = ft.Colors.GREEN
                 self.vad_status_text.value = "已下载"
                 self.vad_load_btn.visible = True
-                self.page.update()
+                self._page.update()
                 
                 # 自动加载
                 self._load_vad_model()
@@ -1698,9 +1692,9 @@ class AudioToTextView(ft.Container):
                 self.vad_status_icon.color = ft.Colors.ERROR
                 self.vad_status_text.value = f"下载失败: {ex}"
                 self.vad_download_btn.visible = True
-                self.page.update()
+                self._page.update()
         
-        self.page.run_thread(download_task)
+        self._page.run_thread(download_task)
     
     def _on_load_vad(self, e: ft.ControlEvent) -> None:
         """加载 VAD 模型。"""
@@ -1726,18 +1720,18 @@ class AudioToTextView(ft.Container):
             self.vad_status_icon.color = ft.Colors.GREEN
             self.vad_status_text.value = "已加载"
             self.vad_load_btn.visible = False
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             self.vad_status_text.value = f"加载失败: {ex}"
             self.vad_status_icon.color = ft.Colors.ERROR
-            self.page.update()
+            self._page.update()
     
     def _on_download_vocal(self, e: ft.ControlEvent) -> None:
         """下载人声分离模型。"""
         self.vocal_download_btn.visible = False
         self.vocal_status_text.value = "下载中..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -1746,7 +1740,7 @@ class AudioToTextView(ft.Container):
                 def progress_callback(progress: float, message: str):
                     self.vocal_status_text.value = message
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                 
@@ -1760,7 +1754,7 @@ class AudioToTextView(ft.Container):
                 self.vocal_status_icon.color = ft.Colors.GREEN
                 self.vocal_status_text.value = "已下载"
                 self.vocal_load_btn.visible = True
-                self.page.update()
+                self._page.update()
                 
                 # 自动加载
                 self._load_vocal_model()
@@ -1770,9 +1764,9 @@ class AudioToTextView(ft.Container):
                 self.vocal_status_icon.color = ft.Colors.ERROR
                 self.vocal_status_text.value = f"下载失败: {ex}"
                 self.vocal_download_btn.visible = True
-                self.page.update()
+                self._page.update()
         
-        self.page.run_thread(download_task)
+        self._page.run_thread(download_task)
     
     def _on_load_vocal(self, e: ft.ControlEvent) -> None:
         """加载人声分离模型。"""
@@ -1794,19 +1788,19 @@ class AudioToTextView(ft.Container):
             self.vocal_status_icon.color = ft.Colors.GREEN
             self.vocal_status_text.value = "已加载"
             self.vocal_load_btn.visible = False
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             self.vocal_status_text.value = f"加载失败: {ex}"
             self.vocal_status_icon.color = ft.Colors.ERROR
-            self.page.update()
+            self._page.update()
     
     def _on_punctuation_change(self, e: ft.ControlEvent) -> None:
         """标点恢复开关变更事件。"""
         self.use_punctuation = e.control.value
         self.config_service.set_config_value("whisper_use_punctuation", self.use_punctuation)
         self.speech_service.use_punctuation = self.use_punctuation
-        self.page.update()
+        self._page.update()
     
     def _init_punctuation_status(self) -> None:
         """初始化标点恢复模型状态。"""
@@ -1835,7 +1829,7 @@ class AudioToTextView(ft.Container):
         """下载标点恢复模型。"""
         self.punctuation_download_btn.visible = False
         self.punctuation_status_text.value = "下载中..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -1853,7 +1847,7 @@ class AudioToTextView(ft.Container):
                 # 下载模型文件
                 self.punctuation_status_text.value = "下载模型文件..."
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
                 
@@ -1872,14 +1866,14 @@ class AudioToTextView(ft.Container):
                                 progress = downloaded / total_size * 100
                                 self.punctuation_status_text.value = f"下载模型... {progress:.0f}%"
                                 try:
-                                    self.page.update()
+                                    self._page.update()
                                 except:
                                     pass
                 
                 # 下载 tokens 文件
                 self.punctuation_status_text.value = "下载 tokens 文件..."
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
                 
@@ -1893,7 +1887,7 @@ class AudioToTextView(ft.Container):
                 self.punctuation_status_icon.color = ft.Colors.GREEN
                 self.punctuation_status_text.value = "已下载"
                 self.punctuation_load_btn.visible = True
-                self.page.update()
+                self._page.update()
                 
                 # 自动加载
                 self._load_punctuation_model()
@@ -1904,9 +1898,9 @@ class AudioToTextView(ft.Container):
                 self.punctuation_status_icon.color = ft.Colors.ERROR
                 self.punctuation_status_text.value = f"下载失败: {ex}"
                 self.punctuation_download_btn.visible = True
-                self.page.update()
+                self._page.update()
         
-        self.page.run_thread(download_task)
+        self._page.run_thread(download_task)
     
     def _on_load_punctuation(self, e: ft.ControlEvent) -> None:
         """加载标点恢复模型。"""
@@ -1929,13 +1923,13 @@ class AudioToTextView(ft.Container):
             self.punctuation_status_icon.color = ft.Colors.GREEN
             self.punctuation_status_text.value = "已加载"
             self.punctuation_load_btn.visible = False
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             logger.error(f"加载标点恢复模型失败: {ex}")
             self.punctuation_status_text.value = f"加载失败: {ex}"
             self.punctuation_status_icon.color = ft.Colors.ERROR
-            self.page.update()
+            self._page.update()
     
     def _on_language_change(self, e: ft.ControlEvent) -> None:
         """语言选择变更事件。"""
@@ -1968,7 +1962,7 @@ class AudioToTextView(ft.Container):
         self.speech_service.set_subtitle_settings(max_length=self.subtitle_max_length)
         self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1984,52 +1978,40 @@ class AudioToTextView(ft.Container):
         self.custom_output_dir.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                try:
-                    self.page.update()
-                except:
-                    pass
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            try:
+                self._page.update()
+            except:
+                pass
     
-    def _on_select_files(self) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
         """选择文件按钮点击事件。"""
-        self.file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             allow_multiple=True,
             allowed_extensions=["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "mp4", "mkv", "avi", "mov", "flv", "wmv"],
             dialog_title="选择音视频文件",
         )
-    
-    def _on_select_folder(self) -> None:
-        """选择文件夹按钮点击事件。"""
-        self.file_picker.get_directory_path(dialog_title="选择包含音视频文件的文件夹")
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择完成事件。"""
-        if e.files:
-            # 添加文件到列表
-            for file in e.files:
+        if result and result.files:
+            for file in result.files:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-            
             self._update_file_list()
             self._update_process_button()
-        
-        elif e.path:
-            # 选择了文件夹
-            folder_path = Path(e.path)
+    
+    async def _on_select_folder(self, e: ft.ControlEvent = None) -> None:
+        """选择文件夹按钮点击事件。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择包含音视频文件的文件夹")
+        if result:
+            folder_path = Path(result)
             audio_extensions = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".wma"}
             video_extensions = {".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv"}
             
@@ -2047,7 +2029,7 @@ class AudioToTextView(ft.Container):
         self._init_empty_state()
         self._update_process_button()
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2145,7 +2127,7 @@ class AudioToTextView(ft.Container):
         
         self.file_list_view.controls = file_items
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2161,7 +2143,7 @@ class AudioToTextView(ft.Container):
         button = self.process_button.content
         button.disabled = not (self.selected_files and self.model_loaded and not self.is_processing)
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2183,7 +2165,7 @@ class AudioToTextView(ft.Container):
             self.progress_bar.visible = True
             self.progress_bar.value = 0
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
             
@@ -2195,7 +2177,7 @@ class AudioToTextView(ft.Container):
                     self.progress_text.value = f"正在处理: {file_path.name} ({i+1}/{total_files})"
                     self.progress_bar.value = i / total_files
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                     
@@ -2205,7 +2187,7 @@ class AudioToTextView(ft.Container):
                         file_progress = (i + progress) / total_files
                         self.progress_bar.value = file_progress
                         try:
-                            self.page.update()
+                            self._page.update()
                         except:
                             pass
                     
@@ -2261,12 +2243,12 @@ class AudioToTextView(ft.Container):
                         if self.use_ai_fix and self.ai_fix_service.is_configured() and segments:
                             try:
                                 self.progress_text.value = f"AI 修复中: {file_path.name}"
-                                self.page.update()
+                                self._page.update()
                                 
                                 def ai_fix_progress(msg, prog):
                                     self.progress_text.value = f"{msg}: {file_path.name}"
                                     try:
-                                        self.page.update()
+                                        self._page.update()
                                     except:
                                         pass
                                 
@@ -2300,12 +2282,12 @@ class AudioToTextView(ft.Container):
                         if self.use_ai_fix and self.ai_fix_service.is_configured() and text:
                             try:
                                 self.progress_text.value = f"AI 修复中: {file_path.name}"
-                                self.page.update()
+                                self._page.update()
                                 
                                 def ai_fix_progress(msg, prog):
                                     self.progress_text.value = f"{msg}: {file_path.name}"
                                     try:
-                                        self.page.update()
+                                        self._page.update()
                                     except:
                                         pass
                                 
@@ -2373,13 +2355,13 @@ class AudioToTextView(ft.Container):
             # 隐藏进度条
             self.progress_bar.visible = False
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files()
+        await self._on_select_files(e)
     
     def _on_back_click(self, e: ft.ControlEvent = None) -> None:
         """返回按钮点击事件。"""
@@ -2395,10 +2377,10 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2411,10 +2393,10 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2427,10 +2409,10 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2485,10 +2467,10 @@ class AudioToTextView(ft.Container):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.overlay.append(warning_dialog)
+        self._page.overlay.append(warning_dialog)
         warning_dialog.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2496,7 +2478,7 @@ class AudioToTextView(ft.Container):
         """关闭对话框。"""
         dialog.open = False
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2525,13 +2507,13 @@ class AudioToTextView(ft.Container):
             self._update_file_list()
             self._update_process_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("语音转文字不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理资源，释放内存。"""

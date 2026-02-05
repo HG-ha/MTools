@@ -27,7 +27,7 @@ class RegexTesterView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -118,7 +118,7 @@ class RegexTesterView(ft.Container):
                         ft.dropdown.Option("首次匹配"),
                     ],
                     value="全部匹配",
-                    on_change=lambda _: self._on_test(),
+                    on_select=lambda _: self._on_test(),
                 ),
             ],
             spacing=PADDING_SMALL,
@@ -156,7 +156,7 @@ class RegexTesterView(ft.Container):
                         ft.Text("匹配结果", weight=ft.FontWeight.BOLD, size=16),
                         ft.Container(expand=True),
                         ft.OutlinedButton(
-                            text="清空",
+                            content="清空",
                             icon=ft.Icons.CLEAR,
                             on_click=self._on_clear,
                         ),
@@ -176,7 +176,7 @@ class RegexTesterView(ft.Container):
                                     alignment=ft.MainAxisAlignment.CENTER,
                                 ),
                                 expand=True,
-                                alignment=ft.alignment.center,
+                                alignment=ft.Alignment.CENTER,
                             ),
                         ],
                         spacing=5,
@@ -405,14 +405,14 @@ class RegexTesterView(ft.Container):
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 expand=True,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             )
         )
         self.update()
     
     def _copy_text(self, text: str):
         """复制文本到剪贴板。"""
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
@@ -472,20 +472,20 @@ class RegexTesterView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -31,7 +31,7 @@ class EncoderDecoderView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -97,7 +97,7 @@ class EncoderDecoderView(ft.Container):
                         ft.dropdown.Option("Unicode"),
                     ],
                     value="Base64",
-                    on_change=self._on_type_change,
+                    on_select=self._on_type_change,
                 ),
                 ft.Dropdown(
                     ref=self.operation,
@@ -122,13 +122,13 @@ class EncoderDecoderView(ft.Container):
                     visible=False,  # 默认隐藏，只在选择 URL 时显示
                 ),
                 ft.ElevatedButton(
-                    text="转换",
+                    content="转换",
                     icon=ft.Icons.PLAY_ARROW,
                     on_click=self._on_convert,
                 ),
                 ft.Container(expand=True),
                 ft.OutlinedButton(
-                    text="清空",
+                    content="清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._on_clear,
                 ),
@@ -229,7 +229,7 @@ class EncoderDecoderView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -346,12 +346,12 @@ class EncoderDecoderView(ft.Container):
                 ft.Container(height=10),
                 ft.Image(
                     src_base64=base64.b64encode(image_data).decode('ascii'),
-                    fit=ft.ImageFit.CONTAIN,
+                    fit=ft.BoxFit.CONTAIN,
                     border_radius=8,
                 ),
                 ft.Container(height=10),
                 ft.OutlinedButton(
-                    text="保存图片",
+                    content="保存图片",
                     icon=ft.Icons.SAVE,
                     on_click=self._save_image,
                 ),
@@ -390,7 +390,7 @@ class EncoderDecoderView(ft.Container):
             return
         
         # 使用文件选择器保存
-        self.page.run_task(self._save_image_async)
+        self._page.run_task(self._save_image_async)
     
     async def _save_image_async(self):
         """异步保存图片。"""
@@ -425,7 +425,7 @@ class EncoderDecoderView(ft.Container):
         if not self.decoded_binary_data:
             return
         
-        self.page.run_task(self._save_image_async)
+        self._page.run_task(self._save_image_async)
     
     def _on_type_change(self, e):
         """编码类型改变时的处理。"""
@@ -512,7 +512,7 @@ class EncoderDecoderView(ft.Container):
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_divider_pan_start(self, e: ft.DragStartEvent):
@@ -527,7 +527,7 @@ class EncoderDecoderView(ft.Container):
         if not self.is_dragging:
             return
         
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 12
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 12
         if container_width <= 0:
             return
         
@@ -617,20 +617,20 @@ class EncoderDecoderView(ft.Container):
                 height=400,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -48,7 +48,7 @@ class ToolSearchDialog(ft.AlertDialog):
             tools: 工具列表
             config_service: 配置服务(用于保存历史记录)
         """
-        self.page = page
+        self._page = page
         self.tools = tools
         self.config_service = config_service
         self.filtered_tools = tools.copy()
@@ -302,7 +302,7 @@ class ToolSearchDialog(ft.AlertDialog):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=PADDING_SMALL,
                     ),
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     expand=True,
                 )
             )
@@ -442,7 +442,7 @@ class ToolSearchDialog(ft.AlertDialog):
         
         # 关闭对话框
         self.open = False
-        self.page.update()
+        self._page.update()
         
         # 执行工具回调
         if tool.on_click:
@@ -483,7 +483,7 @@ class ToolSearchDialog(ft.AlertDialog):
     def _on_close(self, e: ft.ControlEvent) -> None:
         """关闭按钮点击事件。"""
         self.open = False
-        self.page.update()
+        self._page.update()
 
 
 class ToolRegistry:

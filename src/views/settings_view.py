@@ -67,7 +67,7 @@ class SettingsView(ft.Container):
             config_service: 配置服务实例
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self._saved_page: ft.Page = page  # 保存页面引用,防止在布局重建后丢失
         self.config_service: ConfigService = config_service
         self.expand: bool = True
@@ -97,17 +97,9 @@ class SettingsView(ft.Container):
         self._init_file_picker()
 
     def _init_file_picker(self) -> None:
-        """初始化文件选择器。"""
-        def on_font_file_picked(e: ft.FilePickerResultEvent):
-            if e.files and len(e.files) > 0:
-                file_path = e.files[0].path
-                self._load_custom_font_file(file_path)
-        
-        self.font_file_picker = ft.FilePicker(
-            on_result=on_font_file_picked
-        )
-        # 注意：这里不能直接添加到 page.overlay，因为 page 可能还没准备好
-        # 我们会在 did_mount 或者第一次打开对话框时添加
+        """初始化文件选择器（Flet 1.0 不再需要预先创建）。"""
+        # Flet 1.0 使用 await ft.FilePicker().pick_files() 方式，不再需要预先创建
+        pass
     
     def _restore_custom_font(self) -> None:
         """恢复自定义字体（在初始化时调用）。"""
@@ -128,11 +120,11 @@ class SettingsView(ft.Container):
                 
                 if font_path.exists():
                     # 将字体添加到页面（即使当前不使用，也加载以便切换时可用）
-                    if not hasattr(self.page, 'fonts') or self.page.fonts is None:
-                        self.page.fonts = {}
+                    if not hasattr(self._page, 'fonts') or self._page.fonts is None:
+                        self._page.fonts = {}
                     
-                    self.page.fonts[custom_font_key] = str(font_path)
-                    self.page.update()
+                    self._page.fonts[custom_font_key] = str(font_path)
+                    self._page.update()
                     
                     # 只有当前正在使用这个自定义字体时，才记录恢复日志
                     if is_using_custom_font:
@@ -384,8 +376,8 @@ class SettingsView(ft.Container):
         
         # 保存到配置
         if self.config_service.set_config_value("theme_mode", mode):
-            # 通过 _saved_page 获取页面引用(因为 self.page 可能在布局重建后失效)
-            page = getattr(self, '_saved_page', self.page)
+            # 通过 _saved_page 获取页面引用(因为 self._page 可能在布局重建后失效)
+            page = getattr(self, '_saved_page', self._page)
             # 立即应用主题模式
             if page:
                 if mode == "system":
@@ -521,7 +513,7 @@ class SettingsView(ft.Container):
         self.ocr_key_dropdown = ft.Dropdown(
             value=ocr_hotkey.get("key", "Q"),
             options=[ft.dropdown.Option(k) for k in self.AVAILABLE_KEYS],
-            on_change=lambda e: self._on_hotkey_change("ocr"),
+            on_select=lambda e: self._on_hotkey_change("ocr"),
             width=80,
             dense=True,
             disabled=not is_windows or not ocr_hotkey_enabled,
@@ -545,7 +537,7 @@ class SettingsView(ft.Container):
                             ft.Container(
                                 content=self.ocr_hotkey_switch,
                                 width=60,
-                                alignment=ft.alignment.center_left,
+                                alignment=ft.Alignment.CENTER_LEFT,
                             ),
                             ft.Icon(ft.Icons.TEXT_FIELDS, size=20, color=ft.Colors.PRIMARY),
                             ft.Text("OCR 截图识别", size=14, weight=ft.FontWeight.W_500),
@@ -605,7 +597,7 @@ class SettingsView(ft.Container):
         self.record_key_dropdown = ft.Dropdown(
             value=screen_record_hotkey.get("key", "C"),
             options=[ft.dropdown.Option(k) for k in self.AVAILABLE_KEYS],
-            on_change=lambda e: self._on_hotkey_change("screen_record"),
+            on_select=lambda e: self._on_hotkey_change("screen_record"),
             width=80,
             dense=True,
             disabled=not is_windows or not screen_record_hotkey_enabled,
@@ -621,7 +613,7 @@ class SettingsView(ft.Container):
                             ft.Container(
                                 content=self.record_hotkey_switch,
                                 width=60,
-                                alignment=ft.alignment.center_left,
+                                alignment=ft.Alignment.CENTER_LEFT,
                             ),
                             ft.Icon(ft.Icons.VIDEOCAM, size=20, color=ft.Colors.PRIMARY),
                             ft.Text("屏幕录制", size=14, weight=ft.FontWeight.W_500),
@@ -724,7 +716,7 @@ class SettingsView(ft.Container):
         self._restart_global_hotkey_service()
         
         try:
-            self.page.update()
+            self._page.update()
         except Exception:
             pass
     
@@ -732,8 +724,8 @@ class SettingsView(ft.Container):
         """重启全局热键服务。"""
         try:
             # 尝试从 main_view 获取全局热键服务
-            if self.page and self.page.controls:
-                main_view = self.page.controls[0]
+            if self._page and self._page.controls:
+                main_view = self._page.controls[0]
                 if hasattr(main_view, 'global_hotkey_service'):
                     service = main_view.global_hotkey_service
                     if service:
@@ -791,7 +783,7 @@ class SettingsView(ft.Container):
         self._restart_global_hotkey_service()
         
         try:
-            self.page.update()
+            self._page.update()
         except Exception:
             pass
     
@@ -826,8 +818,8 @@ class SettingsView(ft.Container):
                 
                 if success:
                     # 保存到全局热键服务
-                    if self.page and self.page.controls:
-                        main_view = self.page.controls[0]
+                    if self._page and self._page.controls:
+                        main_view = self._page.controls[0]
                         if hasattr(main_view, 'global_hotkey_service'):
                             main_view.global_hotkey_service._ocr_service = ocr_service
                     logger.info("OCR 模型已预加载")
@@ -891,18 +883,18 @@ class SettingsView(ft.Container):
         )
         
         # 浏览按钮
-        browse_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="浏览...",
+        browse_button: ft.Button = ft.Button(
+            content="浏览...",
             icon=ft.Icons.FOLDER_OPEN,
             on_click=self._on_browse_click,
             disabled=not is_custom,
         )
         
-        self.browse_button: ft.ElevatedButton = browse_button
+        self.browse_button: ft.Button = browse_button
         
         # 打开目录按钮
         open_dir_button: ft.OutlinedButton = ft.OutlinedButton(
-            text="打开数据目录",
+            content="打开数据目录",
             icon=ft.Icons.FOLDER,
             on_click=self._on_open_dir_click,
         )
@@ -1149,11 +1141,6 @@ class SettingsView(ft.Container):
             expand=True,
         )
         
-        self.bg_image_picker = ft.FilePicker(
-            on_result=self._on_bg_image_selected
-        )
-        self.page.overlay.append(self.bg_image_picker)
-        
         bg_image_row = ft.Row(
             controls=[
                 ft.Text("背景图片:", size=13),
@@ -1161,10 +1148,7 @@ class SettingsView(ft.Container):
                 ft.IconButton(
                     icon=ft.Icons.FOLDER_OPEN,
                     tooltip="选择背景图片",
-                    on_click=lambda _: self.bg_image_picker.pick_files(
-                        allowed_extensions=["png", "jpg", "jpeg", "webp", "bmp"],
-                        dialog_title="选择背景图片"
-                    ),
+                    on_click=self._on_pick_bg_image,
                 ),
                 ft.IconButton(
                     icon=ft.Icons.CLEAR,
@@ -1186,7 +1170,7 @@ class SettingsView(ft.Container):
                 ft.dropdown.Option("none", "原始尺寸 - 不缩放"),
             ],
             dense=True,
-            on_change=self._on_bg_fit_change,
+            on_select=self._on_bg_fit_change,
         )
         
         bg_fit_row = ft.Row(
@@ -1226,8 +1210,8 @@ class SettingsView(ft.Container):
                 ft.Text("必应壁纸", size=14, weight=ft.FontWeight.W_500),
                 ft.Row(
                     controls=[
-                        ft.ElevatedButton(
-                            text="获取壁纸",
+                        ft.Button(
+                            content="获取壁纸",
                             icon=ft.Icons.CLOUD_DOWNLOAD,
                             on_click=self._on_random_wallpaper,
                             tooltip="从必应获取8张壁纸",
@@ -1323,7 +1307,7 @@ class SettingsView(ft.Container):
         self.config_service.set_config_value("window_opacity", value)
         
         # 使用保存的页面引用
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if not page:
             return
         
@@ -1360,10 +1344,14 @@ class SettingsView(ft.Container):
         
         page.update()
     
-    def _on_bg_image_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """背景图片选择事件。"""
-        if e.files and len(e.files) > 0:
-            image_path = e.files[0].path
+    async def _on_pick_bg_image(self, e: ft.ControlEvent) -> None:
+        """选择背景图片。"""
+        result = await ft.FilePicker().pick_files(
+            allowed_extensions=["png", "jpg", "jpeg", "webp", "bmp"],
+            dialog_title="选择背景图片"
+        )
+        if result and len(result) > 0:
+            image_path = result[0].path
             self.bg_image_text.value = image_path
             
             # 保存配置
@@ -1373,7 +1361,7 @@ class SettingsView(ft.Container):
             self._apply_background_image(image_path, self.bg_fit_dropdown.value)
             
             # 更新页面
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
     
@@ -1388,7 +1376,7 @@ class SettingsView(ft.Container):
         self._apply_background_image(None, None)
         
         # 更新页面
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
     
@@ -1406,8 +1394,8 @@ class SettingsView(ft.Container):
     
     def _apply_background_image(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:
         """应用背景图片。"""
-        # 通过 _saved_page 获取页面引用(因为 self.page 可能在布局重建后失效)
-        page = getattr(self, '_saved_page', self.page)
+        # 通过 _saved_page 获取页面引用(因为 self._page 可能在布局重建后失效)
+        page = getattr(self, '_saved_page', self._page)
         
         if not page:
             return
@@ -1530,7 +1518,7 @@ class SettingsView(ft.Container):
         try:
             self.bg_image_text.value = f"必应壁纸: {wallpaper['title']}"
             # 使用 page.update() 而不是控件的 update()
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
         except Exception:
@@ -1584,7 +1572,7 @@ class SettingsView(ft.Container):
                 self.bg_image_text.value = f"必应壁纸: {wallpaper['title']}"
             
             # 使用 page.update() 统一更新，避免在后台线程中直接调用控件的 update()
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
         except Exception as e:
@@ -1595,7 +1583,7 @@ class SettingsView(ft.Container):
                 if "加载中" in self.bg_image_text.value or self.bg_image_text.value.startswith("http"):
                     self.bg_image_text.value = "必应壁纸"
                     try:
-                        page = getattr(self, '_saved_page', self.page)
+                        page = getattr(self, '_saved_page', self._page)
                         if page:
                             page.update()
                     except:
@@ -1815,8 +1803,8 @@ class SettingsView(ft.Container):
         enabled = e.control.value
         if self.config_service.set_config_value("show_recommendations_page", enabled):
             # 立即更新推荐工具页面显示状态
-            if hasattr(self.page, '_main_view'):
-                self.page._main_view.update_recommendations_visibility(enabled)
+            if hasattr(self._page, '_main_view'):
+                self._page._main_view.update_recommendations_visibility(enabled)
             
             status = "已显示" if enabled else "已隐藏"
             self._show_snackbar(f"推荐工具页面{status}", ft.Colors.GREEN)
@@ -1844,8 +1832,8 @@ class SettingsView(ft.Container):
         enabled = e.control.value
         if self.config_service.set_config_value("show_weather", enabled):
             # 立即更新天气显示状态
-            if hasattr(self.page, '_main_view') and hasattr(self.page._main_view, 'title_bar'):
-                self.page._main_view.title_bar.set_weather_visibility(enabled)
+            if hasattr(self._page, '_main_view') and hasattr(self._page._main_view, 'title_bar'):
+                self._page._main_view.title_bar.set_weather_visibility(enabled)
             
             status = "已显示" if enabled else "已隐藏"
             self._show_snackbar(f"天气信息{status}", ft.Colors.GREEN)
@@ -1857,8 +1845,8 @@ class SettingsView(ft.Container):
         enabled = e.control.value
         if self.config_service.set_config_value("minimize_to_tray", enabled):
             # 立即更新托盘功能状态
-            if hasattr(self.page, '_main_view') and hasattr(self.page._main_view, 'title_bar'):
-                self.page._main_view.title_bar.set_minimize_to_tray(enabled)
+            if hasattr(self._page, '_main_view') and hasattr(self._page._main_view, 'title_bar'):
+                self._page._main_view.title_bar.set_minimize_to_tray(enabled)
             
             status = "已启用" if enabled else "已禁用"
             self._show_snackbar(f"最小化到系统托盘{status}", ft.Colors.GREEN)
@@ -2053,7 +2041,7 @@ class SettingsView(ft.Container):
             ),
             value=str(gpu_device_id) if cuda_available or not is_cuda else "0",
             options=gpu_device_options,
-            on_change=self._on_gpu_device_change,
+            on_select=self._on_gpu_device_change,
             width=500,
             disabled=disable_gpu_select,
         )
@@ -2320,7 +2308,7 @@ class SettingsView(ft.Container):
         if self.config_service.set_config_value("onnx_cpu_threads", threads):
             self.cpu_threads_value_text.value = f"{threads if threads > 0 else '自动'}"
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
             
@@ -2835,7 +2823,7 @@ class SettingsView(ft.Container):
                 if color_value:
                     self._apply_custom_color(color_value)
             self.color_picker_dialog.open = False
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
         
@@ -2845,12 +2833,12 @@ class SettingsView(ft.Container):
             content=dialog_content,
             actions=[
                 ft.TextButton("取消", on_click=lambda e: close_dialog(False)),
-                ft.ElevatedButton("应用", on_click=lambda e: close_dialog(True)),
+                ft.Button("应用", on_click=lambda e: close_dialog(True)),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.overlay.append(self.color_picker_dialog)
             self.color_picker_dialog.open = True
@@ -2949,8 +2937,8 @@ class SettingsView(ft.Container):
         
         # 保存并应用颜色
         if self.config_service.set_config_value("theme_color", color_value.upper()):
-            # 通过 _saved_page 获取页面引用(因为 self.page 可能在布局重建后失效)
-            page = getattr(self, '_saved_page', self.page)
+            # 通过 _saved_page 获取页面引用(因为 self._page 可能在布局重建后失效)
+            page = getattr(self, '_saved_page', self._page)
             # 立即更新页面主题色
             if page and page.theme:
                 page.theme.color_scheme_seed = color_value
@@ -2987,7 +2975,7 @@ class SettingsView(ft.Container):
                         pass
             
             # 更新整个页面
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
             self._show_snackbar(f"自定义主题色已应用: {color_value}", ft.Colors.GREEN)
@@ -3008,8 +2996,8 @@ class SettingsView(ft.Container):
         
         # 保存主题色设置
         if self.config_service.set_config_value("theme_color", clicked_color):
-            # 通过 _saved_page 获取页面引用(因为 self.page 可能在布局重建后失效)
-            page = getattr(self, '_saved_page', self.page)
+            # 通过 _saved_page 获取页面引用(因为 self._page 可能在布局重建后失效)
+            page = getattr(self, '_saved_page', self._page)
             # 立即更新页面主题色
             if page and page.theme:
                 page.theme.color_scheme_seed = clicked_color
@@ -3072,7 +3060,7 @@ class SettingsView(ft.Container):
                     pass
             
             # 更新整个页面
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
             self._show_snackbar("主题色已更新", ft.Colors.GREEN)
@@ -3086,7 +3074,7 @@ class SettingsView(ft.Container):
             color: 新的主题色
         """
         # 通过 _saved_page 获取页面引用
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         
         # 尝试找到标题栏组件并更新颜色
         try:
@@ -3306,7 +3294,7 @@ class SettingsView(ft.Container):
         
         # 检查更新按钮
         self.check_update_button: ft.OutlinedButton = ft.OutlinedButton(
-            text="检查更新",
+            content="检查更新",
             icon=ft.Icons.REFRESH,
             on_click=self._on_check_update,
             tooltip="检查是否有新版本",
@@ -3367,7 +3355,7 @@ class SettingsView(ft.Container):
         
         # 重置窗口按钮
         reset_window_button: ft.OutlinedButton = ft.OutlinedButton(
-            text="重置窗口位置和大小",
+            content="重置窗口位置和大小",
             icon=ft.Icons.RESTORE,
             on_click=self._on_reset_window_position,
             tooltip="将窗口位置和大小重置为默认值",
@@ -3375,7 +3363,7 @@ class SettingsView(ft.Container):
         
         # 创建桌面快捷方式按钮（仅 Windows 打包环境可用）
         create_shortcut_button: ft.OutlinedButton = ft.OutlinedButton(
-            text="创建桌面快捷方式",
+            content="创建桌面快捷方式",
             icon=ft.Icons.SHORTCUT,
             on_click=self._on_create_desktop_shortcut,
             tooltip="在桌面创建应用快捷方式",
@@ -3421,7 +3409,7 @@ class SettingsView(ft.Container):
         self.update_download_button.visible = False
         
         # 更新 UI
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
         
@@ -3483,7 +3471,7 @@ class SettingsView(ft.Container):
         self.update_status_text.visible = True
         
         # 使用保存的页面引用更新 UI
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
     
@@ -3523,8 +3511,8 @@ class SettingsView(ft.Container):
         progress_text = ft.Text("", size=12, visible=False)
         
         # 创建按钮
-        auto_update_btn = ft.ElevatedButton(
-            text="自动更新",
+        auto_update_btn = ft.Button(
+            content="自动更新",
             icon=ft.Icons.SYSTEM_UPDATE,
             on_click=lambda _: self._start_auto_update(
                 update_info, 
@@ -3537,13 +3525,13 @@ class SettingsView(ft.Container):
         )
         
         manual_btn = ft.OutlinedButton(
-            text="手动下载",
+            content="手动下载",
             icon=ft.Icons.OPEN_IN_BROWSER,
             on_click=lambda _: self._open_release_page(update_info, dialog),
         )
         
         cancel_btn = ft.TextButton(
-            text="取消",
+            content="取消",
             on_click=lambda _: self._close_dialog(dialog),
         )
         
@@ -3587,7 +3575,7 @@ class SettingsView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.overlay.append(dialog)
             dialog.open = True
@@ -3597,7 +3585,7 @@ class SettingsView(ft.Container):
         self, 
         update_info: UpdateInfo,
         dialog: ft.AlertDialog,
-        auto_btn: ft.ElevatedButton,
+        auto_btn: ft.Button,
         manual_btn: ft.OutlinedButton,
         progress_bar: ft.ProgressBar,
         progress_text: ft.Text
@@ -3621,7 +3609,7 @@ class SettingsView(ft.Container):
         progress_text.visible = True
         progress_text.value = "正在下载更新..."
         
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
         
@@ -3728,7 +3716,7 @@ class SettingsView(ft.Container):
             dialog: 要关闭的对话框
         """
         dialog.open = False
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
     
@@ -3801,54 +3789,46 @@ class SettingsView(ft.Container):
             self.browse_button.disabled = False
             self.browse_button.update()
     
-    def _on_browse_click(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_click(self, e: ft.ControlEvent) -> None:
         """浏览按钮点击事件处理。
         
         Args:
             e: 控件事件对象
         """
-        # 创建文件选择器
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                # 检查是否需要迁移数据
-                old_dir = self.config_service.get_data_dir()
-                new_dir = Path(result.path)
-                
-                # 如果新旧目录相同，不做任何操作
-                if old_dir == new_dir:
-                    self._show_snackbar("新目录与当前目录相同", ft.Colors.ORANGE)
-                    return
-                
-                # 检查旧目录是否有数据
-                has_old_data = self.config_service.check_data_exists(old_dir)
-                
-                if has_old_data:
-                    # 有数据，询问是否迁移
-                    self._show_migrate_dialog(old_dir, new_dir)
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择数据存储目录")
+        if folder_path:
+            # 检查是否需要迁移数据
+            old_dir = self.config_service.get_data_dir()
+            new_dir = Path(folder_path)
+            
+            # 如果新旧目录相同，不做任何操作
+            if old_dir == new_dir:
+                self._show_snackbar("新目录与当前目录相同", ft.Colors.ORANGE)
+                return
+            
+            # 检查旧目录是否有数据
+            has_old_data = self.config_service.check_data_exists(old_dir)
+            
+            if has_old_data:
+                # 有数据，询问是否迁移
+                self._show_migrate_dialog(old_dir, new_dir)
+            else:
+                # 没有数据，直接更改目录
+                if self.config_service.set_data_dir(folder_path, is_custom=True):
+                    self.data_dir_text.value = folder_path
+                    self.data_dir_text.update()
+                    
+                    # 更新单选按钮状态
+                    default_dir = self.config_service._get_default_data_dir()
+                    is_custom_dir = (new_dir != default_dir)
+                    self.dir_type_radio.value = "custom" if is_custom_dir else "default"
+                    self.browse_button.disabled = not is_custom_dir
+                    self.dir_type_radio.update()
+                    self.browse_button.update()
+                    
+                    self._show_snackbar("数据目录已更新", ft.Colors.GREEN)
                 else:
-                    # 没有数据，直接更改目录
-                    if self.config_service.set_data_dir(result.path, is_custom=True):
-                        self.data_dir_text.value = result.path
-                        self.data_dir_text.update()
-                        
-                        # 更新单选按钮状态
-                        default_dir = self.config_service._get_default_data_dir()
-                        is_custom_dir = (new_dir != default_dir)
-                        self.dir_type_radio.value = "custom" if is_custom_dir else "default"
-                        self.browse_button.disabled = not is_custom_dir
-                        self.dir_type_radio.update()
-                        self.browse_button.update()
-                        
-                        self._show_snackbar("数据目录已更新", ft.Colors.GREEN)
-                    else:
-                        self._show_snackbar("更新数据目录失败", ft.Colors.RED)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        page = getattr(self, '_saved_page', self.page)
-        if page:
-            page.overlay.append(picker)
-            page.update()
-            picker.get_directory_path(dialog_title="选择数据存储目录")
+                    self._show_snackbar("更新数据目录失败", ft.Colors.RED)
     
     def _show_migrate_dialog(self, old_dir: Path, new_dir: Path) -> None:
         """显示数据迁移确认对话框。
@@ -3860,7 +3840,7 @@ class SettingsView(ft.Container):
         def on_migrate(e):
             """选择迁移数据"""
             dialog.open = False
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
             # 显示迁移进度对话框
@@ -3869,7 +3849,7 @@ class SettingsView(ft.Container):
         def on_no_migrate(e):
             """不迁移数据"""
             dialog.open = False
-            page = getattr(self, '_saved_page', self.page)
+            page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
             # 直接更改目录
@@ -3892,7 +3872,7 @@ class SettingsView(ft.Container):
         def on_cancel(e):
             """取消操作"""
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             # 恢复单选按钮状态（因为用户取消了操作）
             current_dir = self.config_service.get_data_dir()
@@ -3949,8 +3929,8 @@ class SettingsView(ft.Container):
             actions=[
                 ft.TextButton("取消", on_click=on_cancel),
                 ft.TextButton("不迁移", on_click=on_no_migrate),
-                ft.ElevatedButton(
-                    text="迁移数据",
+                ft.Button(
+                    content="迁移数据",
                     on_click=on_migrate,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.PRIMARY,
@@ -3961,7 +3941,7 @@ class SettingsView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.overlay.append(dialog)
             dialog.open = True
@@ -3994,7 +3974,7 @@ class SettingsView(ft.Container):
             actions=[],  # 迁移时不显示按钮
         )
         
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.overlay.append(dialog)
             dialog.open = True
@@ -4007,7 +3987,7 @@ class SettingsView(ft.Container):
                 progress_bar.value = current / total if total > 0 else 0
                 progress_text.value = message
                 try:
-                    page = getattr(self, '_saved_page', self.page)
+                    page = getattr(self, '_saved_page', self._page)
                     if page:
                         page.update()
                 except:
@@ -4021,7 +4001,7 @@ class SettingsView(ft.Container):
             # 关闭进度对话框
             dialog.open = False
             try:
-                page = getattr(self, '_saved_page', self.page)
+                page = getattr(self, '_saved_page', self._page)
                 if page:
                     page.update()
             except:
@@ -4070,7 +4050,7 @@ class SettingsView(ft.Container):
         def on_delete(e):
             """删除旧数据"""
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             # 在后台线程执行删除
             def delete_thread():
@@ -4110,7 +4090,7 @@ class SettingsView(ft.Container):
         def on_keep(e):
             """保留旧数据"""
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._show_snackbar("已保留旧数据", ft.Colors.BLUE)
         
         dialog = ft.AlertDialog(
@@ -4170,8 +4150,8 @@ class SettingsView(ft.Container):
             ),
             actions=[
                 ft.TextButton("保留", on_click=on_keep),
-                ft.ElevatedButton(
-                    text="删除",
+                ft.Button(
+                    content="删除",
                     on_click=on_delete,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.ORANGE,
@@ -4182,9 +4162,9 @@ class SettingsView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_open_dir_click(self, e: ft.ControlEvent) -> None:
         """打开目录按钮点击事件处理。
@@ -4270,9 +4250,9 @@ class SettingsView(ft.Container):
             e: 控件事件对象
         """
         # 确保文件选择器在页面overlay中
-        if hasattr(self, 'font_file_picker') and self.font_file_picker not in self.page.overlay:
-            self.page.overlay.append(self.font_file_picker)
-            self.page.update()
+        if hasattr(self, 'font_file_picker') and self.font_file_picker not in self._page.overlay:
+            self._page.overlay.append(self.font_file_picker)
+            self._page.update()
         
         # 搜索框
         search_field = ft.TextField(
@@ -4287,10 +4267,10 @@ class SettingsView(ft.Container):
         )
         
         # 导入文件按钮
-        import_btn = ft.ElevatedButton(
+        import_btn = ft.Button(
             "导入字体文件",
             icon=ft.Icons.UPLOAD_FILE,
-            on_click=lambda e: self._pick_font_file(),
+            on_click=self._pick_font_file,
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=16, vertical=0),
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
@@ -4312,7 +4292,7 @@ class SettingsView(ft.Container):
         )
         
         # 翻页控制组件
-        self.page_info_text = ft.Text("0 / 0", size=12)
+        self._page_info_text = ft.Text("0 / 0", size=12)
         
         self.first_page_btn = ft.IconButton(
             ft.Icons.FIRST_PAGE,
@@ -4394,7 +4374,7 @@ class SettingsView(ft.Container):
                             controls=[
                                 self.first_page_btn,
                                 self.prev_page_btn,
-                                self.page_info_text,
+                                self._page_info_text,
                                 self.next_page_btn,
                                 self.last_page_btn,
                             ],
@@ -4416,9 +4396,9 @@ class SettingsView(ft.Container):
         )
         
         # 显示对话框
-        self.page.overlay.append(self.font_selector_dialog)
+        self._page.overlay.append(self.font_selector_dialog)
         self.font_selector_dialog.open = True
-        self.page.update()
+        self._page.update()
         
         # 初始加载第一页数据
         self._update_font_page()
@@ -4464,8 +4444,8 @@ class SettingsView(ft.Container):
         # 更新分页信息
         total_fonts = len(self.filtered_fonts)
         total_pages = max(1, (total_fonts + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
-        self.page_info_text.value = f"{self.current_page + 1} / {total_pages}"
-        self.page_info_text.update()
+        self._page_info_text.value = f"{self.current_page + 1} / {total_pages}"
+        self._page_info_text.update()
         
         # 更新按钮状态
         is_first = self.current_page <= 0
@@ -4521,11 +4501,11 @@ class SettingsView(ft.Container):
             self.font_preview_text.update()
             
             # 尝试更新页面字体（部分生效）
-            if self.page.theme:
-                self.page.theme.font_family = font_key
-            if self.page.dark_theme:
-                self.page.dark_theme.font_family = font_key
-            self.page.update()
+            if self._page.theme:
+                self._page.theme.font_family = font_key
+            if self._page.dark_theme:
+                self._page.dark_theme.font_family = font_key
+            self._page.update()
             
             # 关闭对话框
             self._close_font_selector_dialog()
@@ -4538,24 +4518,18 @@ class SettingsView(ft.Container):
         """关闭字体选择对话框。"""
         if hasattr(self, 'font_selector_dialog'):
             self.font_selector_dialog.open = False
-            self.page.update()
+            self._page.update()
     
-    def _pick_font_file(self) -> None:
+    async def _pick_font_file(self) -> None:
         """打开文件选择器选择字体文件。"""
-        # 确保文件选择器已初始化
-        if not hasattr(self, 'font_file_picker'):
-            self._init_file_picker()
-            
-        # 确保文件选择器在页面overlay中
-        if self.font_file_picker not in self.page.overlay:
-            self.page.overlay.append(self.font_file_picker)
-            self.page.update()
-            
-        self.font_file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择字体文件",
             allowed_extensions=["ttf", "otf", "ttc", "woff", "woff2"],
             allow_multiple=False,
         )
+        if result and len(result) > 0:
+            file_path = result[0].path
+            self._load_custom_font_file(file_path)
     
     def _load_custom_font_file(self, file_path: str) -> None:
         """加载自定义字体文件。
@@ -4594,10 +4568,10 @@ class SettingsView(ft.Container):
                 custom_font_key = f"CustomFont_{font_name}"
                 
                 # 将字体添加到页面
-                if not hasattr(self.page, 'fonts') or self.page.fonts is None:
-                    self.page.fonts = {}
+                if not hasattr(self._page, 'fonts') or self._page.fonts is None:
+                    self._page.fonts = {}
                 
-                self.page.fonts[custom_font_key] = str(dest_font_file)
+                self._page.fonts[custom_font_key] = str(dest_font_file)
                 
                 # 应用字体
                 self._apply_font_selection(custom_font_key, f"{font_name} (自定义)")
@@ -4627,11 +4601,11 @@ class SettingsView(ft.Container):
             self.font_preview_text.update()
             
             # 尝试更新页面字体（部分生效）
-            if self.page.theme:
-                self.page.theme.font_family = selected_font
-            if self.page.dark_theme:
-                self.page.dark_theme.font_family = selected_font
-            self.page.update()
+            if self._page.theme:
+                self._page.theme.font_family = selected_font
+            if self._page.dark_theme:
+                self._page.dark_theme.font_family = selected_font
+            self._page.update()
             
             self._show_snackbar("字体已更新，重启应用后完全生效", ft.Colors.GREEN)
         else:
@@ -4678,15 +4652,15 @@ class SettingsView(ft.Container):
         self.config_service.set_config_value("window_maximized", False)
         
         # 取消最大化状态
-        self.page.window.maximized = False
+        self._page.window.maximized = False
         
         # 重置窗口大小为默认值
-        self.page.window.width = WINDOW_WIDTH
-        self.page.window.height = WINDOW_HEIGHT
+        self._page.window.width = WINDOW_WIDTH
+        self._page.window.height = WINDOW_HEIGHT
         
         # 将窗口移动到屏幕中央
-        self.page.window.center()
-        self.page.update()
+        self._page.window.center()
+        self._page.update()
         
         self._show_snackbar("窗口位置和大小已重置为默认值", ft.Colors.GREEN)
     
@@ -4718,7 +4692,7 @@ class SettingsView(ft.Container):
                 bgcolor=color,
                 duration=2000,
             )
-            # 使用保存的页面引用作为回退（有时候 self.page 在后台线程中为 None）
+            # 使用保存的页面引用作为回退（有时候 self._page 在后台线程中为 None）
             page = getattr(self, '_saved_page', None) or getattr(self, 'page', None)
             if not page:
                 return

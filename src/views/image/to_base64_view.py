@@ -51,7 +51,7 @@ class ImageToBase64View(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -85,8 +85,8 @@ class ImageToBase64View(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        select_button = ft.ElevatedButton(
-            text="选择图片",
+        select_button = ft.Button(
+            content="选择图片",
             icon=ft.Icons.IMAGE_OUTLINED,
             on_click=self._on_select_file,
         )
@@ -154,8 +154,8 @@ class ImageToBase64View(ft.Container):
         )
         
         # 转换按钮
-        convert_button = ft.ElevatedButton(
-            text="转换为Base64",
+        convert_button = ft.Button(
+            content="转换为Base64",
             icon=ft.Icons.TRANSFORM,
             on_click=self._on_convert,
             style=ft.ButtonStyle(
@@ -174,8 +174,8 @@ class ImageToBase64View(ft.Container):
             value="",
         )
         
-        copy_button = ft.ElevatedButton(
-            text="复制到剪贴板",
+        copy_button = ft.Button(
+            content="复制到剪贴板",
             icon=ft.Icons.COPY,
             on_click=self._on_copy,
             visible=False,
@@ -237,24 +237,18 @@ class ImageToBase64View(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_select_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_file_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                file_path = Path(result.files[0].path)
-                self.selected_file = file_path
-                self.file_text.value = file_path.name
-                self.file_text.update()
-        
-        file_picker = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片",
             allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico"],
             allow_multiple=False,
         )
+        if result and len(result) > 0:
+            file_path = Path(result[0].path)
+            self.selected_file = file_path
+            self.file_text.value = file_path.name
+            self.file_text.update()
     
     def _on_convert(self, e: ft.ControlEvent) -> None:
         """转换按钮点击事件。"""
@@ -319,7 +313,7 @@ class ImageToBase64View(ft.Container):
     def _on_copy(self, e: ft.ControlEvent) -> None:
         """复制到剪贴板按钮点击事件。"""
         if self.base64_result:
-            self.page.set_clipboard(self.base64_result)
+            self._page.set_clipboard(self.base64_result)
             self._show_message("已复制到剪贴板", ft.Colors.GREEN)
     
     def _show_message(self, message: str, color: str) -> None:
@@ -334,9 +328,9 @@ class ImageToBase64View(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""

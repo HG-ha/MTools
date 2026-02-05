@@ -53,7 +53,7 @@ class AudioCompressView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -78,7 +78,7 @@ class AudioCompressView(ft.Container):
         if not is_ffmpeg_available:
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click
             )
@@ -107,28 +107,22 @@ class AudioCompressView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择音频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: self._on_select_folder(),
+                            on_click=self._on_select_folder,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "清空",
                             icon=ft.Icons.CLEAR,
                             on_click=lambda _: self._clear_files(),
@@ -251,14 +245,9 @@ class AudioCompressView(ft.Container):
         self.output_dir_button = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="选择输出目录",
-            on_click=lambda _: self._select_output_dir(),
+            on_click=self._select_output_dir,
             disabled=True,
         )
-        
-        self.output_dir_picker = ft.FilePicker(
-            on_result=self._on_output_dir_selected
-        )
-        self.page.overlay.append(self.output_dir_picker)
         
         self.output_mode = ft.RadioGroup(
             content=ft.Column(
@@ -326,7 +315,7 @@ class AudioCompressView(ft.Container):
         
         # 操作按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.COMPRESS, size=24),
@@ -342,7 +331,7 @@ class AudioCompressView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -390,45 +379,42 @@ class AudioCompressView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 height=250,
-                alignment=ft.alignment.center,
-                on_click=lambda e: self._on_select_files(),
+                alignment=ft.Alignment.CENTER,
+                on_click=self._on_empty_area_click,
                 ink=True,
                 tooltip="点击选择音频文件",
             )
         )
     
-    def _on_select_files(self) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+        """空白区域点击事件处理。"""
+        await self._on_select_files(e)
+
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件。"""
-        self.file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             allowed_extensions=["mp3", "wav", "aac", "flac", "ogg", "m4a", "wma", "opus"],
             dialog_title="选择音频文件",
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self) -> None:
-        """选择文件夹。"""
-        self.file_picker.get_directory_path(
-            dialog_title="选择音频文件夹"
-        )
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理文件选择结果。"""
-        if e.files:
-            # 选择了文件
-            for file in e.files:
+        if result:
+            for file in result:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-        elif e.path:
-            # 选择了文件夹
-            folder_path = Path(e.path)
+            self._update_file_list()
+    
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹。"""
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择音频文件夹")
+        if folder_path:
+            folder = Path(folder_path)
             audio_extensions = {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".opus"}
-            for file_path in folder_path.rglob("*"):
+            for file_path in folder.rglob("*"):
                 if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
                     if file_path not in self.selected_files:
                         self.selected_files.append(file_path)
-        
-        self._update_file_list()
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -503,16 +489,11 @@ class AudioCompressView(ft.Container):
         self.output_dir_field.update()
         self.output_dir_button.update()
     
-    def _select_output_dir(self) -> None:
+    async def _select_output_dir(self, e: ft.ControlEvent) -> None:
         """选择输出目录。"""
-        self.output_dir_picker.get_directory_path(
-            dialog_title="选择输出目录"
-        )
-    
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理输出目录选择结果。"""
-        if e.path:
-            self.output_dir_field.value = e.path
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.output_dir_field.value = folder_path
             self.output_dir_field.update()
     
     def _on_process(self) -> None:
@@ -655,7 +636,7 @@ class AudioCompressView(ft.Container):
         self.progress_bar.value = value
         self.progress_text.value = text
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -670,7 +651,7 @@ class AudioCompressView(ft.Container):
             self.progress_text.value = "准备中..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -691,10 +672,10 @@ class AudioCompressView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -705,9 +686,9 @@ class AudioCompressView(ft.Container):
             bgcolor=ft.Colors.ERROR,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_back_click(self, e: ft.ControlEvent = None) -> None:
         """返回按钮点击事件处理。"""
@@ -738,13 +719,13 @@ class AudioCompressView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("音频压缩不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

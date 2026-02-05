@@ -75,7 +75,7 @@ class GlobalHotkeyService:
             page: Flet 页面对象（用于 UI 回调）
         """
         self.config_service = config_service
-        self.page = page
+        self._page = page
         
         self._hotkey_thread: Optional[threading.Thread] = None
         self._hotkey_stop_event: Optional[threading.Event] = None
@@ -94,7 +94,7 @@ class GlobalHotkeyService:
     
     def set_page(self, page) -> None:
         """设置页面对象。"""
-        self.page = page
+        self._page = page
     
     def set_callback(self, hotkey_id: int, callback: Callable) -> None:
         """设置热键回调函数。"""
@@ -1270,28 +1270,28 @@ class GlobalHotkeyService:
     
     def _show_notification(self, message: str) -> None:
         """显示通知。"""
-        if self.page:
+        if self._page:
             try:
                 def show():
                     try:
                         import flet as ft
                         # 清理旧的 snackbar（防止累积）
-                        old_snacks = [c for c in self.page.overlay if isinstance(c, ft.SnackBar)]
+                        old_snacks = [c for c in self._page.overlay if isinstance(c, ft.SnackBar)]
                         for s in old_snacks:
                             try:
-                                self.page.overlay.remove(s)
+                                self._page.overlay.remove(s)
                             except Exception:
                                 pass
                         
                         snack = ft.SnackBar(content=ft.Text(message), duration=3000)
-                        self.page.overlay.append(snack)
+                        self._page.overlay.append(snack)
                         snack.open = True
-                        self.page.update()
+                        self._page.update()
                     except Exception as e:
                         logger.debug(f"显示通知失败: {e}")
                 
-                if hasattr(self.page, 'call_from_thread'):
-                    self.page.call_from_thread(show)
+                if hasattr(self._page, 'call_from_thread'):
+                    self._page.call_from_thread(show)
                 else:
                     show()
             except Exception:

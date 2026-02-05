@@ -39,7 +39,7 @@ class JsonTreeNode(ft.Container):
         self.level = level
         self.is_last = is_last
         self.parent_path = parent_path
-        self.page = page
+        self._page = page
         self.view = view
         
         # 计算完整路径
@@ -446,7 +446,7 @@ class JsonTreeNode(ft.Container):
                 children.append(JsonTreeNode(
                     k, v, self.level + 1, is_last_child, 
                     parent_path=self.full_path, 
-                    page=self.page, 
+                    page=self._page, 
                     view=self.view
                 ))
         elif isinstance(self.value, list):
@@ -455,7 +455,7 @@ class JsonTreeNode(ft.Container):
                 children.append(JsonTreeNode(
                     f"[{idx}]", item, self.level + 1, is_last_child,
                     parent_path=self.full_path,
-                    page=self.page,
+                    page=self._page,
                     view=self.view
                 ))
         
@@ -641,8 +641,8 @@ class JsonTreeNode(ft.Container):
     def _resolve_page(self, event: Optional[ft.ControlEvent] = None) -> Optional[ft.Page]:
         """从事件或控件自身解析 Page 对象。"""
         # 优先使用存储的 page
-        if self.page is not None:
-            return self.page
+        if self._page is not None:
+            return self._page
         
         # 尝试从事件中获取
         if event is not None:
@@ -829,7 +829,7 @@ class JsonViewerView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
@@ -903,7 +903,7 @@ class JsonViewerView(ft.Container):
         
         # 获取容器宽度（估算值，基于页面宽度）
         # 减去 padding (left + right) 和 divider width (8)
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 8
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 8
         if container_width <= 0:
             return
         
@@ -1058,7 +1058,7 @@ class JsonViewerView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -1109,7 +1109,7 @@ class JsonViewerView(ft.Container):
                                         spacing=PADDING_SMALL,
                                     ),
                                     expand=True,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                             ],
                             spacing=2,
@@ -1187,8 +1187,8 @@ class JsonViewerView(ft.Container):
         # 获取可用空间（更保守的计算，考虑标题栏、按钮栏等）
         # 标题栏约40px，操作按钮栏约60px，上下padding共40px
         header_and_controls_height = 140
-        view_width = self.page.width - PADDING_MEDIUM * 2 - 20  # 额外减去20px安全边距
-        view_height = self.page.height - header_and_controls_height - PADDING_MEDIUM * 2 - 20  # 额外减去20px安全边距
+        view_width = self._page.width - PADDING_MEDIUM * 2 - 20  # 额外减去20px安全边距
+        view_height = self._page.height - header_and_controls_height - PADDING_MEDIUM * 2 - 20  # 额外减去20px安全边距
         
         # 主菜单尺寸和位置预计算
         main_menu_width = 180
@@ -1214,7 +1214,7 @@ class JsonViewerView(ft.Container):
                 self.floating_menu_ref.current.update()
         
         def copy_and_close(text):
-            node._copy_to_clipboard(self.page, text)
+            node._copy_to_clipboard(self._page, text)
             close_menu()
         
         def copy_value_and_close():
@@ -1222,7 +1222,7 @@ class JsonViewerView(ft.Container):
                 text = json.dumps(node.value, ensure_ascii=False, indent=2)
             else:
                 text = str(node.value)
-            node._copy_to_clipboard(self.page, text)
+            node._copy_to_clipboard(self._page, text)
             close_menu()
         
         def show_path_submenu(e):
@@ -1626,7 +1626,7 @@ class JsonViewerView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 expand=True,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             ),
         ]
         if self.error_container.current:
@@ -1684,7 +1684,7 @@ class JsonViewerView(ft.Container):
         
         if isinstance(data, dict):
             for key, value in data.items():
-                node = JsonTreeNode(key, value, level=0, page=self.page, view=self)
+                node = JsonTreeNode(key, value, level=0, page=self._page, view=self)
                 # 小数据时，展开第一层（懒加载会在用户点击时才创建更深层）
                 if auto_expand and isinstance(value, (dict, list)):
                     node.expanded = True
@@ -1697,7 +1697,7 @@ class JsonViewerView(ft.Container):
                 self.tree_view.current.controls.append(node)
         elif isinstance(data, list):
             for idx, item in enumerate(data):
-                node = JsonTreeNode(f"[{idx}]", item, level=0, page=self.page, view=self)
+                node = JsonTreeNode(f"[{idx}]", item, level=0, page=self._page, view=self)
                 # 小数据时，展开第一层
                 if auto_expand and isinstance(item, (dict, list)):
                     node.expanded = True
@@ -1769,9 +1769,9 @@ class JsonViewerView(ft.Container):
             content=ft.Text(message),
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -73,8 +73,7 @@ class CustomTitleBar(ft.Container):
             config_service: 配置服务实例（用于保存窗口状态）
         """
         super().__init__()
-        self.page: ft.Page = page
-        self._saved_page: ft.Page = page  # 保存页面引用，防止丢失
+        self._page: ft.Page = page
         self.config_service: Optional[ConfigService] = config_service
         
         # 初始化天气服务
@@ -103,7 +102,7 @@ class CustomTitleBar(ft.Container):
         
         # 异步加载天气数据（如果启用）
         if self.show_weather:
-            self.page.run_task(self._load_weather_data)
+            self._page.run_task(self._load_weather_data)
     
     def _get_page(self) -> Optional[ft.Page]:
         """获取页面引用（带容错）。
@@ -111,7 +110,7 @@ class CustomTitleBar(ft.Container):
         Returns:
             页面对象，如果不存在则返回 None
         """
-        return self.page if self.page else self._saved_page
+        return self._page
     
     def _build_title_bar(self) -> None:
         """构建标题栏UI。"""
@@ -124,7 +123,7 @@ class CustomTitleBar(ft.Container):
                             src=_get_icon_path(),
                             width=22,
                             height=22,
-                            fit=ft.ImageFit.CONTAIN,
+                            fit=ft.BoxFit.CONTAIN,
                         ),
                         ft.Container(width=PADDING_SMALL),
                         ft.Text(
@@ -145,7 +144,7 @@ class CustomTitleBar(ft.Container):
         
         # 天气显示组件
         self.weather_icon: ft.Icon = ft.Icon(
-            name=ft.Icons.WB_CLOUDY,
+            icon=ft.Icons.WB_CLOUDY,
             size=18,
             color=ft.Colors.WHITE,
         )
@@ -264,8 +263,8 @@ class CustomTitleBar(ft.Container):
         # 使用主题色作为渐变起始色
         # 计算一个稍深的结束色（通过简单的色调偏移）
         return ft.LinearGradient(
-            begin=ft.alignment.center_left,
-            end=ft.alignment.center_right,
+            begin=ft.Alignment.CENTER_LEFT,
+            end=ft.Alignment.CENTER_RIGHT,
             colors=[
                 self.theme_color,
                 self.theme_color,  # 使用相同颜色，Material Design 会自动处理渐变
@@ -313,7 +312,7 @@ class CustomTitleBar(ft.Container):
         self.theme_color = color
         self.bgcolor = ft.Colors.with_opacity(0.95, color)
         try:
-            if self.page:
+            if self._page:
                 self.update()
         except:
             pass
@@ -337,20 +336,20 @@ class CustomTitleBar(ft.Container):
         Args:
             e: 控件事件对象（可选，支持双击调用）
         """
-        self.page.window.maximized = not self.page.window.maximized
-        self.page.update()
+        self._page.window.maximized = not self._page.window.maximized
+        self._page.update()
         
         # 更新按钮图标
         self._update_maximize_button()
         
         # 保存最大化状态
         if self.config_service:
-            self.config_service.set_config_value("window_maximized", self.page.window.maximized)
+            self.config_service.set_config_value("window_maximized", self._page.window.maximized)
     
     def _update_maximize_button(self) -> None:
         """根据窗口当前状态更新最大化/还原按钮图标。"""
         try:
-            if self.page.window.maximized:
+            if self._page.window.maximized:
                 self.maximize_button.icon = ft.Icons.FILTER_NONE
                 self.maximize_button.tooltip = "还原"
             else:
@@ -430,9 +429,9 @@ class CustomTitleBar(ft.Container):
                 target_opacity = self.config_service.get_config_value("window_opacity", 1.0)
             
             # 先显示窗口但设置为透明
-            self.page.window.opacity = 0.0
-            self.page.window.visible = True
-            self.page.update()
+            self._page.window.opacity = 0.0
+            self._page.window.visible = True
+            self._page.update()
             
             # 使用定时器实现淡入动画
             import time
@@ -440,13 +439,13 @@ class CustomTitleBar(ft.Container):
                 try:
                     # 分10步淡入，总耗时约150ms
                     for i in range(1, 11):
-                        self.page.window.opacity = (i / 10.0) * target_opacity
-                        self.page.update()
+                        self._page.window.opacity = (i / 10.0) * target_opacity
+                        self._page.update()
                         time.sleep(0.015)
                     
                     # 确保最终透明度准确
-                    self.page.window.opacity = target_opacity
-                    self.page.update()
+                    self._page.window.opacity = target_opacity
+                    self._page.update()
                 except Exception:
                     pass
             
@@ -470,16 +469,16 @@ class CustomTitleBar(ft.Container):
                 try:
                     # 分10步淡出，总耗时约150ms
                     for i in range(9, -1, -1):
-                        self.page.window.opacity = (i / 10.0) * start_opacity
-                        self.page.update()
+                        self._page.window.opacity = (i / 10.0) * start_opacity
+                        self._page.update()
                         time.sleep(0.015)
                     
                     # 动画结束后隐藏窗口
-                    self.page.window.visible = False
-                    self.page.update()
+                    self._page.window.visible = False
+                    self._page.update()
                     
                     # 恢复用户设置的透明度（下次显示时使用）
-                    self.page.window.opacity = start_opacity
+                    self._page.window.opacity = start_opacity
                 except Exception:
                     pass
             
@@ -497,15 +496,15 @@ class CustomTitleBar(ft.Container):
         """
         try:
             # 如果窗口当前不可见，先显示窗口（不带动画，直接显示）
-            if not self.page.window.visible:
+            if not self._page.window.visible:
                 # 获取用户配置的透明度
                 target_opacity = 1.0
                 if self.config_service:
                     target_opacity = self.config_service.get_config_value("window_opacity", 1.0)
                 
-                self.page.window.opacity = target_opacity
-                self.page.window.visible = True
-                self.page.update()
+                self._page.window.opacity = target_opacity
+                self._page.window.visible = True
+                self._page.update()
             
             # 停止托盘图标
             if self.tray_icon:
@@ -596,16 +595,16 @@ class CustomTitleBar(ft.Container):
                 except:
                     pass
         
-        # 关闭窗口
-        page.window.close()
+        # 关闭窗口 (异步方法，使用 run_task)
+        page.run_task(page.window.close)
     
     async def _load_weather_data(self):
         """加载天气数据"""
         try:
             # 显示加载状态
             self.weather_text.value = "加载中..."
-            self.weather_icon.name = ft.Icons.REFRESH
-            self.page.update()
+            self.weather_icon.icon = ft.Icons.REFRESH
+            self._page.update()
             
             # 获取用户设置的城市
             preferred_city = None
@@ -628,7 +627,7 @@ class CustomTitleBar(ft.Container):
                     self.weather_text.value = condition
                 
                 # 更新图标
-                self.weather_icon.name = getattr(ft.Icons, icon_name, ft.Icons.WB_CLOUDY)
+                self.weather_icon.icon = getattr(ft.Icons, icon_name, ft.Icons.WB_CLOUDY)
                 
                 # 更新 tooltip
                 location = weather.get('location', '未知')
@@ -646,16 +645,16 @@ class CustomTitleBar(ft.Container):
                 self.weather_container.tooltip = "\n".join(tooltip_parts)
             else:
                 self.weather_text.value = "获取失败"
-                self.weather_icon.name = ft.Icons.ERROR_OUTLINE
+                self.weather_icon.icon = ft.Icons.ERROR_OUTLINE
                 self.weather_container.tooltip = "天气数据获取失败"
             
-            self.page.update()
+            self._page.update()
             
         except Exception as e:
             self.weather_text.value = "加载失败"
-            self.weather_icon.name = ft.Icons.ERROR_OUTLINE
+            self.weather_icon.icon = ft.Icons.ERROR_OUTLINE
             self.weather_container.tooltip = f"错误: {str(e)}"
-            self.page.update()
+            self._page.update()
     
     def _show_city_dialog(self, e: ft.ControlEvent = None):
         """显示城市设置对话框"""
@@ -680,25 +679,25 @@ class CustomTitleBar(ft.Container):
                     self.config_service.set_config_value("weather_city", city)
                 # 关闭对话框
                 dialog.open = False
-                self.page.update()
+                self._page.update()
                 # 重新加载天气
-                self.page.run_task(self._load_weather_data)
+                self._page.run_task(self._load_weather_data)
             else:
                 city_input.error_text = "请输入城市名称"
-                self.page.update()
+                self._page.update()
         
         def clear_city(e):
             # 清除城市设置，使用自动定位
             if self.config_service:
                 self.config_service.set_config_value("weather_city", "")
             dialog.open = False
-            self.page.update()
+            self._page.update()
             # 重新加载天气
-            self.page.run_task(self._load_weather_data)
+            self._page.run_task(self._load_weather_data)
         
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 创建对话框
         dialog = ft.AlertDialog(
@@ -726,9 +725,9 @@ class CustomTitleBar(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.dialog = dialog
+        self._page.dialog = dialog
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def set_weather_visibility(self, visible: bool) -> None:
         """设置天气显示状态

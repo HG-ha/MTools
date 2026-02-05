@@ -54,7 +54,7 @@ class ImageInfoView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -89,7 +89,7 @@ class ImageInfoView(ft.Container):
         )
         
         # 文件选择区域和操作按钮
-        self.copy_all_button = ft.ElevatedButton(
+        self.copy_all_button = ft.Button(
             "复制全部信息",
             icon=ft.Icons.CONTENT_COPY,
             on_click=self._copy_all_info,
@@ -98,7 +98,7 @@ class ImageInfoView(ft.Container):
         
         file_select_row: ft.Row = ft.Row(
             controls=[
-                ft.ElevatedButton(
+                ft.Button(
                     "选择图片",
                     icon=ft.Icons.FILE_UPLOAD,
                     on_click=self._on_select_file,
@@ -113,7 +113,7 @@ class ImageInfoView(ft.Container):
             src="",
             width=400,
             height=400,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             visible=False,
         )
         
@@ -129,7 +129,7 @@ class ImageInfoView(ft.Container):
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=PADDING_SMALL,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             visible=True,
         )
         
@@ -146,7 +146,7 @@ class ImageInfoView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             height=420,
             bgcolor=ft.Colors.with_opacity(0.05, PRIMARY_COLOR),
             ink=True,
@@ -223,10 +223,10 @@ class ImageInfoView(ft.Container):
         """获取当前主题的主色。"""
         try:
             theme = None
-            if self.page.theme_mode == ft.ThemeMode.DARK and self.page.dark_theme:
-                theme = self.page.dark_theme
-            elif self.page.theme:
-                theme = self.page.theme
+            if self._page.theme_mode == ft.ThemeMode.DARK and self._page.dark_theme:
+                theme = self._page.dark_theme
+            elif self._page.theme:
+                theme = self._page.theme
 
             if theme and getattr(theme, "color_scheme_seed", None):
                 return theme.color_scheme_seed
@@ -240,7 +240,7 @@ class ImageInfoView(ft.Container):
         if hasattr(self, 'summary_section') and self.summary_section:
             self._update_summary_section_theme()
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
 
@@ -257,7 +257,7 @@ class ImageInfoView(ft.Container):
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=PADDING_MEDIUM,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             height=320,
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
@@ -265,26 +265,22 @@ class ImageInfoView(ft.Container):
         )
         self.info_grid.controls = [empty_hint]
     
-    def _on_select_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                file_path: Path = Path(result.files[0].path)
-                self.selected_file = file_path
-                self._load_and_display_info()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "webp", "bmp", "gif", "tiff", "tif", "ico", "heic", "heif", "avif"],
             allow_multiple=False,
         )
+        
+        if result:
+            file_path: Path = Path(result[0].path)
+            self.selected_file = file_path
+            self._load_and_display_info()
     
     def _load_and_display_info(self) -> None:
         """加载并显示图片信息。"""
@@ -526,7 +522,7 @@ class ImageInfoView(ft.Container):
             
             if can_export:
                 live_controls.append(ft.Divider(height=1))
-                export_button = ft.ElevatedButton(
+                export_button = ft.Button(
                     "导出视频",
                     icon=ft.Icons.VIDEO_FILE,
                     on_click=self._export_live_photo_video,
@@ -875,8 +871,8 @@ class ImageInfoView(ft.Container):
         
         # 更新主容器的渐变和边框
         summary_section.gradient = ft.LinearGradient(
-            begin=ft.alignment.top_left,
-            end=ft.alignment.bottom_right,
+            begin=ft.Alignment.TOP_LEFT,
+            end=ft.Alignment.BOTTOM_RIGHT,
             colors=[
                 ft.Colors.with_opacity(0.55, primary_color),
                 ft.Colors.with_opacity(0.35, primary_color),
@@ -888,8 +884,8 @@ class ImageInfoView(ft.Container):
         if hasattr(self, 'stat_tiles'):
             for tile in self.stat_tiles:
                 tile.gradient = ft.LinearGradient(
-                    begin=ft.alignment.top_left,
-                    end=ft.alignment.bottom_right,
+                    begin=ft.Alignment.TOP_LEFT,
+                    end=ft.Alignment.BOTTOM_RIGHT,
                     colors=[
                         ft.Colors.with_opacity(0.35, primary_color),
                         ft.Colors.with_opacity(0.15, primary_color),
@@ -1016,7 +1012,7 @@ class ImageInfoView(ft.Container):
         Args:
             text: 要复制的文本
         """
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_message("已复制到剪贴板", ft.Colors.GREEN)
     
     def _copy_all_info(self, e: ft.ControlEvent) -> None:
@@ -1212,10 +1208,10 @@ class ImageInfoView(ft.Container):
         
         # 合并所有行并复制到剪贴板
         full_text = "\n".join(lines)
-        self.page.set_clipboard(full_text)
+        self._page.set_clipboard(full_text)
         self._show_message("已复制全部信息到剪贴板", ft.Colors.GREEN)
     
-    def _export_live_photo_video(self, e: ft.ControlEvent) -> None:
+    async def _export_live_photo_video(self, e: ft.ControlEvent) -> None:
         """导出实况图中的视频。
         
         Args:
@@ -1243,89 +1239,85 @@ class ImageInfoView(ft.Container):
         default_filename = self.selected_file.stem + "_video" + default_ext
         
         # 打开文件保存对话框
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                output_path = Path(result.path)
-                
-                # 显示进度提示
-                progress_dialog = ft.AlertDialog(
-                    title=ft.Text("正在导出视频..."),
-                    content=ft.ProgressRing(),
-                )
-                self.page.overlay.append(progress_dialog)
-                progress_dialog.open = True
-                self.page.update()
-                
-                try:
-                    # 提取视频
-                    success, message = self.image_service.extract_live_photo_video(
-                        self.selected_file,
-                        output_path
-                    )
-                    
-                    # 关闭进度对话框
-                    progress_dialog.open = False
-                    self.page.overlay.remove(progress_dialog)
-                    self.page.update()
-                    
-                    if success:
-                        self._show_message(message, ft.Colors.GREEN)
-                        
-                        # 询问是否打开文件位置
-                        def open_folder(e):
-                            import subprocess
-                            import platform
-                            
-                            folder_path = output_path.parent
-                            system = platform.system()
-                            try:
-                                if system == "Windows":
-                                    subprocess.run(['explorer', '/select,', str(output_path)])
-                                elif system == "Darwin":  # macOS
-                                    subprocess.run(['open', '-R', str(output_path)])
-                                else:  # Linux
-                                    subprocess.run(['xdg-open', str(folder_path)])
-                            except:
-                                pass
-                            
-                            confirm_dialog.open = False
-                            self.page.update()
-                        
-                        def close_dialog(e):
-                            confirm_dialog.open = False
-                            self.page.update()
-                        
-                        confirm_dialog = ft.AlertDialog(
-                            title=ft.Text("导出成功"),
-                            content=ft.Text(f"视频已保存到:\n{output_path}"),
-                            actions=[
-                                ft.TextButton("打开文件位置", on_click=open_folder),
-                                ft.TextButton("关闭", on_click=close_dialog),
-                            ],
-                        )
-                        self.page.overlay.append(confirm_dialog)
-                        confirm_dialog.open = True
-                        self.page.update()
-                    else:
-                        self._show_message(message, ft.Colors.RED)
-                
-                except Exception as ex:
-                    # 确保关闭进度对话框
-                    if progress_dialog.open:
-                        progress_dialog.open = False
-                        self.page.overlay.remove(progress_dialog)
-                        self.page.update()
-                    
-                    self._show_message(f"导出失败: {str(ex)}", ft.Colors.RED)
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.save_file(
+        result = await ft.FilePicker().save_file(
             dialog_title="保存视频文件",
             file_name=default_filename,
             allowed_extensions=["mp4", "mov", "MP4", "MOV"],
         )
+        
+        if result:
+            output_path = Path(result)
+            
+            # 显示进度提示
+            progress_dialog = ft.AlertDialog(
+                title=ft.Text("正在导出视频..."),
+                content=ft.ProgressRing(),
+            )
+            self._page.overlay.append(progress_dialog)
+            progress_dialog.open = True
+            self._page.update()
+            
+            try:
+                # 提取视频
+                success, message = self.image_service.extract_live_photo_video(
+                    self.selected_file,
+                    output_path
+                )
+                
+                # 关闭进度对话框
+                progress_dialog.open = False
+                self._page.overlay.remove(progress_dialog)
+                self._page.update()
+                
+                if success:
+                    self._show_message(message, ft.Colors.GREEN)
+                    
+                    # 询问是否打开文件位置
+                    def open_folder(e):
+                        import subprocess
+                        import platform
+                        
+                        folder_path = output_path.parent
+                        system = platform.system()
+                        try:
+                            if system == "Windows":
+                                subprocess.run(['explorer', '/select,', str(output_path)])
+                            elif system == "Darwin":  # macOS
+                                subprocess.run(['open', '-R', str(output_path)])
+                            else:  # Linux
+                                subprocess.run(['xdg-open', str(folder_path)])
+                        except:
+                            pass
+                        
+                        confirm_dialog.open = False
+                        self._page.update()
+                    
+                    def close_dialog(e):
+                        confirm_dialog.open = False
+                        self._page.update()
+                    
+                    confirm_dialog = ft.AlertDialog(
+                        title=ft.Text("导出成功"),
+                        content=ft.Text(f"视频已保存到:\n{output_path}"),
+                        actions=[
+                            ft.TextButton("打开文件位置", on_click=open_folder),
+                            ft.TextButton("关闭", on_click=close_dialog),
+                        ],
+                    )
+                    self._page.overlay.append(confirm_dialog)
+                    confirm_dialog.open = True
+                    self._page.update()
+                else:
+                    self._show_message(message, ft.Colors.RED)
+            
+            except Exception as ex:
+                # 确保关闭进度对话框
+                if progress_dialog.open:
+                    progress_dialog.open = False
+                    self._page.overlay.remove(progress_dialog)
+                    self._page.update()
+                
+                self._show_message(f"导出失败: {str(ex)}", ft.Colors.RED)
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。
@@ -1348,9 +1340,9 @@ class ImageInfoView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""
@@ -1379,9 +1371,9 @@ class ImageInfoView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

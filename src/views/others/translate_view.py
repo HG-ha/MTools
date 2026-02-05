@@ -46,7 +46,7 @@ class TranslateView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: 'ConfigService' = config_service
         self.on_back: Optional[callable] = on_back
         
@@ -124,7 +124,7 @@ class TranslateView(ft.Container):
                             ft.TextButton(
                                 "获取 API Key",
                                 icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=lambda _: self.page.launch_url("https://platform.iflow.cn/"),
+                                on_click=lambda _: self._page.launch_url("https://platform.iflow.cn/"),
                             ),
                         ],
                         spacing=PADDING_SMALL,
@@ -202,7 +202,7 @@ class TranslateView(ft.Container):
         
         # 翻译按钮
         self.translate_btn: ft.ElevatedButton = ft.ElevatedButton(
-            text="翻译",
+            content="翻译",
             icon=ft.Icons.TRANSLATE,
             on_click=self._on_translate,
             disabled=True,
@@ -210,7 +210,7 @@ class TranslateView(ft.Container):
         
         # 清空按钮
         clear_btn: ft.TextButton = ft.TextButton(
-            text="清空",
+            content="清空",
             icon=ft.Icons.CLEAR_ALL,
             on_click=self._on_clear,
         )
@@ -460,7 +460,7 @@ class TranslateView(ft.Container):
         """复制翻译结果。"""
         text = self.output_text.value
         if text:
-            self.page.set_clipboard(text)
+            self._page.set_clipboard(text)
             self._show_message("已复制到剪贴板")
     
     def _show_message(self, message: str, is_error: bool = False) -> None:
@@ -470,14 +470,14 @@ class TranslateView(ft.Container):
             bgcolor=ft.Colors.ERROR if is_error else None,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def _safe_update(self) -> None:
         """安全更新页面。"""
         try:
-            self.page.update()
+            self._page.update()
         except Exception:
             pass
     

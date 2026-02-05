@@ -62,7 +62,7 @@ class DnsLookupView(ft.Container):
     ):
         """初始化DNS查询工具视图。"""
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -147,7 +147,7 @@ class DnsLookupView(ft.Container):
                                     value="A",
                                     border=ft.InputBorder.OUTLINE,
                                     dense=True,
-                                    on_change=self._on_type_change,
+                                    on_select=self._on_type_change,
                                 ),
                             ],
                             spacing=10,
@@ -185,7 +185,7 @@ class DnsLookupView(ft.Container):
                     ),
                     ft.Container(expand=True),
                     ft.ElevatedButton(
-                        text="开始查询",
+                        content="开始查询",
                         icon=ft.Icons.PLAY_ARROW,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
@@ -193,10 +193,10 @@ class DnsLookupView(ft.Container):
                             bgcolor=ft.Colors.PRIMARY,
                             color=ft.Colors.ON_PRIMARY,
                         ),
-                        on_click=lambda _: self.page.run_task(self._on_query),
+                        on_click=lambda _: self._page.run_task(self._on_query),
                     ),
                     ft.OutlinedButton(
-                        text="清空",
+                        content="清空",
                         icon=ft.Icons.CLEAR,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
@@ -306,7 +306,7 @@ class DnsLookupView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -368,7 +368,7 @@ class DnsLookupView(ft.Container):
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_divider_pan_start(self, e: ft.DragStartEvent):
@@ -383,7 +383,7 @@ class DnsLookupView(ft.Container):
         if not self.is_dragging:
             return
         
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 12
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 12
         if container_width <= 0:
             return
         
@@ -647,20 +647,20 @@ class DnsLookupView(ft.Container):
                 height=500,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

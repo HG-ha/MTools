@@ -49,7 +49,7 @@ class VideoSpeedView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -74,7 +74,7 @@ class VideoSpeedView(ft.Container):
         if not is_ffmpeg_available:
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click
             )
@@ -107,16 +107,16 @@ class VideoSpeedView(ft.Container):
                         controls=[
                             ft.Text("文件选择", size=18, weight=ft.FontWeight.W_600),
                             ft.Container(expand=True),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件",
                                 icon=ft.Icons.FILE_UPLOAD,
-                                on_click=self._on_select_files,
+                                on_click=lambda _: self._page.run_task(self._on_select_files),
                                 height=36,
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件夹",
                                 icon=ft.Icons.FOLDER_OPEN,
-                                on_click=self._on_select_folder,
+                                on_click=lambda _: self._page.run_task(self._on_select_folder),
                                 height=36,
                             ),
                             ft.OutlinedButton(
@@ -216,7 +216,7 @@ class VideoSpeedView(ft.Container):
         preset_buttons = []
         for label, speed in preset_speeds:
             btn = ft.OutlinedButton(
-                text=label,
+                content=label,
                 on_click=lambda e, s=speed: self._set_speed(s),
                 height=32,
             )
@@ -340,7 +340,7 @@ class VideoSpeedView(ft.Container):
         self.browse_output_button = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="浏览",
-            on_click=self._on_browse_output,
+            on_click=lambda _: self._page.run_task(self._on_browse_output),
             disabled=True,
         )
         
@@ -381,7 +381,7 @@ class VideoSpeedView(ft.Container):
         
         # 底部按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.SPEED, size=24),
@@ -396,7 +396,7 @@ class VideoSpeedView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示容器
@@ -461,27 +461,16 @@ class VideoSpeedView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 height=190,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=lambda e: self._on_select_files(e),
                 ink=True,
                 tooltip="点击选择视频文件",
             )
         )
 
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件事件处理。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=[
                 "mp4", "mkv", "mov", "avi", "wmv", "flv", "webm", 
@@ -489,26 +478,27 @@ class VideoSpeedView(ft.Container):
             ],
             allow_multiple=True,
         )
+        if files:
+            new_files = [Path(f.path) for f in files]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
 
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self) -> None:
         """选择文件夹事件处理。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                extensions = [
-                    ".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm",
-                    ".m4v", ".3gp", ".ts", ".m2ts", ".f4v", ".asf", ".rm", ".rmvb"
-                ]
-                self.selected_files.clear()
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"**/*{ext}"))
-                    self.selected_files.extend(folder.glob(f"**/*{ext.upper()}"))
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择视频文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            extensions = [
+                ".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm",
+                ".m4v", ".3gp", ".ts", ".m2ts", ".f4v", ".asf", ".rm", ".rmvb"
+            ]
+            self.selected_files.clear()
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"**/*{ext}"))
+                self.selected_files.extend(folder.glob(f"**/*{ext.upper()}"))
+            self._update_file_list()
 
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -568,7 +558,7 @@ class VideoSpeedView(ft.Container):
         """设置速度值。"""
         self.speed_slider.value = speed
         self._update_speed_text(speed)
-        self.page.update()
+        self._page.update()
 
     def _update_speed_text(self, speed: float) -> None:
         """更新速度文本。"""
@@ -586,19 +576,14 @@ class VideoSpeedView(ft.Container):
         self.file_suffix.disabled = mode != "new"
         self.custom_output_dir.disabled = mode != "custom"
         self.browse_output_button.disabled = mode != "custom"
-        self.page.update()
+        self._page.update()
 
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self) -> None:
         """浏览输出目录。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
 
     def _on_process(self, e: ft.ControlEvent) -> None:
         """开始处理视频。"""
@@ -615,7 +600,7 @@ class VideoSpeedView(ft.Container):
         self.progress_bar.value = 0
         self.progress_text.value = "准备处理..."
         self.progress_container.update()
-        self.page.update()
+        self._page.update()
 
         def process_task():
             total = len(self.selected_files)
@@ -649,11 +634,11 @@ class VideoSpeedView(ft.Container):
                             f"正在处理 ({i+1}/{total}): {input_path.name}\n"
                             f"进度: {percent}% | 速度: {speed_str} | 预计剩余: {remaining_time}"
                         )
-                        self.page.update()
+                        self._page.update()
                     
                     # 显示开始处理
                     self.progress_text.value = f"开始处理 ({i+1}/{total}): {input_path.name}..."
-                    self.page.update()
+                    self._page.update()
                     
                     result, message = self.ffmpeg_service.adjust_video_speed(
                         input_path, output_path, speed, adjust_audio, progress_handler
@@ -681,7 +666,7 @@ class VideoSpeedView(ft.Container):
                 self.progress_text.value = f"处理完成！成功处理 {total} 个文件。"
                 self._show_message("全部处理完成！", ft.Colors.GREEN)
             
-            self.page.update()
+            self._page.update()
 
         threading.Thread(target=process_task, daemon=True).start()
 
@@ -697,9 +682,9 @@ class VideoSpeedView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -727,7 +712,7 @@ class VideoSpeedView(ft.Container):
             self._show_message(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
             self._show_message("视频倍速不支持该格式", ft.Colors.ORANGE)
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

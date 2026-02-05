@@ -61,7 +61,7 @@ class SubtitleConvertView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.on_back: Optional[Callable] = on_back
         
@@ -116,12 +116,12 @@ class SubtitleConvertView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择字幕:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
@@ -165,7 +165,7 @@ class SubtitleConvertView(ft.Container):
             label="目标格式",
             width=320,
             dense=True,
-            on_change=self._on_format_change,
+            on_select=self._on_format_change,
         )
         
         format_settings_section: ft.Container = ft.Container(
@@ -285,7 +285,7 @@ class SubtitleConvertView(ft.Container):
         
         # 底部处理按钮
         self.process_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.SWAP_HORIZ, size=24),
@@ -301,7 +301,7 @@ class SubtitleConvertView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             margin=ft.margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
         )
         
@@ -355,48 +355,36 @@ class SubtitleConvertView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_file_list_click(self, e: ft.ControlEvent) -> None:
+    async def _on_file_list_click(self, e: ft.ControlEvent) -> None:
         """文件列表区域点击事件，空状态时打开文件选择器。"""
         if not self.selected_files:
-            self._on_select_files(e)
+            await self._on_select_files(e)
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent):
-            if result.files:
-                for f in result.files:
-                    file_path = Path(f.path)
-                    if file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             allow_multiple=True,
             allowed_extensions=['srt', 'vtt', 'lrc', 'ass', 'ssa', 'txt'],
             dialog_title="选择字幕文件",
         )
+        if result and result.files:
+            for f in result.files:
+                file_path = Path(f.path)
+                if file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            self._update_file_list()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent):
-            if result.path:
-                folder = Path(result.path)
-                for file_path in folder.iterdir():
-                    if file_path.is_file() and file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.get_directory_path(dialog_title="选择字幕文件夹")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择字幕文件夹")
+        if result:
+            folder = Path(result)
+            for file_path in folder.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            self._update_file_list()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -419,7 +407,7 @@ class SubtitleConvertView(ft.Container):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=8,
                 ),
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 padding=PADDING_LARGE,
             )
             self.file_list_view.controls.append(empty_state)
@@ -471,7 +459,7 @@ class SubtitleConvertView(ft.Container):
             
             self.process_button.content.disabled = False
         
-        self.page.update()
+        self._page.update()
     
     def _remove_file(self, file_path: Path) -> None:
         """移除文件。"""
@@ -489,20 +477,14 @@ class SubtitleConvertView(ft.Container):
         is_custom = e.control.value == "custom"
         self.custom_output_dir.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
-        self.page.update()
+        self._page.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录。"""
-        def on_result(result: ft.FilePickerResultEvent):
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.page.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.get_directory_path(dialog_title="选择输出目录")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self._page.update()
     
     def _on_process(self, e: ft.ControlEvent) -> None:
         """开始转换。"""
@@ -514,7 +496,7 @@ class SubtitleConvertView(ft.Container):
         self.progress_container.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备转换..."
-        self.page.update()
+        self._page.update()
         
         # 在后台线程中处理
         threading.Thread(target=self._convert_thread, daemon=True).start()
@@ -529,7 +511,7 @@ class SubtitleConvertView(ft.Container):
             try:
                 self.progress_text.value = f"正在转换 ({i+1}/{total}): {file_path.name}"
                 self.progress_bar.value = i / total
-                self.page.update()
+                self._page.update()
                 
                 # 解析源文件
                 segments, source_format, metadata = parse_subtitle_file(str(file_path))
@@ -589,7 +571,7 @@ class SubtitleConvertView(ft.Container):
         
         self.is_processing = False
         self.process_button.content.disabled = False
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。
@@ -623,7 +605,7 @@ class SubtitleConvertView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("字幕格式转换不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示提示消息。
@@ -637,9 +619,9 @@ class SubtitleConvertView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

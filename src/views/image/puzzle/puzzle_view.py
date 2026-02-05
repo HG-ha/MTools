@@ -43,7 +43,7 @@ class ImagePuzzleView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -137,7 +137,7 @@ class ImagePuzzleView(ft.Container):
         # 创建切分视图（如果还没创建）
         if not self.split_view:
             self.split_view = ImagePuzzleSplitView(
-                self.page,
+                self._page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main
@@ -159,7 +159,7 @@ class ImagePuzzleView(ft.Container):
         # 创建合并视图（如果还没创建）
         if not self.merge_view:
             self.merge_view = ImagePuzzleMergeView(
-                self.page,
+                self._page,
                 self.config_service,
                 self.image_service,
                 on_back=self._back_to_main

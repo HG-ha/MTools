@@ -51,7 +51,7 @@ class VocalExtractionView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -89,7 +89,7 @@ class VocalExtractionView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="人声提取"
@@ -119,26 +119,20 @@ class VocalExtractionView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择音频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=lambda _: self._page.run_task(self._on_select_files),
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: self._on_select_folder(),
+                            on_click=lambda _: self._page.run_task(self._on_select_folder),
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -189,7 +183,7 @@ class VocalExtractionView(ft.Container):
             value=DEFAULT_VOCAL_MODEL_KEY,
             label="选择模型",
             hint_text="选择分离模型",
-            on_change=self._on_model_change,
+            on_select=self._on_model_change,
             width=480,
             dense=True,
             text_size=13,
@@ -216,14 +210,14 @@ class VocalExtractionView(ft.Container):
         )
         
         # 下载模型按钮
-        self.download_model_button = ft.ElevatedButton(
+        self.download_model_button = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_download_model,
             visible=False,
         )
         
-        self.load_model_button = ft.ElevatedButton(
+        self.load_model_button = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model_click,
@@ -312,7 +306,7 @@ class VocalExtractionView(ft.Container):
             width=200,
             dense=True,
             text_size=13,
-            on_change=self._on_format_change,
+            on_select=self._on_format_change,
         )
         
         # 采样率设置
@@ -392,7 +386,7 @@ class VocalExtractionView(ft.Container):
         self.browse_output_button = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="浏览",
-            on_click=self._on_browse_output,
+            on_click=lambda _: self._page.run_task(self._on_browse_output),
             disabled=True,  # 默认禁用
         )
         
@@ -470,7 +464,7 @@ class VocalExtractionView(ft.Container):
         
         # 底部大按钮 - 与背景移除工具样式一致
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.GRAPHIC_EQ, size=24),
@@ -486,11 +480,11 @@ class VocalExtractionView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 取消按钮（保持原样式，处理时显示）
-        self.cancel_button = ft.ElevatedButton(
+        self.cancel_button = ft.Button(
             "取消",
             icon=ft.Icons.STOP,
             on_click=self._on_cancel_click,
@@ -563,46 +557,42 @@ class VocalExtractionView(ft.Container):
                     spacing=PADDING_SMALL // 2,
                 ),
                 height=188,
-                alignment=ft.alignment.center,
-                on_click=self._on_empty_area_click,
+                alignment=ft.Alignment.CENTER,
+                on_click=lambda _: self._page.run_task(self._on_empty_area_click),
                 ink=True,
                 tooltip="点击选择音频文件",
             )
         )
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files()
+        await self._on_select_files()
     
-    def _on_select_files(self) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
-        self.file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择音频文件",
             allowed_extensions=["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "opus"],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self) -> None:
-        """选择文件夹按钮点击事件。"""
-        self.file_picker.get_directory_path(
-            dialog_title="选择包含音频的文件夹"
-        )
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择完成事件。"""
-        if e.files:
-            for file in e.files:
+        if files:
+            for file in files:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-        elif e.path:
-            folder_path = Path(e.path)
+            self._update_file_list()
+    
+    async def _on_select_folder(self) -> None:
+        """选择文件夹按钮点击事件。"""
+        folder_path = await ft.FilePicker().get_directory_path(
+            dialog_title="选择包含音频的文件夹"
+        )
+        if folder_path:
             audio_extensions = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".wma", ".opus"}
-            for file_path in folder_path.rglob("*"):
+            for file_path in Path(folder_path).rglob("*"):
                 if file_path.suffix.lower() in audio_extensions and file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-        
-        self._update_file_list()
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -691,7 +681,7 @@ class VocalExtractionView(ft.Container):
         self.progress_text.visible = True
         self.current_file_text.visible = True
         
-        self.page.update()
+        self._page.update()
         
         # 在后台线程中处理
         thread = threading.Thread(target=self._process_files, daemon=True)
@@ -846,16 +836,16 @@ class VocalExtractionView(ft.Container):
         self.progress_bar.visible = False
         self.progress_text.visible = False
         self.current_file_text.visible = False
-        self.page.update()
+        self._page.update()
     
     def _show_snackbar(self, message: str, bgcolor: str) -> None:
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=bgcolor,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _on_model_change(self, e: ft.ControlEvent) -> None:
         """模型选择变化事件。"""
@@ -1117,22 +1107,22 @@ class VocalExtractionView(ft.Container):
             title=ft.Text("确认删除"),
             content=ft.Text(f"确定要删除模型 {model_info.display_name} 吗？"),
             actions=[
-                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self.page.update()),
+                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self._page.update()),
                 ft.TextButton(
                     "删除",
                     on_click=lambda _: (
                         on_confirm(True),
                         setattr(dialog, 'open', False),
-                        self.page.update()
+                        self._page.update()
                     )
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式变化事件。"""
@@ -1161,17 +1151,12 @@ class VocalExtractionView(ft.Container):
         self.mp3_bitrate_dropdown.update()
         self.ogg_quality_dropdown.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent):
-            if result.path:
-                self.output_dir_field.value = result.path
-                self.output_dir_field.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.output_dir_field.value = folder_path
+            self.output_dir_field.update()
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。"""
@@ -1202,13 +1187,13 @@ class VocalExtractionView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("人声分离不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。

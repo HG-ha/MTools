@@ -53,7 +53,7 @@ class VideoCompressView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -80,7 +80,7 @@ class VideoCompressView(ft.Container):
             # FFmpegInstallView 内部已经管理了 padding
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click
             )
@@ -113,13 +113,13 @@ class VideoCompressView(ft.Container):
                         controls=[
                             ft.Text("文件选择", size=18, weight=ft.FontWeight.W_600, ),
                             ft.Container(expand=True),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件",
                                 icon=ft.Icons.FILE_UPLOAD,
                                 on_click=self._on_select_files,
                                 height=36,
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件夹",
                                 icon=ft.Icons.FOLDER_OPEN,
                                 on_click=self._on_select_folder,
@@ -206,7 +206,7 @@ class VideoCompressView(ft.Container):
             ],
             value="original",
             width=250,
-            on_change=self._on_resolution_change,
+            on_select=self._on_resolution_change,
         )
         
         # 自定义分辨率输入
@@ -312,7 +312,7 @@ class VideoCompressView(ft.Container):
             label="视频编码器",
             options=encoder_options,
             value=default_vcodec,
-            on_change=self._on_vcodec_change,
+            on_select=self._on_vcodec_change,
         )
         self.preset_dropdown = ft.Dropdown(
             label="编码预设 (速度)",
@@ -338,7 +338,7 @@ class VideoCompressView(ft.Container):
                 ft.dropdown.Option("opus", "Opus"),
             ],
             value="copy",
-            on_change=self._on_acodec_change,
+            on_select=self._on_acodec_change,
         )
         self.audio_bitrate_input = ft.TextField(
             label="音频比特率 (kbps)",
@@ -685,7 +685,7 @@ class VideoCompressView(ft.Container):
         
         # 底部按钮
         self.compress_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.COMPRESS, size=24),
@@ -700,7 +700,7 @@ class VideoCompressView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示容器
@@ -762,26 +762,15 @@ class VideoCompressView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 height=250,  # 固定高度以确保填满显示区域
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=lambda e: self._on_select_files(e),
                 ink=True,
                 tooltip="点击选择视频文件",
             )
         )
 
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=[
                 "mp4", "mkv", "mov", "avi", "wmv", "flv", "webm", 
@@ -789,25 +778,26 @@ class VideoCompressView(ft.Container):
             ],
             allow_multiple=True,
         )
+        if result and result.files:
+            new_files = [Path(f.path) for f in result.files]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
 
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                extensions = [
-                    ".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm",
-                    ".m4v", ".3gp", ".ts", ".m2ts", ".f4v", ".asf", ".rm", ".rmvb"
-                ]
-                self.selected_files.clear()
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"**/*{ext}"))
-                    self.selected_files.extend(folder.glob(f"**/*{ext.upper()}"))
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择视频文件夹")
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
+        if result:
+            folder = Path(result)
+            extensions = [
+                ".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm",
+                ".m4v", ".3gp", ".ts", ".m2ts", ".f4v", ".asf", ".rm", ".rmvb"
+            ]
+            self.selected_files.clear()
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"**/*{ext}"))
+                self.selected_files.extend(folder.glob(f"**/*{ext.upper()}"))
+            self._update_file_list()
 
     def _update_file_list(self) -> None:
         self.file_list_view.controls.clear()
@@ -849,19 +839,19 @@ class VideoCompressView(ft.Container):
     def _on_acodec_change(self, e: ft.ControlEvent) -> None:
         """音频编码器改变事件。"""
         self.audio_bitrate_input.visible = e.control.value != "copy"
-        self.page.update()
+        self._page.update()
     
     def _on_resolution_change(self, e: ft.ControlEvent) -> None:
         """分辨率选择改变事件。"""
         is_custom = e.control.value == "custom"
         self.custom_resolution_container.visible = is_custom
-        self.page.update()
+        self._page.update()
     
     def _on_vcodec_change(self, e: ft.ControlEvent) -> None:
         """视频编码器改变事件。"""
         vcodec = e.control.value
         # 某些编码器不支持某些预设或参数，可以在这里调整
-        self.page.update()
+        self._page.update()
     
     def _on_bitrate_mode_change(self, e: ft.ControlEvent) -> None:
         """比特率模式改变事件。"""
@@ -875,19 +865,19 @@ class VideoCompressView(ft.Container):
         else:  # cbr
             self.video_bitrate_input.visible = True
             self.max_bitrate_input.visible = False
-        self.page.update()
+        self._page.update()
     
     def _on_fps_mode_change(self, e: ft.ControlEvent) -> None:
         """帧率模式改变事件。"""
         self.fps_input.visible = e.control.value == "custom"
-        self.page.update()
+        self._page.update()
 
     def _on_mode_change(self, e: ft.ControlEvent) -> None:
         """切换常规/高级模式。"""
         is_normal = e.control.value == "normal"
         self.normal_options_container.visible = is_normal
         self.advanced_options_container.visible = not is_normal
-        self.page.update()
+        self._page.update()
 
     def _on_remove_file(self, index: int) -> None:
         if 0 <= index < len(self.selected_files):
@@ -908,18 +898,13 @@ class VideoCompressView(ft.Container):
         self.file_suffix.disabled = mode != "new"
         self.custom_output_dir.disabled = mode != "custom"
         self.browse_output_button.disabled = mode != "custom"
-        self.page.update()
+        self._page.update()
 
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self.custom_output_dir.update()
 
     def _on_compress(self, e: ft.ControlEvent) -> None:
         if not self.selected_files:
@@ -931,7 +916,7 @@ class VideoCompressView(ft.Container):
         self.progress_bar.value = 0
         self.progress_text.value = "准备压缩..."
         self.progress_container.update()
-        self.page.update()
+        self._page.update()
 
         compression_params = {
             "mode": self.mode_radio.value,
@@ -995,11 +980,11 @@ class VideoCompressView(ft.Container):
                             f"正在处理 ({i+1}/{total}): {input_path.name}\n"
                             f"进度: {percent}% | 速度: {speed} | 预计剩余: {remaining_time}"
                         )
-                        self.page.update()
+                        self._page.update()
                     
                     # 显示开始处理
                     self.progress_text.value = f"开始处理 ({i+1}/{total}): {input_path.name}..."
-                    self.page.update()
+                    self._page.update()
                     
                     result, message = self.ffmpeg_service.compress_video(
                         input_path, output_path, compression_params, progress_handler
@@ -1027,7 +1012,7 @@ class VideoCompressView(ft.Container):
                 self.progress_text.value = f"压缩完成！成功处理 {total} 个文件。"
                 self._show_message("全部压缩完成！", ft.Colors.GREEN)
             
-            self.page.update()
+            self._page.update()
 
         threading.Thread(target=compress_task, daemon=True).start()
 
@@ -1046,9 +1031,9 @@ class VideoCompressView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -1076,7 +1061,7 @@ class VideoCompressView(ft.Container):
             self._show_message(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
             self._show_message("视频压缩不支持该格式", ft.Colors.ORANGE)
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

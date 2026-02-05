@@ -31,7 +31,7 @@ class TextDiffView(ft.Container):
         on_back: Optional[Callable] = None,
     ):
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = PADDING_MEDIUM
@@ -78,7 +78,7 @@ class TextDiffView(ft.Container):
         # 操作按钮栏
         action_bar = ft.Row(
             controls=[
-                ft.ElevatedButton(
+                ft.Button(
                     "开始对比",
                     icon=ft.Icons.COMPARE_ARROWS,
                     on_click=self._compare,
@@ -199,7 +199,7 @@ class TextDiffView(ft.Container):
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                             spacing=PADDING_SMALL,
                         ),
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         expand=True,
                     )
                 ],
@@ -410,7 +410,7 @@ class TextDiffView(ft.Container):
                         size=14,
                         color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     padding=PADDING_MEDIUM,
                 )
             )
@@ -633,7 +633,7 @@ class TextDiffView(ft.Container):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=PADDING_SMALL,
                     ),
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     expand=True,
                 )
             ]
@@ -645,50 +645,45 @@ class TextDiffView(ft.Container):
         
         self.diff_results = []
 
-    def _import_file(self, side: str):
+    async def _import_file(self, side: str):
         """从文件导入文本。"""
-        def on_file_picked(e: ft.FilePickerResultEvent):
-            if not e.files:
-                return
-            
-            file_path = e.files[0].path
-            try:
-                # 尝试 UTF-8
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            except UnicodeDecodeError:
-                # 尝试 GBK
-                try:
-                    with open(file_path, 'r', encoding='gbk') as f:
-                        content = f.read()
-                except Exception as ex:
-                    self._show_snack(f"文件读取失败: {ex}", error=True)
-                    return
-            except Exception as ex:
-                self._show_snack(f"文件读取失败: {ex}", error=True)
-                return
-            
-            input_field = self.left_input.current if side == "left" else self.right_input.current
-            if input_field:
-                input_field.value = content
-                input_field.update()
-                self._update_stats(side)
-            
-            self._show_snack(f"已导入: {e.files[0].name}")
-        
-        picker = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择文本文件",
             allowed_extensions=["txt", "log", "md", "py", "js", "json", "xml", "html", "css", "java", "c", "cpp"],
         )
+        
+        if not result or not result.files:
+            return
+        
+        file_path = result.files[0].path
+        try:
+            # 尝试 UTF-8
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            # 尝试 GBK
+            try:
+                with open(file_path, 'r', encoding='gbk') as f:
+                    content = f.read()
+            except Exception as ex:
+                self._show_snack(f"文件读取失败: {ex}", error=True)
+                return
+        except Exception as ex:
+            self._show_snack(f"文件读取失败: {ex}", error=True)
+            return
+        
+        input_field = self.left_input.current if side == "left" else self.right_input.current
+        if input_field:
+            input_field.value = content
+            input_field.update()
+            self._update_stats(side)
+        
+        self._show_snack(f"已导入: {result.files[0].name}")
 
     def _paste_text(self, side: str):
         """粘贴文本。"""
         async def paste():
-            text = await self.page.get_clipboard_async()
+            text = await self._page.get_clipboard_async()
             if not text:
                 self._show_snack("剪贴板为空", error=True)
                 return
@@ -699,9 +694,9 @@ class TextDiffView(ft.Container):
                 input_field.update()
                 self._update_stats(side)
         
-        self.page.run_task(paste)
+        self._page.run_task(paste)
 
-    def _export_html(self, e):
+    async def _export_html(self, e):
         """导出为 HTML 文件。"""
         if not self.diff_results:
             self._show_snack("请先执行对比", error=True)
@@ -725,24 +720,19 @@ class TextDiffView(ft.Container):
         )
         
         # 保存文件
-        def save_file(e: ft.FilePickerResultEvent):
-            if e.path:
-                try:
-                    with open(e.path, 'w', encoding='utf-8') as f:
-                        f.write(html)
-                    self._show_snack(f"已导出到: {Path(e.path).name}")
-                except Exception as ex:
-                    self._show_snack(f"导出失败: {ex}", error=True)
-        
-        picker = ft.FilePicker(on_result=save_file)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.save_file(
+        result = await ft.FilePicker().save_file(
             dialog_title="导出 HTML",
             file_name="text_diff.html",
             allowed_extensions=["html"],
         )
+        
+        if result:
+            try:
+                with open(result, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                self._show_snack(f"已导出到: {Path(result).name}")
+            except Exception as ex:
+                self._show_snack(f"导出失败: {ex}", error=True)
 
     def _show_about(self, e):
         """显示关于信息。"""
@@ -794,20 +784,20 @@ class TextDiffView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
 
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.ERROR if error else ft.Colors.PRIMARY,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
 
     def _on_back_click(self):
         """返回按钮点击。"""
@@ -864,7 +854,7 @@ class TextDiffView(ft.Container):
         else:
             self._show_snack(f"已加载: {valid_files[0].name} (左) 和 {valid_files[1].name} (右)")
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

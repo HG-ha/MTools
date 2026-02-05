@@ -55,7 +55,7 @@ class ImageRotateView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -91,8 +91,8 @@ class ImageRotateView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        select_button = ft.ElevatedButton(
-            text="选择图片",
+        select_button = ft.Button(
+            content="选择图片",
             icon=ft.Icons.IMAGE_OUTLINED,
             on_click=self._on_select_files,
         )
@@ -195,8 +195,8 @@ class ImageRotateView(ft.Container):
             read_only=True,
         )
         
-        fill_color_button = ft.ElevatedButton(
-            text="选择颜色",
+        fill_color_button = ft.Button(
+            content="选择颜色",
             icon=ft.Icons.PALETTE,
             on_click=self._open_fill_color_picker,
         )
@@ -322,14 +322,14 @@ class ImageRotateView(ft.Container):
         # 预览区域 - 左右对比
         self.original_image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             width=350,
             height=350,
         )
         
         self.preview_image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             width=350,
             height=350,
         )
@@ -362,7 +362,7 @@ class ImageRotateView(ft.Container):
                                         ft.Container(height=PADDING_SMALL),
                                         ft.Container(
                                             content=self.original_image,
-                                            alignment=ft.alignment.center,
+                                            alignment=ft.Alignment.CENTER,
                                             border=ft.border.all(1, ft.Colors.OUTLINE),
                                             border_radius=8,
                                             padding=PADDING_MEDIUM,
@@ -388,7 +388,7 @@ class ImageRotateView(ft.Container):
                                         ft.Container(height=PADDING_SMALL),
                                         ft.Container(
                                             content=self.preview_image,
-                                            alignment=ft.alignment.center,
+                                            alignment=ft.Alignment.CENTER,
                                             border=ft.border.all(1, ft.Colors.OUTLINE),
                                             border_radius=8,
                                             padding=PADDING_MEDIUM,
@@ -419,7 +419,7 @@ class ImageRotateView(ft.Container):
         
         # 处理按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.PLAY_ARROW, size=24),
@@ -434,7 +434,7 @@ class ImageRotateView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示
@@ -644,7 +644,7 @@ class ImageRotateView(ft.Container):
                 # 更新预览
                 self._update_preview()
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 创建对话框
         dialog = ft.AlertDialog(
@@ -720,14 +720,14 @@ class ImageRotateView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=lambda e: close_dialog(False)),
-                ft.ElevatedButton("确定", on_click=lambda e: close_dialog(True)),
+                ft.Button("确定", on_click=lambda e: close_dialog(True)),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _update_color_preview_in_dialog(
         self,
@@ -768,32 +768,26 @@ class ImageRotateView(ft.Container):
             color[0], color[1], color[2], 255, preview_box, rgb_text
         )
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_files_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.selected_files = [Path(f.path) for f in result.files]
-                count = len(self.selected_files)
-                if count == 1:
-                    self.file_list_text.value = self.selected_files[0].name
-                else:
-                    self.file_list_text.value = f"已选择 {count} 个文件"
-                self.file_list_text.update()
-                
-                # 显示预览区域并自动生成预览
-                self.preview_section.visible = True
-                self.preview_section.update()
-                self._update_preview()
-        
-        file_picker = ft.FilePicker(on_result=on_files_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片",
             allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
             allow_multiple=True,
         )
+        if result and len(result) > 0:
+            self.selected_files = [Path(f.path) for f in result]
+            count = len(self.selected_files)
+            if count == 1:
+                self.file_list_text.value = self.selected_files[0].name
+            else:
+                self.file_list_text.value = f"已选择 {count} 个文件"
+            self.file_list_text.update()
+            
+            # 显示预览区域并自动生成预览
+            self.preview_section.visible = True
+            self.preview_section.update()
+            self._update_preview()
     
     def _on_operation_change(self, e: ft.ControlEvent) -> None:
         """操作选择改变事件。"""
@@ -857,24 +851,19 @@ class ImageRotateView(ft.Container):
         self.custom_output_dir.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                try:
-                    self.page.update()
-                except:
-                    pass
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            try:
+                self._page.update()
+            except:
+                pass
     
     def _update_preview(self) -> None:
         """更新预览（实时）。"""
@@ -992,7 +981,7 @@ class ImageRotateView(ft.Container):
         self.progress_bar.visible = True
         self.progress_text.value = "准备处理..."
         self.progress_bar.value = 0
-        self.page.update()
+        self._page.update()
         
         try:
             success_count = 0
@@ -1005,7 +994,7 @@ class ImageRotateView(ft.Container):
                 # 更新进度
                 self.progress_text.value = f"正在处理: {file_path.name} ({idx + 1}/{total})"
                 self.progress_bar.value = idx / total
-                self.page.update()
+                self._page.update()
                 
                 try:
                     # 读取图片
@@ -1139,7 +1128,7 @@ class ImageRotateView(ft.Container):
             # 完成进度显示
             self.progress_text.value = "处理完成！"
             self.progress_bar.value = 1.0
-            self.page.update()
+            self._page.update()
             
             # 延迟隐藏进度条，让用户看到完成状态
             import time
@@ -1147,14 +1136,14 @@ class ImageRotateView(ft.Container):
             
             self.progress_text.visible = False
             self.progress_bar.visible = False
-            self.page.update()
+            self._page.update()
             
             self._show_message(f"处理完成！成功处理 {success_count}/{total} 个文件", ft.Colors.GREEN)
         
         except Exception as ex:
             self.progress_text.visible = False
             self.progress_bar.visible = False
-            self.page.update()
+            self._page.update()
             self._show_message(f"处理失败: {str(ex)}", ft.Colors.ERROR)
     
     def _show_message(self, message: str, color: str) -> None:
@@ -1169,9 +1158,9 @@ class ImageRotateView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -1209,7 +1198,7 @@ class ImageRotateView(ft.Container):
         elif skipped_count > 0:
             self._show_message("旋转/翻转工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

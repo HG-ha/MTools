@@ -28,7 +28,7 @@ class JwtToolView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -87,12 +87,12 @@ class JwtToolView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.ElevatedButton(
-                            text="解析 JWT",
+                            content="解析 JWT",
                             icon=ft.Icons.LOCK_OPEN,
                             on_click=self._parse_jwt,
                         ),
                         ft.OutlinedButton(
-                            text="清空",
+                            content="清空",
                             icon=ft.Icons.CLEAR,
                             on_click=self._clear_all,
                         ),
@@ -338,7 +338,7 @@ class JwtToolView(ft.Container):
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
@@ -400,20 +400,20 @@ Header.Payload.Signature
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

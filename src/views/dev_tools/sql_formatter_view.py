@@ -21,7 +21,7 @@ class SqlFormatterView(ft.Container):
         on_back: Optional[Callable] = None
     ):
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -92,17 +92,17 @@ class SqlFormatterView(ft.Container):
                 ),
                 ft.Container(expand=True),
                 ft.ElevatedButton(
-                    text="格式化",
+                    content="格式化",
                     icon=ft.Icons.AUTO_FIX_HIGH,
                     on_click=lambda _: self._format_sql(False),
                 ),
                 ft.ElevatedButton(
-                    text="压缩",
+                    content="压缩",
                     icon=ft.Icons.COMPRESS,
                     on_click=lambda _: self._format_sql(True),
                 ),
                 ft.OutlinedButton(
-                    text="清空",
+                    content="清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._clear,
                 ),
@@ -200,7 +200,7 @@ class SqlFormatterView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -289,7 +289,7 @@ class SqlFormatterView(ft.Container):
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_divider_pan_start(self, e: ft.DragStartEvent):
@@ -304,7 +304,7 @@ class SqlFormatterView(ft.Container):
         if not self.is_dragging:
             return
         
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 12
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 12
         if container_width <= 0:
             return
         
@@ -401,19 +401,19 @@ WHERE u.status = 1
                 height=500,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件，加载第一个 SQL 文件内容。
@@ -436,14 +436,14 @@ WHERE u.status = 1
             if self.input_text.current:
                 self.input_text.current.value = content
             self._show_snack(f"已加载: {sql_file.name}")
-            self.page.update()
+            self._page.update()
         except UnicodeDecodeError:
             try:
                 content = sql_file.read_text(encoding='gbk')
                 if self.input_text.current:
                     self.input_text.current.value = content
                 self._show_snack(f"已加载: {sql_file.name}")
-                self.page.update()
+                self._page.update()
             except Exception as e:
                 self._show_snack(f"读取文件失败: {e}", error=True)
         except Exception as e:

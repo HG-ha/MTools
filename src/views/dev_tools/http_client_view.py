@@ -34,7 +34,7 @@ class HttpClientView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
@@ -66,9 +66,6 @@ class HttpClientView(ft.Container):
         self.body_type_tabs = ft.Ref[ft.Tabs]()
         self.send_button = ft.Ref[ft.ElevatedButton]()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(on_result=self._on_file_selected)
-        self.page.overlay.append(self.file_picker)
         self.current_file_field = None  # 当前正在选择文件的字段名
         self.response_tabs = ft.Ref[ft.Tabs]()
         self.response_status = ft.Ref[ft.Text]()
@@ -103,7 +100,7 @@ class HttpClientView(ft.Container):
             return
         
         # 获取容器宽度
-        container_width = self.page.width - PADDING_MEDIUM * 2 - 8
+        container_width = self._page.width - PADDING_MEDIUM * 2 - 8
         if container_width <= 0:
             return
         
@@ -183,9 +180,9 @@ class HttpClientView(ft.Container):
         )
         
         # 发送按钮 (移除左侧圆角，与输入框连接)
-        send_button = ft.ElevatedButton(
+        send_button = ft.Button(
             ref=self.send_button,
-            text="发送",
+            content="发送",
             icon=ft.Icons.SEND,
             on_click=self._on_send_request,
             style=ft.ButtonStyle(
@@ -247,49 +244,56 @@ class HttpClientView(ft.Container):
         request_tabs = ft.Tabs(
             selected_index=0,
             animation_duration=300,
-            tabs=[
-                ft.Tab(
-                    text="Params",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.params_input,
-                            multiline=True,
-                            min_lines=15,
-                            hint_text='Query Params\npage=1\nlimit=10',
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="Headers",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.headers_input,
-                            multiline=True,
-                            min_lines=15,
-                            hint_text='Headers\nContent-Type: application/json\nAuthorization: Bearer token',
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="Body",
-                    content=self._build_body_tab(),
-                ),
-            ],
+            length=3,
             expand=True,
+            content=ft.Column(
+                expand=True,
+                controls=[
+                    ft.TabBar(
+                        tabs=[
+                            ft.Tab(label="Params"),
+                            ft.Tab(label="Headers"),
+                            ft.Tab(label="Body"),
+                        ],
+                    ),
+                    ft.TabBarView(
+                        expand=True,
+                        controls=[
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.params_input,
+                                    multiline=True,
+                                    min_lines=15,
+                                    hint_text='Query Params\npage=1\nlimit=10',
+                                    text_size=13,
+                                    border=ft.InputBorder.NONE,
+                                    expand=True,
+                                ),
+                                padding=PADDING_SMALL,
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.headers_input,
+                                    multiline=True,
+                                    min_lines=15,
+                                    hint_text='Headers\nContent-Type: application/json\nAuthorization: Bearer token',
+                                    text_size=13,
+                                    border=ft.InputBorder.NONE,
+                                    expand=True,
+                                ),
+                                padding=PADDING_SMALL,
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                            self._build_body_tab(),
+                        ],
+                    ),
+                ],
+            ),
         )
         
         left_panel = ft.Container(
@@ -321,7 +325,7 @@ class HttpClientView(ft.Container):
                 width=12,
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 margin=ft.margin.only(top=80, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
@@ -363,19 +367,22 @@ class HttpClientView(ft.Container):
         
         self.content = main_column
     
-    def _add_multipart_file(self, e):
+    async def _add_multipart_file(self, e):
         """添加文件字段对话框。"""
         field_name_ref = ft.Ref[ft.TextField]()
+        should_pick_file = False
+        field_name = None
         
         def confirm_add(e):
+            nonlocal should_pick_file, field_name
             name = field_name_ref.current.value
             if not name:
                 self._show_snack("请输入字段名", error=True)
                 return
             
-            self.current_file_field = name
-            self.page.close(dialog)
-            self.file_picker.pick_files(allow_multiple=False)
+            field_name = name
+            should_pick_file = True
+            self._page.close(dialog)
             
         dialog = ft.AlertDialog(
             title=ft.Text("添加文件"),
@@ -386,21 +393,23 @@ class HttpClientView(ft.Container):
                 on_submit=confirm_add,
             ),
             actions=[
-                ft.TextButton("取消", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("取消", on_click=lambda _: self._page.close(dialog)),
                 ft.TextButton("选择文件", on_click=confirm_add),
             ],
         )
-        self.page.open(dialog)
-    
-    def _on_file_selected(self, e: ft.FilePickerResultEvent):
-        """文件选择回调。"""
-        if not e.files or not self.current_file_field:
-            return
-            
-        file_path = e.files[0].path
-        self.files_dict[self.current_file_field] = file_path
-        self._update_multipart_list()
-        self.current_file_field = None
+        self._page.open(dialog)
+        
+        # 等待对话框关闭后再选择文件
+        import asyncio
+        while dialog.open:
+            await asyncio.sleep(0.1)
+        
+        if should_pick_file and field_name:
+            result = await ft.FilePicker().pick_files(allow_multiple=False)
+            if result and result.files:
+                file_path = result.files[0].path
+                self.files_dict[field_name] = file_path
+                self._update_multipart_list()
     
     def _remove_multipart_file(self, field_name):
         """移除文件字段。"""
@@ -448,109 +457,114 @@ class HttpClientView(ft.Container):
             ref=self.body_type_tabs,
             selected_index=0,
             animation_duration=200,
-            tabs=[
-                ft.Tab(
-                    text="Raw",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.body_raw_input,
-                            multiline=True,
-                            min_lines=12,
-                            hint_text='请求体内容... (Text, XML, etc.)',
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        expand=True,
+            length=4,
+            expand=True,
+            content=ft.Column(
+                expand=True,
+                controls=[
+                    ft.TabBar(
+                        tabs=[
+                            ft.Tab(label="Raw"),
+                            ft.Tab(label="JSON"),
+                            ft.Tab(label="Form"),
+                            ft.Tab(label="Multipart"),
+                        ],
                     ),
-                ),
-                ft.Tab(
-                    text="JSON",
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.IconButton(
-                                            icon=ft.Icons.AUTO_FIX_HIGH,
-                                            tooltip="格式化 JSON",
-                                            on_click=self._format_json_body,
-                                            icon_size=20,
-                                        ),
-                                        ft.IconButton(
-                                            icon=ft.Icons.COMPRESS,
-                                            tooltip="压缩 JSON",
-                                            on_click=self._compress_json_body,
-                                            icon_size=20,
-                                        ),
-                                    ],
-                                    spacing=0,
-                                ),
-                                ft.TextField(
-                                    ref=self.body_json_input,
+                    ft.TabBarView(
+                        expand=True,
+                        controls=[
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.body_raw_input,
                                     multiline=True,
                                     min_lines=12,
-                                    hint_text='{"key": "value"}',
+                                    hint_text='请求体内容... (Text, XML, etc.)',
                                     text_size=13,
                                     border=ft.InputBorder.NONE,
                                     expand=True,
                                 ),
-                            ],
-                            spacing=0,
-                        ),
-                        padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="Form",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.body_form_input,
-                            multiline=True,
-                            min_lines=12,
-                            hint_text='username=admin\npassword=123',
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="Multipart",
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Container(
-                                    content=ft.Row(
-                                        controls=[
-                                            ft.TextButton(
-                                                "添加文件",
-                                                icon=ft.Icons.ADD,
-                                                on_click=self._add_multipart_file
-                                            ),
-                                            ft.Text("配合 Form Tab 使用，Form 内容将作为字段发送", size=12, color=ft.Colors.GREY),
-                                        ],
-                                    ),
-                                    padding=ft.padding.only(bottom=5),
+                                padding=PADDING_SMALL,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Row(
+                                            controls=[
+                                                ft.IconButton(
+                                                    icon=ft.Icons.AUTO_FIX_HIGH,
+                                                    tooltip="格式化 JSON",
+                                                    on_click=self._format_json_body,
+                                                    icon_size=20,
+                                                ),
+                                                ft.IconButton(
+                                                    icon=ft.Icons.COMPRESS,
+                                                    tooltip="压缩 JSON",
+                                                    on_click=self._compress_json_body,
+                                                    icon_size=20,
+                                                ),
+                                            ],
+                                            spacing=0,
+                                        ),
+                                        ft.TextField(
+                                            ref=self.body_json_input,
+                                            multiline=True,
+                                            min_lines=12,
+                                            hint_text='{"key": "value"}',
+                                            text_size=13,
+                                            border=ft.InputBorder.NONE,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=0,
                                 ),
-                                ft.Column(
-                                    ref=self.multipart_files_list,
-                                    scroll=ft.ScrollMode.AUTO,
+                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.body_form_input,
+                                    multiline=True,
+                                    min_lines=12,
+                                    hint_text='username=admin\npassword=123',
+                                    text_size=13,
+                                    border=ft.InputBorder.NONE,
                                     expand=True,
-                                    spacing=2,
                                 ),
-                            ],
-                        ),
-                        padding=PADDING_SMALL,
-                        expand=True,
+                                padding=PADDING_SMALL,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Container(
+                                            content=ft.Row(
+                                                controls=[
+                                                    ft.TextButton(
+                                                        "添加文件",
+                                                        icon=ft.Icons.ADD,
+                                                        on_click=self._add_multipart_file
+                                                    ),
+                                                    ft.Text("配合 Form Tab 使用，Form 内容将作为字段发送", size=12, color=ft.Colors.GREY),
+                                                ],
+                                            ),
+                                            padding=ft.padding.only(bottom=5),
+                                        ),
+                                        ft.Column(
+                                            ref=self.multipart_files_list,
+                                            scroll=ft.ScrollMode.AUTO,
+                                            expand=True,
+                                            spacing=2,
+                                        ),
+                                    ],
+                                ),
+                                padding=PADDING_SMALL,
+                                expand=True,
+                            ),
+                        ],
                     ),
-                ),
-            ],
-            expand=True,
+                ],
+            ),
         )
         
         return ft.Container(
@@ -590,103 +604,110 @@ class HttpClientView(ft.Container):
             ref=self.response_tabs,
             selected_index=0,
             animation_duration=300,
-            tabs=[
-                ft.Tab(
-                    text="Body",
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.IconButton(
-                                            icon=ft.Icons.COPY,
-                                            tooltip="复制",
-                                            on_click=self._copy_response_body,
-                                            icon_size=20,
-                                        ),
-                                        ft.IconButton(
-                                            icon=ft.Icons.AUTO_FIX_HIGH,
-                                            tooltip="格式化",
-                                            on_click=self._format_response_body,
-                                            icon_size=20,
-                                        ),
-                                    ],
-                                    spacing=0,
-                                    alignment=ft.MainAxisAlignment.END,
-                                ),
-                                ft.TextField(
-                                    ref=self.response_body,
-                                    multiline=True,
-                                    read_only=True,
-                                    min_lines=15,
-                                    text_size=13,
-                                    border=ft.InputBorder.NONE,
-                                    expand=True,
-                                ),
-                            ],
-                            spacing=0,
-                        ),
-                        padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="Headers",
-                    content=ft.Container(
-                        content=ft.TextField(
-                            ref=self.response_headers,
-                            multiline=True,
-                            read_only=True,
-                            min_lines=15,
-                            text_size=13,
-                            border=ft.InputBorder.NONE,
-                            expand=True,
-                        ),
-                        padding=PADDING_SMALL,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
-                    ),
-                ),
-                ft.Tab(
-                    text="cURL",
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.IconButton(
-                                            icon=ft.Icons.COPY,
-                                            tooltip="复制",
-                                            on_click=self._copy_curl,
-                                            icon_size=20,
-                                        ),
-                                    ],
-                                    spacing=0,
-                                    alignment=ft.MainAxisAlignment.END,
-                                ),
-                                ft.TextField(
-                                    ref=self.curl_command,
-                                    multiline=True,
-                                    read_only=True,
-                                    min_lines=15,
-                                    text_size=13,
-                                    border=ft.InputBorder.NONE,
-                                    expand=True,
-                                ),
-                            ],
-                            spacing=0,
-                        ),
-                        padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
-                        border_radius=8,
-                        expand=True,
-                    ),
-                ),
-            ],
+            length=3,
             expand=True,
+            content=ft.Column(
+                expand=True,
+                controls=[
+                    ft.TabBar(
+                        tabs=[
+                            ft.Tab(label="Body"),
+                            ft.Tab(label="Headers"),
+                            ft.Tab(label="cURL"),
+                        ],
+                    ),
+                    ft.TabBarView(
+                        expand=True,
+                        controls=[
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Row(
+                                            controls=[
+                                                ft.IconButton(
+                                                    icon=ft.Icons.COPY,
+                                                    tooltip="复制",
+                                                    on_click=self._copy_response_body,
+                                                    icon_size=20,
+                                                ),
+                                                ft.IconButton(
+                                                    icon=ft.Icons.AUTO_FIX_HIGH,
+                                                    tooltip="格式化",
+                                                    on_click=self._format_response_body,
+                                                    icon_size=20,
+                                                ),
+                                            ],
+                                            spacing=0,
+                                            alignment=ft.MainAxisAlignment.END,
+                                        ),
+                                        ft.TextField(
+                                            ref=self.response_body,
+                                            multiline=True,
+                                            read_only=True,
+                                            min_lines=15,
+                                            text_size=13,
+                                            border=ft.InputBorder.NONE,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=0,
+                                ),
+                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.TextField(
+                                    ref=self.response_headers,
+                                    multiline=True,
+                                    read_only=True,
+                                    min_lines=15,
+                                    text_size=13,
+                                    border=ft.InputBorder.NONE,
+                                    expand=True,
+                                ),
+                                padding=PADDING_SMALL,
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Row(
+                                            controls=[
+                                                ft.IconButton(
+                                                    icon=ft.Icons.COPY,
+                                                    tooltip="复制",
+                                                    on_click=self._copy_curl,
+                                                    icon_size=20,
+                                                ),
+                                            ],
+                                            spacing=0,
+                                            alignment=ft.MainAxisAlignment.END,
+                                        ),
+                                        ft.TextField(
+                                            ref=self.curl_command,
+                                            multiline=True,
+                                            read_only=True,
+                                            min_lines=15,
+                                            text_size=13,
+                                            border=ft.InputBorder.NONE,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=0,
+                                ),
+                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border_radius=8,
+                                expand=True,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
         )
         
         return ft.Column(
@@ -749,7 +770,7 @@ class HttpClientView(ft.Container):
         
         # 显示加载状态
         self.send_button.current.disabled = True
-        self.send_button.current.text = "发送中..."
+        self.send_button.current.content = "发送中..."
         self.loading_indicator.current.visible = True
         self.update()
         
@@ -767,7 +788,7 @@ class HttpClientView(ft.Container):
         
         # 隐藏加载状态
         self.send_button.current.disabled = False
-        self.send_button.current.text = "发送"
+        self.send_button.current.content = "发送"
         self.loading_indicator.current.visible = False
         
         if success:
@@ -872,14 +893,14 @@ class HttpClientView(ft.Container):
         """复制响应体。"""
         body = self.response_body.current.value
         if body:
-            self.page.set_clipboard(body)
+            self._page.set_clipboard(body)
             self._show_snack("响应体已复制")
     
     def _copy_curl(self, e):
         """复制 cURL 命令。"""
         curl = self.curl_command.current.value
         if curl:
-            self.page.set_clipboard(curl)
+            self._page.set_clipboard(curl)
             self._show_snack("cURL 命令已复制")
     
     def _show_help(self, e):
@@ -943,20 +964,20 @@ http://user:pass@proxy.com:8080
                 height=400,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

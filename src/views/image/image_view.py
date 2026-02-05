@@ -51,7 +51,7 @@ class ImageView(ft.Container):
             parent_container: 父容器（用于视图切换）
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self._saved_page: ft.Page = page  # 保存页面引用,防止布局重建后丢失
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
@@ -99,19 +99,19 @@ class ImageView(ft.Container):
     
     def _safe_page_update(self) -> None:
         """安全地更新页面,处理布局重建后页面引用丢失的情况。"""
-        page = getattr(self, '_saved_page', self.page)
+        page = getattr(self, '_saved_page', self._page)
         if page:
             page.update()
     
     def _hide_search_button(self) -> None:
         """隐藏主视图的搜索按钮。"""
-        if hasattr(self.page, '_main_view'):
-            self.page._main_view.hide_search_button()
+        if hasattr(self._page, '_main_view'):
+            self._page._main_view.hide_search_button()
     
     def _show_search_button(self) -> None:
         """显示主视图的搜索按钮。"""
-        if hasattr(self.page, '_main_view'):
-            self.page._main_view.show_search_button()
+        if hasattr(self._page, '_main_view'):
+            self._page._main_view.show_search_button()
     
     def _on_pin_change(self, tool_id: str, is_pinned: bool) -> None:
         """处理置顶状态变化。"""
@@ -123,15 +123,15 @@ class ImageView(ft.Container):
             self._show_snackbar("已取消置顶")
         
         # 刷新推荐视图
-        if hasattr(self.page, '_main_view') and self.page._main_view.recommendations_view:
-            self.page._main_view.recommendations_view.refresh()
+        if hasattr(self._page, '_main_view') and self._page._main_view.recommendations_view:
+            self._page._main_view.recommendations_view.refresh()
     
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""
         snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
         """创建带置顶功能的卡片。"""
@@ -409,7 +409,7 @@ class ImageView(ft.Container):
         row = int(local_y // self._card_step_y)
         
         # 根据实际窗口宽度计算每行卡片数
-        window_width = self.page.window.width or 1000
+        window_width = self._page.window.width or 1000
         content_width = window_width - nav_width - self._content_padding * 2
         cols_per_row = max(1, int(content_width // self._card_step_x))
         

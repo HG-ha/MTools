@@ -117,29 +117,13 @@ def main(page: ft.Page) -> None:
     # 设置浅色主题 - 使用用户选择的主题色或默认色
     page.theme = ft.Theme(
         color_scheme_seed=saved_theme_color,  # 使用用户设置的主题色
-        use_material3=True,
         font_family=saved_font,  # 使用保存的字体
-        # 页面和组件颜色配置
-        scaffold_bgcolor=BACKGROUND_COLOR,  # 浅灰背景
-        card_color=CARD_BACKGROUND,         # 白色卡片
-        # 导航栏主题 - 不设置固定背景色，使用容器的半透明背景
-        navigation_rail_theme=ft.NavigationRailTheme(
-            bgcolor=ft.Colors.TRANSPARENT,
-        ),
     )
     
     # 设置深色主题
     page.dark_theme = ft.Theme(
         color_scheme_seed=saved_theme_color,  # 使用用户设置的主题色
-        use_material3=True,
         font_family=saved_font,  # 使用保存的字体
-        # 深色模式颜色配置
-        scaffold_bgcolor=DARK_BACKGROUND_COLOR,  # 深色背景
-        card_color=DARK_CARD_BACKGROUND,        # 深色卡片
-        # 深色导航栏主题 - 不设置固定背景色，使用容器的半透明背景
-        navigation_rail_theme=ft.NavigationRailTheme(
-            bgcolor=ft.Colors.TRANSPARENT,
-        ),
     )
     
     # 应用用户设置的主题模式
@@ -326,16 +310,16 @@ def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, up
     
     # 创建按钮
     auto_update_btn = ft.ElevatedButton(
-        text="立即更新",
+        content="立即更新",
         icon=ft.Icons.SYSTEM_UPDATE,
     )
     
     skip_btn = ft.TextButton(
-        text="跳过此版本",
+        content="跳过此版本",
     )
     
     later_btn = ft.TextButton(
-        text="稍后提醒",
+        content="稍后提醒",
     )
     
     # 创建对话框
@@ -510,16 +494,16 @@ def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> Non
             def show_shortcut_dialog():
                 # 创建按钮
                 create_btn = ft.ElevatedButton(
-                    text="立即创建",
+                    content="立即创建",
                     icon=ft.Icons.ADD_TO_HOME_SCREEN,
                 )
                 
                 later_btn = ft.TextButton(
-                    text="稍后创建",
+                    content="稍后创建",
                 )
                 
                 never_btn = ft.TextButton(
-                    text="不再提示",
+                    content="不再提示",
                 )
                 
                 # 创建对话框
@@ -674,4 +658,4 @@ def _check_and_fix_auto_start(config_service: ConfigService) -> None:
 
 # 启动应用
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)

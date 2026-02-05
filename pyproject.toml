@@ -10,7 +10,7 @@ authors = [
 ]
 # Don't hard-code the version, to avoid flet compilation issues.
 dependencies = [
-  "flet==0.28.3",
+  "flet==0.80.0",
   "ffmpeg-python==0.2.0",
   "Pillow==12.0.0",
   "chardet==5.2.0",
@@ -36,6 +36,7 @@ dependencies = [
   "psutil==6.1.1", # 系统和进程工具（用于自动更新）
   "pywin32>=311 ; sys_platform == 'win32'", # Windows 专用
   "wmi>=1.5.1 ; sys_platform == 'win32'",
+  "flet-cli>=0.80.5",
 ]
 
 [tool.flet]
@@ -58,8 +59,8 @@ path = "src"
 
 [dependency-groups]
 dev = [
-    "flet[all]==0.28.3",
-    "flet-desktop==0.28.3",
+    "flet[all]==0.80.0",
+    "flet-desktop==0.80.0",
     "nuitka>=2.5.0",
 ]
 
@@ -67,4 +68,4 @@ dev = [
 package-mode = false
 
 [tool.poetry.group.dev.dependencies]
-flet = {extras = ["all"], version = "0.28.3"}
+flet = {extras = ["all"], version = "0.80.0"}

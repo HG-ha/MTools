@@ -57,7 +57,7 @@ class ImagePuzzleMergeView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -127,7 +127,7 @@ class ImagePuzzleMergeView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
@@ -219,7 +219,7 @@ class ImagePuzzleMergeView(ft.Container):
                 ft.dropdown.Option("custom", "自定义..."),
             ],
             width=120,
-            on_change=self._on_bg_color_change,
+            on_select=self._on_bg_color_change,
         )
         
         # RGB颜色输入
@@ -274,7 +274,7 @@ class ImagePuzzleMergeView(ft.Container):
         # 右侧：预览区域
         self.preview_image_widget: ft.Image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
         )
         
         self.preview_info_text: ft.Text = ft.Text(
@@ -289,11 +289,11 @@ class ImagePuzzleMergeView(ft.Container):
                 controls=[
                     ft.Container(
                         content=self.preview_info_text,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                     ft.Container(
                         content=self.preview_image_widget,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                 ],
             ),
@@ -329,7 +329,7 @@ class ImagePuzzleMergeView(ft.Container):
         )
         
         # 底部：按钮行（生成预览 + 保存结果）
-        self.preview_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.preview_button: ft.Button = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.PREVIEW, size=20),
@@ -344,7 +344,7 @@ class ImagePuzzleMergeView(ft.Container):
             ),
         )
         
-        self.save_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.save_button: ft.Button = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SAVE, size=20),
@@ -475,32 +475,27 @@ class ImagePuzzleMergeView(ft.Container):
         else:
             self._clear_preview()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件 - 支持实时预览。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                
-                # 如果启用了自动预览且已选择足够的文件，则自动更新预览
-                if self._auto_preview_enabled and len(self.selected_files) >= 2:
-                    self._schedule_auto_preview()
-                else:
-                    self._clear_preview()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "bmp", "webp", "tiff", "gif"],
             allow_multiple=True,
         )
+        
+        if result:
+            for file in result:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            
+            # 如果启用了自动预览且已选择足够的文件，则自动更新预览
+            if self._auto_preview_enabled and len(self.selected_files) >= 2:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -531,7 +526,7 @@ class ImagePuzzleMergeView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=332,  # 400(父容器高度) - 2*34(标题+提示区域高度) = 332
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_select_files,
                     tooltip="点击选择图片",
                 )
@@ -866,7 +861,7 @@ class ImagePuzzleMergeView(ft.Container):
         self.preview_info_text.visible = True
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1119,7 +1114,7 @@ class ImagePuzzleMergeView(ft.Container):
         self.save_button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1177,11 +1172,11 @@ class ImagePuzzleMergeView(ft.Container):
         self.save_button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_save_result(self, e: ft.ControlEvent) -> None:
+    async def _on_save_result(self, e: ft.ControlEvent) -> None:
         """保存结果。"""
         if not self.preview_image:
             self._show_snackbar("没有可保存的预览图片", ft.Colors.ORANGE)
@@ -1206,37 +1201,32 @@ class ImagePuzzleMergeView(ft.Container):
             else:
                 default_filename = f"{original_stem}_merge.png"
         
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    output_path = Path(result.path)
-                    
-                    # 确保有扩展名
-                    if not output_path.suffix:
-                        if is_gif_animation:
-                            output_path = output_path.with_suffix('.gif')
-                        else:
-                            output_path = output_path.with_suffix('.png')
-                    
-                    # 保存图片或GIF
-                    if is_gif_animation:
-                        # 保存为GIF动画 - 重新生成
-                        self._save_merged_gif(output_path)
-                    else:
-                        # 保存静态图片 - 重新生成
-                        self._save_merged_image(output_path)
-                except Exception as ex:
-                    self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.save_file(
+        result = await ft.FilePicker().save_file(
             dialog_title="保存合并结果",
             file_name=default_filename,
             allowed_extensions=allowed_extensions,
         )
+        
+        if result:
+            try:
+                output_path = Path(result)
+                
+                # 确保有扩展名
+                if not output_path.suffix:
+                    if is_gif_animation:
+                        output_path = output_path.with_suffix('.gif')
+                    else:
+                        output_path = output_path.with_suffix('.png')
+                
+                # 保存图片或GIF
+                if is_gif_animation:
+                    # 保存为GIF动画 - 重新生成
+                    self._save_merged_gif(output_path)
+                else:
+                    # 保存静态图片 - 重新生成
+                    self._save_merged_image(output_path)
+            except Exception as ex:
+                self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
     
     def _save_merged_image(self, output_path: Path) -> None:
         """保存合并后的静态图片 - 重新生成以确保使用最新参数。"""
@@ -1416,10 +1406,10 @@ class ImagePuzzleMergeView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1453,7 +1443,7 @@ class ImagePuzzleMergeView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("多图拼接工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

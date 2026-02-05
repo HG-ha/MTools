@@ -31,7 +31,7 @@ class CryptoToolView(ft.Container):
         on_back: Optional[Callable] = None
     ):
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -81,7 +81,7 @@ class CryptoToolView(ft.Container):
                     width=150,
                     options=[ft.dropdown.Option(c) for c in self.ALGORITHMS.keys()],
                     value="Hash (哈希)",
-                    on_change=self._on_category_change,
+                    on_select=self._on_category_change,
                 ),
                 ft.Dropdown(
                     ref=self.algorithm,
@@ -89,7 +89,7 @@ class CryptoToolView(ft.Container):
                     width=120,
                     options=[ft.dropdown.Option(a) for a in self.ALGORITHMS["Hash (哈希)"]],
                     value="MD5",
-                    on_change=self._on_algo_change,
+                    on_select=self._on_algo_change,
                 ),
                 ft.Dropdown(
                     ref=self.mode,
@@ -97,7 +97,7 @@ class CryptoToolView(ft.Container):
                     width=100,
                     options=[ft.dropdown.Option(m) for m in self.MODES],
                     value="ECB",
-                    on_change=self._on_mode_change,
+                    on_select=self._on_mode_change,
                     visible=False,
                 ),
                 ft.TextField(
@@ -118,17 +118,17 @@ class CryptoToolView(ft.Container):
                 ),
                 ft.Container(expand=True),
                 ft.ElevatedButton(
-                    text="加密/计算",
+                    content="加密/计算",
                     icon=ft.Icons.LOCK,
                     on_click=lambda _: self._process(True),
                 ),
                 ft.ElevatedButton(
-                    text="解密",
+                    content="解密",
                     icon=ft.Icons.LOCK_OPEN,
                     on_click=lambda _: self._process(False),
                 ),
                 ft.OutlinedButton(
-                    text="清空",
+                    content="清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._clear,
                 ),
@@ -391,7 +391,7 @@ class CryptoToolView(ft.Container):
 
     def _copy_text(self, text: str):
         if not text: return
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制")
         
     def _on_back_click(self):
@@ -446,19 +446,19 @@ class CryptoToolView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

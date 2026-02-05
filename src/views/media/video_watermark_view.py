@@ -47,7 +47,7 @@ class VideoWatermarkView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -87,18 +87,18 @@ class VideoWatermarkView(ft.Container):
                     ft.Row(
                         controls=[
                             ft.Text("选择视频文件", size=16, weight=ft.FontWeight.BOLD),
-                            ft.ElevatedButton(
-                                text="选择文件",
+                            ft.Button(
+                                content="选择文件",
                                 icon=ft.Icons.FILE_UPLOAD,
-                                on_click=self._on_select_files,
+                                on_click=lambda _: self._page.run_task(self._on_select_files),
                             ),
-                            ft.ElevatedButton(
-                                text="选择文件夹",
+                            ft.Button(
+                                content="选择文件夹",
                                 icon=ft.Icons.FOLDER_OPEN,
-                                on_click=self._on_select_folder,
+                                on_click=lambda _: self._page.run_task(self._on_select_folder),
                             ),
                             ft.TextButton(
-                                text="清空列表",
+                                content="清空列表",
                                 icon=ft.Icons.CLEAR_ALL,
                                 on_click=self._on_clear_files,
                             ),
@@ -183,7 +183,7 @@ class VideoWatermarkView(ft.Container):
                 ft.dropdown.Option("custom", "📁 自定义字体..."),
             ],
             value="msyh",
-            on_change=self._on_font_change,
+            on_select=self._on_font_change,
         )
         
         # 自定义字体文件路径
@@ -196,10 +196,10 @@ class VideoWatermarkView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        custom_font_button = ft.ElevatedButton(
-            text="选择字体文件",
+        custom_font_button = ft.Button(
+            content="选择字体文件",
             icon=ft.Icons.FONT_DOWNLOAD,
-            on_click=self._on_select_font_file,
+            on_click=lambda _: self._page.run_task(self._on_select_font_file),
             height=36,
         )
         
@@ -313,10 +313,10 @@ class VideoWatermarkView(ft.Container):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.ElevatedButton(
-                                text="选择水印图片",
+                            ft.Button(
+                                content="选择水印图片",
                                 icon=ft.Icons.IMAGE,
-                                on_click=self._on_select_watermark_image,
+                                on_click=lambda _: self._page.run_task(self._on_select_watermark_image),
                             ),
                             self.watermark_image_text,
                         ],
@@ -449,7 +449,7 @@ class VideoWatermarkView(ft.Container):
         self.browse_output_button = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="浏览",
-            on_click=self._on_browse_output,
+            on_click=lambda _: self._page.run_task(self._on_browse_output),
             disabled=True,
         )
         
@@ -489,7 +489,7 @@ class VideoWatermarkView(ft.Container):
         
         # 底部按钮 - 大号主按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.BRANDING_WATERMARK, size=24),
@@ -504,7 +504,7 @@ class VideoWatermarkView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=8),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -563,8 +563,8 @@ class VideoWatermarkView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 height=200,
-                alignment=ft.alignment.center,
-                on_click=lambda e: self._on_select_files(e),
+                alignment=ft.Alignment.CENTER,
+                on_click=lambda _: self._page.run_task(self._on_select_files),
                 ink=True,
                 tooltip="点击选择视频文件",
             )
@@ -597,23 +597,17 @@ class VideoWatermarkView(ft.Container):
         
         self.custom_font_container.update()
     
-    def _on_select_font_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_font_file(self) -> None:
         """选择字体文件按钮点击事件。"""
-        def on_file_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.custom_font_path = Path(result.files[0].path)
-                self.custom_font_text.value = self.custom_font_path.name
-                self.custom_font_text.update()
-        
-        file_picker = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择字体文件",
             allowed_extensions=["ttf", "ttc", "otf", "TTF", "TTC", "OTF"],
             allow_multiple=False,
         )
+        if files and len(files) > 0:
+            self.custom_font_path = Path(files[0].path)
+            self.custom_font_text.value = self.custom_font_path.name
+            self.custom_font_text.update()
     
     def _get_font_path(self) -> Optional[str]:
         """获取选择的字体文件路径。
@@ -707,65 +701,46 @@ class VideoWatermarkView(ft.Container):
         self.image_scale_slider.update()
         self.image_width_field.update()
     
-    def _on_select_watermark_image(self, e: ft.ControlEvent) -> None:
+    async def _on_select_watermark_image(self) -> None:
         """选择水印图片按钮点击事件。"""
-        def on_file_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.watermark_image_path = Path(result.files[0].path)
-                self.watermark_image_text.value = self.watermark_image_path.name
-                self.watermark_image_text.update()
-        
-        file_picker = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择水印图片",
             allowed_extensions=["png", "jpg", "jpeg", "gif", "PNG", "JPG", "JPEG", "GIF"],
             allow_multiple=False,
         )
+        if files and len(files) > 0:
+            self.watermark_image_path = Path(files[0].path)
+            self.watermark_image_text.value = self.watermark_image_path.name
+            self.watermark_image_text.update()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
-        def on_files_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                
-                self._update_file_list()
-        
-        file_picker = ft.FilePicker(on_result=on_files_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择视频",
             allowed_extensions=["mp4", "avi", "mkv", "mov", "wmv", "flv", "MP4", "AVI", "MKV", "MOV", "WMV", "FLV"],
             allow_multiple=True,
         )
+        if files and len(files) > 0:
+            new_files = [Path(f.path) for f in files]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                extensions = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv"]
-                for ext in extensions:
-                    for file_path in folder.glob(f"*{ext}"):
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                    for file_path in folder.glob(f"*{ext.upper()}"):
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择视频文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            extensions = [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv"]
+            for ext in extensions:
+                for file_path in folder.glob(f"*{ext}"):
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+                for file_path in folder.glob(f"*{ext.upper()}"):
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            self._update_file_list()
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式改变事件。"""
@@ -773,19 +748,14 @@ class VideoWatermarkView(ft.Container):
         self.file_suffix.disabled = mode != "new"
         self.custom_output_dir.disabled = mode != "custom"
         self.browse_output_button.disabled = mode != "custom"
-        self.page.update()
+        self._page.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -818,7 +788,7 @@ class VideoWatermarkView(ft.Container):
                                         color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 ft.Icon(ft.Icons.VIDEO_FILE, size=18, color=ft.Colors.PRIMARY),
                                 ft.Column(
@@ -1210,7 +1180,7 @@ class VideoWatermarkView(ft.Container):
         self.progress_text.visible = True
         self.progress_bar.visible = True
         self.process_button.disabled = True
-        self.page.update()
+        self._page.update()
         
         try:
             success_count = 0
@@ -1224,7 +1194,7 @@ class VideoWatermarkView(ft.Container):
                 # 更新进度
                 self.progress_text.value = f"正在添加水印: {file_path.name} ({idx + 1}/{total})"
                 self.progress_bar.value = idx / total
-                self.page.update()
+                self._page.update()
                 
                 try:
                     # 确定输出格式
@@ -1266,7 +1236,7 @@ class VideoWatermarkView(ft.Container):
             # 完成
             self.progress_text.value = "处理完成！"
             self.progress_bar.value = 1.0
-            self.page.update()
+            self._page.update()
             
             import time
             time.sleep(0.5)
@@ -1274,7 +1244,7 @@ class VideoWatermarkView(ft.Container):
             self.progress_text.visible = False
             self.progress_bar.visible = False
             self.process_button.disabled = False
-            self.page.update()
+            self._page.update()
             
             self._show_message(f"处理完成！成功处理 {success_count}/{total} 个文件", ft.Colors.GREEN)
         
@@ -1282,7 +1252,7 @@ class VideoWatermarkView(ft.Container):
             self.progress_text.visible = False
             self.progress_bar.visible = False
             self.process_button.disabled = False
-            self.page.update()
+            self._page.update()
             self._show_message(f"处理失败: {str(ex)}", ft.Colors.ERROR)
         
         finally:
@@ -1300,9 +1270,9 @@ class VideoWatermarkView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -1330,7 +1300,7 @@ class VideoWatermarkView(ft.Container):
             self._show_message(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
             self._show_message("视频水印不支持该格式", ft.Colors.ORANGE)
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

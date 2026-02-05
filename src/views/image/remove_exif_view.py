@@ -51,7 +51,7 @@ class ImageRemoveExifView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -108,14 +108,14 @@ class ImageRemoveExifView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        select_button = ft.ElevatedButton(
-            text="选择图片",
+        select_button = ft.Button(
+            content="选择图片",
             icon=ft.Icons.IMAGE_OUTLINED,
             on_click=self._on_select_files,
         )
         
         view_exif_button = ft.OutlinedButton(
-            text="查看EXIF",
+            content="查看EXIF",
             icon=ft.Icons.INFO_OUTLINE,
             on_click=self._on_view_exif,
             visible=False,
@@ -202,7 +202,7 @@ class ImageRemoveExifView(ft.Container):
         
         # 处理按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.DELETE_SWEEP, size=24),
@@ -217,7 +217,7 @@ class ImageRemoveExifView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示
@@ -275,35 +275,29 @@ class ImageRemoveExifView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_files_picked(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.selected_files = [Path(f.path) for f in result.files]
-                count = len(self.selected_files)
-                if count == 1:
-                    self.file_list_text.value = self.selected_files[0].name
-                    self.view_exif_button.visible = True
-                else:
-                    self.file_list_text.value = f"已选择 {count} 个文件"
-                    self.view_exif_button.visible = False
-                
-                self.file_list_text.update()
-                self.view_exif_button.update()
-                
-                # 隐藏EXIF信息区域
-                self.exif_info_section.visible = False
-                self.exif_info_section.update()
-        
-        file_picker = ft.FilePicker(on_result=on_files_picked)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片",
             allowed_extensions=["jpg", "jpeg", "png", "tiff", "tif"],
             allow_multiple=True,
         )
+        if result and len(result) > 0:
+            self.selected_files = [Path(f.path) for f in result]
+            count = len(self.selected_files)
+            if count == 1:
+                self.file_list_text.value = self.selected_files[0].name
+                self.view_exif_button.visible = True
+            else:
+                self.file_list_text.value = f"已选择 {count} 个文件"
+                self.view_exif_button.visible = False
+            
+            self.file_list_text.update()
+            self.view_exif_button.update()
+            
+            # 隐藏EXIF信息区域
+            self.exif_info_section.visible = False
+            self.exif_info_section.update()
     
     def _on_view_exif(self, e: ft.ControlEvent) -> None:
         """查看EXIF按钮点击事件。"""
@@ -358,7 +352,7 @@ class ImageRemoveExifView(ft.Container):
         self.progress_bar.visible = True
         self.progress_text.value = "准备处理..."
         self.progress_bar.value = 0
-        self.page.update()
+        self._page.update()
         
         try:
             success_count = 0
@@ -371,7 +365,7 @@ class ImageRemoveExifView(ft.Container):
                 # 更新进度
                 self.progress_text.value = f"正在删除EXIF: {file_path.name} ({idx + 1}/{total})"
                 self.progress_bar.value = idx / total
-                self.page.update()
+                self._page.update()
                 
                 try:
                     # 读取图片（不包含EXIF）
@@ -404,7 +398,7 @@ class ImageRemoveExifView(ft.Container):
             # 完成进度显示
             self.progress_text.value = "处理完成！"
             self.progress_bar.value = 1.0
-            self.page.update()
+            self._page.update()
             
             # 延迟隐藏进度条，让用户看到完成状态
             import time
@@ -412,14 +406,14 @@ class ImageRemoveExifView(ft.Container):
             
             self.progress_text.visible = False
             self.progress_bar.visible = False
-            self.page.update()
+            self._page.update()
             
             self._show_message(f"处理完成！成功处理 {success_count}/{total} 个文件", ft.Colors.GREEN)
         
         except Exception as ex:
             self.progress_text.visible = False
             self.progress_bar.visible = False
-            self.page.update()
+            self._page.update()
             self._show_message(f"处理失败: {str(ex)}", ft.Colors.ERROR)
     
     def _show_message(self, message: str, color: str) -> None:
@@ -434,9 +428,9 @@ class ImageRemoveExifView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -473,7 +467,7 @@ class ImageRemoveExifView(ft.Container):
         elif skipped_count > 0:
             self._show_message("去除EXIF工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

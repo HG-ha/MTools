@@ -44,7 +44,7 @@ class FFmpegInstallView(ft.Container):
             tool_name: 工具名称（用于提示信息）
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_installed: Optional[Callable] = on_installed
         self.on_back: Optional[Callable] = on_back
@@ -132,7 +132,7 @@ class FFmpegInstallView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 组装视图（与 VideoCompressView 结构一致）
@@ -174,7 +174,7 @@ class FFmpegInstallView(ft.Container):
         self.download_progress_text.value = "准备下载..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -185,7 +185,7 @@ class FFmpegInstallView(ft.Container):
                 self.download_progress_bar.value = progress
                 self.download_progress_text.value = message
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
             
@@ -210,7 +210,7 @@ class FFmpegInstallView(ft.Container):
                 self._show_snackbar(f"安装失败: {message}", ft.Colors.RED)
                 
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
         
@@ -228,10 +228,10 @@ class FFmpegInstallView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
 

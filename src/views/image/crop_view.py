@@ -65,7 +65,7 @@ class ImageCropView(ft.Container):
     ) -> None:
         """初始化图片裁剪视图。"""
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable[[], None]] = on_back
@@ -137,10 +137,10 @@ class ImageCropView(ft.Container):
         self._build_ui()
 
         # 注册键盘事件（仅当 page 可用时）
-        if self.page:
-            self.page.on_keyboard_event = self._on_keyboard
+        if self._page:
+            self._page.on_keyboard_event = self._on_keyboard
             # 注册窗口大小变化事件
-            self.page.on_resize = self._on_window_resize
+            self._page.on_resize = self._on_window_resize
 
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -214,7 +214,7 @@ class ImageCropView(ft.Container):
                         height=80,
                         border_radius=40,
                         bgcolor=ft.Colors.with_opacity(0.08, primary_color),
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                     ft.Text(
                         "点击或拖拽图片到这里",
@@ -231,7 +231,7 @@ class ImageCropView(ft.Container):
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=PADDING_SMALL,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
             border=ft.border.all(2, ft.Colors.with_opacity(0.2, primary_color)),
             border_radius=BORDER_RADIUS_MEDIUM,
@@ -239,7 +239,7 @@ class ImageCropView(ft.Container):
 
         # 原图显示（居中保持比例，占满整个 Stack）
         self.original_image_widget: ft.Image = ft.Image(
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             visible=False,
             width=self.canvas_width,
             height=self.canvas_height,
@@ -408,7 +408,7 @@ class ImageCropView(ft.Container):
             content=self.canvas_with_rulers,
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             padding=PADDING_LARGE,  # 添加内边距让图片居中显示
         )
 
@@ -434,7 +434,7 @@ class ImageCropView(ft.Container):
 
         # 右侧预览区域
         self.preview_image_widget: ft.Image = ft.Image(
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             visible=False,
         )
 
@@ -518,7 +518,7 @@ class ImageCropView(ft.Container):
 
         # 操作按钮 - 使用统一的填充按钮样式
         self.save_button = ft.FilledButton(
-            text="导出裁剪结果",
+            content="导出裁剪结果",
             icon=ft.Icons.SAVE_ALT,
             on_click=self._on_save_result,
             disabled=True,
@@ -690,17 +690,17 @@ class ImageCropView(ft.Container):
                             controls=[
                                 ft.Container(
                                     content=self.preview_info_text,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 ft.Container(
                                     content=self.preview_image_widget,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                             ],
                         ),
                         border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=BORDER_RADIUS_SMALL,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         height=200,
                         on_click=self._on_preview_click,
                         tooltip="点击用系统默认应用打开",
@@ -766,10 +766,10 @@ class ImageCropView(ft.Container):
         """根据当前主题返回主颜色。"""
         try:
             theme = None
-            if self.page.theme_mode == ft.ThemeMode.DARK and self.page.dark_theme:
-                theme = self.page.dark_theme
-            elif self.page.theme:
-                theme = self.page.theme
+            if self._page.theme_mode == ft.ThemeMode.DARK and self._page.dark_theme:
+                theme = self._page.dark_theme
+            elif self._page.theme:
+                theme = self._page.theme
 
             if theme and getattr(theme, "color_scheme_seed", None):
                 return theme.color_scheme_seed
@@ -790,20 +790,20 @@ class ImageCropView(ft.Container):
         """组件挂载时调用 - 确保主题色正确。"""
         self._update_theme_colors()
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
 
     def _update_max_canvas_constraints(self) -> None:
         """根据窗口大小更新画布的最大宽高限制。"""
         # 保护检查：确保 page 不为 None
-        if not self.page:
+        if not self._page:
             # 如果 page 为 None，使用默认值
             window_width = WINDOW_WIDTH
             window_height = WINDOW_HEIGHT
         else:
-            window_width: int = int(self.page.width or WINDOW_WIDTH)
-            window_height: int = int(self.page.height or WINDOW_HEIGHT)
+            window_width: int = int(self._page.width or WINDOW_WIDTH)
+            window_height: int = int(self._page.height or WINDOW_HEIGHT)
 
         # 左侧区域大约占比 62%，减去外边距和安全余量
         available_width: int = int(window_width * 0.62)
@@ -889,25 +889,13 @@ class ImageCropView(ft.Container):
                     spacing=8,
                 ),
                 height=80,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             )
         )
 
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=[
                 "jpg",
@@ -922,34 +910,36 @@ class ImageCropView(ft.Container):
             ],
             allow_multiple=True,
         )
+        
+        if result:
+            new_files = [Path(f.path) for f in result]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
 
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。"""
-
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                extensions = [
-                    ".jpg",
-                    ".jpeg",
-                    ".jfif",
-                    ".png",
-                    ".webp",
-                    ".bmp",
-                    ".gif",
-                    ".tiff",
-                    ".tif",
-                ]
-                self.selected_files = []
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"*{ext}"))
-                    self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
-                self._update_file_list()
-
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择图片文件夹")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择图片文件夹")
+        
+        if result:
+            folder = Path(result)
+            extensions = [
+                ".jpg",
+                ".jpeg",
+                ".jfif",
+                ".png",
+                ".webp",
+                ".bmp",
+                ".gif",
+                ".tiff",
+                ".tif",
+            ]
+            self.selected_files = []
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"*{ext}"))
+                self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
+            self._update_file_list()
 
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -1082,7 +1072,7 @@ class ImageCropView(ft.Container):
             self._update_preview()
 
             self.save_button.disabled = False
-            self.page.update()
+            self._page.update()
 
     def _on_remove_file(self, index: int) -> None:
         """移除单个文件。"""
@@ -1131,7 +1121,7 @@ class ImageCropView(ft.Container):
         elif skipped_count > 0:
             self._show_message("图片裁剪工具不支持该格式", ft.Colors.ORANGE)
 
-        self.page.update()
+        self._page.update()
 
     # ==================== 输出选项相关方法 ====================
 
@@ -1146,18 +1136,13 @@ class ImageCropView(ft.Container):
         self.suffix_row.update()
         self.output_dir_row.update()
 
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        
+        if result:
+            self.custom_output_dir.value = result
+            self.custom_output_dir.update()
 
     # ==================== 消息提示 ====================
 
@@ -1168,33 +1153,28 @@ class ImageCropView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
 
-    def _on_canvas_click(self, e: ft.ControlEvent) -> None:
+    async def _on_canvas_click(self, e: ft.ControlEvent) -> None:
         """点击裁剪区域，如果未选择图片则打开选择文件对话框。"""
         if not self.selected_file:
-            self._on_select_file(e)
+            await self._on_select_file(e)
 
-    def _on_select_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件。"""
-        file_picker = ft.FilePicker(on_result=self._on_file_selected)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "bmp", "webp", "gif"],
             allow_multiple=False,
         )
-
-    def _on_file_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择完成。"""
-        if not e.files:
+        
+        if not result:
             return
 
         try:
-            file_path = Path(e.files[0].path)
+            file_path = Path(result[0].path)
             self.selected_file = file_path
 
             # 检测是否为动态 GIF
@@ -1255,7 +1235,7 @@ class ImageCropView(ft.Container):
             self._update_preview()
 
             self.save_button.disabled = False
-            self.page.update()
+            self._page.update()
 
         except Exception as ex:
             logger.error(f"加载失败: {ex}")
@@ -1298,7 +1278,7 @@ class ImageCropView(ft.Container):
         # 只有距离上次更新超过节流间隔才真正刷新UI
         if current_time - self._last_update_time >= throttle_interval:
             try:
-                self.page.update()
+                self._page.update()
                 self._last_update_time = current_time
             except:
                 pass
@@ -1403,7 +1383,7 @@ class ImageCropView(ft.Container):
         # 只在非拖动时更新页面
         if not skip_update:
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
 
@@ -1694,7 +1674,7 @@ class ImageCropView(ft.Container):
             self.preview_info_text.visible = False
 
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
 
@@ -1740,7 +1720,7 @@ class ImageCropView(ft.Container):
         self._update_crop_box_position()
         self._update_preview()
 
-    def _on_save_result(self, e: ft.ControlEvent) -> None:
+    async def _on_save_result(self, e: ft.ControlEvent) -> None:
         """保存。"""
         if not self.original_image or not self.selected_file:
             return
@@ -1760,24 +1740,16 @@ class ImageCropView(ft.Container):
                 default_filename = f"{self.selected_file.stem}_cropped.png"
                 allowed_extensions = ["png", "jpg", "jpeg", "jfif", "webp"]
 
-            file_picker = ft.FilePicker(on_result=self._on_save_file_selected)
-            self.page.overlay.append(file_picker)
-            self.page.update()
-            file_picker.save_file(
+            result = await ft.FilePicker().save_file(
                 dialog_title="保存裁剪结果",
                 file_name=default_filename,
                 allowed_extensions=allowed_extensions,
             )
-        except Exception as ex:
-            logger.error(f"保存失败: {ex}")
+            
+            if not result:
+                return
 
-    def _on_save_file_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """保存文件选择完成。"""
-        if not e.path:
-            return
-
-        try:
-            output_path = Path(e.path)
+            output_path = Path(result)
 
             # 如果是 GIF 且选择导出所有帧
             if self.is_animated_gif and self.gif_export_mode.value == "all_frames":
@@ -1800,9 +1772,9 @@ class ImageCropView(ft.Container):
                 bgcolor=ft.Colors.GREEN,
                 duration=2000,
             )
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-            self.page.update()
+            self._page.update()
         except Exception as ex:
             logger.error(f"保存失败: {ex}")
             self._show_snackbar(f"保存失败: {str(ex)}", ft.Colors.RED)
@@ -2106,11 +2078,11 @@ class ImageCropView(ft.Container):
                     f"帧号必须在 1 到 {self.gif_frame_count} 之间", ft.Colors.ORANGE
                 )
                 self.gif_frame_input.value = str(self.current_frame_index + 1)
-                self.page.update()
+                self._page.update()
         except ValueError:
             self._show_snackbar("请输入有效的数字", ft.Colors.ORANGE)
             self.gif_frame_input.value = str(self.current_frame_index + 1)
-            self.page.update()
+            self._page.update()
 
     def _load_gif_frame(self) -> None:
         """加载指定帧。"""
@@ -2140,7 +2112,7 @@ class ImageCropView(ft.Container):
             self._update_crop_box_position()
             self._update_preview()
 
-            self.page.update()
+            self._page.update()
         except Exception as ex:
             logger.error(f"加载帧失败: {ex}")
 
@@ -2201,11 +2173,11 @@ class ImageCropView(ft.Container):
             else:
                 # 超出范围，恢复为当前值
                 self.fine_tune_input.value = str(self.fine_tune_step)
-                self.page.update()
+                self._page.update()
         except ValueError:
             # 输入非数字，恢复为当前值
             self.fine_tune_input.value = str(self.fine_tune_step)
-            self.page.update()
+            self._page.update()
 
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。"""
@@ -2214,10 +2186,10 @@ class ImageCropView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
 
@@ -2237,7 +2209,7 @@ class ImageCropView(ft.Container):
             if self.original_image:
                 self._update_crop_box_position()
 
-            self.page.update()
+            self._page.update()
         except Exception:
             # 静默处理，避免影响用户体验
             pass

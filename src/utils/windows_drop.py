@@ -253,7 +253,7 @@ class WindowsDropHandler:
             enable_delay: 自动启用的延迟秒数（默认 1.5 秒）
             include_position: 是否在回调中包含鼠标位置信息（默认 False）
         """
-        self.page = page
+        self._page = page
         self.on_drop = on_drop
         self.enabled = False
         self._overlay_hwnd = None
@@ -298,7 +298,7 @@ class WindowsDropHandler:
             return True
         
         # 查找 Flet 窗口
-        hwnd = user32.FindWindowW(None, self.page.title)
+        hwnd = user32.FindWindowW(None, self._page.title)
         if not hwnd:
             return False
         

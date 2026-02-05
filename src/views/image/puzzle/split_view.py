@@ -57,7 +57,7 @@ class ImagePuzzleSplitView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -127,7 +127,7 @@ class ImagePuzzleSplitView(ft.Container):
                 ft.dropdown.Option("individual", "导出每个切块"),
             ],
             width=160,
-            on_change=self._on_output_mode_change,
+            on_select=self._on_output_mode_change,
             tooltip="选择是输出拼接后的单张图片，还是导出所有切块为单独文件",
         )
         
@@ -147,7 +147,7 @@ class ImagePuzzleSplitView(ft.Container):
         # 原图预览
         self.original_image_widget: ft.Image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
         )
         
         file_select_area: ft.Column = ft.Column(
@@ -155,7 +155,7 @@ class ImagePuzzleSplitView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("原图预览:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_file,
@@ -190,11 +190,11 @@ class ImagePuzzleSplitView(ft.Container):
                         controls=[
                             ft.Container(
                                 content=self.empty_state_widget,
-                                alignment=ft.alignment.center,
+                                alignment=ft.Alignment.CENTER,
                             ),
                             ft.Container(
                                 content=self.original_image_widget,
-                                alignment=ft.alignment.center,
+                                alignment=ft.Alignment.CENTER,
                             ),
                         ],
                     ),
@@ -341,11 +341,11 @@ class ImagePuzzleSplitView(ft.Container):
                 ft.dropdown.Option("image", "选择图片"),
             ],
             width=100,
-            on_change=self._on_bg_color_change,
+            on_select=self._on_bg_color_change,
         )
         
         # 背景图片选择按钮
-        self.bg_image_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.bg_image_button: ft.Button = ft.Button(
             "选择图片",
             icon=ft.Icons.IMAGE,
             on_click=self._on_select_bg_image,
@@ -427,13 +427,13 @@ class ImagePuzzleSplitView(ft.Container):
         # 右侧：预览区域（可点击查看）
         self.preview_image_widget: ft.Image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
         )
         
         # 原图显示区域 - 使用Container居中
         self.original_image_container: ft.Container = ft.Container(
             content=self.original_image_widget,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
         )
         
@@ -449,11 +449,11 @@ class ImagePuzzleSplitView(ft.Container):
             controls=[
                 ft.Container(
                     content=self.preview_info_text,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 ),
                 ft.Container(
                     content=self.preview_image_widget,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 ),
             ],
         )
@@ -499,7 +499,7 @@ class ImagePuzzleSplitView(ft.Container):
         )
         
         # 底部：按钮行（生成预览 + 保存结果）
-        self.preview_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.preview_button: ft.Button = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.PREVIEW, size=20),
@@ -514,7 +514,7 @@ class ImagePuzzleSplitView(ft.Container):
             ),
         )
         
-        self.save_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.save_button: ft.Button = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SAVE, size=20),
@@ -706,64 +706,52 @@ class ImagePuzzleSplitView(ft.Container):
         else:
             self._clear_preview()
     
-    def _on_select_bg_image(self, e: ft.ControlEvent) -> None:
+    async def _on_select_bg_image(self, e: ft.ControlEvent) -> None:
         """选择背景图片按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.bg_image_path = Path(result.files[0].path)
-                self.bg_image_button.text = f"背景: {self.bg_image_path.name[:15]}..."
-                try:
-                    self.bg_image_button.update()
-                except:
-                    pass
-                
-                # 触发实时预览
-                if self._auto_preview_enabled and self.selected_file:
-                    self._schedule_auto_preview()
-                else:
-                    self._clear_preview()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择背景图片",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "bmp", "webp", "tiff", "gif"],
             allow_multiple=False,
         )
+        if result and len(result) > 0:
+            self.bg_image_path = Path(result[0].path)
+            self.bg_image_button.text = f"背景: {self.bg_image_path.name[:15]}..."
+            try:
+                self.bg_image_button.update()
+            except:
+                pass
+            
+            # 触发实时预览
+            if self._auto_preview_enabled and self.selected_file:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     
-    def _on_select_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                self.selected_file = Path(result.files[0].path)
-                self._update_file_info()
-                
-                # 更新保存按钮状态（单独导出模式下选择文件后即可保存）
-                if self.output_mode.value == "individual":
-                    self.save_button.disabled = False
-                    try:
-                        self.save_button.update()
-                    except:
-                        pass
-                
-                # 选择文件后自动生成首次预览
-                if self._auto_preview_enabled:
-                    self._schedule_auto_preview()
-                else:
-                    self._clear_preview()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "bmp", "webp", "tiff", "gif"],
             allow_multiple=False,
         )
+        if result and len(result) > 0:
+            self.selected_file = Path(result[0].path)
+            self._update_file_info()
+            
+            # 更新保存按钮状态（单独导出模式下选择文件后即可保存）
+            if self.output_mode.value == "individual":
+                self.save_button.disabled = False
+                try:
+                    self.save_button.update()
+                except:
+                    pass
+            
+            # 选择文件后自动生成首次预览
+            if self._auto_preview_enabled:
+                self._schedule_auto_preview()
+            else:
+                self._clear_preview()
     
     def _update_file_info(self) -> None:
         """更新文件信息显示（包括原图预览）。"""
@@ -939,7 +927,7 @@ class ImagePuzzleSplitView(ft.Container):
         self.preview_info_text.visible = True
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1348,7 +1336,7 @@ class ImagePuzzleSplitView(ft.Container):
         self.save_button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1443,11 +1431,11 @@ class ImagePuzzleSplitView(ft.Container):
         self.save_button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_save_result(self, e: ft.ControlEvent) -> None:
+    async def _on_save_result(self, e: ft.ControlEvent) -> None:
         """保存结果。"""
         if not self.selected_file:
             self._show_snackbar("请先选择图片", ft.Colors.ORANGE)
@@ -1458,7 +1446,7 @@ class ImagePuzzleSplitView(ft.Container):
         
         if is_individual_mode:
             # 单独导出每个切块
-            self._save_individual_pieces()
+            await self._save_individual_pieces()
             return
         
         # 拼接模式：需要预览图
@@ -1497,41 +1485,36 @@ class ImagePuzzleSplitView(ft.Container):
             elif has_transparency:
                 allowed_extensions = ["png"]
         
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    output_path = Path(result.path)
-                    
-                    # 确保有扩展名
-                    if not output_path.suffix:
-                        if save_as_gif:
-                            output_path = output_path.with_suffix('.gif')
-                        else:
-                            output_path = output_path.with_suffix('.png')
-                    
-                    # 如果使用了透明度，强制使用 PNG 格式
-                    if not save_as_gif and has_transparency and output_path.suffix.lower() in ['.jpg', '.jpeg']:
-                        output_path = output_path.with_suffix('.png')
-                        self._show_snackbar("检测到透明度效果，已自动转换为 PNG 格式", ft.Colors.BLUE)
-                    
-                    if save_as_gif:
-                        # 保存为动态 GIF
-                        self._save_as_gif(output_path)
-                    else:
-                        # 保存为静态图片 - 重新生成以确保使用最新参数
-                        self._save_static_image(output_path)
-                except Exception as ex:
-                    self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.save_file(
+        result_path = await ft.FilePicker().save_file(
             dialog_title="保存切分结果",
             file_name=default_filename,
             allowed_extensions=allowed_extensions,
         )
+        
+        if result_path:
+            try:
+                output_path = Path(result_path)
+                
+                # 确保有扩展名
+                if not output_path.suffix:
+                    if save_as_gif:
+                        output_path = output_path.with_suffix('.gif')
+                    else:
+                        output_path = output_path.with_suffix('.png')
+                
+                # 如果使用了透明度，强制使用 PNG 格式
+                if not save_as_gif and has_transparency and output_path.suffix.lower() in ['.jpg', '.jpeg']:
+                    output_path = output_path.with_suffix('.png')
+                    self._show_snackbar("检测到透明度效果，已自动转换为 PNG 格式", ft.Colors.BLUE)
+                
+                if save_as_gif:
+                    # 保存为动态 GIF
+                    self._save_as_gif(output_path)
+                else:
+                    # 保存为静态图片 - 重新生成以确保使用最新参数
+                    self._save_static_image(output_path)
+            except Exception as ex:
+                self._show_snackbar(f"保存失败: {ex}", ft.Colors.RED)
     
     def _save_static_image(self, output_path: Path) -> None:
         """保存静态图片 - 重新生成以确保使用最新参数。"""
@@ -1600,47 +1583,42 @@ class ImagePuzzleSplitView(ft.Container):
         except Exception as e:
             self._show_snackbar(f"保存失败: {e}", ft.Colors.RED)
     
-    def _save_individual_pieces(self) -> None:
+    async def _save_individual_pieces(self) -> None:
         """将所有切块导出为单独的文件。"""
         if not self.selected_file:
             return
         
         # 选择输出目录
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    output_dir = Path(result.path)
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    # 获取切分参数
-                    rows = int(self.split_rows.value or 3)
-                    cols = int(self.split_cols.value or 3)
-                    shuffle = self.split_shuffle.value
-                    corner_radius = int(self.corner_radius_input.value or 0)
-                    
-                    # 获取透明度值
-                    piece_opacity = int(self.piece_opacity_input.value or 100)
-                    piece_opacity = max(0, min(100, piece_opacity))
-                    piece_opacity = int(piece_opacity * 255 / 100)
-                    
-                    # 检查是否需要处理 GIF 动画
-                    process_gif = self.is_animated_gif and self.keep_gif_animation.value
-                    
-                    if process_gif:
-                        self._export_gif_pieces(output_dir, rows, cols, shuffle, corner_radius, piece_opacity)
-                    else:
-                        self._export_static_pieces(output_dir, rows, cols, shuffle, corner_radius, piece_opacity)
-                    
-                except Exception as ex:
-                    self._show_snackbar(f"导出失败: {ex}", ft.Colors.RED)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.get_directory_path(
+        result_path = await ft.FilePicker().get_directory_path(
             dialog_title="选择导出目录",
         )
+        
+        if result_path:
+            try:
+                output_dir = Path(result_path)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 获取切分参数
+                rows = int(self.split_rows.value or 3)
+                cols = int(self.split_cols.value or 3)
+                shuffle = self.split_shuffle.value
+                corner_radius = int(self.corner_radius_input.value or 0)
+                
+                # 获取透明度值
+                piece_opacity = int(self.piece_opacity_input.value or 100)
+                piece_opacity = max(0, min(100, piece_opacity))
+                piece_opacity = int(piece_opacity * 255 / 100)
+                
+                # 检查是否需要处理 GIF 动画
+                process_gif = self.is_animated_gif and self.keep_gif_animation.value
+                
+                if process_gif:
+                    self._export_gif_pieces(output_dir, rows, cols, shuffle, corner_radius, piece_opacity)
+                else:
+                    self._export_static_pieces(output_dir, rows, cols, shuffle, corner_radius, piece_opacity)
+                
+            except Exception as ex:
+                self._show_snackbar(f"导出失败: {ex}", ft.Colors.RED)
     
     def _export_static_pieces(
         self,
@@ -2132,10 +2110,10 @@ class ImagePuzzleSplitView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2156,7 +2134,7 @@ class ImagePuzzleSplitView(ft.Container):
                 self.selected_file = path
                 self._update_file_info()
                 self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
-                self.page.update()
+                self._page.update()
                 return
         
         self._show_snackbar("单图切分工具不支持该格式", ft.Colors.ORANGE)

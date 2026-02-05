@@ -53,7 +53,7 @@ class ImageResizeView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[callable] = on_back
@@ -100,13 +100,13 @@ class ImageResizeView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
-                            "选择文件",
+                        ft.Button(
+                            content="选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
-                            "选择文件夹",
+                        ft.Button(
+                            content="选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
                         ),
@@ -304,7 +304,7 @@ class ImageResizeView(ft.Container):
         
         # 底部按钮 - 大号主按钮
         self.resize_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.PHOTO_SIZE_SELECT_LARGE, size=24),
@@ -319,7 +319,7 @@ class ImageResizeView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 进度显示
@@ -377,7 +377,7 @@ class ImageResizeView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 height=232,  # 280 - 2*24(padding) = 232
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_empty_area_click,
                 ink=True,
             )
@@ -458,46 +458,48 @@ class ImageResizeView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files(e)
+        await self._on_select_files(e)
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                # 追加新文件
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "webp", "bmp", "gif", "tiff", "tif", "ico", "avif", "heic", "heif"],
             allow_multiple=True,
         )
+        if files:
+            # 追加新文件，过滤掉 path 为 None 的文件（Web 模式下 path 为 None）
+            new_files = []
+            web_mode_count = 0
+            for f in files:
+                if f.path:
+                    new_files.append(Path(f.path))
+                else:
+                    web_mode_count += 1
+            
+            # 如果所有文件都没有路径（Web 模式），显示提示
+            if web_mode_count > 0 and not new_files:
+                self._show_message("Web 模式不支持本地文件处理，请使用桌面客户端", ft.Colors.ORANGE)
+                return
+            
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder = Path(result.path)
-                extensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico", ".avif", ".heic", ".heif"]
-                self.selected_files = []
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"*{ext}"))
-                    self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择图片文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择图片文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            extensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico", ".avif", ".heic", ".heif"]
+            self.selected_files = []
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"*{ext}"))
+                self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
+            self._update_file_list()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -523,7 +525,7 @@ class ImageResizeView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=232,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_empty_area_click,
                     ink=True,
                 )
@@ -566,7 +568,7 @@ class ImageResizeView(ft.Container):
                                         color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 # 文件图标
                                 ft.Icon(ft.Icons.IMAGE, size=20, color=ft.Colors.PRIMARY),
@@ -691,17 +693,12 @@ class ImageResizeView(ft.Container):
         
         self.output_options.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self.custom_output_dir.update()
     
     def _on_resize(self, e: ft.ControlEvent) -> None:
         """开始调整按钮点击事件。"""
@@ -856,7 +853,7 @@ class ImageResizeView(ft.Container):
         elif skipped_count > 0:
             self._show_message("尺寸调整工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def _show_message(self, message: str, color: str) -> None:
         """显示消息提示。"""
@@ -865,9 +862,9 @@ class ImageResizeView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

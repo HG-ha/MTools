@@ -61,7 +61,7 @@ class VideoSubtitleView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -170,7 +170,7 @@ class VideoSubtitleView(ft.Container):
         if not is_ffmpeg_available:
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="视频配字幕"
@@ -198,20 +198,15 @@ class VideoSubtitleView(ft.Container):
         
         self._init_empty_state()
         
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=lambda _: self._page.run_task(self._on_select_files),
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -290,13 +285,13 @@ class VideoSubtitleView(ft.Container):
             size=13,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
-        self.model_download_btn = ft.ElevatedButton(
+        self.model_download_btn = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             visible=False,
             on_click=self._on_download_model,
         )
-        self.model_load_btn = ft.ElevatedButton(
+        self.model_load_btn = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             visible=False,
@@ -695,11 +690,6 @@ class VideoSubtitleView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
-        # 字体文件选择器
-        self.font_file_picker = ft.FilePicker(
-            on_result=self._on_font_file_picked
-        )
-        self.page.overlay.append(self.font_file_picker)
         
         # 字体大小
         self.font_size_field = ft.TextField(
@@ -822,7 +812,7 @@ class VideoSubtitleView(ft.Container):
                 self.font_preview,
             ], spacing=PADDING_SMALL, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         subtitle_style_area = ft.Container(
@@ -960,13 +950,8 @@ class VideoSubtitleView(ft.Container):
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="选择目录",
             disabled=True,
-            on_click=lambda _: self._select_output_dir(),
+            on_click=lambda _: self._page.run_task(self._select_output_dir),
         )
-        
-        self.output_dir_picker = ft.FilePicker(
-            on_result=self._on_output_dir_selected
-        )
-        self.page.overlay.append(self.output_dir_picker)
         
         # 输出选项
         self.export_subtitle_checkbox = ft.Checkbox(
@@ -1044,7 +1029,7 @@ class VideoSubtitleView(ft.Container):
         
         # 开始处理按钮
         self.process_btn: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.SUBTITLES, size=24),
@@ -1060,7 +1045,7 @@ class VideoSubtitleView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -1134,7 +1119,7 @@ class VideoSubtitleView(ft.Container):
                     spacing=PADDING_SMALL // 2,
                 ),
                 height=118,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=lambda _: self._on_select_files(),
                 ink=True,
             )
@@ -1160,18 +1145,15 @@ class VideoSubtitleView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_select_files(self) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件。"""
-        self.file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=["mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "m4v"],
             allow_multiple=True,
         )
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择结果处理。"""
-        if e.files:
-            for f in e.files:
+        if files:
+            for f in files:
                 file_path = Path(f.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
@@ -1284,7 +1266,7 @@ class VideoSubtitleView(ft.Container):
             )
             self.file_list_view.controls.insert(0, warning)
         
-        self.page.update()
+        self._page.update()
     
     def _preview_subtitle_effect(self, file_path: Path) -> None:
         """预览字幕效果。
@@ -1497,8 +1479,8 @@ class VideoSubtitleView(ft.Container):
                            font_scale, font_color_bgr_tuple, 2, cv2.LINE_AA)
             
             # 获取页面尺寸，计算最大预览尺寸（留出边距）
-            page_width = self.page.width or 1200
-            page_height = self.page.height or 800
+            page_width = self._page.width or 1200
+            page_height = self._page.height or 800
             max_preview_width = int(page_width - 100)
             max_preview_height = int(page_height - 200)
             
@@ -1534,11 +1516,11 @@ class VideoSubtitleView(ft.Container):
                         ft.Container(
                             content=ft.Image(
                                 src_base64=img_base64,
-                                fit=ft.ImageFit.CONTAIN,
+                                fit=ft.BoxFit.CONTAIN,
                                 width=new_width,
                                 height=new_height,
                             ),
-                            alignment=ft.alignment.center,
+                            alignment=ft.Alignment.CENTER,
                         ),
                         ft.Container(height=PADDING_SMALL),
                         ft.Row([
@@ -1562,9 +1544,9 @@ class VideoSubtitleView(ft.Container):
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
             )
             
-            self.page.overlay.append(preview_dialog)
+            self._page.overlay.append(preview_dialog)
             preview_dialog.open = True
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             logger.error(f"预览字幕效果失败: {ex}", exc_info=True)
@@ -1573,7 +1555,7 @@ class VideoSubtitleView(ft.Container):
     def _close_preview_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭预览对话框。"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
     
     def _get_video_settings(self, file_path: Path) -> Dict[str, Any]:
         """获取视频的字幕设置（如果有自定义设置则使用，否则使用全局设置）。"""
@@ -1632,8 +1614,8 @@ class VideoSubtitleView(ft.Container):
         current_time = [0.0]
         
         # 计算页面尺寸，动态调整预览区域大小（接近全屏）
-        page_width = self.page.width or 1200
-        page_height = self.page.height or 800
+        page_width = self._page.width or 1200
+        page_height = self._page.height or 800
         
         # 对话框尺寸（留出边距）
         dialog_width = int(page_width - 80)
@@ -1660,7 +1642,7 @@ class VideoSubtitleView(ft.Container):
         
         # 预览图像控件
         preview_image = ft.Image(
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             width=preview_img_width,
             height=preview_img_height,
         )
@@ -1827,7 +1809,7 @@ class VideoSubtitleView(ft.Container):
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
                 
                 preview_image.src_base64 = img_base64
-                self.page.update()
+                self._page.update()
                 
             except Exception as ex:
                 logger.error(f"渲染预览失败: {ex}")
@@ -1969,11 +1951,11 @@ class VideoSubtitleView(ft.Container):
                             text_align=ft.TextAlign.CENTER,
                         ),
                         padding=ft.padding.symmetric(vertical=8),
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     )
                 )
             
-            self.page.update()
+            self._page.update()
         
         # 字体搜索框
         font_search_field = ft.TextField(
@@ -1986,22 +1968,25 @@ class VideoSubtitleView(ft.Container):
             on_change=lambda e: update_font_list(e.control.value),
         )
         
-        # 对话框内的字体文件选择器
-        dialog_font_picker = ft.FilePicker()
-        
-        def on_dialog_font_picked(e: ft.FilePickerResultEvent):
-            """对话框内字体文件选择结果处理。"""
-            if e.files and len(e.files) > 0:
-                font_file_path = e.files[0].path
+        # 对话框内的字体文件选择
+        async def pick_font_file_async():
+            """打开字体文件选择器。"""
+            files = await ft.FilePicker().pick_files(
+                dialog_title="选择字体文件",
+                allowed_extensions=["ttf", "otf", "ttc", "woff", "woff2"],
+                allow_multiple=False,
+            )
+            if files and len(files) > 0:
+                font_file_path = files[0].path
                 try:
                     font_file = Path(font_file_path)
                     if font_file.exists():
                         font_name = font_file.stem
                         custom_font_key = f"CustomFont_{font_name}"
                         
-                        if not hasattr(self.page, 'fonts') or self.page.fonts is None:
-                            self.page.fonts = {}
-                        self.page.fonts[custom_font_key] = str(font_file)
+                        if not hasattr(self._page, 'fonts') or self._page.fonts is None:
+                            self._page.fonts = {}
+                        self._page.fonts[custom_font_key] = str(font_file)
                         
                         current_font_key[0] = custom_font_key
                         current_font_display[0] = f"{font_name} (外部)"
@@ -2015,22 +2000,11 @@ class VideoSubtitleView(ft.Container):
                     logger.error(f"加载字体文件失败: {ex}")
                     self._show_snackbar(f"加载字体失败: {ex}")
         
-        dialog_font_picker.on_result = on_dialog_font_picked
-        self.page.overlay.append(dialog_font_picker)
-        
-        def pick_font_file(e):
-            """打开字体文件选择器。"""
-            dialog_font_picker.pick_files(
-                dialog_title="选择字体文件",
-                allowed_extensions=["ttf", "otf", "ttc", "woff", "woff2"],
-                allow_multiple=False,
-            )
-        
         # 导入字体按钮
-        import_font_btn = ft.ElevatedButton(
+        import_font_btn = ft.Button(
             "导入",
             icon=ft.Icons.UPLOAD_FILE,
-            on_click=pick_font_file,
+            on_click=lambda _: self._page.run_task(pick_font_file_async),
             height=36,
         )
         
@@ -2086,7 +2060,7 @@ class VideoSubtitleView(ft.Container):
             new_hex = f"#{font_color_rgb[0]:02X}{font_color_rgb[1]:02X}{font_color_rgb[2]:02X}"
             font_color_preview.bgcolor = new_hex
             current_font_color[0] = hex_to_ass(new_hex)
-            self.page.update()
+            self._page.update()
             render_preview()
         
         def on_fc_r_change(e):
@@ -2110,7 +2084,7 @@ class VideoSubtitleView(ft.Container):
             new_hex = f"#{outline_color_rgb[0]:02X}{outline_color_rgb[1]:02X}{outline_color_rgb[2]:02X}"
             outline_color_preview.bgcolor = new_hex
             current_outline_color[0] = hex_to_ass(new_hex)
-            self.page.update()
+            self._page.update()
             render_preview()
         
         def on_oc_r_change(e):
@@ -2248,10 +2222,10 @@ class VideoSubtitleView(ft.Container):
         def cleanup_and_close():
             """清理资源并关闭对话框。"""
             # 从 overlay 中移除 font picker
-            if dialog_font_picker in self.page.overlay:
-                self.page.overlay.remove(dialog_font_picker)
+            if dialog_font_picker in self._page.overlay:
+                self._page.overlay.remove(dialog_font_picker)
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def save_settings(e):
             """保存设置。"""
@@ -2321,7 +2295,7 @@ class VideoSubtitleView(ft.Container):
                 bgcolor=ft.Colors.BLACK,
                 border_radius=BORDER_RADIUS_MEDIUM,
                 padding=4,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
             ),
             ft.Container(height=PADDING_SMALL),
             ft.Row([
@@ -2352,16 +2326,16 @@ class VideoSubtitleView(ft.Container):
             actions=[
                 ft.TextButton("使用全局设置", on_click=use_global_settings),
                 ft.Container(expand=True),
-                ft.ElevatedButton("保存设置", on_click=save_settings),
+                ft.Button("保存设置", on_click=save_settings),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             modal=True,
             shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
         
         # 初始渲染预览
         render_preview()
@@ -2413,7 +2387,7 @@ class VideoSubtitleView(ft.Container):
         self.model_loaded = False
         
         self._init_model_status()
-        self.page.update()
+        self._page.update()
         
         # 如果启用自动加载，尝试加载新模型
         if self.auto_load_model:
@@ -2508,7 +2482,7 @@ class VideoSubtitleView(ft.Container):
         self._update_process_button()
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2590,7 +2564,7 @@ class VideoSubtitleView(ft.Container):
         self.use_vocal_separation = e.control.value
         self.config_service.set_config_value("video_subtitle_use_vocal_separation", self.use_vocal_separation)
         self.vocal_model_dropdown.disabled = not self.use_vocal_separation
-        self.page.update()
+        self._page.update()
     
     def _on_vocal_model_change(self, e: ft.ControlEvent) -> None:
         """人声分离模型选择变更事件。"""
@@ -2603,7 +2577,7 @@ class VideoSubtitleView(ft.Container):
         self.use_ai_fix = e.control.value
         self.config_service.set_config_value("video_subtitle_use_ai_fix", self.use_ai_fix)
         self.ai_fix_api_key_field.disabled = not self.use_ai_fix
-        self.page.update()
+        self._page.update()
     
     def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
         """AI 修复 API Key 变更事件。"""
@@ -2630,7 +2604,7 @@ class VideoSubtitleView(ft.Container):
         self.speech_service.set_subtitle_settings(max_length=self.subtitle_max_length)
         self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -2644,7 +2618,7 @@ class VideoSubtitleView(ft.Container):
         """下载 VAD 模型。"""
         self.vad_download_btn.visible = False
         self.vad_status_text.value = "下载中..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -2653,7 +2627,7 @@ class VideoSubtitleView(ft.Container):
                 def progress_callback(progress: float, message: str):
                     self.vad_status_text.value = message
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                 
@@ -2667,7 +2641,7 @@ class VideoSubtitleView(ft.Container):
                 self.vad_status_icon.color = ft.Colors.GREEN
                 self.vad_status_text.value = "已下载"
                 self.vad_load_btn.visible = True
-                self.page.update()
+                self._page.update()
                 
                 # 自动加载
                 self._load_vad_model()
@@ -2677,9 +2651,9 @@ class VideoSubtitleView(ft.Container):
                 self.vad_status_icon.color = ft.Colors.ERROR
                 self.vad_status_text.value = f"下载失败: {ex}"
                 self.vad_download_btn.visible = True
-                self.page.update()
+                self._page.update()
         
-        self.page.run_thread(download_task)
+        self._page.run_thread(download_task)
     
     def _on_load_vad(self, e: ft.ControlEvent) -> None:
         """加载 VAD 模型。"""
@@ -2706,18 +2680,18 @@ class VideoSubtitleView(ft.Container):
             self.vad_status_icon.color = ft.Colors.GREEN
             self.vad_status_text.value = "已加载"
             self.vad_load_btn.visible = False
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             self.vad_status_text.value = f"加载失败: {ex}"
             self.vad_status_icon.color = ft.Colors.ERROR
-            self.page.update()
+            self._page.update()
     
     def _on_download_vocal(self, e: ft.ControlEvent) -> None:
         """下载人声分离模型。"""
         self.vocal_download_btn.visible = False
         self.vocal_status_text.value = "下载中..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -2726,7 +2700,7 @@ class VideoSubtitleView(ft.Container):
                 def progress_callback(progress: float, message: str):
                     self.vocal_status_text.value = message
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                 
@@ -2740,7 +2714,7 @@ class VideoSubtitleView(ft.Container):
                 self.vocal_status_icon.color = ft.Colors.GREEN
                 self.vocal_status_text.value = "已下载"
                 self.vocal_load_btn.visible = True
-                self.page.update()
+                self._page.update()
                 
                 # 自动加载
                 self._load_vocal_model()
@@ -2750,9 +2724,9 @@ class VideoSubtitleView(ft.Container):
                 self.vocal_status_icon.color = ft.Colors.ERROR
                 self.vocal_status_text.value = f"下载失败: {ex}"
                 self.vocal_download_btn.visible = True
-                self.page.update()
+                self._page.update()
         
-        self.page.run_thread(download_task)
+        self._page.run_thread(download_task)
     
     def _on_load_vocal(self, e: ft.ControlEvent) -> None:
         """加载人声分离模型。"""
@@ -2774,12 +2748,12 @@ class VideoSubtitleView(ft.Container):
             self.vocal_status_icon.color = ft.Colors.GREEN
             self.vocal_status_text.value = "已加载"
             self.vocal_load_btn.visible = False
-            self.page.update()
+            self._page.update()
             
         except Exception as ex:
             self.vocal_status_text.value = f"加载失败: {ex}"
             self.vocal_status_icon.color = ft.Colors.ERROR
-            self.page.update()
+            self._page.update()
     
     def _try_auto_load_model(self) -> None:
         """尝试自动加载模型。"""
@@ -2841,10 +2815,10 @@ class VideoSubtitleView(ft.Container):
         )
         
         # 导入文件按钮
-        import_btn = ft.ElevatedButton(
+        import_btn = ft.Button(
             "导入字体文件",
             icon=ft.Icons.UPLOAD_FILE,
-            on_click=lambda e: self._pick_font_file(),
+            on_click=lambda _: self._page.run_task(self._pick_font_file),
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=16, vertical=0),
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
@@ -2937,9 +2911,9 @@ class VideoSubtitleView(ft.Container):
             content_padding=0,
         )
         
-        self.page.overlay.append(self.font_selector_dialog)
+        self._page.overlay.append(self.font_selector_dialog)
         self.font_selector_dialog.open = True
-        self.page.update()
+        self._page.update()
         
         # 加载第一页
         self._update_font_page()
@@ -2948,7 +2922,7 @@ class VideoSubtitleView(ft.Container):
         """关闭字体选择对话框。"""
         if hasattr(self, 'font_selector_dialog'):
             self.font_selector_dialog.open = False
-            self.page.update()
+            self._page.update()
     
     def _filter_font_list(self, e: ft.ControlEvent) -> None:
         """筛选字体列表。"""
@@ -3020,13 +2994,13 @@ class VideoSubtitleView(ft.Container):
         self.font_prev_btn.disabled = self.font_current_page == 0
         self.font_next_btn.disabled = self.font_current_page >= total_pages - 1
         
-        self.page.update()
+        self._page.update()
     
     def _preview_font(self, font_key: str) -> None:
         """预览字体（悬停时）。"""
         if hasattr(self, 'dialog_font_preview'):
             self.dialog_font_preview.content.font_family = font_key
-            self.page.update()
+            self._page.update()
     
     def _select_font(self, font_key: str, font_display: str) -> None:
         """选择字体。"""
@@ -3040,20 +3014,17 @@ class VideoSubtitleView(ft.Container):
         
         # 关闭对话框
         self._close_font_selector_dialog()
-        self.page.update()
+        self._page.update()
     
-    def _pick_font_file(self) -> None:
+    async def _pick_font_file(self) -> None:
         """打开文件选择器选择字体文件。"""
-        self.font_file_picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择字体文件",
             allowed_extensions=["ttf", "otf", "ttc", "woff", "woff2"],
             allow_multiple=False,
         )
-    
-    def _on_font_file_picked(self, e: ft.FilePickerResultEvent) -> None:
-        """字体文件选择结果处理。"""
-        if e.files and len(e.files) > 0:
-            file_path = e.files[0].path
+        if files and len(files) > 0:
+            file_path = files[0].path
             self._load_custom_font_file(file_path)
     
     def _load_custom_font_file(self, file_path: str) -> None:
@@ -3069,11 +3040,11 @@ class VideoSubtitleView(ft.Container):
             custom_font_key = f"CustomFont_{font_name}"
             
             # 将字体添加到页面（临时使用）
-            if not hasattr(self.page, 'fonts') or self.page.fonts is None:
-                self.page.fonts = {}
+            if not hasattr(self._page, 'fonts') or self._page.fonts is None:
+                self._page.fonts = {}
             
-            self.page.fonts[custom_font_key] = str(font_file)
-            self.page.update()
+            self._page.fonts[custom_font_key] = str(font_file)
+            self._page.update()
             
             # 更新当前选择
             self.current_font_key = custom_font_key
@@ -3086,7 +3057,7 @@ class VideoSubtitleView(ft.Container):
             
             # 关闭对话框
             self._close_font_selector_dialog()
-            self.page.update()
+            self._page.update()
             
             logger.info(f"已加载外部字体: {file_path}")
             
@@ -3103,12 +3074,12 @@ class VideoSubtitleView(ft.Container):
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._do_delete_model()
         
         def cancel_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -3116,13 +3087,13 @@ class VideoSubtitleView(ft.Container):
             content=ft.Text(f"确定要删除模型 {self.current_model.display_name} 吗？\n\n删除后需要重新下载才能使用。"),
             actions=[
                 ft.TextButton("取消", on_click=cancel_delete),
-                ft.ElevatedButton("删除", on_click=confirm_delete, bgcolor=ft.Colors.ERROR, color=ft.Colors.WHITE),
+                ft.Button("删除", on_click=confirm_delete, bgcolor=ft.Colors.ERROR, color=ft.Colors.WHITE),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _do_delete_model(self) -> None:
         """执行删除模型操作。"""
@@ -3181,14 +3152,14 @@ class VideoSubtitleView(ft.Container):
         self.model_loading = True
         self.model_download_btn.disabled = True
         self.model_status_text.value = "正在下载模型..."
-        self.page.update()
+        self._page.update()
         
         def download_thread():
             try:
                 def progress_callback(progress: float, message: str):
                     self.model_status_text.value = f"下载中: {message} ({progress:.1%})"
                     try:
-                        self.page.update()
+                        self._page.update()
                     except:
                         pass
                 
@@ -3224,7 +3195,7 @@ class VideoSubtitleView(ft.Container):
             finally:
                 self.model_loading = False
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
         
@@ -3238,7 +3209,7 @@ class VideoSubtitleView(ft.Container):
         self.model_loading = True
         self.model_load_btn.disabled = True
         self.model_status_text.value = "正在加载模型..."
-        self.page.update()
+        self._page.update()
         
         def load_thread():
             try:
@@ -3280,7 +3251,7 @@ class VideoSubtitleView(ft.Container):
             finally:
                 self.model_loading = False
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
         
@@ -3301,7 +3272,7 @@ class VideoSubtitleView(ft.Container):
         )
         self.process_btn.content.disabled = not can_process
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -3312,7 +3283,7 @@ class VideoSubtitleView(ft.Container):
         self.target_lang_dropdown.disabled = not self.enable_translation
         self.translate_mode_dropdown.disabled = not self.enable_translation
         self.bilingual_spacing_field.disabled = not self.enable_translation
-        self.page.update()
+        self._page.update()
     
     def _on_bilingual_spacing_change(self, e) -> None:
         """双语字幕行距变化事件。"""
@@ -3339,7 +3310,7 @@ class VideoSubtitleView(ft.Container):
             else:
                 self.translate_engine_hint.value = "心流 AI：需要在「预处理设置」中配置 API Key"
                 self.translate_engine_hint.color = ft.Colors.ORANGE
-        self.page.update()
+        self._page.update()
     
     def _on_target_lang_change(self, e) -> None:
         """目标语言变化事件。"""
@@ -3423,19 +3394,16 @@ class VideoSubtitleView(ft.Container):
         is_custom = self.output_mode.value == "custom"
         self.output_dir_field.disabled = not is_custom
         self.output_dir_btn.disabled = not is_custom
-        self.page.update()
+        self._page.update()
     
-    def _select_output_dir(self) -> None:
+    async def _select_output_dir(self) -> None:
         """选择输出目录。"""
-        self.output_dir_picker.get_directory_path(
+        folder_path = await ft.FilePicker().get_directory_path(
             dialog_title="选择输出目录"
         )
-    
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """输出目录选择结果处理。"""
-        if e.path:
-            self.output_dir_field.value = e.path
-            self.page.update()
+        if folder_path:
+            self.output_dir_field.value = folder_path
+            self._page.update()
     
     def _on_export_subtitle_change(self, e: ft.ControlEvent) -> None:
         """导出字幕文件选项变更。"""
@@ -3446,7 +3414,7 @@ class VideoSubtitleView(ft.Container):
         if not export_subtitle:
             self.only_subtitle_checkbox.value = False
             self.config_service.set_config_value("video_subtitle_only_subtitle", False)
-        self.page.update()
+        self._page.update()
     
     def _on_subtitle_format_change(self, e: ft.ControlEvent) -> None:
         """字幕格式选项变更。"""
@@ -3696,7 +3664,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         self.process_btn.content.disabled = True
         self.progress_bar.visible = True
         self.progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def process_task():
             try:
@@ -3705,12 +3673,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 for idx, file_path in enumerate(self.selected_files):
                     self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
                     self.progress_bar.value = idx / total
-                    self.page.update()
+                    self._page.update()
                     
                     try:
                         # 步骤1：提取音频
                         self.progress_text.value = f"[{idx + 1}/{total}] 提取音频..."
-                        self.page.update()
+                        self._page.update()
                         
                         temp_audio = Path(tempfile.gettempdir()) / f"temp_audio_{file_path.stem}.wav"
                         self._extract_audio(file_path, temp_audio)
@@ -3719,7 +3687,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         audio_for_recognition = temp_audio
                         if self.use_vocal_separation and self.vocal_loaded:
                             self.progress_text.value = f"[{idx + 1}/{total}] 人声分离..."
-                            self.page.update()
+                            self._page.update()
                             
                             try:
                                 # 创建临时目录存放分离结果
@@ -3741,13 +3709,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         
                         # 步骤2：语音识别
                         self.progress_text.value = f"[{idx + 1}/{total}] 语音识别中..."
-                        self.page.update()
+                        self._page.update()
                         
                         def recognition_progress(message: str, progress: float):
                             self.progress_text.value = f"[{idx + 1}/{total}] {message}"
                             self.progress_bar.value = (idx + progress * 0.5) / total
                             try:
-                                self.page.update()
+                                self._page.update()
                             except:
                                 pass
                         
@@ -3763,13 +3731,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         # 步骤2.5：AI 修复字幕（如果启用）
                         if self.use_ai_fix and self.ai_fix_service.is_configured():
                             self.progress_text.value = f"[{idx + 1}/{total}] AI 修复字幕..."
-                            self.page.update()
+                            self._page.update()
                             
                             try:
                                 def ai_fix_progress(msg, prog):
                                     self.progress_text.value = f"[{idx + 1}/{total}] {msg}"
                                     try:
-                                        self.page.update()
+                                        self._page.update()
                                     except:
                                         pass
                                 
@@ -3802,13 +3770,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         # 步骤3.5：如果启用翻译，进行翻译
                         if self.enable_translation:
                             self.progress_text.value = f"[{idx + 1}/{total}] 翻译字幕..."
-                            self.page.update()
+                            self._page.update()
                             
                             import asyncio
                             
                             def translate_progress(current, total_items, msg):
                                 self.progress_text.value = f"[{idx + 1}/{total}] {msg}"
-                                self.page.update()
+                                self._page.update()
                             
                             # 异步翻译
                             loop = asyncio.new_event_loop()
@@ -3837,7 +3805,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         
                         # 步骤4：生成 ASS 字幕
                         self.progress_text.value = f"[{idx + 1}/{total}] 生成字幕..."
-                        self.page.update()
+                        self._page.update()
                         
                         ass_style = self._generate_ass_style(video_width, video_height, file_path)
                         ass_events = self._segments_to_ass_events(segments, max_chars_per_line)
@@ -3854,7 +3822,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         
                         if export_subtitle:
                             self.progress_text.value = f"[{idx + 1}/{total}] 导出字幕文件..."
-                            self.page.update()
+                            self._page.update()
                             
                             if output_dir:
                                 subtitle_dir = output_dir
@@ -3900,7 +3868,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         if not only_subtitle:
                             self.progress_text.value = f"[{idx + 1}/{total}] 烧录字幕..."
                             self.progress_bar.value = (idx + 0.7) / total
-                            self.page.update()
+                            self._page.update()
                             
                             if output_dir:
                                 output_path = output_dir / f"{file_path.stem}_subtitled.mp4"
@@ -3943,17 +3911,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 
                 self.progress_text.value = f"处理完成，共处理 {total} 个文件"
                 self.progress_bar.value = 1.0
-                self.page.update()
+                self._page.update()
                 
             except Exception as e:
                 logger.error(f"处理失败: {e}", exc_info=True)
                 self.progress_text.value = f"处理失败: {str(e)}"
-                self.page.update()
+                self._page.update()
             finally:
                 self.is_processing = False
                 self.process_btn.content.disabled = False
                 self._update_process_button()
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=process_task, daemon=True).start()
     
@@ -4011,9 +3979,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar = ft.SnackBar(content=ft.Text(message))
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -4041,9 +4009,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             self._show_snackbar(f"已添加 {added_count} 个文件")
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("视频字幕不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -77,7 +77,7 @@ class FeatureCard(ft.Container):
         # 图标容器（带渐变背景）
         icon_container: ft.Container = ft.Container(
             content=ft.Icon(
-                name=self.icon_name,
+                icon=self.icon_name,
                 size=ICON_SIZE_LARGE,
                 color=ft.Colors.WHITE if self.gradient_colors else PRIMARY_COLOR,
             ),
@@ -85,20 +85,20 @@ class FeatureCard(ft.Container):
             height=80,
             border_radius=BORDER_RADIUS_LARGE,
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_left,
-                end=ft.alignment.bottom_right,
+                begin=ft.Alignment.TOP_LEFT,
+                end=ft.Alignment.BOTTOM_RIGHT,
                 colors=[
                     self.gradient_colors[0] if self.gradient_colors else PRIMARY_COLOR,
                     self.gradient_colors[1] if self.gradient_colors else PRIMARY_COLOR,
                 ],
             ) if self.gradient_colors else None,
             bgcolor=None if self.gradient_colors else f"{PRIMARY_COLOR}20",
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 置顶图标（如果已置顶则显示）
         self.pin_icon = ft.Icon(
-            name=ft.Icons.PUSH_PIN,
+            icon=ft.Icons.PUSH_PIN,
             size=16,
             color=ft.Colors.AMBER,
             visible=self.is_pinned,

@@ -50,7 +50,7 @@ class PortScannerView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -131,19 +131,19 @@ class PortScannerView(ft.Container):
                                     ft.dropdown.Option("custom", "自定义列表"),
                                 ],
                                 value="common",
-                                on_change=self._on_mode_change,
+                                on_select=self._on_mode_change,
                                 text_size=14,
                                 content_padding=10,
                             ),
                             ft.ElevatedButton(
                                 ref=self.scan_btn,
-                                text="开始扫描",
+                                content="开始扫描",
                                 icon=ft.Icons.PLAY_ARROW,
                                 style=ft.ButtonStyle(
                                     shape=ft.RoundedRectangleBorder(radius=8),
                                     padding=20,
                                 ),
-                                on_click=lambda _: self.page.run_task(self._handle_scan),
+                                on_click=lambda _: self._page.run_task(self._handle_scan),
                                 height=45,
                             ),
                         ],
@@ -716,20 +716,20 @@ class PortScannerView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

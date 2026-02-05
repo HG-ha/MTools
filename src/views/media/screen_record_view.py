@@ -57,7 +57,7 @@ class ScreenRecordView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -315,8 +315,8 @@ class ScreenRecordView(ft.Container):
     def _invoke_ui(self, fn) -> None:
         """尽量安全地从后台线程回到 UI 线程执行。"""
         try:
-            if hasattr(self.page, "call_from_thread"):
-                self.page.call_from_thread(fn)
+            if hasattr(self._page, "call_from_thread"):
+                self._page.call_from_thread(fn)
                 return
         except Exception:
             pass
@@ -450,7 +450,7 @@ class ScreenRecordView(ft.Container):
         if not is_ffmpeg_available:
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="屏幕录制"
@@ -531,7 +531,7 @@ class ScreenRecordView(ft.Container):
         self.selected_window_title = None  # 选择的窗口标题（用于显示）
         
         # 三合一选择按钮
-        self.pick_area_btn = ft.ElevatedButton(
+        self.pick_area_btn = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SCREENSHOT_MONITOR, size=20),
@@ -585,7 +585,7 @@ class ScreenRecordView(ft.Container):
         self.width_field = ft.TextField(value="1920", visible=False)
         self.height_field = ft.TextField(value="1080", visible=False)
         self.custom_area_row = ft.Row(visible=False)
-        self.pick_region_btn = ft.ElevatedButton(visible=False)
+        self.pick_region_btn = ft.Button(visible=False)
         self.pick_region_hint = ft.Text(visible=False)
         
         # 录制源信息卡片（现代化设计）
@@ -641,8 +641,8 @@ class ScreenRecordView(ft.Container):
             padding=PADDING_LARGE,
             border_radius=12,
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_left,
-                end=ft.alignment.bottom_right,
+                begin=ft.Alignment.TOP_LEFT,
+                end=ft.Alignment.BOTTOM_RIGHT,
                 colors=[
                     ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
                     ft.Colors.with_opacity(0.02, ft.Colors.SECONDARY),
@@ -851,7 +851,7 @@ class ScreenRecordView(ft.Container):
             value=default_encoder,
             options=encoder_options,
             width=250,
-            on_change=self._on_encoder_change,
+            on_select=self._on_encoder_change,
         )
         
         # 编码预设 - 根据默认编码器初始化
@@ -985,11 +985,6 @@ class ScreenRecordView(ft.Container):
             read_only=True,
         )
         
-        self.folder_picker = ft.FilePicker(
-            on_result=self._on_folder_selected
-        )
-        self.page.overlay.append(self.folder_picker)
-        
         # 打开输出文件夹按钮（小型）
         self.open_folder_btn = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
@@ -1024,7 +1019,7 @@ class ScreenRecordView(ft.Container):
         
         # 控制按钮（开始/停止 二合一）- 现代化设计
         self.record_btn = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, size=24, color=ft.Colors.WHITE),
@@ -1141,12 +1136,12 @@ class ScreenRecordView(ft.Container):
         if hasattr(self, "pick_region_hint") and self.pick_region_hint:
             self.pick_region_hint.visible = (value == "custom")
         
-        self.page.update()
+        self._page.update()
 
     def _on_pick_area_click(self, e) -> None:
         """三合一选择录制区域：全屏/窗口/自定义区域。"""
         self.pick_area_btn.disabled = True
-        self.page.update()
+        self._page.update()
 
         def worker():
             result = self._select_region_interactively_windows()
@@ -1185,7 +1180,7 @@ class ScreenRecordView(ft.Container):
                         self._show_message(f"已选择区域：{w}×{h}", ft.Colors.GREEN)
                 finally:
                     self.pick_area_btn.disabled = False
-                    self.page.update()
+                    self._page.update()
 
             self._invoke_ui(apply)
 
@@ -1679,7 +1674,7 @@ class ScreenRecordView(ft.Container):
         if e.control.value and not self.mic_device_dropdown.options:
             self._load_audio_devices()
         
-        self.page.update()
+        self._page.update()
     
     def _on_system_audio_checkbox_change(self, e) -> None:
         """处理系统音频复选框变化。"""
@@ -1692,7 +1687,7 @@ class ScreenRecordView(ft.Container):
         if e.control.value and not self.system_audio_dropdown.options:
             self._load_audio_devices()
         
-        self.page.update()
+        self._page.update()
     
     def _on_audio_checkbox_change(self, e) -> None:
         """兼容旧代码的回调。"""
@@ -1730,7 +1725,7 @@ class ScreenRecordView(ft.Container):
             ]
             self.system_audio_dropdown.value = "none"
         
-        self.page.update()
+        self._page.update()
     
     def _load_window_list(self) -> None:
         """加载窗口列表。"""
@@ -1749,7 +1744,7 @@ class ScreenRecordView(ft.Container):
             ]
             self.window_dropdown.value = "none"
         
-        self.page.update()
+        self._page.update()
     
     def _on_refresh_audio_devices(self, e) -> None:
         """刷新音频设备列表。"""
@@ -1809,25 +1804,20 @@ class ScreenRecordView(ft.Container):
             ]
             self.preset_dropdown.value = "fast"
         
-        self.page.update()
+        self._page.update()
     
     def _on_quality_change(self, e) -> None:
         """处理质量滑块变化。"""
         quality = int(e.control.value)
         self.quality_text.value = f"质量: {quality} (数值越小，质量越好，文件越大)"
-        self.page.update()
+        self._page.update()
     
-    def _on_select_folder(self, e) -> None:
+    async def _on_select_folder(self, e) -> None:
         """选择输出文件夹。"""
-        self.folder_picker.get_directory_path(
-            dialog_title="选择保存位置"
-        )
-    
-    def _on_folder_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理文件夹选择结果。"""
-        if e.path:
-            self.output_path_field.value = e.path
-            self.page.update()
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择保存位置")
+        if result:
+            self.output_path_field.value = result
+            self._page.update()
     
     def _on_open_folder(self, e) -> None:
         """打开输出文件夹。"""
@@ -2023,7 +2013,7 @@ class ScreenRecordView(ft.Container):
     def _start_recording_with_region_select(self) -> None:
         """先选择录制区域，然后开始录制。"""
         self.record_btn.disabled = True
-        self.page.update()
+        self._page.update()
         
         def worker():
             # 弹出区域选择界面
@@ -2035,7 +2025,7 @@ class ScreenRecordView(ft.Container):
                 if result is None:
                     # 用户取消
                     self._show_message("已取消录制", ft.Colors.ORANGE)
-                    self.page.update()
+                    self._page.update()
                     return
                 
                 # 更新选择结果
@@ -2061,7 +2051,7 @@ class ScreenRecordView(ft.Container):
                     self.region_info_text.value = f"📐 自定义区域"
                     self.region_detail_text.value = f"{w}×{h}"
                 
-                self.page.update()
+                self._page.update()
                 
                 # 选择完成后，直接开始录制
                 self._on_start_recording(None)
@@ -2194,7 +2184,7 @@ class ScreenRecordView(ft.Container):
                     self.pause_btn.text = "继续"
                     self.pause_btn.icon = ft.Icons.PLAY_ARROW
                     self._show_message("录制已暂停", ft.Colors.ORANGE)
-                self.page.update()
+                self._page.update()
         else:
             self._show_message("Windows 平台暂不支持暂停功能", ft.Colors.ORANGE)
     
@@ -2270,7 +2260,7 @@ class ScreenRecordView(ft.Container):
             size_mb = file_size / (1024 * 1024)
             self._show_message(f"录制完成！文件大小: {size_mb:.1f} MB", ft.Colors.GREEN)
             self.open_folder_btn.visible = True
-            self.page.update()
+            self._page.update()
         else:
             self._show_message("录制已停止", ft.Colors.ORANGE)
     
@@ -2295,7 +2285,7 @@ class ScreenRecordView(ft.Container):
                     )
                 
                 try:
-                    self.page.update()
+                    self._page.update()
                 except Exception:
                     break
             
@@ -2382,7 +2372,7 @@ class ScreenRecordView(ft.Container):
             self.record_system_audio.disabled = False
             self.system_audio_dropdown.disabled = False
         
-        self.page.update()
+        self._page.update()
     
     def _show_message(self, message: str, color: str = ft.Colors.PRIMARY) -> None:
         """显示消息提示。"""
@@ -2391,9 +2381,9 @@ class ScreenRecordView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.snack_bar = snack_bar
+        self._page.snack_bar = snack_bar
         snack_bar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""
@@ -2402,10 +2392,6 @@ class ScreenRecordView(ft.Container):
             self._stop_recording()
         
         self.should_stop_timer = True
-        
-        # 移除 file picker
-        if hasattr(self, 'folder_picker') and self.folder_picker in self.page.overlay:
-            self.page.overlay.remove(self.folder_picker)
         
         # 清除回调引用，打破循环引用
         self.on_back = None

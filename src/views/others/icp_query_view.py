@@ -47,7 +47,7 @@ class ICPQueryView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: 'ConfigService' = config_service
         self.on_back: Optional[callable] = on_back
         self.icp_service: ICPService = ICPService(config_service)
@@ -82,7 +82,7 @@ class ICPQueryView(ft.Container):
         )
         
         # 分页信息和控件
-        self.page_info_text = ft.Text(
+        self._page_info_text = ft.Text(
             "暂无数据",
             size=12,
             color=ft.Colors.ON_SURFACE_VARIANT,
@@ -131,9 +131,9 @@ class ICPQueryView(ft.Container):
     
     def _on_query_type_changed(self, e) -> None:
         """查询类型变化时重置页码。"""
-        self.page_num_input.value = "1"
+        self._page_num_input.value = "1"
         try:
-            self.page_num_input.update()
+            self._page_num_input.update()
         except Exception:
             pass
 
@@ -141,7 +141,7 @@ class ICPQueryView(ft.Container):
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             # 在后台线程中删除
             import threading
@@ -149,7 +149,7 @@ class ICPQueryView(ft.Container):
         
         def cancel_delete(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -161,9 +161,9 @@ class ICPQueryView(ft.Container):
             ],
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _delete_model_async(self) -> None:
         """异步删除模型。"""
@@ -206,7 +206,7 @@ class ICPQueryView(ft.Container):
         
         # 下载模型按钮（初始隐藏）
         self.download_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="下载模型",
+            content="下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._start_download_model,
             visible=False,
@@ -214,7 +214,7 @@ class ICPQueryView(ft.Container):
         
         # 加载模型按钮（初始隐藏）
         self.load_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="加载模型",
+            content="加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model_click,
             visible=False,
@@ -273,7 +273,7 @@ class ICPQueryView(ft.Container):
                 ft.dropdown.Option("kapp", "快应用"),
             ],
             width=150,
-            on_change=self._on_query_type_changed,
+            on_select=self._on_query_type_changed,
         )
         
         self.search_input = ft.TextField(
@@ -284,7 +284,7 @@ class ICPQueryView(ft.Container):
             expand=True,
         )
         
-        self.page_num_input = ft.TextField(
+        self._page_num_input = ft.TextField(
             label="页码",
             hint_text="1",
             value="1",
@@ -293,7 +293,7 @@ class ICPQueryView(ft.Container):
             keyboard_type=ft.KeyboardType.NUMBER,
         )
         
-        self.page_size_input = ft.TextField(
+        self._page_size_input = ft.TextField(
             label="每页数量",
             hint_text="10",
             value="10",
@@ -332,8 +332,8 @@ class ICPQueryView(ft.Container):
                 ),
                 ft.Row(
                     controls=[
-                        self.page_num_input,
-                        self.page_size_input,
+                        self._page_num_input,
+                        self._page_size_input,
                         ft.OutlinedButton(
                             "清空",
                             icon=ft.Icons.CLEAR,
@@ -362,7 +362,7 @@ class ICPQueryView(ft.Container):
                     ft.Container(
                         content=ft.Text(col["label"], weight=ft.FontWeight.W_500, size=13),
                         expand=col["flex"],
-                        alignment=ft.alignment.center if col["align"] == ft.MainAxisAlignment.CENTER else ft.alignment.center_left,
+                        alignment=ft.Alignment.CENTER if col["align"] == ft.MainAxisAlignment.CENTER else ft.Alignment.CENTER_LEFT,
                         padding=ft.padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
                     ) for col in self.columns_config
                 ],
@@ -413,7 +413,7 @@ class ICPQueryView(ft.Container):
         # 底部分页控件行
         pagination_controls = ft.Row(
             controls=[
-                self.page_info_text,
+                self._page_info_text,
                 ft.Container(expand=True),
                 self.prev_page_btn,
                 self.next_page_btn,
@@ -484,7 +484,7 @@ class ICPQueryView(ft.Container):
             # 如果开启了自动加载，则自动加载模型
             if self.config_service.get_config_value("icp_auto_load_model", False):
                 logger.info("自动加载ICP模型...")
-                self.page.run_task(self._load_models_only)
+                self._page.run_task(self._load_models_only)
         else:
             # 模型不存在，显示"下载模型"按钮
             self._update_model_status("need_download", "需要下载模型才能使用")
@@ -608,7 +608,7 @@ class ICPQueryView(ft.Container):
             return
 
         # 使用page.run_task来运行异 asynchronous
-        self.page.run_task(self._load_models_only)
+        self._page.run_task(self._load_models_only)
 
     def _on_unload_model_click(self, e=None) -> None:
         """卸载模型按钮点击事件。"""
@@ -704,7 +704,7 @@ class ICPQueryView(ft.Container):
         # 更新分页信息
         start_item = (current_page - 1) * page_size + 1
         end_item = min(current_page * page_size, total)
-        self.page_info_text.value = f"第 {start_item}-{end_item} 项，共 {total} 项 | 第 {current_page}/{total_pages} 页"
+        self._page_info_text.value = f"第 {start_item}-{end_item} 项，共 {total} 项 | 第 {current_page}/{total_pages} 页"
         
         # 更新分页按钮状态
         self.prev_page_btn.disabled = current_page <= 1
@@ -762,7 +762,7 @@ class ICPQueryView(ft.Container):
                     ft.Container(
                         content=content,
                         expand=col["flex"],
-                        alignment=ft.alignment.center if col["align"] == ft.MainAxisAlignment.CENTER else ft.alignment.center_left,
+                        alignment=ft.Alignment.CENTER if col["align"] == ft.MainAxisAlignment.CENTER else ft.Alignment.CENTER_LEFT,
                         padding=ft.padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
                     )
                 )
@@ -779,7 +779,7 @@ class ICPQueryView(ft.Container):
             )
             self.result_list.controls.append(row_container)
         
-        self.page.update()
+        self._page.update()
 
     def _on_url_click(self, url: str) -> None:
         """点击URL链接。"""
@@ -814,8 +814,8 @@ class ICPQueryView(ft.Container):
             return
         
         try:
-            page_num = int(self.page_num_input.value or "1")
-            page_size = int(self.page_size_input.value or "10")
+            page_num = int(self._page_num_input.value or "1")
+            page_size = int(self._page_size_input.value or "10")
         except ValueError:
             self._show_snack("页码和每页数量必须是数字", error=True)
             return
@@ -827,15 +827,15 @@ class ICPQueryView(ft.Container):
         )
         if reset_page and page_num != 1:
             page_num = 1
-            self.page_num_input.value = "1"
+            self._page_num_input.value = "1"
         
         # 开始查询
         self.is_querying = True
         self.result_list.controls.clear()
-        self.page_info_text.value = "正在查询..."
+        self._page_info_text.value = "正在查询..."
         self.prev_page_btn.disabled = True
         self.next_page_btn.disabled = True
-        self.page.update()
+        self._page.update()
         
         try:
             result = await self.icp_service.query_icp(
@@ -856,7 +856,7 @@ class ICPQueryView(ft.Container):
                 self._show_snack("查询成功")
             else:
                 self.result_list.controls.clear()
-                self.page_info_text.value = "查询失败，无结果"
+                self._page_info_text.value = "查询失败，无结果"
                 self.prev_page_btn.disabled = True
                 self.next_page_btn.disabled = True
                 self._show_snack("查询失败", error=True)
@@ -864,21 +864,21 @@ class ICPQueryView(ft.Container):
         except httpx.TimeoutException:
             logger.error(f"查询超时: 网络请求超时")
             self.result_list.controls.clear()
-            self.page_info_text.value = "查询超时"
+            self._page_info_text.value = "查询超时"
             self.prev_page_btn.disabled = True
             self.next_page_btn.disabled = True
             self._show_snack("查询超时，请检查网络连接后重试", error=True)
         except httpx.NetworkError as e:
             logger.error(f"网络错误: {e}")
             self.result_list.controls.clear()
-            self.page_info_text.value = "网络错误"
+            self._page_info_text.value = "网络错误"
             self.prev_page_btn.disabled = True
             self.next_page_btn.disabled = True
             self._show_snack("网络连接失败，请检查网络设置", error=True)
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP错误: {e.response.status_code}")
             self.result_list.controls.clear()
-            self.page_info_text.value = f"HTTP {e.response.status_code} 错误"
+            self._page_info_text.value = f"HTTP {e.response.status_code} 错误"
             self.prev_page_btn.disabled = True
             self.next_page_btn.disabled = True
             self._show_snack(f"服务器返回错误 ({e.response.status_code})", error=True)
@@ -886,7 +886,7 @@ class ICPQueryView(ft.Container):
             error_msg = str(e)
             logger.error(f"查询失败: {e}", exc_info=True)
             self.result_list.controls.clear()
-            self.page_info_text.value = "查询出错"
+            self._page_info_text.value = "查询出错"
             self.prev_page_btn.disabled = True
             self.next_page_btn.disabled = True
             
@@ -903,14 +903,14 @@ class ICPQueryView(ft.Container):
                 self._show_snack(f"查询出错: {short_msg}", error=True)
         finally:
             self.is_querying = False
-            self.page.update()
+            self._page.update()
     
     async def _on_prev_page(self, e=None):
         """上一页。"""
         try:
-            current_page = int(self.page_num_input.value or "1")
+            current_page = int(self._page_num_input.value or "1")
             if current_page > 1:
-                self.page_num_input.value = str(current_page - 1)
+                self._page_num_input.value = str(current_page - 1)
                 await self._on_query_click()
         except ValueError:
             pass
@@ -918,8 +918,8 @@ class ICPQueryView(ft.Container):
     async def _on_next_page(self, e=None):
         """下一页。"""
         try:
-            current_page = int(self.page_num_input.value or "1")
-            self.page_num_input.value = str(current_page + 1)
+            current_page = int(self._page_num_input.value or "1")
+            self._page_num_input.value = str(current_page + 1)
             await self._on_query_click()
         except ValueError:
             pass
@@ -928,11 +928,11 @@ class ICPQueryView(ft.Container):
         """清空按钮点击事件。"""
         self.search_input.value = ""
         self.result_list.controls.clear()
-        self.page_num_input.value = "1"
-        self.page_info_text.value = "暂无数据"
+        self._page_num_input.value = "1"
+        self._page_info_text.value = "暂无数据"
         self.prev_page_btn.disabled = True
         self.next_page_btn.disabled = True
-        self.page.update()
+        self._page.update()
     
     def _on_copy_result(self, e):
         """复制结果。"""
@@ -966,13 +966,13 @@ class ICPQueryView(ft.Container):
                 lines.append("\t".join([str(v) for v in row_values]))
             
         result = "\n".join(lines)
-        self.page.set_clipboard(result)
+        self._page.set_clipboard(result)
         self._show_snack("结果已复制到剪贴板")
     
     def _on_back_click(self, e):
         """返回按钮点击事件。"""
         if self._prev_window_event_handler:
-            self.page.on_window_event = self._prev_window_event_handler
+            self._page.on_window_event = self._prev_window_event_handler
         if self.on_back:
             self.on_back()
     
@@ -983,9 +983,9 @@ class ICPQueryView(ft.Container):
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
 
     def cleanup(self) -> None:
         """清理视图资源。

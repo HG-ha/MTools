@@ -60,7 +60,7 @@ class ImageEnhanceView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -140,7 +140,7 @@ class ImageEnhanceView(ft.Container):
                 spacing=PADDING_LARGE,
             ),
             expand=True,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         self.content = loading_content
     
@@ -185,12 +185,12 @@ class ImageEnhanceView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
@@ -250,7 +250,7 @@ class ImageEnhanceView(ft.Container):
             value=self.current_model_key,
             label="选择模型",
             hint_text="选择图像增强模型",
-            on_change=self._on_model_select_change,
+            on_select=self._on_model_select_change,
             width=320,
             dense=True,
             text_size=13,
@@ -278,7 +278,7 @@ class ImageEnhanceView(ft.Container):
         
         # 下载按钮
         self.download_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="下载模型",
+            content="下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._start_download_model,
             visible=False,
@@ -286,7 +286,7 @@ class ImageEnhanceView(ft.Container):
         
         # 加载模型按钮
         self.load_model_button: ft.ElevatedButton = ft.ElevatedButton(
-            text="加载模型",
+            content="加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model,
             visible=False,
@@ -528,7 +528,7 @@ class ImageEnhanceView(ft.Container):
         
         # 底部大按钮
         self.process_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_AWESOME, size=24),
@@ -544,7 +544,7 @@ class ImageEnhanceView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -845,7 +845,7 @@ class ImageEnhanceView(ft.Container):
         """显示手动下载对话框。"""
         def close_dialog(e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def open_url_and_close(e: ft.ControlEvent, url: str) -> None:
             webbrowser.open(url)
@@ -912,9 +912,9 @@ class ImageEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。"""
@@ -930,14 +930,14 @@ class ImageEnhanceView(ft.Container):
         if self.enhancer:
             def confirm_switch(confirm_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
                 self._switch_model(new_model_key)
             
             def cancel_switch(cancel_e: ft.ControlEvent) -> None:
                 dialog.open = False
                 self.model_selector.value = self.current_model_key
                 self.model_selector.update()
-                self.page.update()
+                self._page.update()
             
             dialog = ft.AlertDialog(
                 modal=True,
@@ -950,9 +950,9 @@ class ImageEnhanceView(ft.Container):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self.page.overlay.append(dialog)
+            self._page.overlay.append(dialog)
             dialog.open = True
-            self.page.update()
+            self._page.update()
         else:
             self._switch_model(new_model_key)
     
@@ -1046,7 +1046,7 @@ class ImageEnhanceView(ft.Container):
         """卸载模型按钮点击事件。"""
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             if self.enhancer:
                 self.enhancer = None
@@ -1059,7 +1059,7 @@ class ImageEnhanceView(ft.Container):
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         estimated_memory = int(self.current_model.size_mb * 1.2)
         
@@ -1077,15 +1077,15 @@ class ImageEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             if self.enhancer:
                 self.enhancer = None
@@ -1111,7 +1111,7 @@ class ImageEnhanceView(ft.Container):
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -1122,7 +1122,7 @@ class ImageEnhanceView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_delete),
-                ft.ElevatedButton(
+                ft.Button(
                     "删除",
                     icon=ft.Icons.DELETE,
                     bgcolor=ft.Colors.ERROR,
@@ -1133,53 +1133,44 @@ class ImageEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "bmp", "webp", "tiff"],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
-        """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder_path = Path(result.path)
-                image_extensions = {".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".webp", ".tiff", ".tif"}
-                for file_path in folder_path.rglob("*"):
-                    if file_path.is_file() and file_path.suffix.lower() in image_extensions:
-                        if file_path not in self.selected_files:
-                            self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-                
-                if self.selected_files:
-                    self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
         
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择包含图片的文件夹")
+        if result:
+            for file in result:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
+    
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹按钮点击事件。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择包含图片的文件夹")
+        
+        if result:
+            folder_path = Path(result)
+            image_extensions = {".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+            for file_path in folder_path.rglob("*"):
+                if file_path.is_file() and file_path.suffix.lower() in image_extensions:
+                    if file_path not in self.selected_files:
+                        self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
+            
+            if self.selected_files:
+                self._show_snackbar(f"已添加 {len(self.selected_files)} 个文件", ft.Colors.GREEN)
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表按钮点击事件。"""
@@ -1205,7 +1196,7 @@ class ImageEnhanceView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=280,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_select_files,
                     tooltip="点击选择图片",
                 )
@@ -1279,17 +1270,13 @@ class ImageEnhanceView(ft.Container):
         self.custom_output_dir.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self.custom_output_dir.update()
     
     def _update_process_button(self) -> None:
         """更新处理按钮状态。"""
@@ -1324,7 +1311,7 @@ class ImageEnhanceView(ft.Container):
         self.progress_text.value = "准备处理..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1421,7 +1408,7 @@ class ImageEnhanceView(ft.Container):
         self.progress_bar.value = value
         self.progress_text.value = text
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1440,7 +1427,7 @@ class ImageEnhanceView(ft.Container):
         button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1468,10 +1455,10 @@ class ImageEnhanceView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1509,7 +1496,7 @@ class ImageEnhanceView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("图像增强工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def _process_pending_files(self) -> None:
         """处理UI构建完成前收到的待处理文件。"""
@@ -1547,7 +1534,7 @@ class ImageEnhanceView(ft.Container):
             self._show_snackbar("图像增强工具不支持该格式", ft.Colors.ORANGE)
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     

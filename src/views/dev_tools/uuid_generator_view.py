@@ -30,7 +30,7 @@ class UuidGeneratorView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -83,12 +83,12 @@ class UuidGeneratorView(ft.Container):
                     ft.Row(
                         controls=[
                             ft.ElevatedButton(
-                                text="生成 UUID v4 (随机)",
+                                content="生成 UUID v4 (随机)",
                                 icon=ft.Icons.REFRESH,
                                 on_click=lambda _: self._generate_uuid(4),
                             ),
                             ft.ElevatedButton(
-                                text="生成 UUID v1 (时间戳)",
+                                content="生成 UUID v1 (时间戳)",
                                 icon=ft.Icons.ACCESS_TIME,
                                 on_click=lambda _: self._generate_uuid(1),
                             ),
@@ -141,7 +141,7 @@ class UuidGeneratorView(ft.Container):
                                 value="字母+数字 (a-zA-Z0-9)",
                             ),
                             ft.ElevatedButton(
-                                text="生成",
+                                content="生成",
                                 icon=ft.Icons.REFRESH,
                                 on_click=self._generate_random_string,
                             ),
@@ -206,7 +206,7 @@ class UuidGeneratorView(ft.Container):
                     ft.Row(
                         controls=[
                             ft.ElevatedButton(
-                                text="生成密码",
+                                content="生成密码",
                                 icon=ft.Icons.LOCK,
                                 on_click=self._generate_password,
                             ),
@@ -345,7 +345,7 @@ class UuidGeneratorView(ft.Container):
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
@@ -396,20 +396,20 @@ class UuidGeneratorView(ft.Container):
                 height=400,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

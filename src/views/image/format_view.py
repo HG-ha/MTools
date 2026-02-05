@@ -63,7 +63,7 @@ class ImageFormatView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -110,12 +110,12 @@ class ImageFormatView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
@@ -327,7 +327,7 @@ class ImageFormatView(ft.Container):
         
         # 底部按钮
         self.convert_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.TRANSFORM, size=24),
@@ -342,7 +342,7 @@ class ImageFormatView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -420,7 +420,7 @@ class ImageFormatView(ft.Container):
                 ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
             ),
             padding=PADDING_MEDIUM // 2,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             data=ext,  # 存储扩展名数据
             on_click=self._on_format_card_click,
             ink=True,
@@ -482,52 +482,44 @@ class ImageFormatView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 height=252,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_empty_area_click,
                 ink=True,
             )
         )
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files(e)
+        await self._on_select_files(e)
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                new_files: List[Path] = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "jfif", "png", "webp", "bmp", "gif", "tiff", "tif", "ico"],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
-        """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder: Path = Path(result.path)
-                # 获取文件夹中的所有图片
-                extensions: List[str] = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico"]
-                self.selected_files = []
-                for ext in extensions:
-                    self.selected_files.extend(folder.glob(f"*{ext}"))
-                    self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
-                self._update_file_list()
         
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择图片文件夹")
+        if result:
+            new_files: List[Path] = [Path(f.path) for f in result]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
+    
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹按钮点击事件。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择图片文件夹")
+        
+        if result:
+            folder: Path = Path(result)
+            # 获取文件夹中的所有图片
+            extensions: List[str] = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif", ".ico"]
+            self.selected_files = []
+            for ext in extensions:
+                self.selected_files.extend(folder.glob(f"*{ext}"))
+                self.selected_files.extend(folder.glob(f"*{ext.upper()}"))
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -547,7 +539,7 @@ class ImageFormatView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=252,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_empty_area_click,
                     ink=True,
                 )
@@ -583,7 +575,7 @@ class ImageFormatView(ft.Container):
                                         color=ft.Colors.ON_SURFACE_VARIANT,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 # 文件图标
                                 ft.Icon(ft.Icons.IMAGE, size=20, color=ft.Colors.PRIMARY),
@@ -767,17 +759,13 @@ class ImageFormatView(ft.Container):
         self.custom_output_dir.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.custom_output_dir.update()
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self.custom_output_dir.update()
     
     def _on_convert(self, e: ft.ControlEvent) -> None:
         """开始转换按钮点击事件。"""
@@ -893,9 +881,9 @@ class ImageFormatView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -925,7 +913,7 @@ class ImageFormatView(ft.Container):
         elif skipped_count > 0:
             self._show_message("格式转换工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

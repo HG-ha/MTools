@@ -53,7 +53,7 @@ class ImageWatermarkRemoveView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.on_back: Optional[Callable] = on_back
         
@@ -109,23 +109,17 @@ class ImageWatermarkRemoveView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=lambda _: self._on_select_files(),
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=lambda _: self._on_select_folder(),
@@ -176,14 +170,14 @@ class ImageWatermarkRemoveView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        self.model_download_btn = ft.ElevatedButton(
+        self.model_download_btn = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             visible=False,
             on_click=lambda _: self._download_model(),
         )
         
-        self.model_load_btn = ft.ElevatedButton(
+        self.model_load_btn = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             visible=False,
@@ -356,11 +350,6 @@ class ImageWatermarkRemoveView(ft.Container):
             on_click=lambda _: self._select_output_dir(),
         )
         
-        self.output_dir_picker = ft.FilePicker(
-            on_result=self._on_output_dir_selected
-        )
-        self.page.overlay.append(self.output_dir_picker)
-        
         output_settings_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -396,7 +385,7 @@ class ImageWatermarkRemoveView(ft.Container):
         
         # 开始处理按钮 - 与背景移除页面样式一致
         self.process_btn: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_FIX_HIGH, size=24),
@@ -412,7 +401,7 @@ class ImageWatermarkRemoveView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -477,7 +466,7 @@ class ImageWatermarkRemoveView(ft.Container):
                     spacing=PADDING_SMALL // 2,
                 ),
                 height=168,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=lambda _: self._on_select_files(),
                 ink=True,
             )
@@ -500,7 +489,7 @@ class ImageWatermarkRemoveView(ft.Container):
         
         # 更新处理按钮状态
         self._update_process_button_state()
-        self.page.update()
+        self._page.update()
     
     def _on_mask_type_change(self, e: ft.ControlEvent) -> None:
         """遮挡类型变化事件。"""
@@ -509,7 +498,7 @@ class ImageWatermarkRemoveView(ft.Container):
         
         # 只有纯色模式才显示颜色选择
         self.mask_color_btn.visible = self.mask_type == "color"
-        self.page.update()
+        self._page.update()
     
     def _show_color_picker(self, e: ft.ControlEvent) -> None:
         """显示颜色选择器。"""
@@ -519,7 +508,7 @@ class ImageWatermarkRemoveView(ft.Container):
             # 更新颜色预览
             self.mask_color_btn.content.controls[0].bgcolor = color
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 预设颜色
         colors = [
@@ -559,47 +548,44 @@ class ImageWatermarkRemoveView(ft.Container):
             ],
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭对话框。"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
     
-    def _on_select_files(self) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
-        self.file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片",
             allowed_extensions=["jpg", "jpeg", "png", "bmp", "webp", "tiff", "tif"],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self) -> None:
-        """选择文件夹按钮点击事件。"""
-        self.file_picker.get_directory_path(
-            dialog_title="选择包含图片的文件夹"
-        )
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择结果处理。"""
-        if e.files:
-            for f in e.files:
+        if result:
+            for f in result:
                 file_path = Path(f.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-        elif e.path:
-            # 文件夹选择
-            folder_path = Path(e.path)
+            self._update_file_list()
+            self._check_model_status()
+    
+    async def _on_select_folder(self) -> None:
+        """选择文件夹按钮点击事件。"""
+        folder_path = await ft.FilePicker().get_directory_path(
+            dialog_title="选择包含图片的文件夹"
+        )
+        if folder_path:
+            folder = Path(folder_path)
             image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'}
-            for f in folder_path.iterdir():
+            for f in folder.iterdir():
                 if f.is_file() and f.suffix.lower() in image_extensions:
                     if f not in self.selected_files:
                         self.selected_files.append(f)
-        
-        self._update_file_list()
-        self._check_model_status()
+            self._update_file_list()
+            self._check_model_status()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -651,7 +637,7 @@ class ImageWatermarkRemoveView(ft.Container):
             )
             self.file_list_view.controls.append(file_row)
         
-        self.page.update()
+        self._page.update()
     
     def _remove_file(self, file_path: Path) -> None:
         """从列表中移除文件。"""
@@ -763,8 +749,8 @@ class ImageWatermarkRemoveView(ft.Container):
         session_id = str(uuid.uuid4())[:8]
         
         # 根据页面大小计算预览尺寸
-        page_width = self.page.width or 1000
-        page_height = self.page.height or 700
+        page_width = self._page.width or 1000
+        page_height = self._page.height or 700
         
         # 对话框可用高度（预留标题、按钮、底部间距）
         available_height = page_height - 200
@@ -828,7 +814,7 @@ class ImageWatermarkRemoveView(ft.Container):
             src=initial_preview,
             width=display_width,
             height=display_height,
-            fit=ft.ImageFit.FILL,
+            fit=ft.BoxFit.FILL,
         )
         
         # 选择框覆盖层（用于显示正在绘制的区域）
@@ -892,7 +878,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 refresh_preview()
                 update_regions_display()
                 status_text.value = f"已删除区域，剩余 {len(regions_list)} 个"
-                self.page.update()
+                self._page.update()
         
         def on_pan_start(e: ft.DragStartEvent):
             # 限制在有效范围内
@@ -905,7 +891,7 @@ class ImageWatermarkRemoveView(ft.Container):
             selection_box.width = 0
             selection_box.height = 0
             selection_box.visible = True
-            self.page.update()
+            self._page.update()
         
         def on_pan_update(e: ft.DragUpdateEvent):
             # 限制范围
@@ -921,7 +907,7 @@ class ImageWatermarkRemoveView(ft.Container):
             selection_box.top = min(draw_state['start_y'], end_y)
             selection_box.width = abs(end_x - draw_state['start_x'])
             selection_box.height = abs(end_y - draw_state['start_y'])
-            self.page.update()
+            self._page.update()
         
         def on_pan_end(e: ft.DragEndEvent):
             selection_box.visible = False
@@ -956,7 +942,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 status_text.value = "区域太小（至少20x20像素），请重新框选"
                 status_text.color = ft.Colors.ORANGE
             
-            self.page.update()
+            self._page.update()
         
         # 手势检测器 + Stack（用于叠加选择框）
         preview_stack = ft.Stack(
@@ -981,7 +967,7 @@ class ImageWatermarkRemoveView(ft.Container):
         
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def on_confirm(e):
             if regions_list:
@@ -990,7 +976,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 del self.file_regions[str(file_path)]
             
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._update_file_list()
             logger.info(f"已保存 {file_path.name} 的 {len(regions_list)} 个区域")
         
@@ -999,7 +985,7 @@ class ImageWatermarkRemoveView(ft.Container):
             if not regions_list:
                 status_text.value = "请先标注区域"
                 status_text.color = ft.Colors.ORANGE
-                self.page.update()
+                self._page.update()
                 return
             
             # 保存当前文件的区域
@@ -1014,7 +1000,7 @@ class ImageWatermarkRemoveView(ft.Container):
                     applied_count += 1
             
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._update_file_list()
             self._show_snackbar(f"已将区域设置应用到所有 {applied_count + 1} 个文件", ft.Colors.GREEN)
             logger.info(f"已将 {len(regions_list)} 个区域应用到 {applied_count + 1} 个文件")
@@ -1025,7 +1011,7 @@ class ImageWatermarkRemoveView(ft.Container):
             update_regions_display()
             status_text.value = "已清空所有区域"
             status_text.color = ft.Colors.ON_SURFACE_VARIANT
-            self.page.update()
+            self._page.update()
         
         # 初始化区域列表
         update_regions_display()
@@ -1036,7 +1022,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 controls=[
                     ft.Container(
                         content=gesture_detector,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                     status_text,
                 ],
@@ -1105,39 +1091,36 @@ class ImageWatermarkRemoveView(ft.Container):
                     on_click=on_apply_to_all,
                     tooltip="将当前区域设置应用到列表中所有文件",
                 ),
-                ft.ElevatedButton("保存", icon=ft.Icons.SAVE, on_click=on_confirm),
+                ft.Button("保存", icon=ft.Icons.SAVE, on_click=on_confirm),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示 snackbar 提示。"""
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _on_output_mode_change(self) -> None:
         """输出模式变化事件。"""
         is_custom = self.output_mode.value == "custom"
         self.output_dir_field.disabled = not is_custom
         self.output_dir_btn.disabled = not is_custom
-        self.page.update()
+        self._page.update()
     
-    def _select_output_dir(self) -> None:
+    async def _select_output_dir(self) -> None:
         """选择输出目录。"""
-        self.output_dir_picker.get_directory_path(
+        folder_path = await ft.FilePicker().get_directory_path(
             dialog_title="选择输出目录"
         )
-    
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """输出目录选择结果处理。"""
-        if e.path:
-            self.output_dir_field.value = e.path
-            self.page.update()
+        if folder_path:
+            self.output_dir_field.value = folder_path
+            self._page.update()
     
     def _check_model_status(self) -> None:
         """检查模型状态。"""
@@ -1187,14 +1170,14 @@ class ImageWatermarkRemoveView(ft.Container):
             
             # 检查是否启用自动加载
             if self.auto_load_checkbox.value:
-                self.page.update()
+                self._page.update()
                 self._try_auto_load_model()
                 return
         
         # 更新处理按钮状态
         self._update_process_button_state()
         
-        self.page.update()
+        self._page.update()
     
     def _update_process_button_state(self) -> None:
         """更新处理按钮状态。"""
@@ -1245,7 +1228,7 @@ class ImageWatermarkRemoveView(ft.Container):
         self.progress_bar.value = 0
         self.progress_text.visible = True
         self.progress_text.value = "准备下载..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -1253,7 +1236,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 
                 for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
                     self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
-                    self.page.update()
+                    self._page.update()
                     
                     with httpx.stream("GET", url, follow_redirects=True, timeout=300) as response:
                         response.raise_for_status()
@@ -1272,7 +1255,7 @@ class ImageWatermarkRemoveView(ft.Container):
                                         f"正在下载 {file_name} ({file_idx + 1}/{total_files}): "
                                         f"{format_file_size(downloaded)} / {format_file_size(total_size)}"
                                     )
-                                    self.page.update()
+                                    self._page.update()
                 
                 # 下载完成
                 self.progress_bar.visible = False
@@ -1293,7 +1276,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 self.progress_bar.visible = False
                 self.progress_text.visible = False
                 self.model_download_btn.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=download_task, daemon=True).start()
     
@@ -1306,7 +1289,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 # 更新状态
                 self.model_status_text.value = "正在加载模型..."
                 self.model_load_btn.disabled = True
-                self.page.update()
+                self._page.update()
                 
                 # 加载模型
                 encoder_path = self.model_dir / model_info.encoder_filename
@@ -1329,7 +1312,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 self.model_status_text.value = f"加载失败: {str(e)}"
                 self.model_status_text.color = ft.Colors.ERROR
                 self.model_load_btn.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=load_task, daemon=True).start()
     
@@ -1397,7 +1380,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 logger.error(f"删除模型失败: {e}")
                 self.model_status_text.value = f"删除失败: {str(e)}"
                 self.model_status_text.color = ft.Colors.ERROR
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=delete_task, daemon=True).start()
     
@@ -1566,7 +1549,7 @@ class ImageWatermarkRemoveView(ft.Container):
         self.process_btn.content.disabled = True
         self.progress_bar.visible = True
         self.progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def process_task():
             try:
@@ -1579,7 +1562,7 @@ class ImageWatermarkRemoveView(ft.Container):
                         # 更新进度
                         self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
                         self.progress_bar.value = idx / total
-                        self.page.update()
+                        self._page.update()
                         
                         # 读取图片（支持中文路径）
                         image = self._read_image_unicode(file_path)
@@ -1624,12 +1607,12 @@ class ImageWatermarkRemoveView(ft.Container):
                         ]):
                             oom_error_count += 1
                             self.progress_text.value = f"⚠️ GPU 显存不足: {file_path.name}"
-                            self.page.update()
+                            self._page.update()
                 
                 # 处理完成
                 self.progress_text.value = f"处理完成，成功: {success_count}/{total}"
                 self.progress_bar.value = 1.0
-                self.page.update()
+                self._page.update()
                 
                 # 显示结果提示
                 if oom_error_count > 0:
@@ -1655,11 +1638,11 @@ class ImageWatermarkRemoveView(ft.Container):
                     )
                 else:
                     self.progress_text.value = f"处理失败: {error_msg}"
-                self.page.update()
+                self._page.update()
             finally:
                 self.is_processing = False
                 self.process_btn.content.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=process_task, daemon=True).start()
 
@@ -1692,7 +1675,7 @@ class ImageWatermarkRemoveView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("去水印工具不支持该格式")
         
-        self.page.update()
+        self._page.update()
 
     def cleanup(self) -> None:
         """清理视图资源，释放内存。

@@ -28,7 +28,7 @@ class TimestampToolView(ft.Container):
             on_back: 返回回调函数（可选）
         """
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         self.expand = True
         self.padding = ft.padding.only(
@@ -58,7 +58,7 @@ class TimestampToolView(ft.Container):
         self._build_ui()
         
         # 启动实时时钟
-        self.page.run_task(self._update_current_time)
+        self._page.run_task(self._update_current_time)
     
     def _build_ui(self):
         """构建用户界面。"""
@@ -151,7 +151,7 @@ class TimestampToolView(ft.Container):
                                 value="秒",
                             ),
                             ft.ElevatedButton(
-                                text="转换",
+                                content="转换",
                                 icon=ft.Icons.ARROW_FORWARD,
                                 on_click=self._convert_timestamp_to_datetime,
                             ),
@@ -190,7 +190,7 @@ class TimestampToolView(ft.Container):
                                 expand=True,
                             ),
                             ft.ElevatedButton(
-                                text="转换",
+                                content="转换",
                                 icon=ft.Icons.ARROW_FORWARD,
                                 on_click=self._convert_datetime_to_timestamp,
                             ),
@@ -256,7 +256,7 @@ class TimestampToolView(ft.Container):
                                 value="天",
                             ),
                             ft.ElevatedButton(
-                                text="计算",
+                                content="计算",
                                 icon=ft.Icons.CALCULATE,
                                 on_click=self._calculate_time,
                             ),
@@ -469,7 +469,7 @@ class TimestampToolView(ft.Container):
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self.page.set_clipboard(text)
+        self._page.set_clipboard(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
@@ -531,20 +531,20 @@ class TimestampToolView(ft.Container):
                 height=450,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=lambda _: self.page.close(dialog)),
+                ft.TextButton("关闭", on_click=lambda _: self._page.close(dialog)),
             ],
         )
         
-        self.page.open(dialog)
+        self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

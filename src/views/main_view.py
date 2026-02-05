@@ -59,8 +59,7 @@ class MainView(ft.Column):
             page: Flet页面对象
         """
         super().__init__()
-        self.page: ft.Page = page
-        self._saved_page: ft.Page = page  # 保存页面引用，防止丢失
+        self._page: ft.Page = page  # Flet 1.0: page 是只读属性，用 _page 存储
         self.expand: bool = True
         self.spacing: int = 0
         
@@ -88,7 +87,7 @@ class MainView(ft.Column):
         self._build_ui()
         
         # 保存主视图引用到page，供设置视图调用
-        self.page._main_view = self
+        self._page._main_view = self
         
         # 保存透明度配置，延迟到页面加载后应用
         self._pending_opacity = self.config_service.get_config_value("window_opacity", 1.0)
@@ -115,7 +114,7 @@ class MainView(ft.Column):
         from utils import WindowsDropHandler
         
         self._drop_handler = WindowsDropHandler(
-            page=self.page,
+            page=self._page,
             on_drop=self._on_global_files_dropped,
             auto_enable=True,
             enable_delay=0.1,  # 初始延迟，重试机制会确保可靠性
@@ -156,16 +155,16 @@ class MainView(ft.Column):
             # 备用：显示提示
             self._show_drop_hint("当前页面不支持文件拖放")
         
-        self.page.run_thread(dispatch)
+        self._page.run_thread(dispatch)
     
     def _show_drop_hint(self, message: str) -> None:
         """显示拖放提示。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             duration=2000,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -232,7 +231,7 @@ class MainView(ft.Column):
                 tooltip="设置",
                 on_click=self._open_settings,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             padding=ft.padding.symmetric(vertical=8),  # 减小垂直padding
             width=100,  # 与导航栏宽度一致
             bgcolor=ft.Colors.TRANSPARENT,  # 设为透明,与导航栏一致
@@ -264,7 +263,7 @@ class MainView(ft.Column):
         # 创建内容容器（先创建占位容器，带动画）
         self.content_container = ft.Container(
             expand=True,
-            alignment=ft.alignment.top_left,  # 内容从左上角开始
+            alignment=ft.Alignment.TOP_LEFT,  # 内容从左上角开始
             width=float('inf'),  # 占满可用宽度
             height=float('inf'),  # 占满可用高度
             opacity=1.0,
@@ -276,7 +275,7 @@ class MainView(ft.Column):
         
         # 创建推荐视图（首页需要立即创建）
         self.recommendations_view = RecommendationsView(
-            self.page,
+            self._page,
             self.config_service,
             on_tool_click=self._open_tool_by_id,
         )
@@ -291,7 +290,7 @@ class MainView(ft.Column):
         else:
             # 按需创建图片视图
             self.image_view = ImageView(
-                self.page, 
+                self._page, 
                 self.config_service, 
                 self.image_service, 
                 self.content_container,
@@ -299,7 +298,7 @@ class MainView(ft.Column):
             self.content_container.content = self.image_view
         
         # 注册键盘快捷键
-        self.page.on_keyboard_event = self._on_keyboard
+        self._page.on_keyboard_event = self._on_keyboard
         
         # 主内容区域（导航栏 + 内容）
         main_content: ft.Row = ft.Row(
@@ -328,13 +327,13 @@ class MainView(ft.Column):
         
         # 注意：FAB需要添加到 page.overlay 或 page.floating_action_button
         # 我们将在初始化完成后添加
-        self.page.floating_action_button = self.fab_search
+        self._page.floating_action_button = self.fab_search
     
     def _get_or_create_image_view(self) -> ImageView:
         """获取或创建图片视图（懒加载）。"""
         if self.image_view is None:
             self.image_view = ImageView(
-                self.page, 
+                self._page, 
                 self.config_service, 
                 self.image_service, 
                 self.content_container,
@@ -345,7 +344,7 @@ class MainView(ft.Column):
         """获取或创建媒体视图（懒加载）。"""
         if self.media_view is None:
             self.media_view = MediaView(
-                self.page, 
+                self._page, 
                 self.config_service, 
                 self.content_container,
             )
@@ -355,7 +354,7 @@ class MainView(ft.Column):
         """获取或创建开发工具视图（懒加载）。"""
         if self.dev_tools_view is None:
             self.dev_tools_view = DevToolsView(
-                self.page, 
+                self._page, 
                 self.config_service, 
                 self.encoding_service, 
                 self.content_container,
@@ -366,7 +365,7 @@ class MainView(ft.Column):
         """获取或创建其他工具视图（懒加载）。"""
         if self.others_view is None:
             self.others_view = OthersView(
-                self.page, 
+                self._page, 
                 self.config_service, 
                 self.content_container,
             )
@@ -383,7 +382,7 @@ class MainView(ft.Column):
         这样可以避免 Flet 路由系统导致的 page 引用丢失问题。
         """
         # 使用保存的页面引用
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if not page:
             return
         
@@ -534,7 +533,7 @@ class MainView(ft.Column):
         selected_index: int = e.control.selected_index
         
         # 使用保存的页面引用
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if not page:
             return
         
@@ -579,7 +578,7 @@ class MainView(ft.Column):
         tool_name = ".".join(parts[1:])  # 支持多级，如 "puzzle.merge"
         
         # 使用保存的页面引用
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if not page:
             return
         
@@ -643,10 +642,10 @@ class MainView(ft.Column):
             )
             tools.append(tool_info)
         
-        search_dialog = ToolSearchDialog(self.page, tools, self.config_service)
-        self.page.overlay.append(search_dialog)
+        search_dialog = ToolSearchDialog(self._page, tools, self.config_service)
+        self._page.overlay.append(search_dialog)
         search_dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_keyboard(self, e: ft.KeyboardEvent) -> None:
         """键盘事件处理。"""
@@ -656,21 +655,21 @@ class MainView(ft.Column):
     
     def show_search_button(self) -> None:
         """显示搜索按钮。"""
-        if self.fab_search and self.page:
-            self.page.floating_action_button = self.fab_search
-            self.page.update()
+        if self.fab_search and self._page:
+            self._page.floating_action_button = self.fab_search
+            self._page.update()
     
     def hide_search_button(self) -> None:
         """隐藏搜索按钮。"""
-        if self.page:
-            self.page.floating_action_button = None
-            self.page.update()
+        if self._page:
+            self._page.floating_action_button = None
+            self._page.update()
     
     def navigate_to_screen_record(self) -> None:
         """导航到屏幕录制工具（供全局热键调用，使用路由）。"""
         try:
             # 使用保存的页面引用
-            page = self.page if self.page else self._saved_page
+            page = self._page
             if page:
                 page.go("/media/screen_record")
         except Exception as ex:
@@ -688,7 +687,7 @@ class MainView(ft.Column):
             return
         
         # 使用保存的页面引用
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if not page:
             return
         
@@ -739,7 +738,7 @@ class MainView(ft.Column):
         self.navigation_rail.destinations = destinations
         
         # 使用保存的页面引用
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if not page:
             return
         
@@ -761,7 +760,7 @@ class MainView(ft.Column):
         """
         # 淡出当前内容
         self.content_container.opacity = 0
-        self.page.update()
+        self._page.update()
         
         # 使用定时器实现非阻塞动画
         import threading
@@ -771,7 +770,7 @@ class MainView(ft.Column):
             self.content_container.content = new_content
             time.sleep(0.05)  # 短暂延迟
             self.content_container.opacity = 1.0
-            self.page.update()
+            self._page.update()
         
         timer = threading.Timer(0.001, switch_content)
         timer.daemon = True
@@ -784,10 +783,10 @@ class MainView(ft.Column):
         Args:
             e: 控件事件对象
         """
-        page = self.page if self.page else self._saved_page
+        page = self._page
         if page:
             page.go("/settings")
-    
+
     def _check_update_on_startup(self) -> None:
         """启动时在后台检测更新。"""
         def check_task():
@@ -846,21 +845,21 @@ class MainView(ft.Column):
         
         # 创建按钮
         auto_update_btn = ft.ElevatedButton(
-            text="立即更新",
+            content="立即更新",
             icon=ft.Icons.SYSTEM_UPDATE,
         )
         
         manual_download_btn = ft.OutlinedButton(
-            text="手动下载",
+            content="手动下载",
             icon=ft.Icons.OPEN_IN_BROWSER,
         )
         
         skip_btn = ft.TextButton(
-            text="跳过此版本",
+            content="跳过此版本",
         )
         
         later_btn = ft.TextButton(
-            text="稍后提醒",
+            content="稍后提醒",
         )
         
         # 创建对话框
@@ -944,14 +943,14 @@ class MainView(ft.Column):
                         ),
                         ft.TextButton(
                             "取消",
-                            on_click=lambda _: (setattr(admin_dialog, 'open', False), self.page.update()),
+                            on_click=lambda _: (setattr(admin_dialog, 'open', False), self._page.update()),
                         ),
                     ],
                     actions_alignment=ft.MainAxisAlignment.END,
                 )
-                self.page.overlay.append(admin_dialog)
+                self._page.overlay.append(admin_dialog)
                 admin_dialog.open = True
-                self.page.update()
+                self._page.update()
                 return
             
             auto_update_btn.disabled = True
@@ -962,7 +961,7 @@ class MainView(ft.Column):
             progress_bar.visible = True
             progress_text.visible = True
             progress_text.value = "正在下载更新..."
-            self.page.update()
+            self._page.update()
             
             def update_task():
                 try:
@@ -978,7 +977,7 @@ class MainView(ft.Column):
                             downloaded_mb = downloaded / 1024 / 1024
                             total_mb = total / 1024 / 1024
                             progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)  如果更新失败请尝试管理员权限运行程序"
-                            self.page.update()
+                            self._page.update()
                     
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -989,12 +988,12 @@ class MainView(ft.Column):
                     
                     progress_text.value = "正在解压更新..."
                     progress_bar.value = None
-                    self.page.update()
+                    self._page.update()
                     
                     extract_dir = updater.extract_update(download_path)
                     
                     progress_text.value = "正在应用更新，应用即将重启..."
-                    self.page.update()
+                    self._page.update()
                     
                     time.sleep(1)
                     
@@ -1007,7 +1006,7 @@ class MainView(ft.Column):
                                 self.title_bar._close_window(None, force=True)
                             else:
                                 # 后备：直接关闭窗口
-                                self.page.window.close()
+                                self._page.window.close()
                         except Exception as e:
                             logger.warning(f"优雅退出失败: {e}")
                             # 如果失败，让 apply_update 使用强制退出
@@ -1025,14 +1024,14 @@ class MainView(ft.Column):
                     progress_text.value = f"更新失败: {str(ex)}"
                     progress_text.color = ft.Colors.RED
                     progress_text.visible = True
-                    self.page.update()
+                    self._page.update()
             
             threading.Thread(target=update_task, daemon=True).start()
         
         def on_manual_download(e):
             """手动下载 - 显示下载选项"""
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             # 显示下载选项对话框
             download_dialog = ft.AlertDialog(
@@ -1058,34 +1057,34 @@ class MainView(ft.Column):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self.page.overlay.append(download_dialog)
+            self._page.overlay.append(download_dialog)
             download_dialog.open = True
-            self.page.update()
+            self._page.update()
         
         def on_skip(e):
             """跳过此版本"""
             self.config_service.set_config_value("skipped_version", update_info.latest_version)
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def on_later(e):
             """稍后提醒"""
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         auto_update_btn.on_click = on_auto_update
         manual_download_btn.on_click = on_manual_download
         skip_btn.on_click = on_skip
         later_btn.on_click = on_later
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _open_china_download(self, update_info, dialog):
         """打开国内镜像下载"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
         
         version = update_info.latest_version
         if not version.startswith('v'):
@@ -1096,13 +1095,13 @@ class MainView(ft.Column):
     def _open_github_download(self, dialog):
         """打开GitHub下载"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
         webbrowser.open(DOWNLOAD_URL_GITHUB)
     
     def _close_download_dialog(self, dialog):
         """关闭下载对话框"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
     
     def apply_background(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:
         """应用背景图片到主界面。
@@ -1114,12 +1113,12 @@ class MainView(ft.Column):
         if image_path:
             # 转换适应模式
             fit_map = {
-                "cover": ft.ImageFit.COVER,
-                "contain": ft.ImageFit.CONTAIN,
-                "fill": ft.ImageFit.FILL,
-                "none": ft.ImageFit.NONE,
+                "cover": ft.BoxFit.COVER,
+                "contain": ft.BoxFit.CONTAIN,
+                "fill": ft.BoxFit.FILL,
+                "none": ft.BoxFit.NONE,
             }
-            fit = fit_map.get(fit_mode, ft.ImageFit.COVER)
+            fit = fit_map.get(fit_mode, ft.BoxFit.COVER)
             
             # 创建带背景的Stack
             if not hasattr(self, '_background_stack'):
@@ -1146,7 +1145,7 @@ class MainView(ft.Column):
                     self._background_container = ft.Container(
                         content=self._background_image_control,
                         expand=True,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     )
                     
                     # 使用Stack层叠布局
@@ -1160,15 +1159,15 @@ class MainView(ft.Column):
                     
                     # 替换controls中的main_content为stack
                     self.controls[self._main_content_index] = self._background_stack
-                    if self.page:
-                        self.page.update()
+                    if self._page:
+                        self._page.update()
             else:
                 # 更新现有背景图片
                 if hasattr(self, '_background_image_control'):
                     self._background_image_control.src = image_path
                     self._background_image_control.fit = fit
-                    if self.page:
-                        self.page.update()
+                    if self._page:
+                        self._page.update()
         else:
             # 清除背景图片
             if hasattr(self, '_background_stack') and hasattr(self, '_main_content_index'):
@@ -1187,5 +1186,5 @@ class MainView(ft.Column):
                         delattr(self, '_background_container')
                     delattr(self, '_main_content_index')
                     
-                    if self.page:
-                        self.page.update()
+                    if self._page:
+                        self._page.update()

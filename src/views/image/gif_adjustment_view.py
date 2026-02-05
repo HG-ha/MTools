@@ -56,7 +56,7 @@ class GifAdjustmentView(ft.Container):
             parent_container: 父容器（用于跳转到 FFmpeg 安装界面）
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -106,7 +106,7 @@ class GifAdjustmentView(ft.Container):
             if self.parent_container:
                 self.padding = ft.padding.all(0)
                 self.content = FFmpegInstallView(
-                    self.page,
+                    self._page,
                     self.ffmpeg_service,
                     on_installed=self._on_ffmpeg_installed_rebuild,
                     on_back=self._on_back_click,
@@ -136,7 +136,7 @@ class GifAdjustmentView(ft.Container):
         
         file_select_row: ft.Row = ft.Row(
             controls=[
-                ft.ElevatedButton(
+                ft.Button(
                     "选择 GIF / 实况图",
                     icon=ft.Icons.FILE_UPLOAD,
                     on_click=self._on_select_file,
@@ -151,7 +151,7 @@ class GifAdjustmentView(ft.Container):
             src="",
             width=400,
             height=400,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             visible=False,
         )
         
@@ -167,7 +167,7 @@ class GifAdjustmentView(ft.Container):
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=PADDING_SMALL,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             visible=True,
         )
         
@@ -183,7 +183,7 @@ class GifAdjustmentView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             height=420,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
             ink=True,
@@ -210,7 +210,7 @@ class GifAdjustmentView(ft.Container):
             src="",
             width=200,
             height=200,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             visible=False,
         )
         
@@ -221,7 +221,7 @@ class GifAdjustmentView(ft.Container):
                 color=ft.Colors.ON_SURFACE_VARIANT,
                 text_align=ft.TextAlign.CENTER,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             visible=True,
         )
         
@@ -237,7 +237,7 @@ class GifAdjustmentView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_SMALL,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             height=220,
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.PRIMARY),
         )
@@ -551,7 +551,7 @@ class GifAdjustmentView(ft.Container):
         
         # 底部处理按钮
         self.process_button: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.AUTO_AWESOME, size=24),
@@ -567,7 +567,7 @@ class GifAdjustmentView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 组装主界面
@@ -596,35 +596,30 @@ class GifAdjustmentView(ft.Container):
         if self.on_back:
             self.on_back()
     
-    def _on_select_file(self, e: ft.ControlEvent) -> None:
+    async def _on_select_file(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files and len(result.files) > 0:
-                file_path = Path(result.files[0].path)
-                ext = file_path.suffix.lower()
-                
-                if ext == '.gif':
-                    # GIF 文件
-                    self._load_gif_file(file_path)
-                elif ext in ['.jpg', '.jpeg', '.jfif', '.heic', '.heif']:
-                    # 可能是实况图
-                    self._load_live_photo_file(file_path)
-                else:
-                    self._show_snackbar("请选择 GIF 或实况图文件", ft.Colors.ORANGE)
-        
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择 GIF 或实况图文件",
             allowed_extensions=["gif", "jpg", "jpeg", "jfif", "heic", "heif"],
             allow_multiple=False,
         )
+        
+        if result and len(result) > 0:
+            file_path = Path(result[0].path)
+            ext = file_path.suffix.lower()
+            
+            if ext == '.gif':
+                # GIF 文件
+                self._load_gif_file(file_path)
+            elif ext in ['.jpg', '.jpeg', '.jfif', '.heic', '.heif']:
+                # 可能是实况图
+                self._load_live_photo_file(file_path)
+            else:
+                self._show_snackbar("请选择 GIF 或实况图文件", ft.Colors.ORANGE)
     
     def _load_gif_file(self, file_path: Path) -> None:
         """加载 GIF 文件。
@@ -883,7 +878,7 @@ class GifAdjustmentView(ft.Container):
                     
                     self._show_snackbar("✓ 实况图加载成功", ft.Colors.GREEN)
                 
-                self.page.run_task(update_ui)
+                self._page.run_task(update_ui)
                 
                 # 保存当前文件ID用于延迟预览
                 saved_file_id = self.current_file_id
@@ -1064,17 +1059,12 @@ class GifAdjustmentView(ft.Container):
         self.custom_output_field.update()
         self.browse_output_button.update()
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出路径按钮点击事件。
         
         Args:
             e: 控件事件对象
         """
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_field.value = result.path
-                self.custom_output_field.update()
-        
         # 根据选择的格式确定文件扩展名和对话框标题
         output_format = self.output_format_radio.value
         
@@ -1093,14 +1083,15 @@ class GifAdjustmentView(ft.Container):
         
         default_name = f"{self.selected_file.stem}_adjusted{file_ext}" if self.selected_file else f"output{file_ext}"
         
-        picker: ft.FilePicker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.save_file(
+        result = await ft.FilePicker().save_file(
             dialog_title=dialog_title,
             file_name=default_name,
             allowed_extensions=allowed_exts,
         )
+        
+        if result:
+            self.custom_output_field.value = result
+            self.custom_output_field.update()
     
     def _on_process(self, e: ft.ControlEvent) -> None:
         """开始处理按钮点击事件。
@@ -1172,7 +1163,7 @@ class GifAdjustmentView(ft.Container):
             self.progress_text.value = "正在处理 GIF..."
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1644,7 +1635,7 @@ class GifAdjustmentView(ft.Container):
         button.disabled = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1665,10 +1656,10 @@ class GifAdjustmentView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1684,7 +1675,7 @@ class GifAdjustmentView(ft.Container):
         
         # 创建 FFmpeg 安装视图
         self.ffmpeg_install_view = FFmpegInstallView(
-            self.page,
+            self._page,
             self.ffmpeg_service,
             on_installed=self._on_ffmpeg_installed,
             on_back=self._on_ffmpeg_install_back,
@@ -1694,7 +1685,7 @@ class GifAdjustmentView(ft.Container):
         # 切换到安装视图
         self.parent_container.content = self.ffmpeg_install_view
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1705,7 +1696,7 @@ class GifAdjustmentView(ft.Container):
         if self.parent_container:
             self.parent_container.content = self
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
         
@@ -1747,7 +1738,7 @@ class GifAdjustmentView(ft.Container):
         if self.parent_container:
             self.parent_container.content = self
             try:
-                self.page.update()
+                self._page.update()
                 self._show_snackbar("FFmpeg 安装成功！可以使用实况图功能了", ft.Colors.GREEN)
             except Exception as ex:
                 import traceback
@@ -1791,7 +1782,7 @@ class GifAdjustmentView(ft.Container):
                     logger.error(f"[_clear_preview_tasks] 清除UI失败: {e}")
             
             try:
-                self.page.run_task(clear_preview_ui)
+                self._page.run_task(clear_preview_ui)
             except:
                 # 如果异步失败，尝试同步更新
                 try:
@@ -1930,7 +1921,7 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.update()
                     self.cover_preview_placeholder.update()
                 
-                self.page.run_task(update_preview)
+                self._page.run_task(update_preview)
                 
         except Exception as e:
             import traceback
@@ -2007,7 +1998,7 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.update()
                     self.cover_preview_placeholder.update()
                 
-                self.page.run_task(update_preview)
+                self._page.run_task(update_preview)
                 
         except Exception as e:
             import traceback

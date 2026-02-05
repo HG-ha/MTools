@@ -54,7 +54,7 @@ class SubtitleRemoveView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -96,7 +96,7 @@ class SubtitleRemoveView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=self._on_back_click,
                 tool_name="视频去字幕/水印"
@@ -125,26 +125,20 @@ class SubtitleRemoveView(ft.Container):
         # 初始化空状态
         self._init_empty_state()
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(
-            on_result=self._on_files_selected
-        )
-        self.page.overlay.append(self.file_picker)
-        
         file_select_area = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: self._on_select_folder(),
+                            on_click=self._on_select_folder,
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -192,14 +186,14 @@ class SubtitleRemoveView(ft.Container):
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
         
-        self.model_download_btn = ft.ElevatedButton(
+        self.model_download_btn = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             visible=False,
             on_click=lambda _: self._download_model(),
         )
         
-        self.model_load_btn = ft.ElevatedButton(
+        self.model_load_btn = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             visible=False,
@@ -369,13 +363,8 @@ class SubtitleRemoveView(ft.Container):
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="选择目录",
             disabled=True,
-            on_click=lambda _: self._select_output_dir(),
+            on_click=self._select_output_dir,
         )
-        
-        self.output_dir_picker = ft.FilePicker(
-            on_result=self._on_output_dir_selected
-        )
-        self.page.overlay.append(self.output_dir_picker)
         
         output_settings_area = ft.Container(
             content=ft.Column(
@@ -412,7 +401,7 @@ class SubtitleRemoveView(ft.Container):
         
         # 开始处理按钮 - 与背景移除页面样式一致
         self.process_btn: ft.Container = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.PLAY_ARROW, size=24),
@@ -428,7 +417,7 @@ class SubtitleRemoveView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -493,8 +482,8 @@ class SubtitleRemoveView(ft.Container):
                     spacing=PADDING_SMALL // 2,
                 ),
                 height=168,
-                alignment=ft.alignment.center,
-                on_click=lambda _: self._on_select_files(),
+                alignment=ft.Alignment.CENTER,
+                on_click=self._on_select_files,
                 ink=True,
             )
         )
@@ -516,7 +505,7 @@ class SubtitleRemoveView(ft.Container):
         
         # 更新处理按钮状态
         self._update_process_button_state()
-        self.page.update()
+        self._page.update()
     
     def _on_mask_type_change(self, e: ft.ControlEvent) -> None:
         """遮挡类型变化事件。"""
@@ -525,7 +514,7 @@ class SubtitleRemoveView(ft.Container):
         
         # 只有纯色模式才显示颜色选择
         self.mask_color_btn.visible = self.mask_type == "color"
-        self.page.update()
+        self._page.update()
     
     def _show_color_picker(self, e: ft.ControlEvent) -> None:
         """显示颜色选择器。"""
@@ -535,7 +524,7 @@ class SubtitleRemoveView(ft.Container):
             # 更新颜色预览
             self.mask_color_btn.content.controls[0].bgcolor = color
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         # 预设颜色
         colors = [
@@ -575,40 +564,34 @@ class SubtitleRemoveView(ft.Container):
             ],
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭对话框。"""
         dialog.open = False
-        self.page.update()
+        self._page.update()
     
-    def _on_select_files(self) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
         """选择文件。"""
-        self.file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=["mp4", "avi", "mov", "mkv", "flv", "wmv"],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self) -> None:
-        """选择文件夹。"""
-        self.file_picker.get_directory_path(
-            dialog_title="选择文件夹",
-        )
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择回调。"""
-        if e.files:
-            # 添加选中的文件
-            for file in e.files:
+        if result and result.files:
+            for file in result.files:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
-        elif e.path:
-            # 添加文件夹中的所有视频文件
-            folder_path = Path(e.path)
+            self._update_file_list()
+    
+    async def _on_select_folder(self, e: ft.ControlEvent = None) -> None:
+        """选择文件夹。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择文件夹")
+        if result:
+            folder_path = Path(result)
             video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv"}
             for ext in video_extensions:
                 for file_path in folder_path.glob(f"*{ext}"):
@@ -618,8 +601,7 @@ class SubtitleRemoveView(ft.Container):
                 for file_path in folder_path.glob(f"*{ext.upper()}"):
                     if file_path not in self.selected_files:
                         self.selected_files.append(file_path)
-        
-        self._update_file_list()
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -683,7 +665,7 @@ class SubtitleRemoveView(ft.Container):
             model_loaded = self.subtitle_service.is_model_loaded()
             self.process_btn.content.disabled = not model_loaded
         
-        self.page.update()
+        self._page.update()
     
     def _remove_file(self, file_path: Path) -> None:
         """移除文件。"""
@@ -752,8 +734,8 @@ class SubtitleRemoveView(ft.Container):
         session_id = str(uuid.uuid4())[:8]
         
         # 根据页面大小计算预览尺寸
-        page_width = self.page.width or 1000
-        page_height = self.page.height or 700
+        page_width = self._page.width or 1000
+        page_height = self._page.height or 700
         
         # 对话框可用高度（预留标题50px、按钮50px、时间轴40px、状态栏20px）
         available_height = page_height - 160
@@ -820,7 +802,7 @@ class SubtitleRemoveView(ft.Container):
             src=initial_preview,
             width=display_width,
             height=display_height,
-            fit=ft.ImageFit.FILL,
+            fit=ft.BoxFit.FILL,
         )
         
         # 选择框覆盖层（用于显示正在绘制的区域）
@@ -948,7 +930,7 @@ class SubtitleRemoveView(ft.Container):
                 refresh_preview()
                 update_regions_display()
                 status_text.value = f"已删除区域，剩余 {len(regions_list)} 个"
-                self.page.update()
+                self._page.update()
         
         def on_pan_start(e: ft.DragStartEvent):
             # 限制在有效范围内
@@ -961,7 +943,7 @@ class SubtitleRemoveView(ft.Container):
             selection_box.width = 0
             selection_box.height = 0
             selection_box.visible = True
-            self.page.update()
+            self._page.update()
         
         def on_pan_update(e: ft.DragUpdateEvent):
             # 限制范围
@@ -977,7 +959,7 @@ class SubtitleRemoveView(ft.Container):
             selection_box.top = min(draw_state['start_y'], end_y)
             selection_box.width = abs(end_x - draw_state['start_x'])
             selection_box.height = abs(end_y - draw_state['start_y'])
-            self.page.update()
+            self._page.update()
         
         def on_pan_end(e: ft.DragEndEvent):
             selection_box.visible = False
@@ -1014,7 +996,7 @@ class SubtitleRemoveView(ft.Container):
                 status_text.value = "区域太小（至少20x20像素），请重新框选"
                 status_text.color = ft.Colors.ORANGE
             
-            self.page.update()
+            self._page.update()
         
         # 手势检测器 + Stack（用于叠加选择框）
         preview_stack = ft.Stack(
@@ -1063,11 +1045,11 @@ class SubtitleRemoveView(ft.Container):
                 status_text.value = f"读取帧失败"
                 status_text.color = ft.Colors.ERROR
             
-            self.page.update()
+            self._page.update()
         
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         def on_confirm(e):
             if regions_list:
@@ -1076,7 +1058,7 @@ class SubtitleRemoveView(ft.Container):
                 del self.file_regions[str(file_path)]
             
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._update_file_list()
             logger.info(f"已保存 {file_path.name} 的 {len(regions_list)} 个区域")
         
@@ -1085,7 +1067,7 @@ class SubtitleRemoveView(ft.Container):
             if not regions_list:
                 status_text.value = "请先标注区域"
                 status_text.color = ft.Colors.ORANGE
-                self.page.update()
+                self._page.update()
                 return
             
             # 保存当前文件的区域
@@ -1100,7 +1082,7 @@ class SubtitleRemoveView(ft.Container):
                     applied_count += 1
             
             dialog.open = False
-            self.page.update()
+            self._page.update()
             self._update_file_list()
             self._show_snackbar(f"已将区域设置应用到所有 {applied_count + 1} 个文件")
             logger.info(f"已将 {len(regions_list)} 个区域应用到 {applied_count + 1} 个文件")
@@ -1111,7 +1093,7 @@ class SubtitleRemoveView(ft.Container):
             update_regions_display()
             status_text.value = "已清空所有区域"
             status_text.color = ft.Colors.ON_SURFACE_VARIANT
-            self.page.update()
+            self._page.update()
         
         # 初始化区域列表
         update_regions_display()
@@ -1126,7 +1108,7 @@ class SubtitleRemoveView(ft.Container):
                     # 预览图（可框选）- 居中显示
                     ft.Container(
                         content=gesture_detector,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                     ),
                     # 时间轴
                     ft.Row([
@@ -1206,15 +1188,15 @@ class SubtitleRemoveView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示 snackbar 提示。"""
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _clear_files(self) -> None:
         """清空文件列表。"""
@@ -1269,14 +1251,14 @@ class SubtitleRemoveView(ft.Container):
             
             # 检查是否启用自动加载
             if self.auto_load_checkbox.value:
-                self.page.update()
+                self._page.update()
                 self._try_auto_load_model()
                 return
         
         # 更新处理按钮状态
         self._update_process_button_state()
         
-        self.page.update()
+        self._page.update()
     
     def _update_process_button_state(self) -> None:
         """更新处理按钮状态。"""
@@ -1327,7 +1309,7 @@ class SubtitleRemoveView(ft.Container):
         self.progress_bar.value = 0
         self.progress_text.visible = True
         self.progress_text.value = "准备下载..."
-        self.page.update()
+        self._page.update()
         
         def download_task():
             try:
@@ -1335,7 +1317,7 @@ class SubtitleRemoveView(ft.Container):
                 
                 for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
                     self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
-                    self.page.update()
+                    self._page.update()
                     
                     logger.info(f"开始下载: {file_name} from {url}")
                     
@@ -1398,7 +1380,7 @@ class SubtitleRemoveView(ft.Container):
                 self.progress_bar.visible = False
                 self.progress_text.visible = False
                 self.model_download_btn.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=download_task, daemon=True).start()
     
@@ -1411,7 +1393,7 @@ class SubtitleRemoveView(ft.Container):
                 # 更新状态
                 self.model_status_text.value = "正在加载模型..."
                 self.model_load_btn.disabled = True
-                self.page.update()
+                self._page.update()
                 
                 # 加载模型
                 encoder_path = self.model_dir / model_info.encoder_filename
@@ -1434,7 +1416,7 @@ class SubtitleRemoveView(ft.Container):
                 self.model_status_text.value = f"加载失败: {str(e)}"
                 self.model_status_text.color = ft.Colors.ERROR
                 self.model_load_btn.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=load_task, daemon=True).start()
     
@@ -1518,17 +1500,17 @@ class SubtitleRemoveView(ft.Container):
                 logger.error(f"删除模型失败: {e}")
                 self.model_status_text.value = f"删除失败: {str(e)}"
                 self.model_status_text.color = ft.Colors.ERROR
-                self.page.update()
+                self._page.update()
         
         # 确认对话框
         def confirm_delete(e):
             dlg.open = False
-            self.page.update()
+            self._page.update()
             threading.Thread(target=delete_task, daemon=True).start()
         
         def cancel_delete(e):
             dlg.open = False
-            self.page.update()
+            self._page.update()
         
         dlg = ft.AlertDialog(
             title=ft.Text("确认删除"),
@@ -1538,28 +1520,23 @@ class SubtitleRemoveView(ft.Container):
                 ft.TextButton("删除", on_click=confirm_delete),
             ],
         )
-        self.page.overlay.append(dlg)
+        self._page.overlay.append(dlg)
         dlg.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_output_mode_change(self) -> None:
         """输出模式变更。"""
         is_custom = self.output_mode.value == "custom"
         self.output_dir_field.disabled = not is_custom
         self.output_dir_btn.disabled = not is_custom
-        self.page.update()
+        self._page.update()
     
-    def _select_output_dir(self) -> None:
+    async def _select_output_dir(self, e: ft.ControlEvent = None) -> None:
         """选择输出目录。"""
-        self.output_dir_picker.get_directory_path(
-            dialog_title="选择输出目录",
-        )
-    
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """输出目录选择回调。"""
-        if e.path:
-            self.output_dir_field.value = e.path
-            self.page.update()
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.output_dir_field.value = result
+            self._page.update()
     
     def _create_mask(self, height: int, width: int, file_path: Optional[Path] = None, 
                      current_time: Optional[float] = None) -> np.ndarray:
@@ -1728,7 +1705,7 @@ class SubtitleRemoveView(ft.Container):
                 if frame_idx % 30 == 0:  # 每30帧更新一次
                     progress = (idx + frame_idx / total_frames) / total
                     self.progress_bar.value = progress
-                    self.page.update()
+                    self._page.update()
             
             cap.release()
             out.release()
@@ -1759,7 +1736,7 @@ class SubtitleRemoveView(ft.Container):
         self.process_btn.content.disabled = True
         self.progress_bar.visible = True
         self.progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def process_task():
             import ffmpeg
@@ -1773,7 +1750,7 @@ class SubtitleRemoveView(ft.Container):
                     # 更新进度
                     self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
                     self.progress_bar.value = idx / total
-                    self.page.update()
+                    self._page.update()
                     
                     # 获取视频信息
                     video_info = self.ffmpeg_service.safe_probe(str(file_path))
@@ -1841,7 +1818,7 @@ class SubtitleRemoveView(ft.Container):
                         def update_progress(current, total_f):
                             progress = (idx + current / total_f) / total
                             self.progress_bar.value = progress
-                            self.page.update()
+                            self._page.update()
                         
                         success = self.subtitle_service.process_video_streaming(
                             video_path=str(file_path),
@@ -1945,7 +1922,7 @@ class SubtitleRemoveView(ft.Container):
                 
                 self.is_processing = False
                 self.process_btn.content.disabled = False
-                self.page.update()
+                self._page.update()
         
         threading.Thread(target=process_task, daemon=True).start()
     
@@ -1973,13 +1950,13 @@ class SubtitleRemoveView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("字幕去除不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。

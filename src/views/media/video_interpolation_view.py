@@ -58,7 +58,7 @@ class VideoInterpolationView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: Optional[Callable] = on_back
@@ -115,7 +115,7 @@ class VideoInterpolationView(ft.Container):
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=PADDING_SMALL,
                 ),
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 height=188,  # 220(父容器高度) - 32(padding) = 188
                 on_click=self._on_select_files,
                 ink=True,
@@ -130,7 +130,7 @@ class VideoInterpolationView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_installed=self._on_ffmpeg_installed,
                 on_back=self._on_back_click,
@@ -166,15 +166,15 @@ class VideoInterpolationView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=self._on_select_files,
+                            on_click=lambda _: self._page.run_task(self._on_select_files),
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=self._on_select_folder,
+                            on_click=lambda _: self._page.run_task(self._on_select_folder),
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -252,7 +252,7 @@ class VideoInterpolationView(ft.Container):
             value=self.current_model_key,
             label="选择RIFE模型",
             hint_text="选择插帧模型",
-            on_change=self._on_model_select,
+            on_select=self._on_model_select,
             width=480,
             dense=True,
             text_size=13,
@@ -279,7 +279,7 @@ class VideoInterpolationView(ft.Container):
         )
         
         # 下载模型按钮
-        self.download_model_button = ft.ElevatedButton(
+        self.download_model_button = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_download_model,
@@ -287,7 +287,7 @@ class VideoInterpolationView(ft.Container):
         )
         
         # 加载模型按钮
-        self.load_model_button = ft.ElevatedButton(
+        self.load_model_button = ft.Button(
             "加载模型",
             icon=ft.Icons.UPLOAD,
             on_click=self._on_load_model,
@@ -484,7 +484,7 @@ class VideoInterpolationView(ft.Container):
         self.browse_output_button = ft.IconButton(
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="浏览",
-            on_click=self._on_browse_output,
+            on_click=lambda _: self._page.run_task(self._on_browse_output),
             disabled=True,
         )
         
@@ -554,7 +554,7 @@ class VideoInterpolationView(ft.Container):
         
         # 底部大按钮
         self.process_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.VIDEO_SETTINGS, size=24),
@@ -723,7 +723,7 @@ class VideoInterpolationView(ft.Container):
         
         self.model_status_text.value = message
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -782,7 +782,7 @@ class VideoInterpolationView(ft.Container):
                             message = f"下载中... {progress*100:.1f}%"
                             self.model_status_text.value = message
                             try:
-                                self.page.update()
+                                self._page.update()
                             except:
                                 pass
             
@@ -833,7 +833,7 @@ class VideoInterpolationView(ft.Container):
         """卸载模型按钮点击事件。"""
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             if self.interpolator:
                 self.interpolator.unload_model()
@@ -847,7 +847,7 @@ class VideoInterpolationView(ft.Container):
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         estimated_memory = int(self.current_model.size_mb * 1.2)
         
@@ -866,14 +866,14 @@ class VideoInterpolationView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_unload),
-                ft.ElevatedButton("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
+                ft.Button("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载模型复选框变化事件。"""
@@ -889,7 +889,7 @@ class VideoInterpolationView(ft.Container):
         """删除模型按钮点击事件。"""
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
             # 如果模型已加载，先卸载
             if self.interpolator:
@@ -911,7 +911,7 @@ class VideoInterpolationView(ft.Container):
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
             dialog.open = False
-            self.page.update()
+            self._page.update()
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -931,7 +931,7 @@ class VideoInterpolationView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_delete),
-                ft.ElevatedButton(
+                ft.Button(
                     "删除",
                     icon=ft.Icons.DELETE,
                     bgcolor=ft.Colors.ERROR,
@@ -942,56 +942,44 @@ class VideoInterpolationView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                for file in result.files:
-                    file_path = Path(file.path)
-                    if file_path not in self.selected_files:
-                        self.selected_files.append(file_path)
-                
-                self._update_file_list()
-                self._update_process_button()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.pick_files(
+        files = await ft.FilePicker().pick_files(
             dialog_title="选择视频文件",
             allowed_extensions=["mp4", "mkv", "mov", "avi", "wmv", "flv", "webm"],
             allow_multiple=True,
         )
+        if files:
+            for file in files:
+                file_path = Path(file.path)
+                if file_path not in self.selected_files:
+                    self.selected_files.append(file_path)
+            
+            self._update_file_list()
+            self._update_process_button()
     
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
+    async def _on_select_folder(self) -> None:
         """选择文件夹按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                folder_path = Path(result.path)
-                video_extensions = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm"}
-                
-                # 查找所有视频文件
-                for ext in video_extensions:
-                    for video_file in folder_path.glob(f"*{ext}"):
-                        if video_file.is_file() and video_file not in self.selected_files:
-                            self.selected_files.append(video_file)
-                
-                self._update_file_list()
-                self._update_process_button()
-                
-                if not self.selected_files:
-                    self._show_snackbar("文件夹中没有找到支持的视频文件", ft.Colors.ORANGE)
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        
-        picker.get_directory_path(dialog_title="选择包含视频文件的文件夹")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择包含视频文件的文件夹")
+        if folder_path:
+            folder = Path(folder_path)
+            video_extensions = {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm"}
+            
+            # 查找所有视频文件
+            for ext in video_extensions:
+                for video_file in folder.glob(f"*{ext}"):
+                    if video_file.is_file() and video_file not in self.selected_files:
+                        self.selected_files.append(video_file)
+            
+            self._update_file_list()
+            self._update_process_button()
+            
+            if not self.selected_files:
+                self._show_snackbar("文件夹中没有找到支持的视频文件", ft.Colors.ORANGE)
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -1114,7 +1102,7 @@ class VideoInterpolationView(ft.Container):
                     )
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1133,7 +1121,7 @@ class VideoInterpolationView(ft.Container):
         try:
             button = self.process_button.content
             button.disabled = not (self.selected_files and self.interpolator)
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1143,21 +1131,16 @@ class VideoInterpolationView(ft.Container):
         self.output_dir_field.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self) -> None:
         """浏览输出目录。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.page.update()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if folder_path:
+            self.custom_output_dir.value = folder_path
+            self._page.update()
     
     def _get_multiplier_hint(self, multiplier: float) -> str:
         """获取倍数提示文本。"""
@@ -1199,7 +1182,7 @@ class VideoInterpolationView(ft.Container):
         self.config_service.set_config_value("video_interpolation_mode", mode)
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1223,7 +1206,7 @@ class VideoInterpolationView(ft.Container):
             self.config_service.set_config_value("video_interpolation_multiplier", multiplier)
             
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
         except ValueError:
@@ -1231,7 +1214,7 @@ class VideoInterpolationView(ft.Container):
             self.multiplier_hint_text.value = "⚠️ 请输入有效的数字 (1.0 - 10.0)"
             self.multiplier_hint_text.color = ft.Colors.ERROR
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
     
@@ -1241,7 +1224,7 @@ class VideoInterpolationView(ft.Container):
         self.quality_value_text.value = f"CRF: {quality} (推荐18-23，数值越小质量越好)"
         self.config_service.set_config_value("video_interpolation_quality", quality)
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1277,7 +1260,7 @@ class VideoInterpolationView(ft.Container):
         self.stage_text.visible = True
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1299,14 +1282,14 @@ class VideoInterpolationView(ft.Container):
             # 显示确认对话框
             def confirm_exit(confirm_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
                 self.cleanup()
                 if self.on_back:
                     self.on_back()
             
             def cancel_exit(cancel_e: ft.ControlEvent) -> None:
                 dialog.open = False
-                self.page.update()
+                self._page.update()
             
             dialog = ft.AlertDialog(
                 title=ft.Text("确认退出"),
@@ -1317,9 +1300,9 @@ class VideoInterpolationView(ft.Container):
                 ],
             )
             
-            self.page.overlay.append(dialog)
+            self._page.overlay.append(dialog)
             dialog.open = True
-            self.page.update()
+            self._page.update()
         else:
             if self.on_back:
                 self.on_back()
@@ -1907,7 +1890,7 @@ class VideoInterpolationView(ft.Container):
             self.stage_text.value = f"⚙️ {stage}"
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1931,7 +1914,7 @@ class VideoInterpolationView(ft.Container):
         self.cancel_button.visible = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
         
@@ -1950,7 +1933,7 @@ class VideoInterpolationView(ft.Container):
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。"""
-        if self.is_destroyed or not self.page:
+        if self.is_destroyed or not self._page:
             return
         
         try:
@@ -1959,9 +1942,9 @@ class VideoInterpolationView(ft.Container):
                 bgcolor=color,
                 duration=3000,
             )
-            self.page.overlay.append(snackbar)
+            self._page.overlay.append(snackbar)
             snackbar.open = True
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1991,7 +1974,7 @@ class VideoInterpolationView(ft.Container):
             self._show_snackbar(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         elif skipped_count > 0:
             self._show_snackbar("视频插帧不支持该格式", ft.Colors.ORANGE)
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理资源。"""

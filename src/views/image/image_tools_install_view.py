@@ -43,7 +43,7 @@ class ImageToolsInstallView(ft.Container):
             on_installed: 安装完成回调
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.image_service: ImageService = image_service
         self.on_back: Optional[callable] = on_back
         self.on_installed: Optional[callable] = on_installed

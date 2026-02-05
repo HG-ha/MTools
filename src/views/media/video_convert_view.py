@@ -49,7 +49,7 @@ class VideoConvertView(ft.Container):
             on_back: 返回回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.ffmpeg_service: FFmpegService = ffmpeg_service
         self.on_back: callable = on_back
@@ -71,7 +71,7 @@ class VideoConvertView(ft.Container):
             # 显示 FFmpeg 安装视图
             self.padding = ft.padding.all(0)
             self.content = FFmpegInstallView(
-                self.page,
+                self._page,
                 self.ffmpeg_service,
                 on_back=lambda e=None: self.on_back() if self.on_back else None
             )
@@ -90,12 +90,6 @@ class VideoConvertView(ft.Container):
             spacing=PADDING_MEDIUM,
         )
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(on_result=self._on_file_selected)
-        self.folder_picker = ft.FilePicker(on_result=self._on_folder_selected)
-        self.page.overlay.append(self.file_picker)
-        self.page.overlay.append(self.folder_picker)
-        
         # 文件列表视图
         self.file_list_view = ft.Column(
             spacing=PADDING_SMALL,
@@ -109,21 +103,15 @@ class VideoConvertView(ft.Container):
                     ft.Row(
                         controls=[
                             ft.Text("选择视频:", size=14, weight=ft.FontWeight.W_500),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件",
                                 icon=ft.Icons.FILE_UPLOAD,
-                                on_click=lambda e: self.file_picker.pick_files(
-                                    allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
-                                    dialog_title="选择视频文件",
-                                    allow_multiple=True,
-                                ),
+                                on_click=self._on_select_files,
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "选择文件夹",
                                 icon=ft.Icons.FOLDER_OPEN,
-                                on_click=lambda e: self.folder_picker.get_directory_path(
-                                    dialog_title="选择包含视频的文件夹",
-                                ),
+                                on_click=self._on_select_folder,
                             ),
                             ft.TextButton(
                                 "清空列表",
@@ -312,7 +300,7 @@ class VideoConvertView(ft.Container):
             need_reencode = self.reencode_switch.value
             self.video_codec_dropdown.disabled = not need_reencode
             self.audio_codec_dropdown.disabled = not need_reencode
-            self.page.update()
+            self._page.update()
         
         self.reencode_switch.on_change = on_reencode_changed
         
@@ -385,7 +373,7 @@ class VideoConvertView(ft.Container):
         
         # 转换按钮
         self.convert_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.TRANSFORM, size=24),
@@ -401,7 +389,7 @@ class VideoConvertView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容
@@ -450,10 +438,15 @@ class VideoConvertView(ft.Container):
         # 初始化文件列表空状态
         self._update_file_list()
     
-    def _on_file_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择回调。"""
-        if e.files:
-            for file in e.files:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
+        """选择文件按钮点击事件。"""
+        result = await ft.FilePicker().pick_files(
+            allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
+            dialog_title="选择视频文件",
+            allow_multiple=True,
+        )
+        if result and result.files:
+            for file in result.files:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
@@ -461,10 +454,11 @@ class VideoConvertView(ft.Container):
             self._update_file_list()
             self._update_convert_button()
     
-    def _on_folder_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件夹选择回调。"""
-        if e.path:
-            folder_path = Path(e.path)
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹按钮点击事件。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择包含视频的文件夹")
+        if result:
+            folder_path = Path(result)
             video_extensions = {".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv", ".webm", ".m4v", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts"}
             for file_path in folder_path.rglob("*"):
                 if file_path.is_file() and file_path.suffix.lower() in video_extensions:
@@ -507,13 +501,9 @@ class VideoConvertView(ft.Container):
                             alignment=ft.MainAxisAlignment.CENTER,
                             spacing=PADDING_SMALL,
                         ),
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         height=250,  # 固定高度以确保填满显示区域
-                        on_click=lambda e: self.file_picker.pick_files(
-                            allowed_extensions=["mp4", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"],
-                            dialog_title="选择视频文件",
-                            allow_multiple=True,
-                        ),
+                        on_click=self._on_select_files,
                         tooltip="点击选择视频文件",
                         ink=True,
                     )
@@ -587,21 +577,16 @@ class VideoConvertView(ft.Container):
         except:
             pass
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                self.output_custom_path = Path(result.path)
-                try:
-                    self.custom_output_dir.update()
-                except:
-                    pass
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            self.output_custom_path = Path(result)
+            try:
+                self.custom_output_dir.update()
+            except:
+                pass
     
     def _start_convert(self, e: ft.ControlEvent) -> None:
         """开始转换。"""
@@ -635,7 +620,7 @@ class VideoConvertView(ft.Container):
         self.progress_bar.value = 0
         self.progress_text.value = "准备转换..."
         self.speed_text.value = ""
-        self.page.update()
+        self._page.update()
         
         # 在后台线程中执行转换
         def convert_thread():
@@ -668,7 +653,7 @@ class VideoConvertView(ft.Container):
                         self.progress_text.value = f"正在转换: {input_file.name} ({i+1}/{total_files})"
                         self.speed_text.value = ""
                         try:
-                            self.page.update()
+                            self._page.update()
                         except:
                             pass
                         
@@ -690,7 +675,7 @@ class VideoConvertView(ft.Container):
                             self.progress_text.value = f"转换中: {input_file.name} ({i+1}/{total_files}) - {int(progress * 100)}%"
                             self.speed_text.value = f"速度: {speed} | 剩余: {remaining}"
                             try:
-                                self.page.update()
+                                self._page.update()
                             except:
                                 pass
                         
@@ -723,7 +708,7 @@ class VideoConvertView(ft.Container):
                     self.speed_text.value = "输出: 原文件同目录"
                     self._show_success(f"转换完成! 成功处理 {success_count} 个文件，保存在原文件旁边")
                 
-                self.page.update()
+                self._page.update()
                 
             except Exception as ex:
                 self.is_converting = False
@@ -732,7 +717,7 @@ class VideoConvertView(ft.Container):
                 self.progress_text.value = "转换失败"
                 self.speed_text.value = ""
                 self._show_error(f"转换失败: {str(ex)}")
-                self.page.update()
+                self._page.update()
         
         # 启动转换线程
         thread = threading.Thread(target=convert_thread, daemon=True)
@@ -928,21 +913,21 @@ class VideoConvertView(ft.Container):
     
     def _show_error(self, message: str) -> None:
         """显示错误消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.ERROR,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _show_success(self, message: str) -> None:
         """显示成功消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.GREEN,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -970,7 +955,7 @@ class VideoConvertView(ft.Container):
             self._show_success(f"已添加 {added_count} 个文件")
         elif skipped_count > 0:
             self._show_error("视频格式转换不支持该格式")
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

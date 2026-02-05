@@ -45,7 +45,7 @@ class Base64ToImageView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.on_back: Optional[Callable] = on_back
         self.expand: bool = True
@@ -102,8 +102,8 @@ class Base64ToImageView(ft.Container):
         )
         
         # 解码和预览按钮
-        decode_button = ft.ElevatedButton(
-            text="解码并预览",
+        decode_button = ft.Button(
+            content="解码并预览",
             icon=ft.Icons.PREVIEW,
             on_click=self._on_decode,
             style=ft.ButtonStyle(
@@ -115,7 +115,7 @@ class Base64ToImageView(ft.Container):
         # 预览区域
         self.preview_image = ft.Image(
             visible=False,
-            fit=ft.ImageFit.CONTAIN,
+            fit=ft.BoxFit.CONTAIN,
             width=400,
             height=400,
         )
@@ -134,7 +134,7 @@ class Base64ToImageView(ft.Container):
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
                         content=self.preview_image,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         border=ft.border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_LARGE,
@@ -165,8 +165,8 @@ class Base64ToImageView(ft.Container):
             value="png",
         )
         
-        save_button = ft.ElevatedButton(
-            text="保存图片",
+        save_button = ft.Button(
+            content="保存图片",
             icon=ft.Icons.SAVE,
             on_click=self._on_save,
             visible=False,
@@ -318,59 +318,54 @@ class Base64ToImageView(ft.Container):
             self.preview_section.update()
             self.save_section.update()
     
-    def _on_save(self, e: ft.ControlEvent) -> None:
+    async def _on_save(self, e: ft.ControlEvent) -> None:
         """保存按钮点击事件。"""
         if not self.image_data:
             self._show_message("请先解码Base64", ft.Colors.ERROR)
             return
         
-        def on_save_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                try:
-                    save_path = Path(result.path)
-                    
-                    # 如果需要转换格式
-                    selected_format = self.format_dropdown.value
-                    if selected_format != self.image_format:
-                        # 需要用PIL转换格式
-                        from PIL import Image
-                        import io
-                        
-                        img = Image.open(io.BytesIO(self.image_data))
-                        
-                        # 如果是JPEG，需要转换RGBA为RGB
-                        if selected_format == "jpg" and img.mode in ("RGBA", "LA", "P"):
-                            rgb_img = Image.new("RGB", img.size, (255, 255, 255))
-                            if img.mode == "P":
-                                img = img.convert("RGBA")
-                            rgb_img.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
-                            img = rgb_img
-                        
-                        # 保存转换后的图片
-                        img.save(save_path, format=selected_format.upper())
-                    else:
-                        # 直接保存原始数据
-                        with open(save_path, "wb") as f:
-                            f.write(self.image_data)
-                    
-                    self._show_message(f"图片已保存到: {save_path}", ft.Colors.GREEN)
-                
-                except Exception as ex:
-                    self._show_message(f"保存失败: {str(ex)}", ft.Colors.ERROR)
-        
-        save_picker = ft.FilePicker(on_result=on_save_result)
-        self.page.overlay.append(save_picker)
-        self.page.update()
-        
         # 获取默认文件名和扩展名
         format_ext = self.format_dropdown.value
         default_name = f"image.{format_ext}"
         
-        save_picker.save_file(
+        result = await ft.FilePicker().save_file(
             dialog_title="保存图片",
             file_name=default_name,
             allowed_extensions=[format_ext],
         )
+        
+        if result:
+            try:
+                save_path = Path(result)
+                
+                # 如果需要转换格式
+                selected_format = self.format_dropdown.value
+                if selected_format != self.image_format:
+                    # 需要用PIL转换格式
+                    from PIL import Image
+                    import io
+                    
+                    img = Image.open(io.BytesIO(self.image_data))
+                    
+                    # 如果是JPEG，需要转换RGBA为RGB
+                    if selected_format == "jpg" and img.mode in ("RGBA", "LA", "P"):
+                        rgb_img = Image.new("RGB", img.size, (255, 255, 255))
+                        if img.mode == "P":
+                            img = img.convert("RGBA")
+                        rgb_img.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
+                        img = rgb_img
+                    
+                    # 保存转换后的图片
+                    img.save(save_path, format=selected_format.upper())
+                else:
+                    # 直接保存原始数据
+                    with open(save_path, "wb") as f:
+                        f.write(self.image_data)
+                
+                self._show_message(f"图片已保存到: {save_path}", ft.Colors.GREEN)
+            
+            except Exception as ex:
+                self._show_message(f"保存失败: {str(ex)}", ft.Colors.ERROR)
     
     def _show_message(self, message: str, color: str) -> None:
         """显示消息提示。
@@ -379,12 +374,12 @@ class Base64ToImageView(ft.Container):
             message: 消息内容
             color: 消息颜色
         """
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=color,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件，读取文件内容作为 Base64 输入。

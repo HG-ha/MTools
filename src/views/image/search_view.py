@@ -34,7 +34,7 @@ class ImageSearchView(ft.Container):
     
     def __init__(self, page: ft.Page, on_back: Optional[Callable] = None):
         super().__init__()
-        self.page = page
+        self._page = page
         self.on_back = on_back
         
         # 初始化服务
@@ -61,7 +61,7 @@ class ImageSearchView(ft.Container):
         self.image_preview = ft.Image(
             width=120,
             height=120,
-            fit=ft.ImageFit.COVER,
+            fit=ft.BoxFit.COVER,
             border_radius=ft.border_radius.all(8),
         )
         
@@ -73,7 +73,7 @@ class ImageSearchView(ft.Container):
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=8,
             visible=False,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 图片路径显示
@@ -85,10 +85,6 @@ class ImageSearchView(ft.Container):
             overflow=ft.TextOverflow.ELLIPSIS,
         )
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(on_result=self._on_file_picked)
-        self.page.overlay.append(self.file_picker)
-        
         # URL输入框
         self.url_input = ft.TextField(
             label="图片URL",
@@ -99,23 +95,20 @@ class ImageSearchView(ft.Container):
         )
         
         # 上传按钮
-        self.upload_local_btn = ft.ElevatedButton(
+        self.upload_local_btn = ft.Button(
             "选择本地图片",
             icon=ft.Icons.UPLOAD_FILE,
-            on_click=lambda e: self.file_picker.pick_files(
-                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
-                dialog_title="选择要搜索的图片"
-            ),
+            on_click=self._on_select_local_image,
         )
         
-        self.upload_url_btn = ft.ElevatedButton(
+        self.upload_url_btn = ft.Button(
             "从URL上传",
             icon=ft.Icons.LINK,
             on_click=lambda e: self._upload_from_url(),
         )
         
         # 搜索按钮
-        self.search_btn = ft.ElevatedButton(
+        self.search_btn = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SEARCH, size=18),
@@ -124,7 +117,7 @@ class ImageSearchView(ft.Container):
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=6,
             ),
-            on_click=lambda e: self.page.run_task(self._perform_search),
+            on_click=lambda e: self._page.run_task(self._perform_search),
             disabled=True,
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
@@ -149,13 +142,13 @@ class ImageSearchView(ft.Container):
         # 分页控件
         self.page_prev_btn = ft.IconButton(
             icon=ft.Icons.CHEVRON_LEFT,
-            on_click=lambda e: self.page.run_task(self._go_to_prev_page),
+            on_click=lambda e: self._page.run_task(self._go_to_prev_page),
             disabled=True,
         )
         
         self.page_next_btn = ft.IconButton(
             icon=ft.Icons.CHEVRON_RIGHT,
-            on_click=lambda e: self.page.run_task(self._go_to_next_page),
+            on_click=lambda e: self._page.run_task(self._go_to_next_page),
             disabled=True,
         )
         
@@ -218,7 +211,7 @@ class ImageSearchView(ft.Container):
                                             # 搜索按钮
                                             ft.Container(
                                                 content=self.search_btn,
-                                                alignment=ft.alignment.center,
+                                                alignment=ft.Alignment.CENTER,
                                             ),
                                         ],
                                         spacing=PADDING_SMALL,
@@ -340,15 +333,19 @@ class ImageSearchView(ft.Container):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 expand=True,
             )
         )
         
-    def _on_file_picked(self, e: ft.FilePickerResultEvent):
-        """处理文件选择"""
-        if e.files and len(e.files) > 0:
-            file_path = e.files[0].path
+    async def _on_select_local_image(self, e: ft.ControlEvent):
+        """选择本地图片"""
+        result = await ft.FilePicker().pick_files(
+            allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"],
+            dialog_title="选择要搜索的图片"
+        )
+        if result and len(result) > 0:
+            file_path = result[0].path
             self.current_image_path = file_path
             self.image_path_text.value = os.path.basename(file_path)
             
@@ -362,7 +359,7 @@ class ImageSearchView(ft.Container):
             # 清空URL输入
             self.url_input.value = ""
             
-            self.page.update()
+            self._page.update()
             
     def _upload_from_url(self):
         """从URL上传图片"""
@@ -385,7 +382,7 @@ class ImageSearchView(ft.Container):
         # 启用搜索按钮
         self.search_btn.disabled = False
         
-        self.page.update()
+        self._page.update()
         
     async def _perform_search(self):
         """执行搜索"""
@@ -406,7 +403,7 @@ class ImageSearchView(ft.Container):
         self.progress_container.visible = True
         self.progress_ring.visible = True
         self.status_text.value = "正在上传图片..."
-        self.page.update()
+        self._page.update()
         
         try:
             # 上传图片
@@ -427,7 +424,7 @@ class ImageSearchView(ft.Container):
             
             # 获取搜索结果
             self.status_text.value = "正在搜索相似图片..."
-            self.page.update()
+            self._page.update()
             
             await self._load_search_results()
             
@@ -440,7 +437,7 @@ class ImageSearchView(ft.Container):
             self.progress_container.visible = False
             self.progress_ring.visible = False
             self.status_text.value = ""
-            self.page.update()
+            self._page.update()
             
     async def _load_search_results(self):
         """加载搜索结果"""
@@ -483,10 +480,10 @@ class ImageSearchView(ft.Container):
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
                     height=200,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 )
             )
-            self.page.update()
+            self._page.update()
             return
             
         # 创建结果卡片
@@ -502,7 +499,7 @@ class ImageSearchView(ft.Container):
         self.page_next_btn.disabled = not has_more
         self.pagination_row.visible = True
         
-        self.page.update()
+        self._page.update()
         
     def _create_result_card(self, item: Dict, index: int) -> Optional[ft.Container]:
         """创建结果卡片"""
@@ -541,7 +538,7 @@ class ImageSearchView(ft.Container):
                                 color=ft.Colors.ON_SURFACE_VARIANT,
                             ),
                             width=35,
-                            alignment=ft.alignment.center,
+                            alignment=ft.Alignment.CENTER,
                         ),
                         
                         # 缩略图
@@ -550,7 +547,7 @@ class ImageSearchView(ft.Container):
                                 src=thumb_url if thumb_url else pic_url,
                                 width=100,
                                 height=100,
-                                fit=ft.ImageFit.COVER,
+                                fit=ft.BoxFit.COVER,
                                 border_radius=8,
                             ) if (thumb_url or pic_url) else ft.Icon(
                                 ft.Icons.BROKEN_IMAGE,
@@ -591,7 +588,7 @@ class ImageSearchView(ft.Container):
                                     # 操作按钮
                                     ft.Row(
                                         controls=[
-                                            ft.ElevatedButton(
+                                            ft.Button(
                                                 content=ft.Row(
                                                     controls=[
                                                         ft.Icon(ft.Icons.COPY, size=16),
@@ -604,7 +601,7 @@ class ImageSearchView(ft.Container):
                                                     padding=ft.padding.symmetric(horizontal=12, vertical=8),
                                                 ),
                                             ) if pic_url else ft.Container(),
-                                            ft.ElevatedButton(
+                                            ft.Button(
                                                 content=ft.Row(
                                                     controls=[
                                                         ft.Icon(ft.Icons.OPEN_IN_NEW, size=16),
@@ -645,12 +642,12 @@ class ImageSearchView(ft.Container):
     def _open_url(self, url: str):
         """打开URL"""
         if url:
-            self.page.launch_url(url)
+            self._page.launch_url(url)
     
     def _copy_to_clipboard(self, text: str, label: str = "内容"):
         """复制文本到剪贴板"""
         if text:
-            self.page.set_clipboard(text)
+            self._page.set_clipboard(text)
             self._show_snackbar(f"{label}已复制到剪贴板", ft.Colors.GREEN)
         else:
             self._show_snackbar(f"{label}为空，无法复制", ft.Colors.ORANGE)
@@ -662,9 +659,9 @@ class ImageSearchView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def _handle_back(self, e: ft.ControlEvent = None):
         """处理返回按钮点击"""
@@ -686,7 +683,7 @@ class ImageSearchView(ft.Container):
         """显示错误消息"""
         def close_dialog(e):
             dialog.open = False
-            self.page.update()
+            self._page.update()
             
         dialog = ft.AlertDialog(
             title=ft.Text("错误"),
@@ -696,9 +693,9 @@ class ImageSearchView(ft.Container):
             ],
         )
         
-        self.page.dialog = dialog
+        self._page.dialog = dialog
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""
@@ -722,7 +719,7 @@ class ImageSearchView(ft.Container):
                 # 启用搜索按钮
                 self.search_btn.disabled = False
                 self._show_snackbar(f"已加载: {path.name}", ft.Colors.GREEN)
-                self.page.update()
+                self._page.update()
                 return
         
         self._show_snackbar("图片搜索工具不支持该格式", ft.Colors.ORANGE)

@@ -41,7 +41,7 @@ class ImageToUrlView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.on_back: Optional[callable] = on_back
         
         self.selected_files: List[Path] = []
@@ -122,7 +122,7 @@ class ImageToUrlView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
@@ -184,7 +184,7 @@ class ImageToUrlView(ft.Container):
         
         # 上传按钮
         self.upload_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.CLOUD_UPLOAD, size=24),
@@ -199,7 +199,7 @@ class ImageToUrlView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -246,30 +246,25 @@ class ImageToUrlView(ft.Container):
                     spacing=PADDING_MEDIUM // 2,
                 ),
                 padding=PADDING_LARGE * 2,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_select_files,
                 tooltip="点击选择图片",
             )
         )
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.files:
-                new_files = [Path(f.path) for f in result.files]
-                for new_file in new_files:
-                    if new_file not in self.selected_files:
-                        self.selected_files.append(new_file)
-                self._update_file_list()
-        
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             dialog_title="选择图片文件",
             allowed_extensions=["jpg", "jpeg", "png", "gif", "webp", "svg"],
             allow_multiple=True,
         )
+        if result:
+            new_files = [Path(f.path) for f in result]
+            for new_file in new_files:
+                if new_file not in self.selected_files:
+                    self.selected_files.append(new_file)
+            self._update_file_list()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -423,7 +418,7 @@ class ImageToUrlView(ft.Container):
                                         weight=ft.FontWeight.W_500,
                                     ),
                                     width=30,
-                                    alignment=ft.alignment.center,
+                                    alignment=ft.Alignment.CENTER,
                                 ),
                                 ft.Icon(
                                     icon,
@@ -641,7 +636,7 @@ class ImageToUrlView(ft.Container):
     
     def _copy_url(self, url: str) -> None:
         """复制单个URL到剪贴板。"""
-        self.page.set_clipboard(url)
+        self._page.set_clipboard(url)
         self._show_message("链接已复制到剪贴板", ft.Colors.GREEN)
     
     def _on_copy_all_urls(self, e: ft.ControlEvent) -> None:
@@ -649,7 +644,7 @@ class ImageToUrlView(ft.Container):
         urls = [r['url'] for r in self.upload_results if r['success']]
         if urls:
             all_urls = '\n'.join(urls)
-            self.page.set_clipboard(all_urls)
+            self._page.set_clipboard(all_urls)
             self._show_message(f"已复制 {len(urls)} 个链接到剪贴板", ft.Colors.GREEN)
         else:
             self._show_message("没有可复制的链接", ft.Colors.ORANGE)
@@ -666,9 +661,9 @@ class ImageToUrlView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self.page.overlay.append(snackbar)
+        self._page.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。
@@ -701,7 +696,7 @@ class ImageToUrlView(ft.Container):
         else:
             self._show_message("未找到支持的图片文件（支持 jpg, png, gif, webp, svg）", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

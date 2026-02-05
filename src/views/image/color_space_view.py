@@ -69,7 +69,7 @@ class ColorSpaceView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable] = on_back
@@ -114,12 +114,12 @@ class ColorSpaceView(ft.Container):
         file_buttons_row = ft.Row(
             controls=[
                 ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                ft.ElevatedButton(
+                ft.Button(
                     "选择文件",
                     icon=ft.Icons.FILE_UPLOAD,
                     on_click=self._on_select_files,
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "选择文件夹",
                     icon=ft.Icons.FOLDER_OPEN,
                     on_click=self._on_select_folder,
@@ -179,7 +179,7 @@ class ColorSpaceView(ft.Container):
                 ft.dropdown.Option(key=cs[0], text=f"{cs[1]} - {cs[2]}")
                 for cs in self.COLOR_SPACES
             ],
-            on_change=self._on_color_space_change,
+            on_select=self._on_color_space_change,
             expand=True,
         )
         
@@ -311,7 +311,7 @@ class ColorSpaceView(ft.Container):
         )
         
         # 转换按钮
-        self.convert_btn = ft.ElevatedButton(
+        self.convert_btn = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.TRANSFORM),
@@ -343,7 +343,7 @@ class ColorSpaceView(ft.Container):
                 ft.Container(height=PADDING_MEDIUM),
                 ft.Container(
                     content=self.convert_btn,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 ),
                 ft.Container(height=PADDING_LARGE),  # 底部间距
             ],
@@ -362,58 +362,35 @@ class ColorSpaceView(ft.Container):
             spacing=0,
         )
         
-        # 文件选择器
-        self.file_picker = ft.FilePicker(on_result=self._on_files_selected)
-        self.folder_picker = ft.FilePicker(on_result=self._on_folder_selected)
-        self.output_dir_picker = ft.FilePicker(on_result=self._on_output_dir_selected)
-        
         # 初始化文件列表显示（显示空状态）
         self._update_file_list()
-    
-    def did_mount(self) -> None:
-        """组件挂载后添加文件选择器到overlay。"""
-        if self.file_picker not in self.page.overlay:
-            self.page.overlay.append(self.file_picker)
-        if self.folder_picker not in self.page.overlay:
-            self.page.overlay.append(self.folder_picker)
-        if self.output_dir_picker not in self.page.overlay:
-            self.page.overlay.append(self.output_dir_picker)
-        self.page.update()
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """处理返回按钮点击。"""
         if self.on_back:
             self.on_back()
     
-    def _on_select_files(self, e: ft.ControlEvent = None) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
         """打开文件选择对话框。"""
-        self.file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             allowed_extensions=[ext.lstrip('.') for ext in self.SUPPORTED_EXTENSIONS],
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
-        """打开文件夹选择对话框。"""
-        self.folder_picker.get_directory_path()
-    
-    def _on_select_output_dir(self, e: ft.ControlEvent) -> None:
-        """打开输出目录选择对话框。"""
-        self.output_dir_picker.get_directory_path()
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理文件选择结果。"""
-        if e.files:
-            for f in e.files:
+        
+        if result:
+            for f in result:
                 path = Path(f.path)
                 if path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
                     if path not in self.selected_files:
                         self.selected_files.append(path)
             self._update_file_list()
     
-    def _on_folder_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理文件夹选择结果。"""
-        if e.path:
-            folder = Path(e.path)
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """打开文件夹选择对话框。"""
+        result = await ft.FilePicker().get_directory_path()
+        
+        if result:
+            folder = Path(result)
             for ext in self.SUPPORTED_EXTENSIONS:
                 for file in folder.glob(f"*{ext}"):
                     if file not in self.selected_files:
@@ -423,18 +400,20 @@ class ColorSpaceView(ft.Container):
                         self.selected_files.append(file)
             self._update_file_list()
     
-    def _on_output_dir_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """处理输出目录选择结果。"""
-        if e.path:
-            self.custom_output_dir.value = e.path
-            self.page.update()
+    async def _on_select_output_dir(self, e: ft.ControlEvent) -> None:
+        """打开输出目录选择对话框。"""
+        result = await ft.FilePicker().get_directory_path()
+        
+        if result:
+            self.custom_output_dir.value = result
+            self._page.update()
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """处理输出模式变化。"""
         is_custom = e.control.value == "custom"
         self.custom_output_dir.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
-        self.page.update()
+        self._page.update()
     
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
@@ -460,7 +439,7 @@ class ColorSpaceView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     height=250,
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_select_files,
                     tooltip="点击选择图片",
                 )
@@ -514,7 +493,7 @@ class ColorSpaceView(ft.Container):
         self.convert_btn.disabled = len(self.selected_files) == 0
         
         try:
-            self.page.update()
+            self._page.update()
         except Exception:
             pass
     
@@ -536,22 +515,22 @@ class ColorSpaceView(ft.Container):
                 self.output_format_dropdown.value = "tiff"
                 self._show_snackbar("CMYK 模式仅支持 JPEG 和 TIFF 格式，已自动切换", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def _show_snackbar(self, message: str, bgcolor: str = None) -> None:
         """显示提示消息。"""
-        self.page.snack_bar = ft.SnackBar(
+        self._page.snack_bar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=bgcolor,
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar.open = True
+        self._page.update()
     
     def _on_threshold_change(self, e: ft.ControlEvent) -> None:
         """处理二值化阈值变化。"""
         self.binary_threshold = int(e.control.value)
         self.threshold_text.value = f"阈值: {self.binary_threshold}"
-        self.page.update()
+        self._page.update()
     
     def add_files(self, files: List[Path]) -> None:
         """添加文件到列表（供外部调用）。
@@ -574,7 +553,7 @@ class ColorSpaceView(ft.Container):
         self.convert_btn.disabled = True
         self.progress_bar.visible = True
         self.progress_bar.value = 0
-        self.page.update()
+        self._page.update()
         
         # 在后台线程执行转换
         def do_convert():
@@ -595,7 +574,7 @@ class ColorSpaceView(ft.Container):
                     # 更新进度
                     self.progress_text.value = f"正在处理: {file.name} ({i + 1}/{total})"
                     self.progress_bar.value = i / total
-                    self.page.update()
+                    self._page.update()
                     
                     # 执行转换
                     self._convert_image(file, output_dir, output_format)
@@ -609,15 +588,15 @@ class ColorSpaceView(ft.Container):
             self.progress_bar.value = 1.0
             self.progress_text.value = f"完成！成功: {success_count}, 失败: {error_count}"
             self.convert_btn.disabled = False
-            self.page.update()
+            self._page.update()
             
             # 显示完成提示
-            self.page.snack_bar = ft.SnackBar(
+            self._page.snack_bar = ft.SnackBar(
                 content=ft.Text(f"颜色空间转换完成！成功: {success_count}, 失败: {error_count}"),
                 bgcolor=ft.Colors.GREEN if error_count == 0 else ft.Colors.ORANGE,
             )
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar.open = True
+            self._page.update()
         
         # 使用线程池执行
         executor = ThreadPoolExecutor(max_workers=1)

@@ -57,7 +57,7 @@ class OCRView(ft.Container):
             on_back: 返回按钮回调函数
         """
         super().__init__()
-        self.page: ft.Page = page
+        self._page: ft.Page = page
         self.config_service: ConfigService = config_service
         self.on_back: Optional[Callable] = on_back
         
@@ -112,12 +112,12 @@ class OCRView(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Text("选择图片:", size=14, weight=ft.FontWeight.W_500),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
                             on_click=self._on_select_files,
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
                             on_click=self._on_select_folder,
@@ -170,7 +170,7 @@ class OCRView(ft.Container):
             hint_text="选择OCR识别模型",
             options=model_options,
             value=self.current_model_key,
-            on_change=self._on_model_change,
+            on_select=self._on_model_change,
             width=600,
             dense=True,
             text_size=13,
@@ -197,7 +197,7 @@ class OCRView(ft.Container):
         )
         
         # 下载模型按钮
-        self.download_model_button = ft.ElevatedButton(
+        self.download_model_button = ft.Button(
             "下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_download_model,
@@ -205,7 +205,7 @@ class OCRView(ft.Container):
         )
         
         # 加载模型按钮
-        self.load_model_button = ft.ElevatedButton(
+        self.load_model_button = ft.Button(
             "加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model,
@@ -390,7 +390,7 @@ class OCRView(ft.Container):
         
         # 处理按钮区域 - 大号按钮样式
         self.recognize_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.TEXT_FIELDS, size=24),
@@ -406,7 +406,7 @@ class OCRView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         
         # 可滚动内容区域
@@ -490,55 +490,43 @@ class OCRView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 height=232,  # 280 - 2*24(padding) = 232
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment.CENTER,
                 on_click=self._on_empty_area_click,
                 ink=True,
             )
         )
     
-    def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
+    async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""
-        self._on_select_files(e)
+        await self._on_select_files(e)
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。"""
         if self.on_back:
             self.on_back()
     
-    def _on_select_files(self, e: ft.ControlEvent) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件事件。"""
-        file_picker = ft.FilePicker(on_result=self._on_files_selected)
-        self.page.overlay.append(file_picker)
-        self.page.update()
-        
-        file_picker.pick_files(
+        result = await ft.FilePicker().pick_files(
             allowed_extensions=["jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"],
             dialog_title="选择图片",
             allow_multiple=True,
         )
-    
-    def _on_select_folder(self, e: ft.ControlEvent) -> None:
-        """选择文件夹事件。"""
-        file_picker = ft.FilePicker(on_result=self._on_folder_selected)
-        self.page.overlay.append(file_picker)
-        self.page.update()
         
-        file_picker.get_directory_path(dialog_title="选择文件夹")
-    
-    def _on_files_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件选择完成。"""
-        if e.files:
-            for file in e.files:
+        if result:
+            for file in result:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
             
             self._update_file_list()
     
-    def _on_folder_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """文件夹选择完成。"""
-        if e.path:
-            folder_path = Path(e.path)
+    async def _on_select_folder(self, e: ft.ControlEvent) -> None:
+        """选择文件夹事件。"""
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择文件夹")
+        
+        if result:
+            folder_path = Path(result)
             # 支持的图片格式
             image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
             
@@ -554,12 +542,13 @@ class OCRView(ft.Container):
             
             self._update_file_list()
     
+    
     def _on_clear_files(self, e: ft.ControlEvent) -> None:
         """清空文件列表。"""
         self.selected_files.clear()
         self.ocr_results.clear()
         self._update_file_list()
-        self.page.update()
+        self._page.update()
     
     def _update_file_list(self) -> None:
         """更新文件列表显示。"""
@@ -592,7 +581,7 @@ class OCRView(ft.Container):
                         spacing=PADDING_SMALL,
                     ),
                     height=232,  # 280 - 2*24(padding) = 232
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                     on_click=self._on_empty_area_click,
                     ink=True,
                 )
@@ -631,7 +620,7 @@ class OCRView(ft.Container):
             
             self.recognize_button.content.disabled = False
         
-        self.page.update()
+        self._page.update()
     
     def _remove_file(self, index: int) -> None:
         """移除指定索引的文件。"""
@@ -663,7 +652,7 @@ class OCRView(ft.Container):
         # 重新检查模型状态
         self._check_model_status()
         
-        self.page.update()
+        self._page.update()
     
     def _check_all_model_files_exist(self) -> bool:
         """检查当前模型的所有文件是否存在。"""
@@ -698,7 +687,7 @@ class OCRView(ft.Container):
             self.unload_model_button.visible = False
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -729,7 +718,7 @@ class OCRView(ft.Container):
                 self.unload_model_button.visible = True
                 
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
         
@@ -762,7 +751,7 @@ class OCRView(ft.Container):
             selected_formats = ["txt"]
             self._show_snackbar("至少需要选择一种输出格式", ft.Colors.ORANGE)
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
         
@@ -784,24 +773,20 @@ class OCRView(ft.Container):
         self.browse_output_button.disabled = not is_custom
         
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
-    def _on_browse_output(self, e: ft.ControlEvent) -> None:
+    async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出目录按钮点击事件。"""
-        def on_result(result: ft.FilePickerResultEvent) -> None:
-            if result.path:
-                self.custom_output_dir.value = result.path
-                try:
-                    self.page.update()
-                except:
-                    pass
+        result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         
-        picker = ft.FilePicker(on_result=on_result)
-        self.page.overlay.append(picker)
-        self.page.update()
-        picker.get_directory_path(dialog_title="选择输出目录")
+        if result:
+            self.custom_output_dir.value = result
+            try:
+                self._page.update()
+            except:
+                pass
     
     def _on_download_model(self, e: ft.ControlEvent) -> None:
         """下载模型。"""
@@ -810,14 +795,14 @@ class OCRView(ft.Container):
         self.load_model_button.disabled = True
         self.model_progress_bar.visible = True
         self.model_progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def download_thread():
             def progress_callback(progress: float, message: str):
                 self.model_progress_bar.value = progress
                 self.model_progress_text.value = message
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
             
@@ -839,7 +824,7 @@ class OCRView(ft.Container):
                 self._show_snackbar(f"模型下载失败: {message}", ft.Colors.RED)
             
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
         
@@ -852,14 +837,14 @@ class OCRView(ft.Container):
         self.load_model_button.disabled = True
         self.model_progress_bar.visible = True
         self.model_progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def load_thread():
             def progress_callback(progress: float, message: str):
                 self.model_progress_bar.value = progress
                 self.model_progress_text.value = message
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
             
@@ -889,7 +874,7 @@ class OCRView(ft.Container):
                 self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
             
             try:
-                self.page.update()
+                self._page.update()
             except:
                 pass
         
@@ -908,7 +893,7 @@ class OCRView(ft.Container):
             self.unload_model_button.visible = False
             
             self._show_snackbar("模型已卸载", ft.Colors.GREEN)
-            self.page.update()
+            self._page.update()
         except Exception as ex:
             logger.error(f"卸载模型失败: {ex}")
             self._show_snackbar(f"卸载失败: {str(ex)}", ft.Colors.RED)
@@ -949,13 +934,13 @@ class OCRView(ft.Container):
             title=ft.Text("确认删除"),
             content=ft.Text(f"确定要删除模型 {self.current_model.display_name} 吗？\n删除后需要重新下载才能使用。"),
             actions=[
-                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self.page.update()),
-                ft.TextButton("删除", on_click=lambda _: (setattr(dialog, 'open', False), confirm_delete(True), self.page.update())),
+                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self._page.update()),
+                ft.TextButton("删除", on_click=lambda _: (setattr(dialog, 'open', False), confirm_delete(True), self._page.update())),
             ],
         )
-        self.page.overlay.append(dialog)
+        self._page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._page.update()
     
     def _on_recognize(self, e: ft.ControlEvent) -> None:
         """开始识别。"""
@@ -973,7 +958,7 @@ class OCRView(ft.Container):
         self.progress_bar.visible = True
         self.progress_bar.value = None  # 显示不确定进度
         self.progress_text.visible = True
-        self.page.update()
+        self._page.update()
         
         def recognize_thread():
             total_files = len(self.selected_files)
@@ -987,7 +972,7 @@ class OCRView(ft.Container):
                         self.progress_bar.value = progress * 0.1  # 加载占10%进度
                         self.progress_text.value = f"正在加载模型: {message}"
                         try:
-                            self.page.update()
+                            self._page.update()
                         except:
                             pass
                     
@@ -1013,7 +998,7 @@ class OCRView(ft.Container):
                         self.progress_text.visible = False
                         self.is_processing = False
                         try:
-                            self.page.update()
+                            self._page.update()
                         except:
                             pass
                         return
@@ -1029,7 +1014,7 @@ class OCRView(ft.Container):
                         self.progress_bar.value = total_progress
                         self.progress_text.value = f"正在处理 {i+1}/{total_files}: {file_path.name} - {message}"
                         try:
-                            self.page.update()
+                            self._page.update()
                         except:
                             pass
                     
@@ -1100,7 +1085,7 @@ class OCRView(ft.Container):
                 self.progress_text.visible = False
                 
                 try:
-                    self.page.update()
+                    self._page.update()
                 except:
                     pass
         
@@ -1441,10 +1426,10 @@ class OCRView(ft.Container):
             content=ft.Text(message),
             bgcolor=color,
         )
-        self.page.overlay.append(snack_bar)
+        self._page.overlay.append(snack_bar)
         snack_bar.open = True
         try:
-            self.page.update()
+            self._page.update()
         except:
             pass
     
@@ -1476,7 +1461,7 @@ class OCRView(ft.Container):
         elif skipped_count > 0:
             self._show_snackbar("OCR工具不支持该格式", ft.Colors.ORANGE)
         
-        self.page.update()
+        self._page.update()
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。
