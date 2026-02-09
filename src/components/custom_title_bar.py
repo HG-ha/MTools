@@ -26,33 +26,32 @@ from services.weather_service import WeatherService
 
 
 def _get_icon_path() -> str:
-    """获取应用图标路径。
+    """获取应用图标的 Flet assets 相对路径（用于 ft.Image）。
     
     Returns:
-        图标文件路径
+        相对于 assets_dir 的路径
     """
-    # 判断是否为 Nuitka 打包后的环境
-    is_compiled = Path(sys.argv[0]).suffix.lower() == '.exe'
+    return "icon.png"
+
+
+def _get_icon_abs_path() -> str:
+    """获取应用图标的绝对文件路径（用于 pystray 等需要文件路径的场景）。
     
-    if is_compiled:
-        # 打包环境：从 exe 所在目录查找
-        app_dir = Path(sys.argv[0]).parent
-        possible_paths = [
-            app_dir / "src" / "assets" / "icon.png",
-            app_dir / "assets" / "icon.png",
-        ]
-    else:
-        # 开发环境：从源代码目录查找
-        possible_paths = [
-            Path(__file__).parent.parent / "assets" / "icon.png",
-        ]
+    Returns:
+        图标文件的绝对路径
+    """
+    # 尝试从源代码目录查找
+    path = Path(__file__).parent.parent / "assets" / "icon.png"
+    if path.exists():
+        return str(path)
     
-    for path in possible_paths:
-        if path.exists():
-            return str(path)
+    # 打包环境：从 exe 所在目录查找
+    app_dir = Path(sys.argv[0]).parent
+    for p in [app_dir / "src" / "assets" / "icon.png", app_dir / "assets" / "icon.png"]:
+        if p.exists():
+            return str(p)
     
-    # 默认返回相对路径
-    return "src/assets/icon.png"
+    return "icon.png"
 
 
 class CustomTitleBar(ft.Container):
@@ -365,8 +364,8 @@ class CustomTitleBar(ft.Container):
         Returns:
             PIL Image 对象
         """
-        # 尝试加载应用图标
-        icon_path = _get_icon_path()
+        # 尝试加载应用图标（pystray 需要绝对文件路径）
+        icon_path = _get_icon_abs_path()
         
         try:
             if Path(icon_path).exists():

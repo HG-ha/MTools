@@ -9,7 +9,7 @@
 
 # 补丁，请勿删除
 from utils import patch  # noqa: F401
-
+import sys
 import flet as ft
 
 from constants import (
@@ -57,40 +57,7 @@ def main(page: ft.Page) -> None:
     # 配置页面属性
     page.title = APP_TITLE
     
-    # 设置窗口图标（任务栏图标）
-    import sys
-    from pathlib import Path
-    
-    # 判断是否为 Nuitka 打包后的环境（.exe 文件）
-    is_compiled = Path(sys.argv[0]).suffix.lower() == '.exe'
-    
-    if is_compiled:
-        # Nuitka 打包环境：从 exe 所在目录查找
-        app_dir = Path(sys.argv[0]).parent
-    else:
-        # 开发环境：从源代码目录查找
-        app_dir = Path(__file__).parent
-    
-    # 尝试多个可能的图标路径（优先使用 .ico 格式）
-    possible_icon_paths = [
-        # ICO 格式（Windows 任务栏最佳）
-        app_dir / "src" / "assets" / "icon.ico",  # 打包后的标准路径
-        app_dir / "assets" / "icon.ico",  # 开发环境
-        Path(__file__).parent / "assets" / "icon.ico",  # 相对于源文件
-        # PNG 格式（备用）
-        app_dir / "src" / "assets" / "icon.png",
-        app_dir / "assets" / "icon.png",
-        Path(__file__).parent / "assets" / "icon.png",
-    ]
-    
-    icon_path = None
-    for path in possible_icon_paths:
-        if path.exists():
-            icon_path = path
-            break
-    
-    if icon_path:
-        page.window.icon = str(icon_path)
+    # Flet 1.0 中 window.icon 已移除，窗口图标由 assets_dir 中的图标文件和 app bundle 提供
     
     # 设置窗口最小大小
     page.window.min_width = WINDOW_WIDTH
@@ -658,4 +625,19 @@ def _check_and_fix_auto_start(config_service: ConfigService) -> None:
 
 # 启动应用
 if __name__ == "__main__":
-    ft.run(main)
+    import sys
+    from pathlib import Path
+    
+    # 获取 assets 目录路径（兼容源码运行和 Nuitka 打包环境）
+    # 开发环境: src/assets (相对于 main.py)
+    # 打包环境: exe所在目录/src/assets
+    assets_path = Path(__file__).parent / "assets"
+    if not assets_path.exists():
+        # 打包环境下 __file__ 可能不可靠，使用 sys.argv[0] 定位
+        app_dir = Path(sys.argv[0]).parent
+        for candidate in [app_dir / "src" / "assets", app_dir / "assets"]:
+            if candidate.exists():
+                assets_path = candidate
+                break
+    
+    ft.run(main, assets_dir=str(assets_path))
