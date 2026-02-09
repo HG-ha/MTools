@@ -34,13 +34,21 @@ class FFmpegService:
         "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-8.0.1-essentials_build.zip",
         "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
     ]
-    FFMPEG_MACOS_URLS = [
+    # macOS x86_64 (Intel) 下载地址
+    FFMPEG_MACOS_X64_URLS = [
         "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-8.0.1.zip",
         "https://evermeet.cx/ffmpeg/ffmpeg-8.0.1.zip",
     ]
-    FFPROBE_MACOS_URLS = [
+    FFPROBE_MACOS_X64_URLS = [
         "https://openlist.wer.plus/d/share/MTools/Tools/ffprobe-8.0.1.zip",
         "https://evermeet.cx/ffmpeg/ffprobe-8.0.1.zip",
+    ]
+    # macOS arm64 (Apple Silicon) 下载地址
+    FFMPEG_MACOS_ARM64_URLS = [
+        "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip",
+    ]
+    FFPROBE_MACOS_ARM64_URLS = [
+        "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip",
     ]
     FFMPEG_LINUX_URLS = [
         "https://openlist.wer.plus/d/share/MTools/Tools/ffmpeg-release-amd64-static.tar.xz",
@@ -148,6 +156,38 @@ class FFmpegService:
                 )
                 if result.returncode == 0:
                     return True, str(self.ffmpeg_exe)
+            except PermissionError:
+                # 文件存在但没有执行权限 - 尝试修复权限
+                try:
+                    import stat
+                    self.ffmpeg_exe.chmod(self.ffmpeg_exe.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    if self.ffprobe_exe.exists():
+                        self.ffprobe_exe.chmod(self.ffprobe_exe.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    # macOS: 清除 quarantine 属性
+                    if platform.system() == "Darwin":
+                        subprocess.run(["xattr", "-cr", str(self.ffmpeg_bin)], capture_output=True, timeout=5)
+                    # 重试执行
+                    result = subprocess.run(
+                        [str(self.ffmpeg_exe), "-version"],
+                        capture_output=True, encoding='utf-8', errors='replace', timeout=5,
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                    )
+                    if result.returncode == 0:
+                        return True, str(self.ffmpeg_exe)
+                except Exception:
+                    pass
+            except OSError as e:
+                # errno 86 = Bad CPU type in executable
+                # 例如在 Apple Silicon Mac 上运行了 x86_64 的二进制文件
+                if e.errno == 86:
+                    # 删除架构不匹配的旧文件，以便重新下载正确版本
+                    try:
+                        import shutil
+                        if self.ffmpeg_bin.exists():
+                            shutil.rmtree(self.ffmpeg_bin)
+                    except Exception:
+                        pass
+                # 其他 OSError 也视为不可用
             except Exception:
                 pass
         
@@ -222,6 +262,64 @@ class FFmpegService:
         
         return None
     
+    def _stream_download(
+        self,
+        url: str,
+        dest_path: Path,
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+        progress_base: float = 0.0,
+        progress_scale: float = 0.7,
+        label: str = "下载中",
+    ) -> None:
+        """从 URL 流式下载文件，支持 SSL 错误自动降级重试。
+        
+        Args:
+            url: 下载地址
+            dest_path: 保存路径
+            progress_callback: 进度回调
+            progress_base: 进度基准值
+            progress_scale: 进度缩放比例
+            label: 进度提示标签
+        
+        Raises:
+            Exception: 下载失败时抛出异常
+        """
+        # 先用默认 SSL 验证，如果 SSL 握手失败则降级为不验证重试
+        for verify in (True, False):
+            try:
+                with httpx.stream(
+                    "GET", url, follow_redirects=True, timeout=120.0, verify=verify
+                ) as response:
+                    response.raise_for_status()
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(dest_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                
+                                if progress_callback and total_size > 0:
+                                    progress = progress_base + (downloaded / total_size * progress_scale)
+                                    size_mb = downloaded / (1024 * 1024)
+                                    total_mb = total_size / (1024 * 1024)
+                                    progress_callback(
+                                        progress,
+                                        f"{label}: {size_mb:.1f}/{total_mb:.1f} MB"
+                                    )
+                return  # 下载成功
+            except Exception as e:
+                err_str = str(e).lower()
+                is_ssl_error = "ssl" in err_str or "ssl" in type(e).__name__.lower()
+                if verify and is_ssl_error:
+                    # SSL 错误，降级为不验证重试
+                    from utils import logger
+                    logger.warning(f"SSL 错误，尝试跳过验证重试: {e}")
+                    continue
+                raise  # 非 SSL 错误或已是降级模式，直接抛出
+
     def download_ffmpeg(
         self,
         progress_callback: Optional[Callable[[float, str], None]] = None
@@ -241,8 +339,13 @@ class FFmpegService:
             
             # 根据平台选择下载链接和文件格式
             if system == "Darwin":
-                download_urls = self.FFMPEG_MACOS_URLS
-                ffprobe_urls = self.FFPROBE_MACOS_URLS
+                machine = platform.machine()
+                if machine == "arm64":
+                    download_urls = self.FFMPEG_MACOS_ARM64_URLS
+                    ffprobe_urls = self.FFPROBE_MACOS_ARM64_URLS
+                else:
+                    download_urls = self.FFMPEG_MACOS_X64_URLS
+                    ffprobe_urls = self.FFPROBE_MACOS_X64_URLS
                 archive_path = temp_dir / "ffmpeg.zip"  # macOS 使用 zip 格式
                 ffprobe_path = temp_dir / "ffprobe.zip"
             elif system == "Linux":
@@ -263,27 +366,13 @@ class FFmpegService:
                         url_name = "主下载地址" if url_index == 0 else f"备用地址 {url_index}"
                         progress_callback(0.0, f"正在尝试从 {url_name} 下载 FFmpeg...")
                     
-                    # 下载ffmpeg
-                    with httpx.stream("GET", download_url, follow_redirects=True, timeout=120.0) as response:
-                        response.raise_for_status()
-                        
-                        total_size = int(response.headers.get('content-length', 0))
-                        downloaded = 0
-                        
-                        with open(archive_path, 'wb') as f:
-                            for chunk in response.iter_bytes(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    if progress_callback and total_size > 0:
-                                        progress = downloaded / total_size * 0.7  # 下载占70%进度
-                                        size_mb = downloaded / (1024 * 1024)
-                                        total_mb = total_size / (1024 * 1024)
-                                        progress_callback(
-                                            progress,
-                                            f"下载中: {size_mb:.1f}/{total_mb:.1f} MB"
-                                        )
+                    self._stream_download(
+                        download_url, archive_path,
+                        progress_callback=progress_callback,
+                        progress_base=0.0,
+                        progress_scale=0.7 if system != "Darwin" else 0.5,
+                        label="下载中",
+                    )
                     
                     # 下载成功，跳出循环
                     break
@@ -312,28 +401,13 @@ class FFmpegService:
                             url_name = "主下载地址" if url_index == 0 else f"备用地址 {url_index}"
                             progress_callback(0.5, f"正在从 {url_name} 下载 ffprobe...")
                         
-                        # 下载 ffprobe
-                        with httpx.stream("GET", download_url, follow_redirects=True, timeout=120.0) as response:
-                            response.raise_for_status()
-                            
-                            total_size = int(response.headers.get('content-length', 0))
-                            downloaded = 0
-                            
-                            with open(ffprobe_path, 'wb') as f:
-                                for chunk in response.iter_bytes(chunk_size=8192):
-                                    if chunk:
-                                        f.write(chunk)
-                                        downloaded += len(chunk)
-                                        
-                                        if progress_callback and total_size > 0:
-                                            # ffprobe 下载占 50%-70% 进度
-                                            progress = 0.5 + (downloaded / total_size * 0.2)
-                                            size_mb = downloaded / (1024 * 1024)
-                                            total_mb = total_size / (1024 * 1024)
-                                            progress_callback(
-                                                progress,
-                                                f"下载 ffprobe: {size_mb:.1f}/{total_mb:.1f} MB"
-                                            )
+                        self._stream_download(
+                            download_url, ffprobe_path,
+                            progress_callback=progress_callback,
+                            progress_base=0.5,
+                            progress_scale=0.2,
+                            label="下载 ffprobe",
+                        )
                         
                         # 下载成功，跳出循环
                         break
@@ -489,13 +563,46 @@ class FFmpegService:
                 pass  # 清理失败不影响安装结果
             
             if progress_callback:
+                progress_callback(0.97, "验证安装...")
+            
+            # 验证安装 - 不仅检查文件存在，还要验证能否执行
+            if not (self.ffmpeg_exe.exists() and self.ffprobe_exe.exists()):
+                return False, "安装失败：文件未正确复制"
+            
+            # macOS: 清除 quarantine 扩展属性，防止 Gatekeeper 阻止执行
+            if system == "Darwin":
+                try:
+                    subprocess.run(
+                        ["xattr", "-cr", str(self.ffmpeg_bin)],
+                        capture_output=True, timeout=5
+                    )
+                except Exception:
+                    pass  # xattr 失败不影响大多数情况
+            
+            # 验证 ffmpeg 能否正常执行
+            try:
+                result = subprocess.run(
+                    [str(self.ffmpeg_exe), "-version"],
+                    capture_output=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=10,
+                )
+                if result.returncode != 0:
+                    return False, f"FFmpeg 已下载但无法执行（退出码: {result.returncode}），请尝试手动安装"
+            except PermissionError:
+                return False, "FFmpeg 已下载但没有执行权限，请检查文件权限"
+            except OSError as e:
+                if e.errno == 86:
+                    return False, "FFmpeg 已下载但 CPU 架构不匹配（x86_64 vs arm64），请检查下载源"
+                return False, f"FFmpeg 已下载但执行验证失败: {str(e)}"
+            except Exception as e:
+                return False, f"FFmpeg 已下载但执行验证失败: {str(e)}"
+            
+            if progress_callback:
                 progress_callback(1.0, "安装完成!")
             
-            # 验证安装
-            if self.ffmpeg_exe.exists() and self.ffprobe_exe.exists():
-                return True, f"FFmpeg 已成功安装到: {self.ffmpeg_dir}"
-            else:
-                return False, "安装失败：文件未正确复制"
+            return True, f"FFmpeg 已成功安装到: {self.ffmpeg_dir}"
         
         except httpx.HTTPError as e:
             return False, f"下载失败: {str(e)}"
