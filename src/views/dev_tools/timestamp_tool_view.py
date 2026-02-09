@@ -463,13 +463,13 @@ class TimestampToolView(ft.Container):
         except Exception as e:
             self._show_snack(f"计算失败: {str(e)}", error=True)
     
-    def _copy_text(self, text: str):
+    async def _copy_text(self, text: str):
         """复制文本到剪贴板。"""
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):

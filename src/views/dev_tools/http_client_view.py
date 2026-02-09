@@ -889,18 +889,18 @@ class HttpClientView(ft.Container):
         except json.JSONDecodeError:
             self._show_snack("响应不是有效的 JSON", error=True)
     
-    def _copy_response_body(self, e):
+    async def _copy_response_body(self, e):
         """复制响应体。"""
         body = self.response_body.current.value
         if body:
-            self._page.set_clipboard(body)
+            await ft.Clipboard().set(body)
             self._show_snack("响应体已复制")
     
-    def _copy_curl(self, e):
+    async def _copy_curl(self, e):
         """复制 cURL 命令。"""
         curl = self.curl_command.current.value
         if curl:
-            self._page.set_clipboard(curl)
+            await ft.Clipboard().set(curl)
             self._show_snack("cURL 命令已复制")
     
     def _show_help(self, e):

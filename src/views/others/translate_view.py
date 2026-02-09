@@ -376,7 +376,7 @@ class TranslateView(ft.Container):
         self._update_char_count()
         self._safe_update()
     
-    def _on_translate(self, e) -> None:
+    async def _on_translate(self, e) -> None:
         """执行翻译。"""
         text = self.input_text.value
         if not text or not text.strip():
@@ -394,37 +394,27 @@ class TranslateView(ft.Container):
         self.progress_ring.visible = True
         self._safe_update()
         
-        # 在后台线程执行翻译
-        threading.Thread(
-            target=self._do_translate,
-            args=(text, engine),
-            daemon=True
-        ).start()
-    
-    def _do_translate(self, text: str, engine: str) -> None:
-        """执行翻译（后台线程）。"""
-        source_lang = self.source_lang_dropdown.value
-        target_lang = self.target_lang_dropdown.value
-        
         try:
+            source_lang = self.source_lang_dropdown.value
+            target_lang = self.target_lang_dropdown.value
+            
             if engine == "bing":
-                # Bing 翻译（异步）
-                result = asyncio.run(
-                    self.bing_service.translate(text, target_lang, source_lang)
-                )
+                # Bing 翻译（异步，直接 await）
+                result = await self.bing_service.translate(text, target_lang, source_lang)
                 
                 if result["code"] == 200:
                     translated = result["data"]["text"]
                 else:
                     raise ValueError(result["message"])
             else:
-                # AI 翻译
-                # 需要转换语言代码
+                # AI 翻译（同步方法，用 asyncio.to_thread 在线程池中执行）
                 ai_target = self._convert_lang_code(target_lang)
                 ai_source = self._convert_lang_code(source_lang) if source_lang else "auto"
-                translated = self.ai_service.translate_text(text, ai_target, ai_source)
+                translated = await asyncio.to_thread(
+                    self.ai_service.translate_text, text, ai_target, ai_source
+                )
             
-            # 更新 UI
+            # 更新 UI（在主事件循环中，update 可以正常工作）
             self.output_text.value = translated
             self.copy_btn.disabled = False
             logger.info(f"翻译完成 ({engine}): {len(text)} -> {len(translated)} 字符")
@@ -456,11 +446,11 @@ class TranslateView(ft.Container):
         }
         return mapping.get(code, code)
     
-    def _on_copy(self, e) -> None:
+    async def _on_copy(self, e) -> None:
         """复制翻译结果。"""
         text = self.output_text.value
         if text:
-            self._page.set_clipboard(text)
+            await ft.Clipboard().set(text)
             self._show_message("已复制到剪贴板")
     
     def _show_message(self, message: str, is_error: bool = False) -> None:

@@ -864,7 +864,7 @@ class MarkdownViewerView(ft.Container):
             self.sidebar_ref.current.visible = self._sidebar_visible
             try:
                 self.sidebar_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
     
     async def _open_workspace(self, e):
@@ -887,7 +887,7 @@ class MarkdownViewerView(ft.Container):
             self.workspace_name_ref.current.value = self._workspace_path.name
             try:
                 self.workspace_name_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         # 扫描 Markdown 文件
@@ -951,7 +951,7 @@ class MarkdownViewerView(ft.Container):
         
         try:
             self.file_list_ref.current.update()
-        except (AssertionError, AttributeError):
+        except (AssertionError, AttributeError, RuntimeError):
             pass
     
     def _build_file_tree(self) -> List[ft.Control]:
@@ -1107,7 +1107,7 @@ class MarkdownViewerView(ft.Container):
             e.control.bgcolor = None
         try:
             e.control.update()
-        except (AssertionError, AttributeError):
+        except (AssertionError, AttributeError, RuntimeError):
             pass
     
     def _open_file(self, file_path: Path):
@@ -1154,7 +1154,7 @@ class MarkdownViewerView(ft.Container):
             self.markdown_input.current.value = content
             try:
                 self.markdown_input.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
             self._on_markdown_change(None)
         
@@ -1193,7 +1193,7 @@ class MarkdownViewerView(ft.Container):
             self.markdown_input.current.value = tab_data["content"]
             try:
                 self.markdown_input.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
             
             # 更新预览和统计信息
@@ -1381,7 +1381,7 @@ class MarkdownViewerView(ft.Container):
         
         try:
             self.tabs_row_ref.current.update()
-        except (AssertionError, AttributeError):
+        except (AssertionError, AttributeError, RuntimeError):
             pass
     
     def _on_tab_hover(self, e):
@@ -1405,7 +1405,7 @@ class MarkdownViewerView(ft.Container):
         
         try:
             e.control.update()
-        except (AssertionError, AttributeError):
+        except (AssertionError, AttributeError, RuntimeError):
             pass
     
     def _show_save_dialog(self, next_file: Optional[Path] = None):
@@ -1895,7 +1895,7 @@ class MarkdownViewerView(ft.Container):
         
         try:
             self.update()
-        except (AssertionError, AttributeError):
+        except (AssertionError, AttributeError, RuntimeError):
             pass
     
     def _show_heading_menu(self, e):
@@ -2101,7 +2101,7 @@ class MarkdownViewerView(ft.Container):
             self.theme_name_ref.current.value = theme["name"]
             try:
                 self.theme_name_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         # 更新预览内容区域的样式
@@ -2109,7 +2109,7 @@ class MarkdownViewerView(ft.Container):
             self.preview_content_ref.current.bgcolor = theme["bg_color"]
             try:
                 self.preview_content_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         # 更新 Markdown 组件的样式（如果支持）
@@ -2159,21 +2159,21 @@ class MarkdownViewerView(ft.Container):
             self.status_line_text_ref.current.value = f"行: {line_count}"
             try:
                 self.status_line_text_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         if self.status_char_text_ref.current:
             self.status_char_text_ref.current.value = f"字符: {char_count}"
             try:
                 self.status_char_text_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         if self.status_word_text_ref.current:
             self.status_word_text_ref.current.value = f"字数: {word_count}"
             try:
                 self.status_word_text_ref.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
     
     def _on_markdown_change(self, e):
@@ -2209,7 +2209,7 @@ class MarkdownViewerView(ft.Container):
             
             try:
                 self.markdown_preview.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         # 始终更新行号和统计信息
@@ -2223,7 +2223,7 @@ class MarkdownViewerView(ft.Container):
         self._update_line_numbers("")
         self.update()
     
-    def _copy_html(self, e):
+    async def _copy_html(self, e):
         """复制 HTML 代码。"""
         markdown_content = self.markdown_input.current.value
         if not markdown_content:
@@ -2233,7 +2233,7 @@ class MarkdownViewerView(ft.Container):
         # 使用简单的 Markdown 转 HTML（基础实现）
         html_content = self._markdown_to_html(markdown_content)
         
-        self._page.set_clipboard(html_content)
+        await ft.Clipboard().set(html_content)
         self._show_snack("HTML 已复制到剪贴板")
     
     def _markdown_to_html(self, markdown: str) -> str:
@@ -2551,7 +2551,7 @@ print("Hello")
             self.markdown_input.current.value = ""
             try:
                 self.markdown_input.current.update()
-            except (AssertionError, AttributeError):
+            except (AssertionError, AttributeError, RuntimeError):
                 pass
         
         # 更新标签栏

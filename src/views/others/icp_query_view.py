@@ -934,7 +934,7 @@ class ICPQueryView(ft.Container):
         self.next_page_btn.disabled = True
         self._page.update()
     
-    def _on_copy_result(self, e):
+    async def _on_copy_result(self, e):
         """复制结果。"""
         if not self.result_list.controls:
             self._show_snack("没有可复制的内容", error=True)
@@ -966,7 +966,7 @@ class ICPQueryView(ft.Container):
                 lines.append("\t".join([str(v) for v in row_values]))
             
         result = "\n".join(lines)
-        self._page.set_clipboard(result)
+        await ft.Clipboard().set(result)
         self._show_snack("结果已复制到剪贴板")
     
     def _on_back_click(self, e):

@@ -628,31 +628,31 @@ class ColorToolView(ft.Container):
         except ValueError:
             pass
     
-    def _copy_rgb(self, e):
+    async def _copy_rgb(self, e):
         """复制 RGB 值。"""
         rgb_str = f"rgb({self.rgb_r.current.value}, {self.rgb_g.current.value}, {self.rgb_b.current.value})"
-        self._page.set_clipboard(rgb_str)
+        await ft.Clipboard().set(rgb_str)
         self._show_snack("已复制到剪贴板")
     
-    def _copy_hsl(self, e):
+    async def _copy_hsl(self, e):
         """复制 HSL 值。"""
         hsl_str = f"hsl({self.hsl_h.current.value}, {self.hsl_s.current.value}%, {self.hsl_l.current.value}%)"
-        self._page.set_clipboard(hsl_str)
+        await ft.Clipboard().set(hsl_str)
         self._show_snack("已复制到剪贴板")
     
-    def _copy_cmyk(self, e):
+    async def _copy_cmyk(self, e):
         """复制 CMYK 值。"""
         cmyk_str = f"cmyk({self.cmyk_c.current.value}%, {self.cmyk_m.current.value}%, {self.cmyk_y.current.value}%, {self.cmyk_k.current.value}%)"
-        self._page.set_clipboard(cmyk_str)
+        await ft.Clipboard().set(cmyk_str)
         self._show_snack("已复制到剪贴板")
     
-    def _copy_text(self, text: str):
+    async def _copy_text(self, text: str):
         """复制文本到剪贴板。"""
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
         
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_snack("已复制到剪贴板")
     
     async def _on_select_image(self, e):

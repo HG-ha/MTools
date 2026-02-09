@@ -310,10 +310,10 @@ class ImageToBase64View(ft.Container):
         }
         return mime_map.get(ext, "image/jpeg")
     
-    def _on_copy(self, e: ft.ControlEvent) -> None:
+    async def _on_copy(self, e: ft.ControlEvent) -> None:
         """复制到剪贴板按钮点击事件。"""
         if self.base64_result:
-            self._page.set_clipboard(self.base64_result)
+            await ft.Clipboard().set(self.base64_result)
             self._show_message("已复制到剪贴板", ft.Colors.GREEN)
     
     def _show_message(self, message: str, color: str) -> None:

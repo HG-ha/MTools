@@ -644,10 +644,10 @@ class ImageSearchView(ft.Container):
         if url:
             self._page.launch_url(url)
     
-    def _copy_to_clipboard(self, text: str, label: str = "内容"):
+    async def _copy_to_clipboard(self, text: str, label: str = "内容"):
         """复制文本到剪贴板"""
         if text:
-            self._page.set_clipboard(text)
+            await ft.Clipboard().set(text)
             self._show_snackbar(f"{label}已复制到剪贴板", ft.Colors.GREEN)
         else:
             self._show_snackbar(f"{label}为空，无法复制", ft.Colors.ORANGE)

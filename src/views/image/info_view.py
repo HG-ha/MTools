@@ -1006,16 +1006,16 @@ class ImageInfoView(ft.Container):
         }
         return translations.get(tag, tag)
     
-    def _copy_to_clipboard(self, text: str) -> None:
+    async def _copy_to_clipboard(self, text: str) -> None:
         """复制文本到剪贴板。
         
         Args:
             text: 要复制的文本
         """
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_message("已复制到剪贴板", ft.Colors.GREEN)
     
-    def _copy_all_info(self, e: ft.ControlEvent) -> None:
+    async def _copy_all_info(self, e: ft.ControlEvent) -> None:
         """复制全部信息到剪贴板。
         
         Args:
@@ -1208,7 +1208,7 @@ class ImageInfoView(ft.Container):
         
         # 合并所有行并复制到剪贴板
         full_text = "\n".join(lines)
-        self._page.set_clipboard(full_text)
+        await ft.Clipboard().set(full_text)
         self._show_message("已复制全部信息到剪贴板", ft.Colors.GREEN)
     
     async def _export_live_photo_video(self, e: ft.ControlEvent) -> None:

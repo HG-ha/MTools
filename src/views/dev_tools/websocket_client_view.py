@@ -729,7 +729,7 @@ class WebSocketClientView(ft.Container):
                                 icon=ft.Icons.COPY,
                                 icon_size=14,
                                 tooltip="复制",
-                                on_click=lambda _: self._page.set_clipboard(text),
+                                on_click=lambda _, t=text: self._page.run_task(self._copy_to_clipboard, t),
                             ),
                         ],
                         spacing=3,
@@ -763,7 +763,7 @@ class WebSocketClientView(ft.Container):
                                 icon=ft.Icons.COPY,
                                 icon_size=14,
                                 tooltip="复制",
-                                on_click=lambda _: self._page.set_clipboard(text),
+                                on_click=lambda _, t=text: self._page.run_task(self._copy_to_clipboard, t),
                             ),
                         ],
                         spacing=3,
@@ -907,6 +907,10 @@ class WebSocketClientView(ft.Container):
         )
         
         self._page.open(dialog)
+    
+    async def _copy_to_clipboard(self, text: str):
+        """复制文本到剪贴板。"""
+        await ft.Clipboard().set(text)
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""

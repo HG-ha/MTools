@@ -634,17 +634,17 @@ class ImageToUrlView(ft.Container):
         }
         return mime_types.get(ext, 'application/octet-stream')
     
-    def _copy_url(self, url: str) -> None:
+    async def _copy_url(self, url: str) -> None:
         """复制单个URL到剪贴板。"""
-        self._page.set_clipboard(url)
+        await ft.Clipboard().set(url)
         self._show_message("链接已复制到剪贴板", ft.Colors.GREEN)
     
-    def _on_copy_all_urls(self, e: ft.ControlEvent) -> None:
+    async def _on_copy_all_urls(self, e: ft.ControlEvent) -> None:
         """复制所有成功的URL到剪贴板。"""
         urls = [r['url'] for r in self.upload_results if r['success']]
         if urls:
             all_urls = '\n'.join(urls)
-            self._page.set_clipboard(all_urls)
+            await ft.Clipboard().set(all_urls)
             self._show_message(f"已复制 {len(urls)} 个链接到剪贴板", ft.Colors.GREEN)
         else:
             self._show_message("没有可复制的链接", ft.Colors.ORANGE)

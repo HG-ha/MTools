@@ -762,12 +762,12 @@ class JsonTreeNode(ft.Container):
             import traceback
             traceback.print_exc()
 
-    def _copy_to_clipboard(self, page, text):
+    async def _copy_to_clipboard(self, page, text):
         """复制文本到剪贴板。"""
         try:
             if page is None:
                 return
-            page.set_clipboard(text)
+            await ft.Clipboard().set(text)
             
             # 显示提示
             snack_bar = ft.SnackBar(

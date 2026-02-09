@@ -389,9 +389,9 @@ class CryptoToolView(ft.Container):
         self.output_text.current.value = ""
         self.update()
 
-    def _copy_text(self, text: str):
+    async def _copy_text(self, text: str):
         if not text: return
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_snack("已复制")
         
     def _on_back_click(self):

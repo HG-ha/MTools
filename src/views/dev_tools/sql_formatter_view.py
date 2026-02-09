@@ -285,11 +285,11 @@ class SqlFormatterView(ft.Container):
         self.output_text.current.value = ""
         self.update()
     
-    def _copy_text(self, text: str):
+    async def _copy_text(self, text: str):
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_divider_pan_start(self, e: ft.DragStartEvent):

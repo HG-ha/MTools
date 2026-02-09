@@ -313,11 +313,11 @@ class CronToolView(ft.Container):
         self.template_dropdown.current.value = None
         self.update()
     
-    def _copy_text(self, text: str):
+    async def _copy_text(self, text: str):
         if not text:
             self._show_snack("没有可复制的内容", error=True)
             return
-        self._page.set_clipboard(text)
+        await ft.Clipboard().set(text)
         self._show_snack("已复制到剪贴板")
     
     def _on_back_click(self):
