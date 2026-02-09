@@ -485,7 +485,7 @@ def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base
     # 获取 flet 版本
     try:
         import flet.version
-        flet_version = flet.version.version
+        flet_version = flet.version.flet_version
     except ImportError:
         print("❌ 错误: 未找到 flet 模块")
         return None
@@ -872,7 +872,7 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2, flet
         # 显式包含 Flet 相关包（避免被 Nuitka 忽略）
         "--include-package=flet",
         "--include-package=flet_desktop",
-        "--include-package=flet.core",
+        "--include-package=flet.controls",
         # 数据文件
         f"--include-data-dir={ASSETS_DIR}=src/assets",
     ]

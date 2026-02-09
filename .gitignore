@@ -23,6 +23,7 @@ wheels/
 storage/
 tests/
 .pytest_cache/
+.DS_Store
 
 # Virtual Environment
 venv/
