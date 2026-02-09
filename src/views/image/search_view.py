@@ -59,6 +59,7 @@ class ImageSearchView(ft.Container):
         
         # 图片预览
         self.image_preview = ft.Image(
+            "",
             width=120,
             height=120,
             fit=ft.BoxFit.COVER,

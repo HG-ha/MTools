@@ -321,6 +321,7 @@ class ImageRotateView(ft.Container):
         
         # 预览区域 - 左右对比
         self.original_image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
             width=350,
@@ -328,6 +329,7 @@ class ImageRotateView(ft.Container):
         )
         
         self.preview_image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
             width=350,
@@ -945,9 +947,9 @@ class ImageRotateView(ft.Container):
             preview_base64 = base64.b64encode(preview_buffer.getvalue()).decode()
             
             # 显示原图和效果图
-            self.original_image.src_base64 = original_base64
+            self.original_image.src = original_base64
             self.original_image.visible = True
-            self.preview_image.src_base64 = preview_base64
+            self.preview_image.src = preview_base64
             self.preview_image.visible = True
             
             # 更新状态文本

@@ -146,6 +146,7 @@ class ImagePuzzleSplitView(ft.Container):
         
         # 原图预览
         self.original_image_widget: ft.Image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
         )
@@ -426,6 +427,7 @@ class ImagePuzzleSplitView(ft.Container):
         
         # 右侧：预览区域（可点击查看）
         self.preview_image_widget: ft.Image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
         )

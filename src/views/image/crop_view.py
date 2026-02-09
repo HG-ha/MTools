@@ -239,6 +239,7 @@ class ImageCropView(ft.Container):
 
         # 原图显示（居中保持比例，占满整个 Stack）
         self.original_image_widget: ft.Image = ft.Image(
+            "",
             fit=ft.BoxFit.CONTAIN,
             visible=False,
             width=self.canvas_width,
@@ -434,6 +435,7 @@ class ImageCropView(ft.Container):
 
         # 右侧预览区域
         self.preview_image_widget: ft.Image = ft.Image(
+            "",
             fit=ft.BoxFit.CONTAIN,
             visible=False,
         )

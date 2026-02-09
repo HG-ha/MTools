@@ -1515,7 +1515,7 @@ class VideoSubtitleView(ft.Container):
                     content=ft.Column([
                         ft.Container(
                             content=ft.Image(
-                                src_base64=img_base64,
+                                src=img_base64,
                                 fit=ft.BoxFit.CONTAIN,
                                 width=new_width,
                                 height=new_height,
@@ -1642,6 +1642,7 @@ class VideoSubtitleView(ft.Container):
         
         # 预览图像控件
         preview_image = ft.Image(
+            "",
             fit=ft.BoxFit.CONTAIN,
             width=preview_img_width,
             height=preview_img_height,
@@ -1808,7 +1809,7 @@ class VideoSubtitleView(ft.Container):
                 _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
                 
-                preview_image.src_base64 = img_base64
+                preview_image.src = img_base64
                 self._page.update()
                 
             except Exception as ex:

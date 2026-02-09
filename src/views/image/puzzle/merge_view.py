@@ -273,6 +273,7 @@ class ImagePuzzleMergeView(ft.Container):
         
         # 右侧：预览区域
         self.preview_image_widget: ft.Image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
         )

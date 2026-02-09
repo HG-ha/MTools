@@ -714,7 +714,7 @@ class ColorToolView(ft.Container):
                     ft.Container(
                         content=ft.Image(
                             ref=self.picker_image,
-                            src_base64=img_base64,
+                            src=img_base64,
                             fit=ft.BoxFit.CONTAIN,
                         ),
                         width=container_width,

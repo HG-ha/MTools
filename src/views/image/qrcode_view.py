@@ -326,6 +326,7 @@ class QRCodeGeneratorView(ft.Container):
         
         # 预览区域
         self.preview_image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
             width=400,
@@ -704,7 +705,7 @@ class QRCodeGeneratorView(ft.Container):
             img_base64 = base64.b64encode(img_data).decode()
             
             # 显示预览
-            self.preview_image.src_base64 = img_base64
+            self.preview_image.src = img_base64
             self.preview_image.visible = True
             self.preview_image.update()
             

@@ -345,7 +345,7 @@ class EncoderDecoderView(ft.Container):
                 ),
                 ft.Container(height=10),
                 ft.Image(
-                    src_base64=base64.b64encode(image_data).decode('ascii'),
+                    src=base64.b64encode(image_data).decode('ascii'),
                     fit=ft.BoxFit.CONTAIN,
                     border_radius=8,
                 ),

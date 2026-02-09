@@ -114,6 +114,7 @@ class Base64ToImageView(ft.Container):
         
         # 预览区域
         self.preview_image = ft.Image(
+            "",
             visible=False,
             fit=ft.BoxFit.CONTAIN,
             width=400,
@@ -276,7 +277,7 @@ class Base64ToImageView(ft.Container):
             width, height = img.size
             
             # 显示预览
-            self.preview_image.src_base64 = base64.b64encode(self.image_data).decode('utf-8')
+            self.preview_image.src = base64.b64encode(self.image_data).decode('utf-8')
             self.preview_image.visible = True
             self.preview_image.update()
             
