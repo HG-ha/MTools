@@ -36,11 +36,11 @@ dependencies = [
   "psutil==6.1.1", # 系统和进程工具（用于自动更新）
   "pywin32>=311 ; sys_platform == 'win32'", # Windows 专用
   "wmi>=1.5.1 ; sys_platform == 'win32'",
-  "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'", # macOS 屏幕区域选择
-  "pyobjc-framework-Quartz>=10.0 ; sys_platform == 'darwin'",
+  "pyobjc-framework-Cocoa==12.1 ; sys_platform == 'darwin'", # macOS 屏幕区域选择
+  "pyobjc-framework-Quartz==12.1 ; sys_platform == 'darwin'",
   "pynput>=1.7.7 ; sys_platform == 'darwin'",  # macOS 全局热键
-  "flet-dropzone>=0.0.3",  # 原生拖放支持（需要 flet build）
-  "flet-cli>=0.80.5",
+  "flet-dropzone==0.3.1",  # 原生拖放支持（需要 flet build）
+  "flet-cli==0.80.5",
 ]
 
 [tool.flet]
