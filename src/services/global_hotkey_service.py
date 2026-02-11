@@ -17,31 +17,25 @@ from utils import logger
 if sys.platform == 'win32':
     import ctypes
     from ctypes import wintypes, POINTER
-    import tkinter as tk
-    from PIL import Image, ImageTk, ImageGrab
-    import cv2
-    import numpy as np
-    
-    # 预定义 RECT 类（避免函数内重复定义）
-    class RECT(ctypes.Structure):
-        """Windows RECT 结构体。"""
-        _fields_ = [
-            ("left", ctypes.c_long),
-            ("top", ctypes.c_long),
-            ("right", ctypes.c_long),
-            ("bottom", ctypes.c_long)
-        ]
+    try:
+        from PIL import Image, ImageGrab
+    except ImportError:
+        Image = None
+        ImageGrab = None
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        cv2 = None
+        np = None
 else:
     ctypes = None
     wintypes = None
     POINTER = None
-    tk = None
     Image = None
-    ImageTk = None
     ImageGrab = None
     cv2 = None
     np = None
-    RECT = None
 
 
 class GlobalHotkeyService:
@@ -338,382 +332,6 @@ class GlobalHotkeyService:
         else:
             logger.warning(f"未知热键 ID: {hotkey_id}")
     
-    def _select_region_interactive(self, hint_text_main: str = "🎯 点击选择窗口  |  拖拽框选区域",
-                                     hint_text_sub: str = "按 F 选择当前屏幕  |  ESC 取消"):
-        """交互式选择屏幕区域（完整功能版）。
-        
-        Returns:
-            (x, y, w, h) 或 None
-        """
-        logger.info("进入区域选择方法")
-        try:
-            
-            # 设置 DPI 感知
-            try:
-                ctypes.windll.user32.SetProcessDPIAware()
-            except Exception:
-                pass
-            
-            user32 = ctypes.windll.user32
-            
-            # 获取虚拟桌面边界
-            v_left = user32.GetSystemMetrics(76)
-            v_top = user32.GetSystemMetrics(77)
-            v_w = user32.GetSystemMetrics(78)
-            v_h = user32.GetSystemMetrics(79)
-            
-            if v_w <= 0 or v_h <= 0:
-                v_left, v_top = 0, 0
-                v_w = user32.GetSystemMetrics(0)
-                v_h = user32.GetSystemMetrics(1)
-            
-            # 截取屏幕
-            screenshot = ImageGrab.grab(bbox=(v_left, v_top, v_left + v_w, v_top + v_h), all_screens=True)
-            
-            # 获取所有窗口（使用模块级别的 RECT 类）
-            window_rects = []
-            try:
-                WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-                
-                def enum_callback(hwnd, lparam):
-                    if user32.IsWindowVisible(hwnd):
-                        length = user32.GetWindowTextLengthW(hwnd)
-                        if length > 0:
-                            buff = ctypes.create_unicode_buffer(length + 1)
-                            user32.GetWindowTextW(hwnd, buff, length + 1)
-                            title = buff.value
-                            
-                            rect = RECT()
-                            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-                                w = rect.right - rect.left
-                                h = rect.bottom - rect.top
-                                if w >= 100 and h >= 100:
-                                    rel_left = rect.left - v_left
-                                    rel_top = rect.top - v_top
-                                    if rel_left < v_w and rel_top < v_h:
-                                        window_rects.append((title, rel_left, rel_top, w, h))
-                    return True
-                
-                # 保持回调引用防止被 GC
-                callback_ref = WNDENUMPROC(enum_callback)
-                user32.EnumWindows(callback_ref, 0)
-                del callback_ref  # 使用完后释放
-            except Exception:
-                pass
-            
-            # 创建暗化版本（注意释放临时黑色图像）
-            black_overlay = Image.new('RGB', screenshot.size, (0, 0, 0))
-            darkened = Image.blend(screenshot, black_overlay, 0.5)
-            black_overlay.close()  # 立即释放临时图像
-            del black_overlay
-            
-            result = {"rect": None}
-            
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            
-            overlay = tk.Toplevel(root)
-            overlay.attributes("-topmost", True)
-            overlay.geometry(f"{v_w}x{v_h}{v_left:+d}{v_top:+d}")
-            overlay.overrideredirect(True)
-            overlay.configure(bg="black", cursor="cross")
-            
-            canvas = tk.Canvas(overlay, highlightthickness=0, width=v_w, height=v_h)
-            canvas.pack(fill="both", expand=True)
-            
-            darkened_tk = ImageTk.PhotoImage(darkened)
-            screenshot_tk = ImageTk.PhotoImage(screenshot)
-            canvas.create_image(0, 0, anchor="nw", image=darkened_tk, tags="bg")
-            
-            # 获取显示器信息（使用模块级别的 RECT 类）
-            monitors = []
-            try:
-                MONITORENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p,
-                                                      ctypes.c_void_p, POINTER(RECT), ctypes.c_void_p)
-                
-                def mon_callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
-                    r = lprcMonitor.contents
-                    monitors.append((r.left - v_left, r.top - v_top, r.right - v_left, r.bottom - v_top))
-                    return 1
-                
-                # 保持回调引用防止被 GC（与 WNDENUMPROC 一样）
-                mon_callback_ref = MONITORENUMPROC(mon_callback)
-                user32.EnumDisplayMonitors(None, None, mon_callback_ref, 0)
-                del mon_callback_ref  # 使用完后释放
-            except Exception:
-                monitors = [(0, 0, v_w, v_h)]
-            
-            # 提示文字
-            first_mon = monitors[0] if monitors else (0, 0, v_w, v_h)
-            init_x = first_mon[0] + (first_mon[2] - first_mon[0]) // 2
-            
-            hint_bg = canvas.create_rectangle(init_x - 220, 25, init_x + 220, 95,
-                                              fill="#1a1a1a", outline="#333333", width=1, tags="hint_bg")
-            hint1 = canvas.create_text(init_x, 45, text=hint_text_main,
-                                       fill="white", font=("Microsoft YaHei", 13, "bold"), tags="hint")
-            hint2 = canvas.create_text(init_x, 72, text=hint_text_sub,
-                                       fill="#888888", font=("Microsoft YaHei", 11), tags="hint")
-            window_title = canvas.create_text(init_x, 110, text="",
-                                              fill="#00BFFF", font=("Microsoft YaHei", 12), tags="window_title")
-            
-            state = {
-                "is_dragging": False, "start_x": 0, "start_y": 0,
-                "hover_window": None, "hover_monitor": None, "hover_image": None,
-                "current_monitor": -1, "last_hover": None,
-            }
-            
-            def update_hint_position(x, y):
-                for i, (ml, mt, mr, mb) in enumerate(monitors):
-                    if ml <= x <= mr and mt <= y <= mb:
-                        if state["current_monitor"] != i:
-                            state["current_monitor"] = i
-                            cx = ml + (mr - ml) // 2
-                            canvas.coords(hint_bg, cx - 220, 25, cx + 220, 95)
-                            canvas.coords(hint1, cx, 45)
-                            canvas.coords(hint2, cx, 72)
-                            canvas.coords(window_title, cx, 110)
-                        break
-            
-            def find_window_at(x, y):
-                for title, wl, wt, ww, wh in window_rects:
-                    if wl <= x <= wl + ww and wt <= y <= wt + wh:
-                        return (title, wl, wt, ww, wh)
-                return None
-            
-            def get_current_monitor(x, y):
-                for i, (ml, mt, mr, mb) in enumerate(monitors):
-                    if ml <= x <= mr and mt <= y <= mb:
-                        return i, (ml, mt, mr - ml, mb - mt)
-                return 0, (0, 0, v_w, v_h)
-            
-            def update_hover(x, y):
-                update_hint_position(x, y)
-                if state["is_dragging"]:
-                    return
-                
-                window = find_window_at(x, y)
-                mon_idx, mon_rect = get_current_monitor(x, y)
-                current_hover = (window, mon_idx if not window else None)
-                
-                if current_hover == state.get("last_hover"):
-                    return
-                state["last_hover"] = current_hover
-                state["hover_window"] = window
-                
-                canvas.delete("highlight")
-                canvas.delete("highlight_border")
-                
-                # 释放旧的 PhotoImage 对象以防止内存泄漏
-                old_image = state.get("hover_image")
-                if old_image:
-                    try:
-                        del old_image
-                    except Exception:
-                        pass
-                    state["hover_image"] = None
-                
-                if window:
-                    title, wl, wt, ww, wh = window
-                    try:
-                        cl, ct = max(0, wl), max(0, wt)
-                        cr, cb = min(v_w, wl + ww), min(v_h, wt + wh)
-                        if cr > cl and cb > ct:
-                            cropped = screenshot.crop((cl, ct, cr, cb))
-                            cropped_tk = ImageTk.PhotoImage(cropped)
-                            cropped.close()  # 显式关闭 PIL Image
-                            state["hover_image"] = cropped_tk
-                            canvas.create_image(cl, ct, anchor="nw", image=cropped_tk, tags="highlight")
-                            canvas.create_rectangle(cl, ct, cr, cb, outline="#00BFFF", width=3, tags="highlight_border")
-                    except Exception:
-                        pass
-                    display = title[:50] + "..." if len(title) > 50 else title
-                    canvas.itemconfig(window_title, text=f"🖥️ {display}")
-                    state["hover_monitor"] = None
-                else:
-                    ml, mt, mw, mh = mon_rect
-                    try:
-                        cropped = screenshot.crop((ml, mt, ml + mw, mt + mh))
-                        cropped_tk = ImageTk.PhotoImage(cropped)
-                        cropped.close()  # 显式关闭 PIL Image
-                        state["hover_image"] = cropped_tk
-                        canvas.create_image(ml, mt, anchor="nw", image=cropped_tk, tags="highlight")
-                        canvas.create_rectangle(ml, mt, ml + mw, mt + mh, outline="#FF6B6B", width=3, tags="highlight_border")
-                    except Exception:
-                        pass
-                    canvas.itemconfig(window_title, text=f"🖥️ 屏幕 {mon_idx + 1} 全屏 ({mw}×{mh})")
-                    state["hover_monitor"] = (mon_idx, ml, mt, mw, mh)
-                
-                canvas.tag_raise("hint_bg")
-                canvas.tag_raise("hint")
-                canvas.tag_raise("window_title")
-            
-            def on_motion(event):
-                update_hover(event.x, event.y)
-            
-            def on_down(event):
-                state["start_x"], state["start_y"] = event.x, event.y
-                state["is_dragging"] = False
-            
-            def on_drag(event):
-                dx, dy = abs(event.x - state["start_x"]), abs(event.y - state["start_y"])
-                if dx > 5 or dy > 5:
-                    if not state["is_dragging"]:
-                        state["is_dragging"] = True
-                        canvas.delete("highlight")
-                        canvas.delete("highlight_border")
-                    
-                    x1, y1 = state["start_x"], state["start_y"]
-                    x2, y2 = event.x, event.y
-                    left, top = min(x1, x2), min(y1, y2)
-                    right, bottom = max(x1, x2), max(y1, y2)
-                    
-                    canvas.delete("selection")
-                    canvas.delete("selection_area")
-                    
-                    # 释放旧的 PhotoImage 对象以防止内存泄漏
-                    old_image = state.get("hover_image")
-                    if old_image:
-                        try:
-                            del old_image
-                        except Exception:
-                            pass
-                        state["hover_image"] = None
-                    
-                    if right > left and bottom > top:
-                        try:
-                            cropped = screenshot.crop((left, top, right, bottom))
-                            cropped_tk = ImageTk.PhotoImage(cropped)
-                            cropped.close()  # 显式关闭 PIL Image
-                            state["hover_image"] = cropped_tk
-                            canvas.create_image(left, top, anchor="nw", image=cropped_tk, tags="selection_area")
-                        except Exception:
-                            pass
-                        canvas.create_rectangle(left, top, right, bottom, outline="#FF6B6B", width=2, tags="selection")
-                    
-                    canvas.tag_raise("hint")
-            
-            def on_up(event):
-                if state["is_dragging"]:
-                    x1, y1 = state["start_x"], state["start_y"]
-                    x2, y2 = event.x, event.y
-                    left, top = min(x1, x2), min(y1, y2)
-                    right, bottom = max(x1, x2), max(y1, y2)
-                    w, h = right - left, bottom - top
-                    if w >= 10 and h >= 10:
-                        result["rect"] = (left + v_left, top + v_top, w, h)
-                else:
-                    if state["hover_window"]:
-                        title, wl, wt, ww, wh = state["hover_window"]
-                        fl, ft = max(0, wl) + v_left, max(0, wt) + v_top
-                        fr, fb = min(v_w, wl + ww) + v_left, min(v_h, wt + wh) + v_top
-                        w, h = fr - fl, fb - ft
-                        if w >= 10 and h >= 10:
-                            result["rect"] = (fl, ft, w, h)
-                    elif state.get("hover_monitor"):
-                        mon_idx, ml, mt, mw, mh = state["hover_monitor"]
-                        result["rect"] = (ml + v_left, mt + v_top, mw, mh)
-                root.quit()
-            
-            def on_key(event):
-                if event.keysym == "Escape":
-                    result["rect"] = None
-                    root.quit()
-                elif event.keysym.lower() == "f" or event.keysym == "Return":
-                    mon_idx = state.get("current_monitor", 0)
-                    if 0 <= mon_idx < len(monitors):
-                        ml, mt, mr, mb = monitors[mon_idx]
-                        result["rect"] = (ml + v_left, mt + v_top, mr - ml, mb - mt)
-                    else:
-                        result["rect"] = (v_left, v_top, v_w, v_h)
-                    root.quit()
-            
-            overlay.bind("<Key>", on_key)
-            canvas.bind("<Motion>", on_motion)
-            canvas.bind("<ButtonPress-1>", on_down)
-            canvas.bind("<B1-Motion>", on_drag)
-            canvas.bind("<ButtonRelease-1>", on_up)
-            overlay.focus_force()
-            
-            # 添加超时自动关闭（防止卡死）
-            def auto_close():
-                if not result.get("rect") and result.get("rect") is not False:
-                    logger.warning("区域选择超时，自动关闭")
-                    result["rect"] = None
-                    try:
-                        root.quit()
-                    except Exception:
-                        pass
-            
-            # 60秒超时
-            root.after(60000, auto_close)
-            
-            try:
-                root.mainloop()
-            except Exception as e:
-                logger.error(f"mainloop 异常: {e}")
-            finally:
-                # 确保完全销毁（先 quit 停止事件循环，再 destroy 销毁窗口）
-                try:
-                    root.quit()
-                except Exception:
-                    pass
-                try:
-                    overlay.destroy()
-                except Exception:
-                    pass
-                try:
-                    root.destroy()
-                except Exception:
-                    pass
-            
-            logger.debug(f"区域选择完成，结果: {result['rect']}")
-            
-            # 显式清理图像资源，释放内存
-            try:
-                # 清理 canvas 上的所有图像引用
-                canvas.delete("all")
-                
-                # 清理 PhotoImage 对象
-                darkened_tk.__del__() if hasattr(darkened_tk, '__del__') else None
-                screenshot_tk.__del__() if hasattr(screenshot_tk, '__del__') else None
-                del darkened_tk
-                del screenshot_tk
-                
-                # 清理 hover_image（可能有多个历史引用）
-                if state.get("hover_image"):
-                    try:
-                        state["hover_image"].__del__() if hasattr(state["hover_image"], '__del__') else None
-                    except Exception:
-                        pass
-                    del state["hover_image"]
-                
-                # 清理 PIL Image
-                darkened.close()
-                screenshot.close()
-                del darkened
-                del screenshot
-                
-                # 清理其他变量
-                state.clear()
-                window_rects.clear()
-                monitors.clear()
-                
-                # 激进垃圾回收（回收所有代，多次调用处理循环引用）
-                gc.collect(0)  # 年轻代
-                gc.collect(1)  # 中间代
-                gc.collect(2)  # 老年代
-                gc.collect()   # 完整回收
-            except Exception:
-                pass
-            
-            return result["rect"]
-            
-        except Exception as ex:
-            logger.error(f"区域选择失败: {ex}", exc_info=True)
-            self._show_notification(f"区域选择失败: {str(ex)[:50]}")
-            return None
-    
     def _trigger_ocr(self) -> None:
         """触发 OCR 截图识别。"""
         logger.info("OCR 快捷键触发")
@@ -735,10 +353,10 @@ class GlobalHotkeyService:
                 # 设置区域选择锁
                 self._ocr_selecting = True
                 try:
-                    # 使用完整的区域选择器
-                    region = self._select_region_interactive(
-                        hint_text_main="🔤 点击选择窗口  |  拖拽框选区域",
-                        hint_text_sub="按 F 识别当前屏幕  |  ESC 取消"
+                    from utils.screen_selector import select_screen_region
+                    region = select_screen_region(
+                        hint_main="🔤 点击选择窗口  |  拖拽框选区域",
+                        hint_sub="按 F 识别当前屏幕  |  ESC 取消",
                     )
                 finally:
                     # 释放区域选择锁
@@ -837,28 +455,7 @@ class GlobalHotkeyService:
                         self._show_notification(f"已识别 {line_count} 行文字并复制到剪切板")
                         logger.info(f"OCR 识别完成，已复制 {line_count} 行文字")
                     else:
-                        # 尝试备用方法（确保 tkinter 正确清理）
-                        temp_root = None
-                        try:
-                            temp_root = tk.Tk()
-                            temp_root.withdraw()
-                            temp_root.clipboard_clear()
-                            temp_root.clipboard_append(full_text)
-                            temp_root.update()
-                            self._show_notification(f"已识别 {line_count} 行文字并复制到剪切板")
-                            logger.info(f"OCR 识别完成，已通过 tkinter 复制 {line_count} 行文字")
-                            clipboard_success = True
-                        except Exception as e:
-                            logger.warning(f"备用剪切板方法失败: {e}")
-                        finally:
-                            if temp_root:
-                                try:
-                                    temp_root.destroy()
-                                except Exception:
-                                    pass
-                        
-                        if not clipboard_success:
-                            self._show_notification(f"已识别 {line_count} 行，但复制到剪切板失败")
+                        self._show_notification(f"已识别 {line_count} 行，但复制到剪切板失败")
                     
                     # 清理 full_text
                     del full_text
@@ -959,10 +556,10 @@ class GlobalHotkeyService:
             try:
                 import subprocess
                 
-                # 使用完整的区域选择器
-                region = self._select_region_interactive(
-                    hint_text_main="🎬 点击选择窗口  |  拖拽框选区域",
-                    hint_text_sub="按 F 录制当前屏幕  |  ESC 取消"
+                from utils.screen_selector import select_screen_region
+                region = select_screen_region(
+                    hint_main="🎬 点击选择窗口  |  拖拽框选区域",
+                    hint_sub="按 F 录制当前屏幕  |  ESC 取消",
                 )
                 
                 if region is None:

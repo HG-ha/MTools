@@ -1145,20 +1145,18 @@ class ScreenRecordView(ft.Container):
         self._page.update()
 
         async def _pick_area_async():
-            result = await asyncio.to_thread(self._select_region_interactively_windows)
+            from utils.screen_selector import select_screen_region
+            result = await asyncio.to_thread(
+                select_screen_region,
+                hint_main="🎯 点击选择窗口  |  拖拽框选区域",
+                hint_sub="按 F 选择当前屏幕  |  ESC 取消",
+                return_window_title=True,
+            )
 
             try:
                 if result is None:
                     # 用户取消
                     self._show_message("已取消选择", ft.Colors.ORANGE)
-                elif result == "fullscreen":
-                    # 全屏模式
-                    self.selected_region = None
-                    self.selected_region_type = "fullscreen"
-                    self.selected_window_title = None
-                    self.region_info_text.value = "🖥️ 当前：全屏录制"
-                    self.region_detail_text.value = ""
-                    self._show_message("已选择：全屏录制", ft.Colors.GREEN)
                 elif isinstance(result, tuple) and len(result) == 5:
                     # 窗口模式：(x, y, w, h, window_title)
                     x, y, w, h, title = result
@@ -1170,7 +1168,7 @@ class ScreenRecordView(ft.Container):
                     self.region_detail_text.value = f"{display_title} ({w}×{h})"
                     self._show_message(f"已选择窗口：{display_title}", ft.Colors.GREEN)
                 elif isinstance(result, tuple) and len(result) == 4:
-                    # 自定义区域模式：(x, y, w, h)
+                    # 自定义区域 / 全屏 / 显示器
                     x, y, w, h = result
                     self.selected_region = (x, y, w, h)
                     self.selected_region_type = "custom"
@@ -1187,480 +1185,6 @@ class ScreenRecordView(ft.Container):
     def _on_pick_region_click(self, e) -> None:
         """交互式拖拽框选区域（兼容旧代码）。"""
         self._on_pick_area_click(e)
-
-    def _select_region_interactively_windows(self):
-        """Windows：截取当前屏幕画面，支持三合一选择。
-        
-        更现代的交互方式（类似 Windows Snipping Tool / ShareX）：
-        1. 截取整个屏幕的静态画面
-        2. 鼠标悬停时自动高亮窗口
-        3. 点击可直接选择窗口，拖拽可自由框选区域
-        4. 按 F 或 Enter 选择全屏
-        5. 按 ESC 取消
-        
-        Returns:
-            - "fullscreen": 全屏模式
-            - (x, y, w, h, window_title): 窗口模式
-            - (x, y, w, h): 自定义区域模式
-            - None: 取消
-        """
-        if self._get_platform() != "windows":
-            return None
-
-        self._ensure_windows_dpi_aware()
-        v_left, v_top, v_w, v_h = self._get_virtual_screen_rect_windows()
-
-        try:
-            import tkinter as tk
-            from PIL import Image, ImageTk, ImageGrab
-        except Exception as ex:
-            logger.warning(f"无法启用框选区域（缺少依赖）: {ex}")
-            return None
-
-        logger.info(f"截取屏幕画面: {v_w}x{v_h} @ ({v_left}, {v_top})")
-        
-        # 1. 截取整个虚拟桌面的画面
-        try:
-            screenshot = ImageGrab.grab(
-                bbox=(v_left, v_top, v_left + v_w, v_top + v_h),
-                all_screens=True
-            )
-            logger.info(f"屏幕截图成功: {screenshot.size}")
-        except Exception as ex:
-            logger.error(f"截取屏幕失败: {ex}")
-            return self._select_region_fallback(v_left, v_top, v_w, v_h)
-
-        # 2. 获取所有窗口的矩形信息（用于悬停高亮）
-        all_windows = self._get_all_window_rects_windows()
-        # 转换为相对于截图的坐标
-        window_rects = []
-        for title, wl, wt, ww, wh in all_windows:
-            # 转换到截图坐标系
-            rel_left = wl - v_left
-            rel_top = wt - v_top
-            # 只保留在截图范围内的窗口
-            if rel_left < v_w and rel_top < v_h and rel_left + ww > 0 and rel_top + wh > 0:
-                window_rects.append((title, rel_left, rel_top, ww, wh))
-        logger.info(f"检测到 {len(window_rects)} 个可选窗口")
-
-        # 3. 创建暗化版本的截图
-        darkened = screenshot.copy()
-        darkened = Image.blend(darkened, Image.new('RGB', darkened.size, (0, 0, 0)), 0.5)
-
-        result = {"rect": None}
-
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-
-        overlay = tk.Toplevel(root)
-        overlay.attributes("-topmost", True)
-        overlay.geometry(f"{v_w}x{v_h}{v_left:+d}{v_top:+d}")
-        overlay.overrideredirect(True)
-        overlay.configure(bg="black")
-
-        canvas = tk.Canvas(overlay, cursor="cross", highlightthickness=0, width=v_w, height=v_h)
-        canvas.pack(fill="both", expand=True)
-
-        # 将暗化的截图作为背景
-        darkened_tk = ImageTk.PhotoImage(darkened)
-        screenshot_tk = ImageTk.PhotoImage(screenshot)
-        canvas.create_image(0, 0, anchor="nw", image=darkened_tk, tags="bg")
-
-        # 获取各显示器的矩形信息（用于提示文字跟随）
-        monitors = []
-        try:
-            import ctypes
-            from ctypes import wintypes, POINTER, byref
-            
-            class RECT(ctypes.Structure):
-                _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), 
-                           ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-            
-            MONITORENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, 
-                                                  ctypes.c_void_p, POINTER(RECT), ctypes.c_void_p)
-            
-            def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
-                r = lprcMonitor.contents
-                # 转换到截图坐标系
-                monitors.append((
-                    r.left - v_left, r.top - v_top,
-                    r.right - v_left, r.bottom - v_top
-                ))
-                return 1
-            
-            ctypes.windll.user32.EnumDisplayMonitors(None, None, MONITORENUMPROC(callback), 0)
-            logger.info(f"检测到 {len(monitors)} 个显示器")
-        except Exception as ex:
-            logger.warning(f"获取显示器信息失败: {ex}")
-            monitors = [(0, 0, v_w, v_h)]
-
-        # 提示文字（初始位置在第一个屏幕）
-        first_mon = monitors[0] if monitors else (0, 0, v_w, v_h)
-        init_x = first_mon[0] + (first_mon[2] - first_mon[0]) // 2
-        
-        # 创建提示背景框（更美观）
-        hint_bg = canvas.create_rectangle(
-            init_x - 220, 25, init_x + 220, 95,
-            fill="#1a1a1a", outline="#333333", width=1,
-            tags="hint_bg"
-        )
-        
-        hint_text = canvas.create_text(
-            init_x, 45,
-            text="🎯 点击选择窗口  |  拖拽框选区域",
-            fill="white",
-            font=("Microsoft YaHei", 13, "bold"),
-            tags="hint"
-        )
-        
-        hint_text2 = canvas.create_text(
-            init_x, 72,
-            text="按 F 录制当前屏幕  |  ESC 取消",
-            fill="#888888",
-            font=("Microsoft YaHei", 11),
-            tags="hint"
-        )
-        
-        # 窗口标题提示
-        window_title_text = canvas.create_text(
-            init_x, 110,
-            text="",
-            fill="#00BFFF",
-            font=("Microsoft YaHei", 12),
-            tags="window_title"
-        )
-
-        state = {
-            "is_dragging": False,
-            "start_x": 0,
-            "start_y": 0,
-            "hover_window": None,  # (title, left, top, w, h)
-            "hover_monitor": None,  # (mon_idx, left, top, w, h) 当空白区域时高亮的屏幕
-            "hover_image": None,   # 保存 ImageTk 引用
-            "current_monitor": -1,  # 当前鼠标所在显示器索引
-            "last_hover": None,    # 上次悬停状态，用于避免重复更新
-        }
-        
-        def update_hint_position(x: int, y: int):
-            """根据鼠标位置，将提示文字移动到当前显示器。"""
-            for i, (ml, mt, mr, mb) in enumerate(monitors):
-                if ml <= x <= mr and mt <= y <= mb:
-                    if state["current_monitor"] != i:
-                        state["current_monitor"] = i
-                        center_x = ml + (mr - ml) // 2
-                        # 更新所有提示元素的位置
-                        canvas.coords(hint_bg, center_x - 220, 25, center_x + 220, 95)
-                        canvas.coords(hint_text, center_x, 45)
-                        canvas.coords(hint_text2, center_x, 72)
-                        canvas.coords(window_title_text, center_x, 110)
-                    break
-
-        def find_window_at(x: int, y: int) -> Optional[Tuple[str, int, int, int, int]]:
-            """查找鼠标位置下的窗口（按 Z-order，顶层优先）。"""
-            for title, wl, wt, ww, wh in window_rects:
-                if wl <= x <= wl + ww and wt <= y <= wt + wh:
-                    return (title, wl, wt, ww, wh)
-            return None
-
-        def get_current_monitor(x: int, y: int):
-            """获取鼠标所在的显示器区域。"""
-            for i, (ml, mt, mr, mb) in enumerate(monitors):
-                if ml <= x <= mr and mt <= y <= mb:
-                    return i, (ml, mt, mr - ml, mb - mt)
-            return 0, (0, 0, v_w, v_h)
-
-        def update_hover(x: int, y: int):
-            """更新悬停高亮。"""
-            # 更新提示文字位置到当前屏幕
-            update_hint_position(x, y)
-            
-            if state["is_dragging"]:
-                return
-            
-            window = find_window_at(x, y)
-            mon_idx, mon_rect = get_current_monitor(x, y)
-            
-            # 检查是否需要更新高亮
-            current_hover = (window, mon_idx if not window else None)
-            if current_hover == state.get("last_hover"):
-                return
-            state["last_hover"] = current_hover
-            state["hover_window"] = window
-            
-            # 清除之前的高亮
-            canvas.delete("highlight")
-            canvas.delete("highlight_border")
-            
-            if window:
-                # 高亮窗口
-                title, wl, wt, ww, wh = window
-                
-                try:
-                    crop_left = max(0, wl)
-                    crop_top = max(0, wt)
-                    crop_right = min(v_w, wl + ww)
-                    crop_bottom = min(v_h, wt + wh)
-                    
-                    if crop_right > crop_left and crop_bottom > crop_top:
-                        cropped = screenshot.crop((crop_left, crop_top, crop_right, crop_bottom))
-                        cropped_tk = ImageTk.PhotoImage(cropped)
-                        state["hover_image"] = cropped_tk
-                        canvas.create_image(crop_left, crop_top, anchor="nw", 
-                                          image=cropped_tk, tags="highlight")
-                        
-                        canvas.create_rectangle(
-                            crop_left, crop_top, crop_right, crop_bottom,
-                            outline="#00BFFF", width=3, tags="highlight_border"
-                        )
-                except Exception:
-                    pass
-                
-                display_title = title[:50] + "..." if len(title) > 50 else title
-                canvas.itemconfig(window_title_text, text=f"🖥️ {display_title}")
-                state["hover_monitor"] = None
-            else:
-                # 空白区域：高亮当前屏幕
-                ml, mt, mw, mh = mon_rect
-                mr, mb = ml + mw, mt + mh
-                
-                try:
-                    cropped = screenshot.crop((ml, mt, mr, mb))
-                    cropped_tk = ImageTk.PhotoImage(cropped)
-                    state["hover_image"] = cropped_tk
-                    canvas.create_image(ml, mt, anchor="nw", 
-                                      image=cropped_tk, tags="highlight")
-                    
-                    # 屏幕边框使用不同颜色
-                    canvas.create_rectangle(
-                        ml, mt, mr, mb,
-                        outline="#FF6B6B", width=3, tags="highlight_border"
-                    )
-                except Exception:
-                    pass
-                
-                canvas.itemconfig(window_title_text, text=f"🖥️ 屏幕 {mon_idx + 1} 全屏 ({mw}×{mh})")
-                state["hover_monitor"] = (mon_idx, ml, mt, mw, mh)
-            
-            # 确保提示在最上层
-            canvas.tag_raise("hint_bg")
-            canvas.tag_raise("hint")
-            canvas.tag_raise("window_title")
-
-        def on_motion(event):
-            """鼠标移动事件。"""
-            update_hover(event.x, event.y)
-
-        def on_down(event):
-            """鼠标按下事件。"""
-            state["start_x"] = event.x
-            state["start_y"] = event.y
-            state["is_dragging"] = False
-
-        def on_drag(event):
-            """拖拽事件。"""
-            dx = abs(event.x - state["start_x"])
-            dy = abs(event.y - state["start_y"])
-            
-            # 如果移动超过 5 像素，进入拖拽模式
-            if dx > 5 or dy > 5:
-                if not state["is_dragging"]:
-                    state["is_dragging"] = True
-                    # 清除窗口高亮
-                    canvas.delete("highlight")
-                    canvas.delete("highlight_border")
-                    canvas.itemconfig(window_title_text, text="拖拽选择区域...")
-                
-                x1, y1 = state["start_x"], state["start_y"]
-                x2, y2 = event.x, event.y
-                left, top = min(x1, x2), min(y1, y2)
-                right, bottom = max(x1, x2), max(y1, y2)
-                
-                # 更新选框
-                canvas.delete("selection")
-                canvas.delete("selection_area")
-                
-                if right > left and bottom > top:
-                    try:
-                        cropped = screenshot.crop((left, top, right, bottom))
-                        cropped_tk = ImageTk.PhotoImage(cropped)
-                        state["hover_image"] = cropped_tk
-                        canvas.create_image(left, top, anchor="nw", 
-                                          image=cropped_tk, tags="selection_area")
-                    except Exception:
-                        pass
-                    
-                    canvas.create_rectangle(
-                        left, top, right, bottom,
-                        outline="#FF6B6B", width=2, tags="selection"
-                    )
-                
-                canvas.tag_raise("hint")
-                canvas.tag_raise("window_title")
-
-        def on_up(event):
-            """鼠标释放事件。"""
-            if state["is_dragging"]:
-                # 拖拽模式：使用框选区域（返回 4 元素元组）
-                x1, y1 = state["start_x"], state["start_y"]
-                x2, y2 = event.x, event.y
-                left, top = min(x1, x2), min(y1, y2)
-                right, bottom = max(x1, x2), max(y1, y2)
-                w, h = right - left, bottom - top
-                
-                if w >= 10 and h >= 10:
-                    result["rect"] = (left + v_left, top + v_top, w, h)
-                    logger.info(f"框选区域: x={left + v_left}, y={top + v_top}, w={w}, h={h}")
-                else:
-                    logger.warning(f"框选区域太小 ({w}x{h})，已取消")
-            else:
-                # 点击模式：选择悬停的窗口或屏幕
-                if state["hover_window"]:
-                    # 选择窗口（返回 5 元素元组，包含窗口标题）
-                    title, wl, wt, ww, wh = state["hover_window"]
-                    final_left = max(0, wl) + v_left
-                    final_top = max(0, wt) + v_top
-                    final_right = min(v_w, wl + ww) + v_left
-                    final_bottom = min(v_h, wt + wh) + v_top
-                    w = final_right - final_left
-                    h = final_bottom - final_top
-                    
-                    if w >= 10 and h >= 10:
-                        result["rect"] = (final_left, final_top, w, h, title)
-                        logger.info(f"选择窗口 '{title}': x={final_left}, y={final_top}, w={w}, h={h}")
-                    else:
-                        logger.warning(f"窗口太小 ({w}x{h})")
-                elif state.get("hover_monitor"):
-                    # 选择屏幕（返回 4 元素元组）
-                    mon_idx, ml, mt, mw, mh = state["hover_monitor"]
-                    # ml, mt 是相对于截图的坐标，需要转换为全局坐标
-                    result["rect"] = (ml + v_left, mt + v_top, mw, mh)
-                    logger.info(f"选择屏幕 {mon_idx + 1}: x={ml + v_left}, y={mt + v_top}, w={mw}, h={mh}")
-            
-            root.quit()
-
-        def on_key(event):
-            if event.keysym == "Escape":
-                result["rect"] = None
-                logger.info("选择已取消 (ESC)")
-                root.quit()
-            elif event.keysym.lower() == "f" or event.keysym == "Return":
-                # 全屏模式：录制当前鼠标所在屏幕
-                current_mon_idx = state.get("current_monitor", 0)
-                if 0 <= current_mon_idx < len(monitors):
-                    ml, mt, mr, mb = monitors[current_mon_idx]
-                    # 转换回全局坐标
-                    mon_x = ml + v_left
-                    mon_y = mt + v_top
-                    mon_w = mr - ml
-                    mon_h = mb - mt
-                    result["rect"] = (mon_x, mon_y, mon_w, mon_h)
-                    logger.info(f"选择屏幕 {current_mon_idx + 1} 全屏: {mon_w}x{mon_h} @ ({mon_x}, {mon_y})")
-                else:
-                    # 回退到整个虚拟桌面
-                    result["rect"] = "fullscreen"
-                    logger.info("选择全屏录制（所有屏幕）")
-                root.quit()
-
-        overlay.bind("<Key>", on_key)
-        canvas.bind("<Motion>", on_motion)
-        canvas.bind("<ButtonPress-1>", on_down)
-        canvas.bind("<B1-Motion>", on_drag)
-        canvas.bind("<ButtonRelease-1>", on_up)
-        overlay.focus_force()
-
-        try:
-            root.mainloop()
-        finally:
-            try:
-                overlay.destroy()
-            except Exception:
-                pass
-            try:
-                root.destroy()
-            except Exception:
-                pass
-            del screenshot, darkened, darkened_tk, screenshot_tk
-
-        return result["rect"]
-    
-    def _select_region_fallback(self, v_left: int, v_top: int, v_w: int, v_h: int) -> Optional[Tuple[int, int, int, int]]:
-        """回退方案：使用半透明遮罩（截图失败时使用）。"""
-        try:
-            import tkinter as tk
-        except Exception:
-            return None
-
-        result = {"rect": None}
-
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-
-        overlay = tk.Toplevel(root)
-        overlay.attributes("-topmost", True)
-        overlay.geometry(f"{v_w}x{v_h}{v_left:+d}{v_top:+d}")
-        try:
-            overlay.attributes("-alpha", 0.25)
-        except Exception:
-            pass
-        overlay.configure(bg="black")
-        overlay.overrideredirect(True)
-
-        canvas = tk.Canvas(overlay, cursor="cross", bg="black", highlightthickness=0)
-        canvas.pack(fill="both", expand=True)
-
-        start = {"x": 0, "y": 0, "rect_id": None}
-
-        def on_down(event):
-            start["x"], start["y"] = event.x, event.y
-            if start["rect_id"]:
-                canvas.delete(start["rect_id"])
-            start["rect_id"] = canvas.create_rectangle(
-                start["x"], start["y"], start["x"], start["y"],
-                outline="red", width=2,
-            )
-
-        def on_move(event):
-            if start["rect_id"]:
-                canvas.coords(start["rect_id"], start["x"], start["y"], event.x, event.y)
-
-        def on_up(event):
-            x1, y1 = start["x"], start["y"]
-            x2, y2 = event.x, event.y
-            left, top = min(x1, x2), min(y1, y2)
-            right, bottom = max(x1, x2), max(y1, y2)
-            w, h = right - left, bottom - top
-            if w < 10 or h < 10:
-                result["rect"] = None
-            else:
-                result["rect"] = (left + v_left, top + v_top, w, h)
-            root.quit()
-
-        def on_key(event):
-            if event.keysym == "Escape":
-                result["rect"] = None
-                root.quit()
-
-        overlay.bind("<Key>", on_key)
-        canvas.bind("<ButtonPress-1>", on_down)
-        canvas.bind("<B1-Motion>", on_move)
-        canvas.bind("<ButtonRelease-1>", on_up)
-        overlay.focus_force()
-
-        try:
-            root.mainloop()
-        finally:
-            try:
-                overlay.destroy()
-            except Exception:
-                pass
-            try:
-                root.destroy()
-            except Exception:
-                pass
-
-        return result["rect"]
     
     def _on_mic_checkbox_change(self, e) -> None:
         """处理麦克风复选框变化。"""
@@ -2014,8 +1538,13 @@ class ScreenRecordView(ft.Container):
         self._page.update()
         
         async def _select_and_record_async():
-            # 弹出区域选择界面
-            result = await asyncio.to_thread(self._select_region_interactively_windows)
+            from utils.screen_selector import select_screen_region
+            result = await asyncio.to_thread(
+                select_screen_region,
+                hint_main="🎬 点击选择窗口  |  拖拽框选区域",
+                hint_sub="按 F 录制当前屏幕  |  ESC 取消",
+                return_window_title=True,
+            )
             
             self.record_btn.disabled = False
             
@@ -2026,13 +1555,7 @@ class ScreenRecordView(ft.Container):
                 return
             
             # 更新选择结果
-            if result == "fullscreen":
-                self.selected_region = None
-                self.selected_region_type = "fullscreen"
-                self.selected_window_title = None
-                self.region_info_text.value = "🖥️ 全屏录制"
-                self.region_detail_text.value = ""
-            elif isinstance(result, tuple) and len(result) == 5:
+            if isinstance(result, tuple) and len(result) == 5:
                 x, y, w, h, title = result
                 self.selected_region = (x, y, w, h)
                 self.selected_region_type = "window"

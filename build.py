@@ -931,7 +931,7 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2, flet
         print("   UPX 压缩: 未启用")
     
     # 排除不需要的包以减小体积
-    # 注意：tkinter 用于快捷功能的区域选择，不能排除
+    # 注意：tkinter 已被原生方案替代（ctypes/PyObjC），可安全排除
     excluded_packages = [
         "unittest", "test", "pytest", 
         "setuptools", "distutils", "wheel", "pip", 
