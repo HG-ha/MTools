@@ -23,6 +23,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHON_VERSION: '3.11'
+  FLET_CLI_NO_RICH_OUTPUT: 1
+  PYTHONUTF8: 1
+
 jobs:
   build:
     strategy:
@@ -32,66 +37,58 @@ jobs:
           # Windows 标准版（DirectML）
           - os: windows-latest
             platform: Windows
+            flet_platform: windows
             arch: amd64
             artifact_ext: .zip
-            jobs: 2  # MSVC 编译器内存占用较高，使用较少的并行任务
-            upx: true
             cuda_variant: none
           # Windows CUDA 版（需要额外安装 CUDA）
           - os: windows-latest
             platform: Windows
+            flet_platform: windows
             arch: amd64
             artifact_ext: .zip
-            jobs: 2
-            upx: true
             cuda_variant: cuda
           # Windows CUDA Full 版（内置 CUDA 和 cuDNN）
           - os: windows-latest
             platform: Windows
+            flet_platform: windows
             arch: amd64
             artifact_ext: .zip
-            jobs: 2
-            upx: true
             cuda_variant: cuda_full
           # macOS (Apple Silicon)
           - os: macos-latest
             platform: Darwin
+            flet_platform: macos
             arch: arm64
             artifact_ext: .tar.gz
-            jobs: 4
-            upx: false  # UPX 不支持 macOS Mach-O 格式
             cuda_variant: none
           # macOS (Intel) 镜像有问题，暂时禁用
           # - os: macos-15
           #   platform: Darwin
+          #   flet_platform: macos
           #   arch: amd64
           #   artifact_ext: .tar.gz
-          #   jobs: 4
-          #   upx: false  # UPX 不支持 macOS Mach-O 格式
           #   cuda_variant: none
           # Linux 标准版（CPU）
-          - os: ubuntu-22.04  # GLIBC 2.35，兼容 Ubuntu 22.04+, Debian 12+
+          - os: ubuntu-22.04
             platform: Linux
+            flet_platform: linux
             arch: amd64
             artifact_ext: .tar.gz
-            jobs: 4
-            upx: true
             cuda_variant: none
           # Linux CUDA 版（需要额外安装 CUDA）
           - os: ubuntu-22.04
             platform: Linux
+            flet_platform: linux
             arch: amd64
             artifact_ext: .tar.gz
-            jobs: 4
-            upx: true
             cuda_variant: cuda
           # Linux CUDA Full 版（内置 CUDA 和 cuDNN）
           - os: ubuntu-22.04
             platform: Linux
+            flet_platform: linux
             arch: amd64
             artifact_ext: .tar.gz
-            jobs: 4
-            upx: true
             cuda_variant: cuda_full
 
     runs-on: ${{ matrix.os }}
@@ -103,60 +100,44 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
+      # ========== 平台依赖安装 ==========
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: |
+          # Rosetta 2（Apple Silicon 上运行 x86_64 代码需要）
+          sudo softwareupdate --install-rosetta --agree-to-license || true
+          # CocoaPods（Flet macOS 构建需要）
+          gem install cocoapods || true
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y patchelf upx
+          sudo apt-get install -y ninja-build libgtk-3-dev
 
-      - name: Install Windows build dependencies
-        if: runner.os == 'Windows'
+      # Windows 无需额外安装（Visual Studio 已预装）
+
+      # ========== 安装 flet-cli ==========
+
+      - name: Install flet-cli
         run: |
-          # 从 GitHub 下载 UPX
-          Write-Host "Downloading UPX from GitHub..."
-          $upxUrl = "https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-win64.zip"
-          $upxZip = "$env:TEMP\upx.zip"
-          $upxDir = "$env:TEMP\upx"
-          
-          Invoke-WebRequest -Uri $upxUrl -OutFile $upxZip
-          Expand-Archive -Path $upxZip -DestinationPath $upxDir -Force
-          
-          # 将 UPX 添加到 PATH
-          $upxExePath = Get-ChildItem -Path $upxDir -Filter "upx.exe" -Recurse | Select-Object -First 1
-          $upxFolder = Split-Path $upxExePath.FullName
-          echo "$upxFolder" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          
-          Write-Host "UPX installed successfully at: $upxFolder"
-        shell: powershell
+          python -m pip install --upgrade pip
+          pip install flet-cli==0.80.5
 
-      - name: Install dependencies
-        run: uv sync --all-groups
+      # ========== CUDA 变体处理 ==========
 
-      - name: Replace onnxruntime for CUDA builds
+      - name: Prepare CUDA variant
         if: matrix.cuda_variant != 'none'
-        shell: bash
-        run: |
-          # 移除默认的 onnxruntime
-          if [ "${{ matrix.platform }}" == "Windows" ]; then
-            uv remove onnxruntime-directml || true
-          fi
-          uv remove onnxruntime || true
-          
-          # 安装对应的 CUDA 版本
-          if [ "${{ matrix.cuda_variant }}" == "cuda" ]; then
-            echo "Installing onnxruntime-gpu (CUDA version, requires external CUDA installation)"
-            uv add onnxruntime-gpu==1.22.0
-          elif [ "${{ matrix.cuda_variant }}" == "cuda_full" ]; then
-            echo "Installing onnxruntime-gpu with bundled CUDA and cuDNN"
-            uv add "onnxruntime-gpu[cuda,cudnn]==1.22.0"
-          fi
+        run: python scripts/prepare_cuda_variant.py ${{ matrix.cuda_variant }}
+
+      - name: Write CUDA variant to config
+        if: matrix.cuda_variant == 'none'
+        run: python scripts/prepare_cuda_variant.py none
+
+      # ========== 获取版本号 ==========
 
       - name: Get version from app_config.py
         id: version
@@ -171,17 +152,28 @@ jobs:
           match = re.search(r'APP_VERSION.*?["\'](.+?)["\']', content)
           version = match.group(1) if match else '0.0.0'
           
-          # 写入环境变量
+          # 提取纯数字版本（用于 build-version）
+          clean_version = re.split(r'[-+]', version)[0]
+          # 确保是 x.y.z 格式
+          parts = clean_version.split('.')
+          while len(parts) < 3:
+              parts.append('0')
+          build_version = '.'.join(parts[:3])
+          
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'version={version}\n')
+              f.write(f'build_version={build_version}\n')
           
           print(f'Version: {version}')
+          print(f'Build Version: {build_version}')
 
-      - name: Build with Nuitka
-        run: uv run python build.py --mode release --jobs ${{ matrix.jobs }} ${{ matrix.upx && '--upx' || '' }}
-        env:
-          PYTHONIOENCODING: utf-8
-          CUDA_VARIANT: ${{ matrix.cuda_variant }}
+      # ========== Flet Build ==========
+
+      - name: Build with Flet
+        run: |
+          flet build ${{ matrix.flet_platform }} --verbose --no-rich-output --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
+
+      # ========== 打包产物 ==========
 
       - name: Get artifact name
         id: artifact
@@ -198,11 +190,33 @@ jobs:
           echo "name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
           echo "Artifact name: ${ARTIFACT_NAME}"
 
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cd build/windows
+          7z a "../../${{ steps.artifact.outputs.name }}.zip" .
+          echo "Packaged Windows artifact"
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd build/macos
+          tar -czf "../../${{ steps.artifact.outputs.name }}.tar.gz" .
+          echo "Packaged macOS artifact"
+
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd build/linux
+          tar -czf "../../${{ steps.artifact.outputs.name }}.tar.gz" .
+          echo "Packaged Linux artifact"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
-          path: dist/release/${{ steps.artifact.outputs.name }}${{ matrix.artifact_ext }}
+          path: ${{ steps.artifact.outputs.name }}${{ matrix.artifact_ext }}
           if-no-files-found: error
           retention-days: 7
 
@@ -262,4 +276,3 @@ jobs:
             artifacts/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
