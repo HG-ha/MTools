@@ -545,69 +545,37 @@ class TSMergeView(ft.Container):
         self.progress_text.value = "正在合成..."
         self._page.update()
         
-        threading.Thread(target=self._merge_thread, daemon=True).start()
+        self._page.run_task(self._async_merge)
     
-    def _merge_thread(self) -> None:
-        """合成处理线程。"""
+    async def _async_merge(self) -> None:
+        """异步合成处理。"""
+        import asyncio
         try:
-            # 确定输出路径
-            if self.output_mode_radio.value == "custom":
-                output_dir = Path(self.custom_output_dir.value)
+            # 在主线程读取 UI 值
+            output_mode = self.output_mode_radio.value
+            output_dir_value = self.custom_output_dir.value
+            output_name = self.output_name_field.value.strip() or "merged_video"
+            files = list(self.selected_files)
+            output_format = self.output_format
+            
+            if output_mode == "custom":
+                output_dir = Path(output_dir_value)
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                output_dir = self.selected_files[0].parent
+                output_dir = files[0].parent
             
-            output_name = self.output_name_field.value.strip() or "merged_video"
-            output_path = get_unique_path(output_dir / f"{output_name}.{self.output_format}")
+            output_path = get_unique_path(output_dir / f"{output_name}.{output_format}")
             
-            self.progress_text.value = f"正在合成 {len(self.selected_files)} 个文件..."
+            self.progress_text.value = f"正在合成 {len(files)} 个文件..."
             self._page.update()
             
-            # 使用 FFmpeg concat 协议合并
-            # 创建临时文件列表
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-                for file_path in self.selected_files:
-                    # 使用 file 协议，转义单引号
-                    escaped_path = str(file_path).replace("'", "'\\''")
-                    f.write(f"file '{escaped_path}'\n")
-                concat_list_path = f.name
+            # 在后台线程执行 FFmpeg
+            await asyncio.to_thread(self._merge_work, files, output_path)
             
-            try:
-                # FFmpeg 命令
-                cmd = [
-                    'ffmpeg', '-y',
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_list_path,
-                    '-c', 'copy',  # 流复制，无损
-                    str(output_path)
-                ]
-                
-                import subprocess
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace'
-                )
-                
-                if result.returncode != 0:
-                    logger.error(f"FFmpeg 错误: {result.stderr}")
-                    raise Exception(f"合成失败: {result.stderr[:200]}")
-                
-                self.progress_bar.value = 1.0
-                self.progress_text.value = f"✓ 合成完成: {output_path.name}"
-                logger.info(f"TS 合成完成: {output_path}")
-                
-            finally:
-                # 清理临时文件
-                try:
-                    os.unlink(concat_list_path)
-                except:
-                    pass
-                    
+            self.progress_bar.value = 1.0
+            self.progress_text.value = f"✓ 合成完成: {output_path.name}"
+            logger.info(f"TS 合成完成: {output_path}")
+            
         except Exception as e:
             logger.error(f"TS 合成失败: {e}")
             self.progress_bar.value = 0
@@ -616,6 +584,48 @@ class TSMergeView(ft.Container):
         self.is_processing = False
         self.process_button.content.disabled = False
         self._page.update()
+    
+    def _merge_work(self, files: list, output_path: Path) -> None:
+        """合成同步工作（在后台线程执行）。"""
+        import tempfile
+        import subprocess
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            for file_path in files:
+                # 使用 file 协议，转义单引号
+                escaped_path = str(file_path).replace("'", "'\\''")
+                f.write(f"file '{escaped_path}'\n")
+            concat_list_path = f.name
+        
+        try:
+            # FFmpeg 命令
+            cmd = [
+                'ffmpeg', '-y',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list_path,
+                '-c', 'copy',  # 流复制，无损
+                str(output_path)
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg 错误: {result.stderr}")
+                raise Exception(f"合成失败: {result.stderr[:200]}")
+            
+        finally:
+            # 清理临时文件
+            try:
+                os.unlink(concat_list_path)
+            except Exception:
+                pass
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

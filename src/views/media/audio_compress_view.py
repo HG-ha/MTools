@@ -515,60 +515,103 @@ class AudioCompressView(ft.Container):
         # 禁用控件
         self._set_processing_state(True)
         
-        # 在后台线程处理
-        threading.Thread(target=self._process_files, daemon=True).start()
-    
-    def _process_files(self) -> None:
-        """处理文件（后台线程）。"""
-        total_files = len(self.selected_files)
-        success_count = 0
-        error_count = 0
-        
-        for i, file_path in enumerate(self.selected_files):
-            try:
-                # 更新进度
-                progress = (i + 1) / total_files
-                self._update_progress(
-                    progress,
-                    f"正在压缩: {file_path.name} ({i + 1}/{total_files})"
-                )
-                
-                # 确定输出路径
-                if self.output_mode.value == "custom_dir":
-                    output_dir = Path(self.output_dir_field.value)
-                else:
-                    output_dir = file_path.parent
-                
-                output_path = output_dir / f"{file_path.stem}_compressed{file_path.suffix}"
-                
-                # 根据全局设置决定是否添加序号
-                add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                
-                # 构建FFmpeg参数
-                bitrate = int(self.bitrate_slider.value)
-                sample_rate = self.sample_rate_dropdown.value
-                channels = self.channel_dropdown.value
-                
-                # 执行压缩
-                success = self._compress_audio(
-                    file_path,
-                    output_path,
-                    bitrate,
-                    sample_rate,
-                    channels
-                )
-                
-                if success:
-                    success_count += 1
-                else:
+        # 异步处理
+        self._page.run_task(self._process_files_async)
+
+    async def _process_files_async(self) -> None:
+        """异步处理音频压缩任务。"""
+        import asyncio
+
+        self._task_finished = False
+        self._pending_progress = None
+
+        # 在事件循环中捕获 UI 控件的值
+        output_mode_value = self.output_mode.value
+        output_dir_value = self.output_dir_field.value
+        bitrate = int(self.bitrate_slider.value)
+        sample_rate = self.sample_rate_dropdown.value
+        channels = self.channel_dropdown.value
+
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    self.progress_bar.value = bar_val
+                    self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+
+        def _do_work():
+            total_files = len(self.selected_files)
+            success_count = 0
+            error_count = 0
+
+            for i, file_path in enumerate(self.selected_files):
+                try:
+                    # 更新进度
+                    progress = (i + 1) / total_files
+                    self._pending_progress = (
+                        progress,
+                        f"正在压缩: {file_path.name} ({i + 1}/{total_files})",
+                    )
+
+                    # 确定输出路径
+                    if output_mode_value == "custom_dir":
+                        output_dir = Path(output_dir_value)
+                    else:
+                        output_dir = file_path.parent
+
+                    output_path = output_dir / f"{file_path.stem}_compressed{file_path.suffix}"
+
+                    # 根据全局设置决定是否添加序号
+                    add_sequence = self.config_service.get_config_value("output_add_sequence", False)
+                    output_path = get_unique_path(output_path, add_sequence=add_sequence)
+
+                    # 执行压缩
+                    success = self._compress_audio(
+                        file_path,
+                        output_path,
+                        bitrate,
+                        sample_rate,
+                        channels
+                    )
+
+                    if success:
+                        success_count += 1
+                    else:
+                        error_count += 1
+
+                except Exception as e:
                     error_count += 1
-                    
-            except Exception as e:
-                error_count += 1
-        
-        # 完成处理
-        self._on_processing_complete(success_count, error_count)
+
+            return success_count, error_count
+
+        poll = asyncio.create_task(_poll())
+        try:
+            success_count, error_count = await asyncio.to_thread(_do_work)
+        finally:
+            self._task_finished = True
+            await poll
+
+        # 在事件循环中更新最终 UI
+        self._set_processing_state(False)
+
+        if error_count == 0:
+            message = f"成功压缩 {success_count} 个文件"
+            color = ft.Colors.GREEN
+        else:
+            message = f"完成: {success_count} 成功, {error_count} 失败"
+            color = ft.Colors.ORANGE
+
+        snackbar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=color,
+            duration=3000,
+        )
+        self._page.overlay.append(snackbar)
+        snackbar.open = True
+        self._page.update()
     
     def _compress_audio(
         self,
@@ -637,7 +680,7 @@ class AudioCompressView(ft.Container):
         self.progress_text.value = text
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _set_processing_state(self, processing: bool) -> None:
@@ -652,7 +695,7 @@ class AudioCompressView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_processing_complete(self, success_count: int, error_count: int) -> None:
@@ -676,7 +719,7 @@ class AudioCompressView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _show_error(self, message: str) -> None:

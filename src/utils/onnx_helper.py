@@ -282,6 +282,12 @@ def create_provider_options(
     if config_service is not None:
         use_gpu = config_service.get_config_value("gpu_acceleration", use_gpu)
     
+    # macOS 强制使用 CPU：CoreML 编译模型需要占用主线程 (GCD)，
+    # 会导致界面卡死，暂不支持 GPU 加速
+    import platform as _platform
+    if _platform.system() == "Darwin":
+        use_gpu = False
+    
     providers = []
     
     if use_gpu:
@@ -310,6 +316,8 @@ def create_provider_options(
         elif 'DmlExecutionProvider' in available_providers:
             providers.append('DmlExecutionProvider')
         # 3. CoreML (macOS Apple Silicon) - 通常只有一个设备
+        # 注意：CoreML 模型编译需要主线程 (GCD)，在后台线程中加载大模型时
+        # 可能导致界面卡死。macOS 上默认关闭 GPU 加速，可在设置中手动开启。
         elif 'CoreMLExecutionProvider' in available_providers:
             providers.append('CoreMLExecutionProvider')
         # 4. ROCm (AMD) - 支持 device_id

@@ -350,7 +350,7 @@ class VideoInterpolationView(ft.Container):
         )
         
         # 初始化模型状态（异步检查）
-        threading.Thread(target=self._check_model_status_async, daemon=True).start()
+        self._page.run_task(self._check_model_status_async)
         
         # 插帧倍率选择
         saved_multiplier = self.config_service.get_config_value("video_interpolation_multiplier", 2.0)
@@ -637,8 +637,8 @@ class VideoInterpolationView(ft.Container):
         )
         self._build_ui()
         try:
-            self.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _get_model_info_text(self) -> str:
@@ -650,10 +650,10 @@ class VideoInterpolationView(ft.Container):
             f"显存: {self.current_model.vram_usage}"
         )
     
-    def _check_model_status_async(self) -> None:
+    async def _check_model_status_async(self) -> None:
         """异步检查模型状态。"""
-        import time
-        time.sleep(0.05)
+        import asyncio
+        await asyncio.sleep(0.3)
         self._check_model_status()
     
     def _check_model_status(self) -> None:
@@ -664,7 +664,7 @@ class VideoInterpolationView(ft.Container):
             if auto_load and not self.interpolator:
                 # 自动加载模型
                 self._update_model_status("loading", "正在加载模型...")
-                threading.Thread(target=self._load_model_async, daemon=True).start()
+                self._page.run_task(self._load_model_async)
             elif self.interpolator:
                 device_info = self.interpolator.get_device_info()
                 self._update_model_status("ready", f"模型就绪 ({device_info})")
@@ -724,7 +724,7 @@ class VideoInterpolationView(ft.Container):
         self.model_status_text.value = message
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_model_select(self, e: ft.ControlEvent) -> None:
@@ -750,47 +750,55 @@ class VideoInterpolationView(ft.Container):
     def _on_download_model(self, e: ft.ControlEvent) -> None:
         """下载模型按钮点击事件。"""
         self._update_model_status("downloading", "正在下载模型...")
-        threading.Thread(target=self._download_model_async, daemon=True).start()
+        self._page.run_task(self._download_model_async)
     
-    def _download_model_async(self) -> None:
+    async def _download_model_async(self) -> None:
         """异步下载模型。"""
-        try:
+        import asyncio
+        self._download_finished = False
+        self._pending_download_progress: Optional[str] = None
+        
+        async def _poll_download():
+            while not self._download_finished:
+                if self._pending_download_progress is not None:
+                    self.model_status_text.value = self._pending_download_progress
+                    self._pending_download_progress = None
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+        
+        def _do_download():
             import requests
-            
             url = self.current_model.url
             logger.info(f"开始下载RIFE模型: {url}")
-            
-            # 确保目录存在
             self.model_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 下载文件
             response = requests.get(url, stream=True)
             response.raise_for_status()
-            
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
-            
             with open(self.model_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        
-                        # 更新进度
                         if total_size > 0:
                             progress = downloaded / total_size
-                            message = f"下载中... {progress*100:.1f}%"
-                            self.model_status_text.value = message
-                            try:
-                                self._page.update()
-                            except:
-                                pass
+                            self._pending_download_progress = f"下载中... {progress*100:.1f}%"
+        
+        try:
+            poll_task = asyncio.create_task(_poll_download())
+            await asyncio.to_thread(_do_download)
+            self._download_finished = True
+            await poll_task
             
             logger.info(f"✓ 模型下载完成: {self.model_path}")
             self._update_model_status("downloaded", "模型已下载，点击加载")
-            self._show_snackbar(f"模型下载成功", ft.Colors.GREEN)
+            self._show_snackbar("模型下载成功", ft.Colors.GREEN)
             
         except Exception as e:
+            self._download_finished = True
             logger.error(f"下载模型失败: {e}")
             self._update_model_status("error", f"下载失败: {str(e)}")
             self._show_snackbar(f"下载失败: {str(e)}", ft.Colors.RED)
@@ -799,25 +807,27 @@ class VideoInterpolationView(ft.Container):
         """加载模型按钮点击事件。"""
         if self.model_path.exists() and not self.interpolator:
             self._update_model_status("loading", "正在加载模型...")
-            threading.Thread(target=self._load_model_async, daemon=True).start()
+            self._page.run_task(self._load_model_async)
         elif self.interpolator:
             self._show_snackbar("模型已加载", ft.Colors.ORANGE)
         else:
             self._show_snackbar("模型文件不存在", ft.Colors.RED)
     
-    def _load_model_async(self) -> None:
+    async def _load_model_async(self) -> None:
         """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         try:
-            # 创建插帧服务（会自动使用config_service读取所有ONNX配置）
-            self.interpolator = FrameInterpolationService(
-                model_name=self.current_model_key,
-                config_service=self.config_service
-            )
-            
-            # 加载模型
-            self.interpolator.load_model(self.model_path)
-            
-            # 更新UI
+            def _do_load():
+                self.interpolator = FrameInterpolationService(
+                    model_name=self.current_model_key,
+                    config_service=self.config_service
+                )
+                self.interpolator.load_model(self.model_path)
+
+            await asyncio.to_thread(_do_load)
+
+            # UI updates on event loop
             device_info = self.interpolator.get_device_info()
             self._update_model_status("ready", f"模型就绪 ({device_info})")
             self._update_process_button()
@@ -883,7 +893,7 @@ class VideoInterpolationView(ft.Container):
         # 如果启用自动加载且模型文件存在但未加载，则加载模型
         if auto_load and self.model_path.exists() and not self.interpolator:
             self._update_model_status("loading", "正在加载模型...")
-            threading.Thread(target=self._load_model_async, daemon=True).start()
+            self._page.run_task(self._load_model_async)
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
@@ -1018,7 +1028,7 @@ class VideoInterpolationView(ft.Container):
                                 fps = int(fps_parts[0]) / int(fps_parts[1])
                                 info_parts.append(f"{width}x{height}")
                                 info_parts.append(f"{fps:.2f}fps")
-                            except:
+                            except Exception:
                                 info_parts.append(f"{width}x{height}")
                         
                         # 获取时长
@@ -1103,7 +1113,7 @@ class VideoInterpolationView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _remove_file(self, file_path: Path) -> None:
@@ -1122,7 +1132,7 @@ class VideoInterpolationView(ft.Container):
             button = self.process_button.content
             button.disabled = not (self.selected_files and self.interpolator)
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
@@ -1132,7 +1142,7 @@ class VideoInterpolationView(ft.Container):
         self.browse_output_button.disabled = not is_custom
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self) -> None:
@@ -1156,7 +1166,7 @@ class VideoInterpolationView(ft.Container):
         if mode == "custom":
             try:
                 return float(self.custom_multiplier_field.value)
-            except:
+            except Exception:
                 return 2.0
         else:
             return float(mode)
@@ -1183,7 +1193,7 @@ class VideoInterpolationView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_custom_multiplier_change(self, e: ft.ControlEvent) -> None:
@@ -1207,7 +1217,7 @@ class VideoInterpolationView(ft.Container):
             
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
         except ValueError:
             # 输入无效，显示错误
@@ -1215,7 +1225,7 @@ class VideoInterpolationView(ft.Container):
             self.multiplier_hint_text.color = ft.Colors.ERROR
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     def _on_quality_change(self, e: ft.ControlEvent) -> None:
@@ -1225,7 +1235,7 @@ class VideoInterpolationView(ft.Container):
         self.config_service.set_config_value("video_interpolation_quality", quality)
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_process(self, e: ft.ControlEvent) -> None:
@@ -1261,15 +1271,11 @@ class VideoInterpolationView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        # 在后台线程处理
-        threading.Thread(
-            target=self._process_task,
-            args=(self.selected_files[:], output_dir),
-            daemon=True
-        ).start()
+        # 在事件循环中处理
+        self._page.run_task(lambda: self._process_task(self.selected_files[:], output_dir))
     
     def _on_cancel(self, e: ft.ControlEvent) -> None:
         """取消处理。"""
@@ -1307,12 +1313,56 @@ class VideoInterpolationView(ft.Container):
             if self.on_back:
                 self.on_back()
     
-    def _process_task(self, files: List[Path], output_dir: Optional[Path]) -> None:
-        """处理任务（后台线程）。"""
+    async def _process_task(self, files: List[Path], output_dir: Optional[Path]) -> None:
+        """处理任务。"""
+        import asyncio
         success_count = 0
         total_files = len(files)
+        self._task_finished = False
+        self._pending_task_progress = None
+        self._pending_snackbars: list = []
         
-        try:
+        async def _poll_task():
+            while not self._task_finished:
+                if self._pending_task_progress is not None:
+                    value, text, current_file, stage = self._pending_task_progress
+                    self._pending_task_progress = None
+                    if not self.is_destroyed:
+                        self.progress_bar.value = value
+                        self.progress_text.value = text
+                        if current_file:
+                            self.current_file_text.value = f"📁 {current_file}"
+                        if stage:
+                            self.stage_text.value = f"⚙️ {stage}"
+                        try:
+                            self._page.update()
+                        except Exception:
+                            pass
+                while self._pending_snackbars:
+                    msg, color = self._pending_snackbars.pop(0)
+                    self._show_snackbar(msg, color)
+                await asyncio.sleep(0.3)
+            # Final drain
+            if self._pending_task_progress is not None:
+                value, text, current_file, stage = self._pending_task_progress
+                self._pending_task_progress = None
+                if not self.is_destroyed:
+                    self.progress_bar.value = value
+                    self.progress_text.value = text
+                    if current_file:
+                        self.current_file_text.value = f"📁 {current_file}"
+                    if stage:
+                        self.stage_text.value = f"⚙️ {stage}"
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+            while self._pending_snackbars:
+                msg, color = self._pending_snackbars.pop(0)
+                self._show_snackbar(msg, color)
+        
+        def _do_process():
+            nonlocal success_count
             multiplier = self._get_current_multiplier()
             quality = int(self.quality_slider.value)
             output_format = self.output_format_dropdown.value
@@ -1322,7 +1372,6 @@ class VideoInterpolationView(ft.Container):
                     break
                 
                 try:
-                    # 更新进度
                     progress = (idx - 1) / total_files
                     self._update_progress(
                         progress,
@@ -1331,7 +1380,6 @@ class VideoInterpolationView(ft.Container):
                         "准备中..."
                     )
                     
-                    # 处理单个视频
                     self._process_single_video(
                         input_path,
                         output_dir,
@@ -1346,9 +1394,14 @@ class VideoInterpolationView(ft.Container):
                     
                 except Exception as e:
                     logger.error(f"处理视频失败 {input_path.name}: {e}")
-                    self._show_snackbar(f"处理失败: {input_path.name}", ft.Colors.RED)
-            
+                    self._pending_snackbars.append((f"处理失败: {input_path.name}", ft.Colors.RED))
+        
+        try:
+            poll_task = asyncio.create_task(_poll_task())
+            await asyncio.to_thread(_do_process)
         finally:
+            self._task_finished = True
+            await poll_task
             self._on_process_complete(success_count, total_files, output_dir)
     
     def _process_single_video(
@@ -1837,7 +1890,7 @@ class VideoInterpolationView(ft.Container):
                     input_path.name,
                     "✓ 完成"
                 )
-                self._show_snackbar(f"插帧完成: {input_path.name}", ft.Colors.GREEN)
+                self._pending_snackbars.append((f"插帧完成: {input_path.name}", ft.Colors.GREEN))
             
         except Exception as e:
             logger.error(f"视频处理失败: {e}", exc_info=True)
@@ -1849,14 +1902,14 @@ class VideoInterpolationView(ft.Container):
                 decoder_process.terminate()
                 try:
                     decoder_process.kill()
-                except:
+                except Exception:
                     pass
             
             if encoder_process and encoder_process.poll() is None:
                 encoder_process.terminate()
                 try:
                     encoder_process.kill()
-                except:
+                except Exception:
                     pass
             
             # ✓ 无需清理临时音频文件（零临时文件架构）
@@ -1865,11 +1918,11 @@ class VideoInterpolationView(ft.Container):
                 try:
                     output_path.unlink()
                     logger.info(f"已删除不完整的输出文件: {output_path}")
-                except:
+                except Exception:
                     pass
     
     def _update_progress(self, value: float, text: str, current_file: str = "", stage: str = "") -> None:
-        """更新进度显示。
+        """更新进度显示（线程安全：仅设置待更新数据，由轮询协程应用到UI）。
         
         Args:
             value: 进度值 (0.0-1.0)
@@ -1880,19 +1933,7 @@ class VideoInterpolationView(ft.Container):
         if self.is_destroyed:
             return
         
-        self.progress_bar.value = value
-        self.progress_text.value = text
-        
-        if current_file:
-            self.current_file_text.value = f"📁 {current_file}"
-        
-        if stage:
-            self.stage_text.value = f"⚙️ {stage}"
-        
-        try:
-            self._page.update()
-        except:
-            pass
+        self._pending_task_progress = (value, text, current_file, stage)
     
     def _on_process_complete(self, success_count: int, total: int, output_dir: Optional[Path]) -> None:
         """处理完成回调。"""
@@ -1915,7 +1956,7 @@ class VideoInterpolationView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
         if self.should_cancel:
@@ -1945,7 +1986,7 @@ class VideoInterpolationView(ft.Container):
             self._page.overlay.append(snackbar)
             snackbar.open = True
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:

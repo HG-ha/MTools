@@ -107,7 +107,7 @@ class ConfigService:
             "window_opacity": 1.0,  # 窗口透明度，1.0为完全不透明，0.0为完全透明
             "background_image": None,  # 背景图片路径，None表示无背景图片
             "background_image_fit": "cover",  # 背景图片适应模式: cover, contain, fill, none
-            "gpu_acceleration": True,  # GPU加速开关，默认开启
+            "gpu_acceleration": platform.system() != "Darwin",  # GPU加速开关，macOS默认关闭（CoreML可能导致界面卡死）
             "gpu_memory_limit": 8192,  # GPU内存限制（MB），默认8192MB
             "gpu_device_id": 0,  # GPU设备ID，默认使用第一个GPU（0）
             "gpu_enable_memory_arena": False,  # 是否启用GPU内存池优化，默认开启

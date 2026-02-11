@@ -4,6 +4,7 @@
 提供图片添加水印功能。
 """
 
+import asyncio
 import base64
 import io
 from pathlib import Path
@@ -1144,18 +1145,13 @@ class ImageWatermarkView(ft.Container):
         """更新预览（当设置改变时自动调用）。"""
         # 如果已经选择了文件，自动生成预览
         if self.selected_files and self.preview_section.visible:
-            # 使用小延迟避免频繁更新
-            import threading
-            
-            def delayed_preview():
-                import time
-                time.sleep(0.1)  # 100ms延迟
+            async def _delayed():
+                await asyncio.sleep(0.1)  # 100ms延迟
                 try:
                     self._on_preview(None)
-                except:
+                except Exception:
                     pass
-            
-            threading.Thread(target=delayed_preview, daemon=True).start()
+            self._page.run_task(_delayed)
     
     def _get_font(self, font_size: int) -> ImageFont.FreeTypeFont:
         """获取选择的字体。
@@ -1614,8 +1610,7 @@ class ImageWatermarkView(ft.Container):
             # 显示预览
             self.preview_image.src = img_base64
             self.preview_image.visible = True
-            self.preview_image.update()
-            self.preview_section.update()
+            self._page.update()
             
             self._show_message("预览生成成功", ft.Colors.GREEN)
         

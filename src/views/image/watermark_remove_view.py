@@ -4,7 +4,6 @@
 提供图片水印移除功能的用户界面。
 """
 
-import threading
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -1230,13 +1229,29 @@ class ImageWatermarkRemoveView(ft.Container):
         self.progress_text.value = "准备下载..."
         self._page.update()
         
-        def download_task():
-            try:
+        async def _download_async():
+            import asyncio
+            self._download_finished = False
+            self._pending_progress = None
+            
+            async def _poll():
+                while not self._download_finished:
+                    if self._pending_progress is not None:
+                        text_val, bar_val = self._pending_progress
+                        self.progress_text.value = text_val
+                        if bar_val is not None:
+                            self.progress_bar.value = bar_val
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_download():
                 import httpx
                 
                 for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
-                    self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
-                    self._page.update()
+                    self._pending_progress = (
+                        f"正在下载 {file_name} ({file_idx + 1}/{total_files})...", None
+                    )
                     
                     with httpx.stream("GET", url, follow_redirects=True, timeout=300) as response:
                         response.raise_for_status()
@@ -1250,23 +1265,15 @@ class ImageWatermarkRemoveView(ft.Container):
                                 if total_size > 0:
                                     file_progress = downloaded / total_size
                                     overall_progress = (file_idx + file_progress) / total_files
-                                    self.progress_bar.value = overall_progress
-                                    self.progress_text.value = (
+                                    self._pending_progress = (
                                         f"正在下载 {file_name} ({file_idx + 1}/{total_files}): "
-                                        f"{format_file_size(downloaded)} / {format_file_size(total_size)}"
+                                        f"{format_file_size(downloaded)} / {format_file_size(total_size)}",
+                                        overall_progress
                                     )
-                                    self._page.update()
-                
-                # 下载完成
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                self.model_download_btn.disabled = False
-                self._check_model_status()
-                
-                # 如果启用自动加载，则加载模型
-                if self.auto_load_checkbox.value:
-                    self._load_model()
-                    
+            
+            poll_task = asyncio.create_task(_poll())
+            try:
+                await asyncio.to_thread(_do_download)
             except Exception as e:
                 logger.error(f"下载模型失败: {e}", exc_info=True)
                 self.model_status_icon.name = ft.Icons.ERROR
@@ -1277,25 +1284,41 @@ class ImageWatermarkRemoveView(ft.Container):
                 self.progress_text.visible = False
                 self.model_download_btn.disabled = False
                 self._page.update()
+                return
+            finally:
+                self._download_finished = True
+                await poll_task
+            
+            # 下载完成
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self.model_download_btn.disabled = False
+            self._check_model_status()
+            
+            # 如果启用自动加载，则加载模型
+            if self.auto_load_checkbox.value:
+                self._load_model()
         
-        threading.Thread(target=download_task, daemon=True).start()
+        self._page.run_task(_download_async)
     
     def _load_model(self) -> None:
         """加载模型。"""
-        def load_task():
-            try:
-                model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
-                
-                # 更新状态
-                self.model_status_text.value = "正在加载模型..."
-                self.model_load_btn.disabled = True
-                self._page.update()
-                
-                # 加载模型
+        async def _load_async():
+            import asyncio
+            await asyncio.sleep(0.3)
+
+            model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
+            
+            # 更新状态
+            self.model_status_text.value = "正在加载模型..."
+            self.model_load_btn.disabled = True
+            self._page.update()
+            
+            def _do_load():
                 encoder_path = self.model_dir / model_info.encoder_filename
                 infer_path = self.model_dir / model_info.infer_filename
                 decoder_path = self.model_dir / model_info.decoder_filename
-                
+
                 self.remove_service.load_model(
                     str(encoder_path),
                     str(infer_path),
@@ -1303,10 +1326,11 @@ class ImageWatermarkRemoveView(ft.Container):
                     neighbor_stride=model_info.neighbor_stride,
                     ref_length=model_info.ref_length
                 )
-                
+
+            try:
+                await asyncio.to_thread(_do_load)
                 # 更新状态
                 self._check_model_status()
-                
             except Exception as e:
                 logger.error(f"加载模型失败: {e}")
                 self.model_status_text.value = f"加载失败: {str(e)}"
@@ -1314,7 +1338,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 self.model_load_btn.disabled = False
                 self._page.update()
         
-        threading.Thread(target=load_task, daemon=True).start()
+        self._page.run_task(_load_async)
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载模型复选框变化事件。"""
@@ -1356,8 +1380,10 @@ class ImageWatermarkRemoveView(ft.Container):
     
     def _delete_model(self) -> None:
         """删除模型文件。"""
-        def delete_task():
-            try:
+        async def _delete_async():
+            import asyncio
+            
+            def _do_delete():
                 model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
                 
                 encoder_path = self.model_dir / model_info.encoder_filename
@@ -1373,16 +1399,17 @@ class ImageWatermarkRemoveView(ft.Container):
                     if path.exists():
                         path.unlink()
                         logger.info(f"已删除: {path}")
-                
+            
+            try:
+                await asyncio.to_thread(_do_delete)
                 self._check_model_status()
-                
             except Exception as e:
                 logger.error(f"删除模型失败: {e}")
                 self.model_status_text.value = f"删除失败: {str(e)}"
                 self.model_status_text.color = ft.Colors.ERROR
                 self._page.update()
         
-        threading.Thread(target=delete_task, daemon=True).start()
+        self._page.run_task(_delete_async)
     
     def _create_mask(self, height: int, width: int, file_path: Optional[Path] = None) -> np.ndarray:
         """创建遮罩。
@@ -1551,8 +1578,23 @@ class ImageWatermarkRemoveView(ft.Container):
         self.progress_text.visible = True
         self._page.update()
         
-        def process_task():
-            try:
+        async def _process_async():
+            import asyncio
+            self._process_finished = False
+            self._pending_progress = None
+            
+            async def _poll():
+                while not self._process_finished:
+                    if self._pending_progress is not None:
+                        text_val, bar_val = self._pending_progress
+                        self.progress_text.value = text_val
+                        if bar_val is not None:
+                            self.progress_bar.value = bar_val
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_process():
                 total = len(self.selected_files)
                 success_count = 0
                 oom_error_count = 0
@@ -1560,9 +1602,10 @@ class ImageWatermarkRemoveView(ft.Container):
                 for idx, file_path in enumerate(self.selected_files):
                     try:
                         # 更新进度
-                        self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
-                        self.progress_bar.value = idx / total
-                        self._page.update()
+                        self._pending_progress = (
+                            f"处理中: {file_path.name} ({idx + 1}/{total})",
+                            idx / total
+                        )
                         
                         # 读取图片（支持中文路径）
                         image = self._read_image_unicode(file_path)
@@ -1606,23 +1649,19 @@ class ImageWatermarkRemoveView(ft.Container):
                             "available memory", "out of memory", "显存不足"
                         ]):
                             oom_error_count += 1
-                            self.progress_text.value = f"⚠️ GPU 显存不足: {file_path.name}"
-                            self._page.update()
+                            self._pending_progress = (
+                                f"⚠️ GPU 显存不足: {file_path.name}", None
+                            )
                 
-                # 处理完成
-                self.progress_text.value = f"处理完成，成功: {success_count}/{total}"
-                self.progress_bar.value = 1.0
-                self._page.update()
-                
-                # 显示结果提示
-                if oom_error_count > 0:
-                    self._show_snackbar(
-                        f"⚠️ {oom_error_count} 个文件因 GPU 显存不足处理失败！建议：降低显存限制或关闭 GPU 加速",
-                        ft.Colors.ORANGE
-                    )
-                elif success_count > 0:
-                    self._show_snackbar(f"处理完成! 成功处理 {success_count} 个文件", ft.Colors.GREEN)
-                
+                return total, success_count, oom_error_count
+            
+            total = 0
+            success_count = 0
+            oom_error_count = 0
+            
+            poll_task = asyncio.create_task(_poll())
+            try:
+                total, success_count, oom_error_count = await asyncio.to_thread(_do_process)
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"处理失败: {e}", exc_info=True)
@@ -1638,13 +1677,28 @@ class ImageWatermarkRemoveView(ft.Container):
                     )
                 else:
                     self.progress_text.value = f"处理失败: {error_msg}"
-                self._page.update()
             finally:
-                self.is_processing = False
-                self.process_btn.content.disabled = False
-                self._page.update()
+                self._process_finished = True
+                await poll_task
+            
+            # 处理完成 - 更新UI
+            self.progress_text.value = f"处理完成，成功: {success_count}/{total}"
+            self.progress_bar.value = 1.0
+            
+            # 显示结果提示
+            if oom_error_count > 0:
+                self._show_snackbar(
+                    f"⚠️ {oom_error_count} 个文件因 GPU 显存不足处理失败！建议：降低显存限制或关闭 GPU 加速",
+                    ft.Colors.ORANGE
+                )
+            elif success_count > 0:
+                self._show_snackbar(f"处理完成! 成功处理 {success_count} 个文件", ft.Colors.GREEN)
+            
+            self.is_processing = False
+            self.process_btn.content.disabled = False
+            self._page.update()
         
-        threading.Thread(target=process_task, daemon=True).start()
+        self._page.run_task(_process_async)
 
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

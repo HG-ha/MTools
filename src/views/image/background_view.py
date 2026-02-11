@@ -5,7 +5,6 @@
 """
 
 import gc
-import threading
 import webbrowser
 from pathlib import Path
 from typing import Callable, List, Optional, Dict
@@ -470,13 +469,12 @@ class ImageBackgroundView(ft.Container):
         self._update_file_list()
         
         # 延迟检查模型状态，避免阻塞界面初始化
-        threading.Thread(target=self._check_model_status_async, daemon=True).start()
+        self._page.run_task(self._check_model_status_async)
     
-    def _check_model_status_async(self) -> None:
+    async def _check_model_status_async(self) -> None:
         """异步检查模型状态，避免阻塞界面初始化。"""
-        # 在后台线程中执行文件系统操作
-        import time
-        time.sleep(0.05)  # 短暂延迟，确保界面已经显示
+        import asyncio
+        await asyncio.sleep(0.3)  # 等待 UI 渲染完成
         
         self._check_model_status()
     
@@ -489,7 +487,7 @@ class ImageBackgroundView(ft.Container):
             if auto_load:
                 # 自动加载模型
                 self._update_model_status("loading", "正在加载模型...")
-                threading.Thread(target=self._load_model_async, daemon=True).start()
+                self._page.run_task(self._load_model_async)
             else:
                 # 不自动加载，显示模型已存在但未加载
                 self._update_model_status("unloaded", "模型已下载，未加载")
@@ -497,13 +495,20 @@ class ImageBackgroundView(ft.Container):
             # 模型不存在，显示下载按钮
             self._update_model_status("need_download", "需要下载模型才能使用")
     
-    def _load_model_async(self) -> None:
+    async def _load_model_async(self) -> None:
         """异步加载模型。"""
+        import asyncio
+        
+        # 等待 UI 渲染"正在加载模型..."状态后再开始加载
+        await asyncio.sleep(0.3)
+        
         try:
-            self.bg_remover = BackgroundRemover(
-                self.model_path, 
-                config_service=self.config_service
-            )
+            def _do_load():
+                self.bg_remover = BackgroundRemover(
+                    self.model_path,
+                    config_service=self.config_service
+                )
+            await asyncio.to_thread(_do_load)
             self._on_model_loaded(True, None)
         except Exception as e:
             self._on_model_loaded(False, str(e))
@@ -526,78 +531,105 @@ class ImageBackgroundView(ft.Container):
         self.progress_text.visible = True
         self.progress_text.value = "准备下载..."
         try:
-            self.progress_bar.update()
-            self.progress_text.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
         
-        def download_task():
-            try:
-                # 确保模型目录存在
-                self._ensure_model_dir()
+        self._page.run_task(self._download_model_task)
+    
+    async def _download_model_task(self) -> None:
+        """异步下载模型文件并加载。"""
+        import asyncio
+
+        self._download_finished = False
+        self._pending_progress = None
+
+        async def _poll_progress():
+            while not self._download_finished:
+                if self._pending_progress:
+                    progress_val, progress_text_val, status_text_val = self._pending_progress
+                    self._pending_progress = None
+                    self.progress_bar.value = progress_val
+                    self.progress_text.value = progress_text_val
+                    self.model_status_text.value = status_text_val
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+
+        def _do_download():
+            # 确保模型目录存在
+            self._ensure_model_dir()
+            
+            import httpx
+            
+            # 使用 httpx 流式下载
+            with httpx.stream("GET", self.current_model.url, follow_redirects=True) as response:
+                response.raise_for_status()
                 
-                import httpx
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
                 
-                # 使用 httpx 流式下载
-                with httpx.stream("GET", self.current_model.url, follow_redirects=True) as response:
-                    response.raise_for_status()
-                    
-                    total_size = int(response.headers.get('content-length', 0))
-                    downloaded = 0
-                    
-                    with open(self.model_path, 'wb') as f:
-                        for chunk in response.iter_bytes(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
+                with open(self.model_path, 'wb') as f:
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            if total_size > 0:
+                                percent = min(downloaded * 100 / total_size, 100)
+                                progress = percent / 100
                                 
-                                if total_size > 0:
-                                    percent = min(downloaded * 100 / total_size, 100)
-                                    progress = percent / 100
-                                    
-                                    # 格式化文件大小
-                                    downloaded_mb = downloaded / (1024 * 1024)
-                                    total_mb = total_size / (1024 * 1024)
-                                    
-                                    # 更新进度条和文本
-                                    self.progress_bar.value = progress
-                                    self.progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({percent:.1f}%)"
-                                    self.model_status_text.value = f"正在下载模型... {percent:.1f}%"
-                                    
-                                    try:
-                                        self.progress_bar.update()
-                                        self.progress_text.update()
-                                        self.model_status_text.update()
-                                    except:
-                                        pass
-                
-                # 下载完成，隐藏进度条
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                try:
-                    self.progress_bar.update()
-                    self.progress_text.update()
-                except:
-                    pass
-                
-                # 加载模型
+                                # 格式化文件大小
+                                downloaded_mb = downloaded / (1024 * 1024)
+                                total_mb = total_size / (1024 * 1024)
+                                
+                                # 设置待更新的进度数据（由 poll 协程在主线程更新 UI）
+                                self._pending_progress = (
+                                    progress,
+                                    f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({percent:.1f}%)",
+                                    f"正在下载模型... {percent:.1f}%",
+                                )
+
+        poll_task = asyncio.create_task(_poll_progress())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as e:
+            self._download_finished = True
+            await poll_task
+            # 下载失败，隐藏进度条
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            try:
+                self._page.update()
+            except Exception:
+                pass
+            self._on_download_failed(str(e))
+            return
+        
+        self._download_finished = True
+        await poll_task
+        
+        # 下载完成，隐藏进度条
+        self.progress_bar.visible = False
+        self.progress_text.visible = False
+        try:
+            self._page.update()
+        except Exception:
+            pass
+        
+        # 加载模型
+        try:
+            def _do_load():
                 self.bg_remover = BackgroundRemover(
                     self.model_path,
                     config_service=self.config_service
                 )
-                self._on_model_loaded(True, None)
-            except Exception as e:
-                # 下载失败，隐藏进度条
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                try:
-                    self.progress_bar.update()
-                    self.progress_text.update()
-                except:
-                    pass
-                self._on_download_failed(str(e))
-        
-        threading.Thread(target=download_task, daemon=True).start()
+            await asyncio.to_thread(_do_load)
+            self._on_model_loaded(True, None)
+        except Exception as e:
+            self._on_download_failed(str(e))
     
     def _on_model_loaded(self, success: bool, error: Optional[str]) -> None:
         """模型加载完成回调。
@@ -694,13 +726,8 @@ class ImageBackgroundView(ft.Container):
         
         # 只有控件已添加到页面时才更新
         try:
-            self.model_status_icon.update()
-            self.model_status_text.update()
-            self.download_model_button.update()
-            self.load_model_button.update()
-            self.unload_model_button.update()
-            self.delete_model_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass  # 控件还未添加到页面，忽略
     
     def _show_manual_download_dialog(self, error: str) -> None:
@@ -861,7 +888,7 @@ class ImageBackgroundView(ft.Container):
         # 如果启用自动加载且模型文件存在但未加载，则加载模型
         if auto_load and self.model_path.exists() and not self.bg_remover:
             self._update_model_status("loading", "正在加载模型...")
-            threading.Thread(target=self._load_model_async, daemon=True).start()
+            self._page.run_task(self._load_model_async)
     
     def _on_load_model(self, e: ft.ControlEvent) -> None:
         """加载模型按钮点击事件。
@@ -871,7 +898,7 @@ class ImageBackgroundView(ft.Container):
         """
         if self.model_path.exists() and not self.bg_remover:
             self._update_model_status("loading", "正在加载模型...")
-            threading.Thread(target=self._load_model_async, daemon=True).start()
+            self._page.run_task(self._load_model_async)
         elif self.bg_remover:
             self._show_snackbar("模型已加载", ft.Colors.ORANGE)
         else:
@@ -1316,11 +1343,35 @@ class ImageBackgroundView(ft.Container):
         # 一次性更新页面，减少UI刷新次数，避免卡顿
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        # 在后台线程处理
-        def process_task():
+        # 保存处理参数供异步方法使用
+        self._process_output_dir = output_dir
+        self._page.run_task(self._process_images_task)
+    
+    async def _process_images_task(self) -> None:
+        """异步处理图片任务，使用 asyncio.to_thread 和进度轮询。"""
+        import asyncio
+
+        output_dir = self._process_output_dir
+        self._process_finished = False
+        self._pending_process_progress = None
+
+        async def _poll_progress():
+            while not self._process_finished:
+                if self._pending_process_progress:
+                    progress_val, progress_text_val = self._pending_process_progress
+                    self._pending_process_progress = None
+                    self.progress_bar.value = progress_val
+                    self.progress_text.value = progress_text_val
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+
+        def _do_process():
             total_files = len(self.selected_files)
             success_count = 0
             oom_error_count = 0  # 记录显存不足错误次数
@@ -1332,11 +1383,17 @@ class ImageBackgroundView(ft.Container):
                     if is_gif:
                         frame_index = self.gif_frame_selection.get(str(file_path), 0)
                         progress = i / total_files
-                        self._update_progress(progress, f"正在处理 GIF (帧 {frame_index + 1}): {file_path.name} ({i+1}/{total_files})")
+                        self._pending_process_progress = (
+                            progress,
+                            f"正在处理 GIF (帧 {frame_index + 1}): {file_path.name} ({i+1}/{total_files})",
+                        )
                     else:
                         # 更新进度
                         progress = i / total_files
-                        self._update_progress(progress, f"正在处理: {file_path.name} ({i+1}/{total_files})")
+                        self._pending_process_progress = (
+                            progress,
+                            f"正在处理: {file_path.name} ({i+1}/{total_files})",
+                        )
                     
                     # 读取图片
                     from PIL import Image
@@ -1379,15 +1436,22 @@ class ImageBackgroundView(ft.Container):
                         "available memory", "out of memory", "显存不足"
                     ]):
                         oom_error_count += 1
-                        self._update_progress(
+                        self._pending_process_progress = (
                             i / total_files,
-                            f"⚠️ GPU 显存不足: {file_path.name}"
+                            f"⚠️ GPU 显存不足: {file_path.name}",
                         )
             
-            # 处理完成
-            self._on_process_complete(success_count, total_files, output_dir, oom_error_count)
+            return success_count, total_files, oom_error_count
+
+        poll_task = asyncio.create_task(_poll_progress())
+        try:
+            success_count, total_files, oom_error_count = await asyncio.to_thread(_do_process)
+        finally:
+            self._process_finished = True
+            await poll_task
         
-        threading.Thread(target=process_task, daemon=True).start()
+        # 处理完成
+        self._on_process_complete(success_count, total_files, output_dir, oom_error_count)
     
     def _update_progress(self, value: float, text: str) -> None:
         """更新进度显示。

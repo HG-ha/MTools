@@ -83,13 +83,16 @@ class MainView(ft.Column):
         self.dev_tools_view: Optional[DevToolsView] = None
         self.media_view: Optional[MediaView] = None  # 统一的媒体处理视图
         self.others_view: Optional[OthersView] = None
-        self.settings_view: SettingsView = SettingsView(page, self.config_service)
+        self.settings_view: Optional[SettingsView] = None  # 懒加载，首次打开时创建
         
         # 创建UI组件
         self._build_ui()
         
         # 保存主视图引用到page，供设置视图调用
         self._page._main_view = self
+        
+        # 关闭标记：防止关闭过程中后台任务继续操作 page
+        self._is_closing: bool = False
         
         # 保存透明度配置，延迟到页面加载后应用
         self._pending_opacity = self.config_service.get_config_value("window_opacity", 1.0)
@@ -362,6 +365,15 @@ class MainView(ft.Column):
             )
         return self.others_view
     
+    def _safe_go(self, route: str) -> None:
+        """安全的路由跳转，关闭过程中不再操作 page。"""
+        if self._is_closing:
+            return
+        try:
+            self._page.go(route)
+        except RuntimeError:
+            pass  # Session closed
+    
     def handle_route_change(self, route: str) -> None:
         """处理路由变更。
         
@@ -374,7 +386,7 @@ class MainView(ft.Column):
         """
         # 使用保存的页面引用
         page = self._page
-        if not page:
+        if not page or self._is_closing:
             return
         
         # 防止重复处理相同路由
@@ -398,7 +410,7 @@ class MainView(ft.Column):
             else:
                 # 如果不显示推荐页，重定向到图片处理
                 self._last_route = None  # 清除记录，允许重定向
-                page.go("/image")
+                self._safe_go("/image")
                 return
         
         elif parts[0] == "image":
@@ -498,7 +510,9 @@ class MainView(ft.Column):
                 self.hide_search_button()
         
         elif parts[0] == "settings":
-            # 设置页面路由
+            # 设置页面路由（懒加载）
+            if self.settings_view is None:
+                self.settings_view = SettingsView(page, self.config_service)
             self.navigation_rail.selected_index = None
             self.content_container.content = self.settings_view
             self.hide_search_button()
@@ -507,9 +521,9 @@ class MainView(ft.Column):
             # 未知路由，重定向到首页
             self._last_route = None  # 清除记录，允许重定向
             if self.show_recommendations:
-                page.go("/")
+                self._safe_go("/")
             else:
-                page.go("/image")
+                self._safe_go("/image")
             return
         
         # 更新页面
@@ -534,19 +548,19 @@ class MainView(ft.Column):
         # 根据选中的索引导航到对应路由
         if selected_index == 0 and self.show_recommendations:
             # 推荐页
-            page.go("/")
+            self._safe_go("/")
         elif selected_index == 1 + offset:
             # 图片处理
-            page.go("/image")
+            self._safe_go("/image")
         elif selected_index == 2 + offset:
             # 媒体处理
-            page.go("/media")
+            self._safe_go("/media")
         elif selected_index == 3 + offset:
             # 开发工具
-            page.go("/dev")
+            self._safe_go("/dev")
         elif selected_index == 4 + offset:
             # 其他工具
-            page.go("/others")
+            self._safe_go("/others")
     
     def _open_tool_by_id(self, tool_id: str) -> None:
         """根据工具ID打开工具（使用路由导航）。
@@ -580,7 +594,7 @@ class MainView(ft.Column):
         
         # 根据分类构建路由路径
         if category == "image":
-            page.go(f"/image/{tool_name}")
+            self._safe_go(f"/image/{tool_name}")
         elif category == "audio":
             # 音频工具映射到媒体视图的子路径
             audio_tool_map = {
@@ -591,7 +605,7 @@ class MainView(ft.Column):
                 "to_text": "audio_to_text",
             }
             sub_view = audio_tool_map.get(tool_name, tool_name)
-            page.go(f"/media/{sub_view}")
+            self._safe_go(f"/media/{sub_view}")
         elif category == "video":
             # 视频工具映射到媒体视图的子路径
             video_tool_map = {
@@ -608,11 +622,11 @@ class MainView(ft.Column):
                 "subtitle_remove": "subtitle_remove",
             }
             sub_view = video_tool_map.get(tool_name, tool_name)
-            page.go(f"/media/{sub_view}")
+            self._safe_go(f"/media/{sub_view}")
         elif category == "dev":
-            page.go(f"/dev/{tool_name}")
+            self._safe_go(f"/dev/{tool_name}")
         elif category == "others":
-            page.go(f"/others/{tool_name}")
+            self._safe_go(f"/others/{tool_name}")
     
     def _open_search(self, e: ft.ControlEvent = None) -> None:
         """打开搜索对话框。"""
@@ -662,7 +676,7 @@ class MainView(ft.Column):
             # 使用保存的页面引用
             page = self._page
             if page:
-                page.go("/media/screen_record")
+                self._safe_go("/media/screen_record")
         except Exception as ex:
             from utils import logger
             logger.error(f"导航到屏幕录制失败: {ex}")
@@ -735,10 +749,10 @@ class MainView(ft.Column):
         
         # 如果隐藏推荐页且当前在根路由，重定向到图片处理
         if not show and (not current_route or current_route == "/"):
-            page.go("/image")
+            self._safe_go("/image")
         elif show and not current_route.startswith("/image") and not current_route.startswith("/media") and not current_route.startswith("/dev") and not current_route.startswith("/others") and not current_route.startswith("/settings"):
             # 如果显示推荐页且当前不在其他页面，导航到首页
-            page.go("/")
+            self._safe_go("/")
         else:
             # 重新处理当前路由以更新导航栏选中状态
             self.handle_route_change(current_route)
@@ -753,19 +767,16 @@ class MainView(ft.Column):
         self.content_container.opacity = 0
         self._page.update()
         
-        # 使用定时器实现非阻塞动画
-        import threading
-        def switch_content():
-            import time
-            time.sleep(0.15)  # 等待淡出动画完成
+        # 使用异步任务实现非阻塞动画
+        async def switch_content():
+            import asyncio
+            await asyncio.sleep(0.15)  # 等待淡出动画完成
             self.content_container.content = new_content
-            time.sleep(0.05)  # 短暂延迟
+            await asyncio.sleep(0.05)  # 短暂延迟
             self.content_container.opacity = 1.0
             self._page.update()
         
-        timer = threading.Timer(0.001, switch_content)
-        timer.daemon = True
-        timer.start()
+        self._page.run_task(switch_content)
     
     
     def _open_settings(self, e: ft.ControlEvent) -> None:
@@ -776,17 +787,19 @@ class MainView(ft.Column):
         """
         page = self._page
         if page:
-            page.go("/settings")
+            self._safe_go("/settings")
 
     def _check_update_on_startup(self) -> None:
         """启动时在后台检测更新。"""
-        def check_task():
+        async def delayed_check():
+            import asyncio
+            await asyncio.sleep(2)
             try:
                 from utils import logger
                 logger.info("[Update] 开始检查更新...")
                 
                 update_service = UpdateService()
-                update_info = update_service.check_update()
+                update_info = await asyncio.to_thread(update_service.check_update)
                 
                 logger.info(f"[Update] 检查结果: {update_info.status.value}")
                 
@@ -802,14 +815,7 @@ class MainView(ft.Column):
                 from utils import logger
                 logger.error(f"[Update] 检查更新时发生异常: {e}", exc_info=True)
         
-        # 延迟2秒后开始检测，避免影响启动速度
-        def delayed_check():
-            import time
-            time.sleep(2)
-            check_task()
-        
-        thread = threading.Thread(target=delayed_check, daemon=True)
-        thread.start()
+        self._page.run_task(delayed_check)
     
     def _show_update_dialog(self, update_info) -> None:
         """显示更新提示对话框（带自动更新功能）。
@@ -954,7 +960,7 @@ class MainView(ft.Column):
             progress_text.value = "正在下载更新..."
             self._page.update()
             
-            def update_task():
+            async def update_task():
                 try:
                     import asyncio
                     from utils import logger
@@ -964,29 +970,29 @@ class MainView(ft.Column):
                     def progress_callback(downloaded: int, total: int):
                         if total > 0:
                             progress = downloaded / total
-                            progress_bar.value = progress
-                            downloaded_mb = downloaded / 1024 / 1024
-                            total_mb = total / 1024 / 1024
-                            progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)  如果更新失败请尝试管理员权限运行程序"
-                            self._page.update()
+                            async def _update_dl_progress():
+                                progress_bar.value = progress
+                                downloaded_mb = downloaded / 1024 / 1024
+                                total_mb = total / 1024 / 1024
+                                progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)  如果更新失败请尝试管理员权限运行程序"
+                                self._page.update()
+                            try:
+                                self._page.run_task(_update_dl_progress)
+                            except Exception:
+                                pass
                     
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    
-                    download_path = loop.run_until_complete(
-                        updater.download_update(update_info.download_url, progress_callback)
-                    )
+                    download_path = await updater.download_update(update_info.download_url, progress_callback)
                     
                     progress_text.value = "正在解压更新..."
                     progress_bar.value = None
                     self._page.update()
                     
-                    extract_dir = updater.extract_update(download_path)
+                    extract_dir = await asyncio.to_thread(updater.extract_update, download_path)
                     
                     progress_text.value = "正在应用更新，应用即将重启..."
                     self._page.update()
                     
-                    time.sleep(1)
+                    await asyncio.sleep(1)
                     
                     # 定义优雅退出回调
                     def exit_callback():
@@ -1003,7 +1009,7 @@ class MainView(ft.Column):
                             # 如果失败，让 apply_update 使用强制退出
                             raise
                     
-                    updater.apply_update(extract_dir, exit_callback)
+                    await asyncio.to_thread(updater.apply_update, extract_dir, exit_callback)
                     
                 except Exception as ex:
                     logger.error(f"自动更新失败: {ex}")
@@ -1017,7 +1023,7 @@ class MainView(ft.Column):
                     progress_text.visible = True
                     self._page.update()
             
-            threading.Thread(target=update_task, daemon=True).start()
+            self._page.run_task(update_task)
         
         def on_manual_download(e):
             """手动下载 - 显示下载选项"""

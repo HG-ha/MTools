@@ -504,8 +504,7 @@ class ImageRotateView(ft.Container):
         self.fill_color_preview.bgcolor = self._rgb_to_hex(self.current_fill_color[0], self.current_fill_color[1], self.current_fill_color[2])
         opacity_percent = int(self.current_fill_color[3] / 255 * 100)
         self.fill_color_field.value = f"RGB({self.current_fill_color[0]},{self.current_fill_color[1]},{self.current_fill_color[2]}) 不透明度{opacity_percent}%"
-        self.fill_color_preview.update()
-        self.fill_color_field.update()
+        self._page.update()
     
     def _open_fill_color_picker(self, e: ft.ControlEvent) -> None:
         """打开填充颜色选择器对话框。"""
@@ -744,8 +743,7 @@ class ImageRotateView(ft.Container):
         preview_box.bgcolor = self._rgb_to_hex(r, g, b)
         opacity_percent = int(a / 255 * 100)
         rgb_text.value = f"RGBA({r}, {g}, {b}, {a})\n不透明度: {opacity_percent}%"
-        preview_box.update()
-        rgb_text.update()
+        self._page.update()
     
     def _apply_preset_fill_color(
         self,
@@ -762,10 +760,7 @@ class ImageRotateView(ft.Container):
         g_slider.value = color[1]
         b_slider.value = color[2]
         a_slider.value = 255  # 预设颜色默认完全不透明（100%）
-        r_slider.update()
-        g_slider.update()
-        b_slider.update()
-        a_slider.update()
+        self._page.update()
         self._update_color_preview_in_dialog(
             color[0], color[1], color[2], 255, preview_box, rgb_text
         )
@@ -784,11 +779,11 @@ class ImageRotateView(ft.Container):
                 self.file_list_text.value = self.selected_files[0].name
             else:
                 self.file_list_text.value = f"已选择 {count} 个文件"
-            self.file_list_text.update()
+            self._page.update()
             
             # 显示预览区域并自动生成预览
             self.preview_section.visible = True
-            self.preview_section.update()
+            self._page.update()
             self._update_preview()
     
     def _on_operation_change(self, e: ft.ControlEvent) -> None:
@@ -803,8 +798,7 @@ class ImageRotateView(ft.Container):
             self.custom_angle_section.visible = False
             self.custom_angle_hint.visible = False
         
-        self.custom_angle_section.update()
-        self.custom_angle_hint.update()
+        self._page.update()
         
         # 实时更新预览
         self._update_preview()
@@ -813,7 +807,7 @@ class ImageRotateView(ft.Container):
         """角度滑块改变事件。"""
         # 同步更新文本框
         self.custom_angle_field.value = str(int(self.custom_angle_slider.value))
-        self.custom_angle_field.update()
+        self._page.update()
         
         # 实时更新预览
         self._debounced_update_preview()
@@ -825,27 +819,25 @@ class ImageRotateView(ft.Container):
             if 0 <= angle <= 360:
                 # 同步更新滑块
                 self.custom_angle_slider.value = angle
-                self.custom_angle_slider.update()
+                self._page.update()
                 
                 # 实时更新预览
                 self._debounced_update_preview()
-        except:
+        except Exception:
             pass
     
     def _debounced_update_preview(self) -> None:
         """防抖更新预览。"""
-        import threading
-        
         if not self.preview_update_pending:
             self.preview_update_pending = True
             
-            def delayed_update():
-                import time
-                time.sleep(0.3)  # 等待300ms
+            async def _delayed_update():
+                import asyncio
+                await asyncio.sleep(0.3)  # 等待300ms
                 self.preview_update_pending = False
                 self._update_preview()
             
-            threading.Thread(target=delayed_update, daemon=True).start()
+            self._page.run_task(_delayed_update)
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式变化事件。"""
@@ -854,7 +846,7 @@ class ImageRotateView(ft.Container):
         self.browse_output_button.disabled = not is_custom
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
@@ -864,7 +856,7 @@ class ImageRotateView(ft.Container):
             self.custom_output_dir.value = folder_path
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     def _update_preview(self) -> None:
@@ -877,12 +869,12 @@ class ImageRotateView(ft.Container):
         
         if not file_path.exists():
             self.preview_status_text.value = "文件不存在"
-            self.preview_status_text.update()
+            self._page.update()
             return
         
         try:
             self.preview_status_text.value = "正在生成预览..."
-            self.preview_status_text.update()
+            self._page.update()
             
             # 读取原图
             img = Image.open(file_path)
@@ -960,17 +952,13 @@ class ImageRotateView(ft.Container):
             else:
                 self.preview_status_text.value = f"预览：第1张图片（共{count}张）{gif_hint}"
             
-            self.original_image.update()
-            self.preview_image.update()
-            self.preview_status_text.update()
+            self._page.update()
         
         except Exception as ex:
             self.preview_status_text.value = f"预览失败: {str(ex)}"
             self.original_image.visible = False
             self.preview_image.visible = False
-            self.original_image.update()
-            self.preview_image.update()
-            self.preview_status_text.update()
+            self._page.update()
     
     def _on_process(self, e: ft.ControlEvent) -> None:
         """处理按钮点击事件。"""

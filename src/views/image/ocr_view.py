@@ -6,7 +6,6 @@
 
 import json
 import sys
-import threading
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -688,7 +687,7 @@ class OCRView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _try_auto_load_model(self) -> None:
@@ -696,16 +695,22 @@ class OCRView(ft.Container):
         if not self._check_all_model_files_exist():
             return
         
-        def auto_load_thread():
-            def progress_callback(progress: float, message: str):
-                pass  # 自动加载时不显示进度
+        async def _auto_load_async():
+            import asyncio
+            await asyncio.sleep(0.3)
             
-            use_gpu = self.gpu_checkbox.value
-            success, message = self.ocr_service.load_model(
-                self.current_model_key,
-                use_gpu=use_gpu,
-                progress_callback=progress_callback
-            )
+            def _do_load():
+                def progress_callback(progress: float, message: str):
+                    pass  # 自动加载时不显示进度
+                
+                use_gpu = self.gpu_checkbox.value
+                return self.ocr_service.load_model(
+                    self.current_model_key,
+                    use_gpu=use_gpu,
+                    progress_callback=progress_callback
+                )
+            
+            success, message = await asyncio.to_thread(_do_load)
             
             if success:
                 # 获取设备信息
@@ -719,11 +724,10 @@ class OCRView(ft.Container):
                 
                 try:
                     self._page.update()
-                except:
+                except Exception:
                     pass
         
-        thread = threading.Thread(target=auto_load_thread, daemon=True)
-        thread.start()
+        self._page.run_task(_auto_load_async)
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载选项改变。"""
@@ -797,19 +801,36 @@ class OCRView(ft.Container):
         self.model_progress_text.visible = True
         self._page.update()
         
-        def download_thread():
-            def progress_callback(progress: float, message: str):
-                self.model_progress_bar.value = progress
-                self.model_progress_text.value = message
-                try:
-                    self._page.update()
-                except:
-                    pass
+        async def _download_async():
+            import asyncio
+            self._download_finished = False
+            self._pending_progress = None
             
-            success, message = self.ocr_service.download_model(
-                self.current_model_key,
-                progress_callback=progress_callback
-            )
+            async def _poll():
+                while not self._download_finished:
+                    if self._pending_progress is not None:
+                        progress, msg = self._pending_progress
+                        self.model_progress_bar.value = progress
+                        self.model_progress_text.value = msg
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_download():
+                def progress_callback(progress: float, message: str):
+                    self._pending_progress = (progress, message)
+                
+                return self.ocr_service.download_model(
+                    self.current_model_key,
+                    progress_callback=progress_callback
+                )
+            
+            poll_task = asyncio.create_task(_poll())
+            try:
+                success, message = await asyncio.to_thread(_do_download)
+            finally:
+                self._download_finished = True
+                await poll_task
             
             # 更新UI
             self.download_model_button.disabled = False
@@ -823,13 +844,9 @@ class OCRView(ft.Container):
             else:
                 self._show_snackbar(f"模型下载失败: {message}", ft.Colors.RED)
             
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
         
-        thread = threading.Thread(target=download_thread, daemon=True)
-        thread.start()
+        self._page.run_task(_download_async)
     
     def _on_load_model(self, e: ft.ControlEvent) -> None:
         """加载模型。"""
@@ -839,21 +856,38 @@ class OCRView(ft.Container):
         self.model_progress_text.visible = True
         self._page.update()
         
-        def load_thread():
-            def progress_callback(progress: float, message: str):
-                self.model_progress_bar.value = progress
-                self.model_progress_text.value = message
-                try:
-                    self._page.update()
-                except:
-                    pass
+        async def _load_async():
+            import asyncio
+            self._load_finished = False
+            self._pending_progress = None
             
-            use_gpu = self.gpu_checkbox.value
-            success, message = self.ocr_service.load_model(
-                self.current_model_key,
-                use_gpu=use_gpu,
-                progress_callback=progress_callback
-            )
+            async def _poll():
+                while not self._load_finished:
+                    if self._pending_progress is not None:
+                        progress, msg = self._pending_progress
+                        self.model_progress_bar.value = progress
+                        self.model_progress_text.value = msg
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_load():
+                def progress_callback(progress: float, message: str):
+                    self._pending_progress = (progress, message)
+                
+                use_gpu = self.gpu_checkbox.value
+                return self.ocr_service.load_model(
+                    self.current_model_key,
+                    use_gpu=use_gpu,
+                    progress_callback=progress_callback
+                )
+            
+            poll_task = asyncio.create_task(_poll())
+            try:
+                success, message = await asyncio.to_thread(_do_load)
+            finally:
+                self._load_finished = True
+                await poll_task
             
             # 更新UI
             self.load_model_button.disabled = False
@@ -873,13 +907,9 @@ class OCRView(ft.Container):
             else:
                 self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
             
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
         
-        thread = threading.Thread(target=load_thread, daemon=True)
-        thread.start()
+        self._page.run_task(_load_async)
     
     def _on_unload_model(self, e: ft.ControlEvent) -> None:
         """卸载模型。"""
@@ -960,21 +990,47 @@ class OCRView(ft.Container):
         self.progress_text.visible = True
         self._page.update()
         
-        def recognize_thread():
-            total_files = len(self.selected_files)
-            success_count = 0
-            fail_count = 0
+        async def _recognize_async():
+            import asyncio
+            self._recognize_finished = False
+            self._pending_progress = None
+            self._pending_file_list_update = False
+            self._pending_model_loaded = None
             
-            try:
+            async def _poll():
+                while not self._recognize_finished:
+                    needs_update = False
+                    if self._pending_progress is not None:
+                        bar_val, text_val = self._pending_progress
+                        self.progress_bar.value = bar_val
+                        self.progress_text.value = text_val
+                        self._pending_progress = None
+                        needs_update = True
+                    if self._pending_model_loaded is not None:
+                        device_info = self._pending_model_loaded
+                        self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
+                        self.model_status_icon.color = ft.Colors.BLUE
+                        self.model_status_text.value = f"已加载 ({device_info})"
+                        self.load_model_button.visible = False
+                        self.unload_model_button.visible = True
+                        self._pending_model_loaded = None
+                        needs_update = True
+                    if self._pending_file_list_update:
+                        self._pending_file_list_update = False
+                        self._update_file_list()
+                    elif needs_update:
+                        self._page.update()
+                    await asyncio.sleep(0.3)
+            
+            def _do_recognize():
+                total_files = len(self.selected_files)
+                success_count = 0
+                fail_count = 0
+                
                 # 如果模型未加载，先加载
                 if not self.ocr_service.det_session or not self.ocr_service.rec_session:
                     def load_progress_callback(progress: float, message: str):
-                        self.progress_bar.value = progress * 0.1  # 加载占10%进度
-                        self.progress_text.value = f"正在加载模型: {message}"
-                        try:
-                            self._page.update()
-                        except:
-                            pass
+                        self._pending_progress = (progress * 0.1, f"正在加载模型: {message}")
                     
                     use_gpu = self.gpu_checkbox.value
                     success, message = self.ocr_service.load_model(
@@ -984,47 +1040,26 @@ class OCRView(ft.Container):
                     )
                     
                     if success:
-                        # 更新模型状态显示
                         device_info = self.ocr_service.get_device_info()
-                        self.model_status_icon.name = ft.Icons.CHECK_CIRCLE_OUTLINE
-                        self.model_status_icon.color = ft.Colors.BLUE
-                        self.model_status_text.value = f"已加载 ({device_info})"
-                        self.load_model_button.visible = False
-                        self.unload_model_button.visible = True
+                        self._pending_model_loaded = device_info
                     else:
-                        self._show_snackbar(f"模型加载失败: {message}", ft.Colors.RED)
-                        self.recognize_button.content.disabled = False
-                        self.progress_bar.visible = False
-                        self.progress_text.visible = False
-                        self.is_processing = False
-                        try:
-                            self._page.update()
-                        except:
-                            pass
-                        return
+                        return 0, 0, True, message
                 
                 # 逐个处理文件
                 for i, file_path in enumerate(self.selected_files):
                     def file_progress_callback(progress: float, message: str):
-                        # 计算总进度（加载10% + 文件处理90%）
                         file_base_progress = 0.1 + (i / total_files) * 0.9
                         file_delta_progress = (progress / total_files) * 0.9
                         total_progress = file_base_progress + file_delta_progress
-                        
-                        self.progress_bar.value = total_progress
-                        self.progress_text.value = f"正在处理 {i+1}/{total_files}: {file_path.name} - {message}"
-                        try:
-                            self._page.update()
-                        except:
-                            pass
+                        self._pending_progress = (total_progress, f"正在处理 {i+1}/{total_files}: {file_path.name} - {message}")
                     
                     # 执行OCR
-                    success, results = self.ocr_service.ocr(
+                    ocr_success, results = self.ocr_service.ocr(
                         str(file_path),
                         progress_callback=file_progress_callback
                     )
                     
-                    if success:
+                    if ocr_success:
                         self.ocr_results[str(file_path)] = results
                         
                         # 自动保存结果到文件
@@ -1038,12 +1073,29 @@ class OCRView(ft.Container):
                         fail_count += 1
                         logger.error(f"OCR识别失败: {file_path}")
                     
-                    # 更新文件列表显示（标记已处理）
-                    try:
-                        self._update_file_list()
-                    except:
-                        pass
+                    # 标记需要更新文件列表
+                    self._pending_file_list_update = True
                 
+                return success_count, fail_count, False, ""
+            
+            success_count = 0
+            fail_count = 0
+            load_failed = False
+            load_error = ""
+            
+            poll_task = asyncio.create_task(_poll())
+            try:
+                success_count, fail_count, load_failed, load_error = await asyncio.to_thread(_do_recognize)
+            except Exception as ex:
+                logger.error(f"批量OCR识别出错: {ex}")
+                self._show_snackbar(f"识别出错: {str(ex)}", ft.Colors.RED)
+            finally:
+                self._recognize_finished = True
+                await poll_task
+            
+            if load_failed:
+                self._show_snackbar(f"模型加载失败: {load_error}", ft.Colors.RED)
+            elif success_count > 0 or fail_count > 0:
                 # 显示完成消息
                 output_mode = self.output_mode_radio.value
                 
@@ -1073,24 +1125,15 @@ class OCRView(ft.Container):
                         ft.Colors.ORANGE
                     )
             
-            except Exception as ex:
-                logger.error(f"批量OCR识别出错: {ex}")
-                self._show_snackbar(f"识别出错: {str(ex)}", ft.Colors.RED)
-            
-            finally:
-                # 更新UI
-                self.is_processing = False
-                self.recognize_button.content.disabled = False
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                
-                try:
-                    self._page.update()
-                except:
-                    pass
+            # 最终更新文件列表和恢复UI
+            self._update_file_list()
+            self.is_processing = False
+            self.recognize_button.content.disabled = False
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self._page.update()
         
-        thread = threading.Thread(target=recognize_thread, daemon=True)
-        thread.start()
+        self._page.run_task(_recognize_async)
     
     
     def _get_output_path(self, input_file: Path, output_format: str) -> Path:

@@ -4,6 +4,7 @@
 提供从视频文件中提取音频的用户界面。
 """
 
+import asyncio
 import threading
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -620,11 +621,11 @@ class VideoExtractAudioView(ft.Container):
         # 禁用控件
         self._set_processing_state(True)
         
-        # 在后台线程处理
-        threading.Thread(target=self._process_files, daemon=True).start()
+        # 异步处理
+        self._page.run_task(self._process_files_async)
     
-    def _process_files(self) -> None:
-        """处理文件（后台线程）。"""
+    async def _process_files_async(self) -> None:
+        """处理文件（异步）。"""
         total_files = len(self.selected_files)
         success_count = 0
         error_count = 0
@@ -632,8 +633,8 @@ class VideoExtractAudioView(ft.Container):
         
         for i, file_path in enumerate(self.selected_files):
             try:
-                # 先检查是否有音频流（使用缓存）
-                has_audio = self._check_has_audio_stream(file_path)
+                # 先检查是否有音频流（使用缓存，在线程中执行IO操作）
+                has_audio = await asyncio.to_thread(self._check_has_audio_stream, file_path)
                 if not has_audio:
                     self._update_progress(
                         (i + 1) / total_files,
@@ -674,8 +675,9 @@ class VideoExtractAudioView(ft.Container):
                 sample_rate = self.sample_rate_dropdown.value
                 channels = self.channel_dropdown.value
                 
-                # 执行提取
-                success = self._extract_audio(
+                # 执行提取（在线程中执行CPU/IO密集操作）
+                success = await asyncio.to_thread(
+                    self._extract_audio,
                     file_path,
                     output_path,
                     output_format,
@@ -797,7 +799,7 @@ class VideoExtractAudioView(ft.Container):
         self.progress_text.value = text
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _set_processing_state(self, processing: bool) -> None:
@@ -812,7 +814,7 @@ class VideoExtractAudioView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_processing_complete(self, success_count: int, error_count: int, no_audio_count: int = 0) -> None:
@@ -850,7 +852,7 @@ class VideoExtractAudioView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _show_error(self, message: str) -> None:

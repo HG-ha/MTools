@@ -5,6 +5,7 @@
 """
 
 from typing import Optional
+import asyncio
 import threading
 
 import flet as ft
@@ -209,60 +210,62 @@ class ImageToolsInstallView(ft.Container):
         """点击安装按钮。"""
         # 禁用安装按钮
         self.install_button.disabled = True
-        self.install_button.update()
         
         # 显示进度条
         self.progress_bar.visible = True
         self.progress_bar.value = 0
-        self.progress_bar.update()
         
         self.status_text.visible = True
         self.status_text.value = "准备下载..."
-        self.status_text.update()
+        self._page.update()
         
-        # 在新线程中执行下载
-        def download_thread():
-            success, message = self.image_service.download_and_install_tools(
-                progress_callback=self._on_progress
-            )
-            
-            # 更新UI
-            self.progress_bar.visible = False
-            self.progress_bar.update()
-            
-            if success:
-                self.status_text.value = "✅ " + message
-                self.status_text.color = ft.Colors.GREEN
-                self.status_text.update()
-                
-                # 延迟1秒后调用安装完成回调
-                import time
-                time.sleep(1)
-                
-                if self.on_installed:
-                    # 直接调用回调，不使用 run_task
-                    self.on_installed()
-            else:
-                self.status_text.value = "❌ " + message
-                self.status_text.color = ft.Colors.RED
-                self.status_text.update()
-                
-                # 重新启用安装按钮
-                self.install_button.disabled = False
-                self.install_button.update()
-        
-        thread = threading.Thread(target=download_thread, daemon=True)
-        thread.start()
+        # 启动异步下载任务
+        self._page.run_task(self._download_and_install_async)
     
-    def _on_progress(self, progress: float, status: str) -> None:
-        """进度更新回调。
+    async def _download_and_install_async(self) -> None:
+        """异步下载并安装工具（轮询模式）。"""
+        self._download_progress = 0.0
+        self._download_status = "准备下载..."
+        self._download_done = False
+        self._download_result = None
         
-        Args:
-            progress: 进度值 (0-1)
-            status: 状态消息
-        """
-        self.progress_bar.value = progress
-        self.progress_bar.update()
+        def progress_callback(progress: float, status: str) -> None:
+            self._download_progress = progress
+            self._download_status = status
         
-        self.status_text.value = status
-        self.status_text.update()
+        def do_download():
+            result = self.image_service.download_and_install_tools(
+                progress_callback=progress_callback
+            )
+            self._download_result = result
+            self._download_done = True
+        
+        # 在后台线程执行下载
+        thread = threading.Thread(target=do_download, daemon=True)
+        thread.start()
+        
+        # 轮询进度更新UI
+        while not self._download_done:
+            self.progress_bar.value = self._download_progress
+            self.status_text.value = self._download_status
+            self._page.update()
+            await asyncio.sleep(0.1)
+        
+        # 下载完成
+        self.progress_bar.visible = False
+        success, message = self._download_result
+        
+        if success:
+            self.status_text.value = "✅ " + message
+            self.status_text.color = ft.Colors.GREEN
+            self._page.update()
+            
+            await asyncio.sleep(1)
+            
+            if self.on_installed:
+                self.on_installed()
+        else:
+            self.status_text.value = "❌ " + message
+            self.status_text.color = ft.Colors.RED
+            self.install_button.disabled = False
+            self._page.update()

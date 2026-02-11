@@ -4,6 +4,7 @@
 使用 FFmpeg 实现屏幕录制功能。
 """
 
+import asyncio
 import gc
 import os
 import subprocess
@@ -1143,48 +1144,45 @@ class ScreenRecordView(ft.Container):
         self.pick_area_btn.disabled = True
         self._page.update()
 
-        def worker():
-            result = self._select_region_interactively_windows()
+        async def _pick_area_async():
+            result = await asyncio.to_thread(self._select_region_interactively_windows)
 
-            def apply():
-                try:
-                    if result is None:
-                        # 用户取消
-                        self._show_message("已取消选择", ft.Colors.ORANGE)
-                    elif result == "fullscreen":
-                        # 全屏模式
-                        self.selected_region = None
-                        self.selected_region_type = "fullscreen"
-                        self.selected_window_title = None
-                        self.region_info_text.value = "🖥️ 当前：全屏录制"
-                        self.region_detail_text.value = ""
-                        self._show_message("已选择：全屏录制", ft.Colors.GREEN)
-                    elif isinstance(result, tuple) and len(result) == 5:
-                        # 窗口模式：(x, y, w, h, window_title)
-                        x, y, w, h, title = result
-                        self.selected_region = (x, y, w, h)
-                        self.selected_region_type = "window"
-                        self.selected_window_title = title
-                        display_title = title[:30] + "..." if len(title) > 30 else title
-                        self.region_info_text.value = f"🪟 当前：窗口录制"
-                        self.region_detail_text.value = f"{display_title} ({w}×{h})"
-                        self._show_message(f"已选择窗口：{display_title}", ft.Colors.GREEN)
-                    elif isinstance(result, tuple) and len(result) == 4:
-                        # 自定义区域模式：(x, y, w, h)
-                        x, y, w, h = result
-                        self.selected_region = (x, y, w, h)
-                        self.selected_region_type = "custom"
-                        self.selected_window_title = None
-                        self.region_info_text.value = f"📐 当前：自定义区域"
-                        self.region_detail_text.value = f"位置 ({x}, {y}) 尺寸 {w}×{h}"
-                        self._show_message(f"已选择区域：{w}×{h}", ft.Colors.GREEN)
-                finally:
-                    self.pick_area_btn.disabled = False
-                    self._page.update()
+            try:
+                if result is None:
+                    # 用户取消
+                    self._show_message("已取消选择", ft.Colors.ORANGE)
+                elif result == "fullscreen":
+                    # 全屏模式
+                    self.selected_region = None
+                    self.selected_region_type = "fullscreen"
+                    self.selected_window_title = None
+                    self.region_info_text.value = "🖥️ 当前：全屏录制"
+                    self.region_detail_text.value = ""
+                    self._show_message("已选择：全屏录制", ft.Colors.GREEN)
+                elif isinstance(result, tuple) and len(result) == 5:
+                    # 窗口模式：(x, y, w, h, window_title)
+                    x, y, w, h, title = result
+                    self.selected_region = (x, y, w, h)
+                    self.selected_region_type = "window"
+                    self.selected_window_title = title
+                    display_title = title[:30] + "..." if len(title) > 30 else title
+                    self.region_info_text.value = f"🪟 当前：窗口录制"
+                    self.region_detail_text.value = f"{display_title} ({w}×{h})"
+                    self._show_message(f"已选择窗口：{display_title}", ft.Colors.GREEN)
+                elif isinstance(result, tuple) and len(result) == 4:
+                    # 自定义区域模式：(x, y, w, h)
+                    x, y, w, h = result
+                    self.selected_region = (x, y, w, h)
+                    self.selected_region_type = "custom"
+                    self.selected_window_title = None
+                    self.region_info_text.value = f"📐 当前：自定义区域"
+                    self.region_detail_text.value = f"位置 ({x}, {y}) 尺寸 {w}×{h}"
+                    self._show_message(f"已选择区域：{w}×{h}", ft.Colors.GREEN)
+            finally:
+                self.pick_area_btn.disabled = False
+                self._page.update()
 
-            self._invoke_ui(apply)
-
-        threading.Thread(target=worker, daemon=True).start()
+        self._page.run_task(_pick_area_async)
 
     def _on_pick_region_click(self, e) -> None:
         """交互式拖拽框选区域（兼容旧代码）。"""
@@ -2015,52 +2013,49 @@ class ScreenRecordView(ft.Container):
         self.record_btn.disabled = True
         self._page.update()
         
-        def worker():
+        async def _select_and_record_async():
             # 弹出区域选择界面
-            result = self._select_region_interactively_windows()
+            result = await asyncio.to_thread(self._select_region_interactively_windows)
             
-            def apply():
-                self.record_btn.disabled = False
-                
-                if result is None:
-                    # 用户取消
-                    self._show_message("已取消录制", ft.Colors.ORANGE)
-                    self._page.update()
-                    return
-                
-                # 更新选择结果
-                if result == "fullscreen":
-                    self.selected_region = None
-                    self.selected_region_type = "fullscreen"
-                    self.selected_window_title = None
-                    self.region_info_text.value = "🖥️ 全屏录制"
-                    self.region_detail_text.value = ""
-                elif isinstance(result, tuple) and len(result) == 5:
-                    x, y, w, h, title = result
-                    self.selected_region = (x, y, w, h)
-                    self.selected_region_type = "window"
-                    self.selected_window_title = title
-                    display_title = title[:25] + "..." if len(title) > 25 else title
-                    self.region_info_text.value = f"🪟 {display_title}"
-                    self.region_detail_text.value = f"{w}×{h}"
-                elif isinstance(result, tuple) and len(result) == 4:
-                    x, y, w, h = result
-                    self.selected_region = (x, y, w, h)
-                    self.selected_region_type = "custom"
-                    self.selected_window_title = None
-                    self.region_info_text.value = f"📐 自定义区域"
-                    self.region_detail_text.value = f"{w}×{h}"
-                
+            self.record_btn.disabled = False
+            
+            if result is None:
+                # 用户取消
+                self._show_message("已取消录制", ft.Colors.ORANGE)
                 self._page.update()
-                
-                # 选择完成后，直接开始录制
-                self._on_start_recording(None)
+                return
             
-            self._invoke_ui(apply)
+            # 更新选择结果
+            if result == "fullscreen":
+                self.selected_region = None
+                self.selected_region_type = "fullscreen"
+                self.selected_window_title = None
+                self.region_info_text.value = "🖥️ 全屏录制"
+                self.region_detail_text.value = ""
+            elif isinstance(result, tuple) and len(result) == 5:
+                x, y, w, h, title = result
+                self.selected_region = (x, y, w, h)
+                self.selected_region_type = "window"
+                self.selected_window_title = title
+                display_title = title[:25] + "..." if len(title) > 25 else title
+                self.region_info_text.value = f"🪟 {display_title}"
+                self.region_detail_text.value = f"{w}×{h}"
+            elif isinstance(result, tuple) and len(result) == 4:
+                x, y, w, h = result
+                self.selected_region = (x, y, w, h)
+                self.selected_region_type = "custom"
+                self.selected_window_title = None
+                self.region_info_text.value = f"📐 自定义区域"
+                self.region_detail_text.value = f"{w}×{h}"
+            
+            self._page.update()
+            
+            # 选择完成后，直接开始录制
+            await self._on_start_recording(None)
         
-        threading.Thread(target=worker, daemon=True).start()
+        self._page.run_task(_select_and_record_async)
 
-    def _on_start_recording(self, e) -> None:
+    async def _on_start_recording(self, e) -> None:
         """开始录制。"""
         try:
             # 再次检查 FFmpeg 可用性
@@ -2096,7 +2091,7 @@ class ScreenRecordView(ft.Container):
                 overwrite_output=True,
             )
             
-            # 启动线程监控 FFmpeg 输出
+            # 启动线程监控 FFmpeg 输出（不更新UI，可保留为线程）
             self.stderr_output = []
             def read_stderr():
                 try:
@@ -2113,7 +2108,7 @@ class ScreenRecordView(ft.Container):
             stderr_thread.start()
             
             # 等待一小段时间检查进程是否正常启动
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             if self.recording_process.poll() is not None:
                 # 进程已结束，说明启动失败
                 error_output = '\n'.join(self.stderr_output[-5:]) if self.stderr_output else "未知错误"
@@ -2151,9 +2146,8 @@ class ScreenRecordView(ft.Container):
             # 更新 UI
             self._update_ui_state()
             
-            # 启动计时器线程
-            self.timer_thread = threading.Thread(target=self._timer_loop, daemon=True)
-            self.timer_thread.start()
+            # 启动异步计时器
+            self._page.run_task(self._timer_loop_async)
             
             self._show_message(f"录制已开始 (按 {self._get_hotkey_display()} 停止)", ft.Colors.GREEN)
             
@@ -2264,8 +2258,8 @@ class ScreenRecordView(ft.Container):
         else:
             self._show_message("录制已停止", ft.Colors.ORANGE)
     
-    def _timer_loop(self) -> None:
-        """计时器循环。"""
+    async def _timer_loop_async(self) -> None:
+        """异步计时器循环。"""
         while not self.should_stop_timer and self.is_recording:
             if not self.is_paused:
                 elapsed = time.time() - self.recording_start_time - self.pause_duration
@@ -2273,7 +2267,7 @@ class ScreenRecordView(ft.Container):
                 minutes = int((elapsed % 3600) // 60)
                 seconds = int(elapsed % 60)
                 
-                # 更新 UI（需要在主线程）
+                # 更新 UI（在事件循环中，可安全更新）
                 self.timer_text.value = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                 
                 # 闪烁录制指示器
@@ -2289,7 +2283,7 @@ class ScreenRecordView(ft.Container):
                 except Exception:
                     break
             
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
     
     def _update_ui_state(self) -> None:
         """更新 UI 状态。"""

@@ -4,7 +4,6 @@
 提供音视频语音识别转文字功能的用户界面。
 """
 
-import threading
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -1108,7 +1107,7 @@ class AudioToTextView(ft.Container):
     def _try_auto_load_model(self) -> None:
         """尝试自动加载模型。"""
         if self._check_all_model_files_exist() and not self.model_loaded:
-            threading.Thread(target=self._load_model_thread, daemon=True).start()
+            self._page.run_task(self._load_model_async)
     
     def _update_model_options(self) -> None:
         """根据当前引擎更新模型选项列表。"""
@@ -1219,11 +1218,11 @@ class AudioToTextView(ft.Container):
         if self.model_loading:
             return
         
-        # 在后台线程中下载
-        threading.Thread(target=self._download_model_thread, daemon=True).start()
+        self._page.run_task(self._download_model_async)
     
-    def _download_model_thread(self) -> None:
-        """在后台线程中下载模型。"""
+    async def _download_model_async(self) -> None:
+        """异步下载模型。"""
+        import asyncio
         try:
             self.model_loading = True
             
@@ -1232,52 +1231,60 @@ class AudioToTextView(ft.Container):
             self.model_status_icon.name = ft.Icons.DOWNLOADING
             self.model_status_icon.color = ft.Colors.BLUE
             self.model_status_text.value = "正在下载..."
+            self._page.update()
+            
+            self._download_finished = False
+            self._pending_progress = None
+            
+            async def _poll():
+                while not self._download_finished:
+                    if self._pending_progress is not None:
+                        message = self._pending_progress
+                        self.model_status_text.value = message
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_download():
+                # 下载进度回调
+                def progress_callback(progress: float, message: str):
+                    self._pending_progress = message
+                
+                # 根据模型类型下载
+                if isinstance(self.current_model, SenseVoiceModelInfo):
+                    model_path, tokens_path = self.speech_service.download_sensevoice_model(
+                        self.current_model_key,
+                        self.current_model,
+                        progress_callback
+                    )
+                    logger.info(f"模型下载完成: {model_path.name}, {tokens_path.name}")
+                elif isinstance(self.current_model, WhisperModelInfo):
+                    encoder_path, decoder_path, config_path = self.speech_service.download_model(
+                        self.current_model_key,
+                        self.current_model,
+                        progress_callback
+                    )
+                    logger.info(f"模型下载完成: {encoder_path.name}, {decoder_path.name}, {config_path.name}")
+            
+            poll_task = asyncio.create_task(_poll())
             try:
-                self._page.update()
-            except:
-                pass
-            
-            # 下载进度回调
-            def progress_callback(progress: float, message: str):
-                self.model_status_text.value = message
-                try:
-                    self._page.update()
-                except:
-                    pass
-            
-            # 根据模型类型下载
-            if isinstance(self.current_model, SenseVoiceModelInfo):
-                # 下载 SenseVoice/Paraformer 单文件模型（model.onnx + tokens.txt）
-                model_path, tokens_path = self.speech_service.download_sensevoice_model(
-                    self.current_model_key,
-                    self.current_model,
-                    progress_callback
-                )
-                
-                logger.info(f"模型下载完成: {model_path.name}, {tokens_path.name}")
-            elif isinstance(self.current_model, WhisperModelInfo):
-                # 下载 Whisper/Paraformer encoder-decoder 模型（encoder + decoder + tokens）
-                encoder_path, decoder_path, config_path = self.speech_service.download_model(
-                    self.current_model_key,
-                    self.current_model,
-                    progress_callback
-                )
-                
-                logger.info(f"模型下载完成: {encoder_path.name}, {decoder_path.name}, {config_path.name}")
+                await asyncio.to_thread(_do_download)
+            finally:
+                self._download_finished = True
+                await poll_task
             
             # 更新状态
-            engine_name = "SenseVoice" if self.current_engine == "sensevoice" else "Whisper"
             self.model_status_icon.name = ft.Icons.CHECK_CIRCLE
             self.model_status_icon.color = ft.Colors.GREEN
             self.model_status_text.value = f"下载完成 ({self.current_model.size_mb}MB)"
             self.download_model_button.visible = False
             self.load_model_button.visible = True
             self.delete_model_button.visible = True
-            self.reload_model_button.visible = False  # 下载完成后还未加载
+            self.reload_model_button.visible = False
             
             # 如果启用自动加载，立即加载模型
             if self.auto_load_model:
-                self._load_model_thread()
+                await self._load_model_async()
             
         except Exception as e:
             logger.error(f"下载模型失败: {e}")
@@ -1289,20 +1296,19 @@ class AudioToTextView(ft.Container):
         finally:
             self.model_loading = False
             self.download_model_button.disabled = False
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
     
     def _on_load_model_click(self, e: ft.ControlEvent) -> None:
         """加载模型按钮点击事件。"""
         if self.model_loading or self.model_loaded:
             return
         
-        threading.Thread(target=self._load_model_thread, daemon=True).start()
+        self._page.run_task(self._load_model_async)
     
-    def _load_model_thread(self) -> None:
-        """在后台线程中加载模型。"""
+    async def _load_model_async(self) -> None:
+        """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         try:
             self.model_loading = True
             
@@ -1311,57 +1317,56 @@ class AudioToTextView(ft.Container):
             self.model_status_icon.name = ft.Icons.HOURGLASS_EMPTY
             self.model_status_icon.color = ft.Colors.BLUE
             self.model_status_text.value = "正在加载..."
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
             
-            # GPU设置
-            gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
-            gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
-            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
-            
-            # 获取选择的语言和任务类型
-            language = self.config_service.get_config_value("whisper_language", "auto")
-            # sherpa-onnx 使用空字符串表示自动检测
-            sherpa_language = "" if language == "auto" else language
-            task = self.config_service.get_config_value("whisper_task", "transcribe")
-            
-            # 根据模型类型加载模型
-            model_dir = self.speech_service.get_model_dir(self.current_model_key)
-            
-            if isinstance(self.current_model, SenseVoiceModelInfo):
-                # 加载 SenseVoice/Paraformer 单文件模型
-                model_path = model_dir / self.current_model.model_filename
-                tokens_path = model_dir / self.current_model.tokens_filename
+            def _do_load():
+                # GPU设置
+                gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
+                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
                 
-                self.speech_service.load_sensevoice_model(
-                    model_path=model_path,
-                    tokens_path=tokens_path,
-                    use_gpu=gpu_enabled,
-                    gpu_device_id=gpu_device_id,
-                    language=sherpa_language,
-                    model_type=self.current_model.model_type,  # 传递模型类型
-                )
-            elif isinstance(self.current_model, WhisperModelInfo):
-                # 加载 Whisper/Paraformer encoder-decoder 模型
-                encoder_path = model_dir / self.current_model.encoder_filename
-                decoder_path = model_dir / self.current_model.decoder_filename
-                config_path = model_dir / self.current_model.config_filename
+                # 获取选择的语言和任务类型
+                language = self.config_service.get_config_value("whisper_language", "auto")
+                # sherpa-onnx 使用空字符串表示自动检测
+                sherpa_language = "" if language == "auto" else language
+                task = self.config_service.get_config_value("whisper_task", "transcribe")
                 
-                # 注意：Paraformer encoder-decoder 模型暂时使用 Whisper 加载方式
-                self.speech_service.load_model(
-                    encoder_path,
-                    decoder_path,
-                    config_path,
-                    use_gpu=gpu_enabled,
-                    gpu_device_id=gpu_device_id,
-                    gpu_memory_limit=gpu_memory_limit,
-                    enable_memory_arena=enable_memory_arena,
-                    language=sherpa_language,
-                    task=task,  # 传递任务类型
-                )
+                # 根据模型类型加载模型
+                model_dir = self.speech_service.get_model_dir(self.current_model_key)
+                
+                if isinstance(self.current_model, SenseVoiceModelInfo):
+                    # 加载 SenseVoice/Paraformer 单文件模型
+                    model_path = model_dir / self.current_model.model_filename
+                    tokens_path = model_dir / self.current_model.tokens_filename
+                    
+                    self.speech_service.load_sensevoice_model(
+                        model_path=model_path,
+                        tokens_path=tokens_path,
+                        use_gpu=gpu_enabled,
+                        gpu_device_id=gpu_device_id,
+                        language=sherpa_language,
+                        model_type=self.current_model.model_type,
+                    )
+                elif isinstance(self.current_model, WhisperModelInfo):
+                    # 加载 Whisper/Paraformer encoder-decoder 模型
+                    encoder_path = model_dir / self.current_model.encoder_filename
+                    decoder_path = model_dir / self.current_model.decoder_filename
+                    config_path = model_dir / self.current_model.config_filename
+                    
+                    self.speech_service.load_model(
+                        encoder_path,
+                        decoder_path,
+                        config_path,
+                        use_gpu=gpu_enabled,
+                        gpu_device_id=gpu_device_id,
+                        gpu_memory_limit=gpu_memory_limit,
+                        enable_memory_arena=enable_memory_arena,
+                        language=sherpa_language,
+                        task=task,
+                    )
+            
+            await asyncio.to_thread(_do_load)
             
             self.model_loaded = True
             
@@ -1394,10 +1399,7 @@ class AudioToTextView(ft.Container):
             self.model_loading = False
             self.load_model_button.disabled = False
             self._update_process_button()
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
     
     def _on_unload_model_click(self, e: ft.ControlEvent) -> None:
         """卸载模型按钮点击事件。"""
@@ -1408,10 +1410,11 @@ class AudioToTextView(ft.Container):
         if self.model_loading:
             return
         
-        threading.Thread(target=self._reload_model_thread, daemon=True).start()
+        self._page.run_task(self._reload_model_async)
     
-    def _reload_model_thread(self) -> None:
-        """在后台线程中重载模型。"""
+    async def _reload_model_async(self) -> None:
+        """异步重载模型。"""
+        import asyncio
         try:
             logger.info("开始重载模型...")
             
@@ -1420,11 +1423,10 @@ class AudioToTextView(ft.Container):
                 self._unload_model()
             
             # 短暂延迟,确保资源释放
-            import time
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             
             # 重新加载模型
-            self._load_model_thread()
+            await self._load_model_async()
             
         except Exception as e:
             logger.error(f"重载模型失败: {e}")
@@ -1625,7 +1627,11 @@ class AudioToTextView(ft.Container):
             
             # 自动加载 VAD 模型
             if self.use_vad and not self.vad_loaded:
-                self._load_vad_model()
+                async def _auto_load_vad():
+                    import asyncio
+                    await asyncio.sleep(0.3)
+                    self._load_vad_model()
+                self._page.run_task(_auto_load_vad)
         else:
             self.vad_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
             self.vad_status_icon.color = ft.Colors.ORANGE
@@ -1647,7 +1653,11 @@ class AudioToTextView(ft.Container):
             
             # 自动加载人声分离模型
             if self.use_vocal_separation and not self.vocal_loaded:
-                self._load_vocal_model()
+                async def _auto_load_vocal():
+                    import asyncio
+                    await asyncio.sleep(0.3)
+                    self._load_vocal_model()
+                self._page.run_task(_auto_load_vocal)
         else:
             self.vocal_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
             self.vocal_status_icon.color = ft.Colors.ORANGE
@@ -1817,7 +1827,11 @@ class AudioToTextView(ft.Container):
             
             # 自动加载标点恢复模型
             if self.use_punctuation and not self.punctuation_loaded:
-                self._load_punctuation_model()
+                async def _auto_load_punctuation():
+                    import asyncio
+                    await asyncio.sleep(0.3)
+                    self._load_punctuation_model()
+                self._page.run_task(_auto_load_punctuation)
         else:
             self.punctuation_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
             self.punctuation_status_icon.color = ft.Colors.ORANGE
@@ -2152,11 +2166,11 @@ class AudioToTextView(ft.Container):
         if self.is_processing or not self.selected_files or not self.model_loaded:
             return
         
-        # 在后台线程中处理
-        threading.Thread(target=self._process_files_thread, daemon=True).start()
+        self._page.run_task(self._process_files_async)
     
-    def _process_files_thread(self) -> None:
-        """在后台线程中处理文件。"""
+    async def _process_files_async(self) -> None:
+        """异步处理文件。"""
+        import asyncio
         try:
             self.is_processing = True
             self._update_process_button()
@@ -2164,185 +2178,207 @@ class AudioToTextView(ft.Container):
             # 显示进度条
             self.progress_bar.visible = True
             self.progress_bar.value = 0
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
+            
+            self._process_finished = False
+            self._pending_progress = None
+            
+            async def _poll():
+                while not self._process_finished:
+                    if self._pending_progress is not None:
+                        text_val, bar_val = self._pending_progress
+                        if text_val is not None:
+                            self.progress_text.value = text_val
+                        if bar_val is not None:
+                            self.progress_bar.value = bar_val
+                        self._page.update()
+                        self._pending_progress = None
+                    await asyncio.sleep(0.3)
+            
+            def _do_process():
+                total_files = len(self.selected_files)
+                errors = []
+                
+                for i, file_path in enumerate(self.selected_files):
+                    try:
+                        # 更新进度
+                        self._pending_progress = (
+                            f"正在处理: {file_path.name} ({i+1}/{total_files})",
+                            i / total_files
+                        )
+                        
+                        # 进度回调
+                        def progress_callback(message: str, progress: float):
+                            file_progress = (i + progress) / total_files
+                            self._pending_progress = (
+                                f"{file_path.name}: {message}",
+                                file_progress
+                            )
+                        
+                        # 获取输出格式
+                        output_format = self.output_format_dropdown.value
+                        
+                        # 获取识别参数
+                        language = self.config_service.get_config_value("whisper_language", "auto")
+                        task = self.config_service.get_config_value("whisper_task", "transcribe")
+
+                        # === 预处理：人声分离（降噪）===
+                        input_path = file_path
+                        if self.use_vocal_separation:
+                            if not self.vocal_loaded:
+                                try:
+                                    self._load_vocal_model()
+                                except Exception as ex:
+                                    logger.warning(f"人声分离模型未加载，跳过降噪：{ex}")
+                            if self.vocal_loaded:
+                                try:
+                                    temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
+                                    temp_dir.mkdir(parents=True, exist_ok=True)
+
+                                    def vocal_progress(msg: str, p: float):
+                                        progress_callback(f"降噪中：{msg}", min(0.25, 0.25 * p))
+
+                                    vocals_path, _ = self.vocal_service.separate(
+                                        audio_path=file_path,
+                                        output_dir=temp_dir,
+                                        progress_callback=vocal_progress,
+                                        output_format="wav",
+                                        output_sample_rate=None,
+                                    )
+                                    input_path = vocals_path
+                                    logger.info(f"人声分离完成: {file_path} -> {vocals_path}")
+                                except Exception as ex:
+                                    logger.error(f"人声分离失败，继续使用原文件识别: {ex}")
+                                    input_path = file_path
+                        
+                        # 根据输出格式选择识别方法
+                        if output_format in ['srt', 'vtt', 'lrc']:
+                            segments = self.speech_service.recognize_with_timestamps(
+                                input_path,
+                                language=language,
+                                task=task,
+                                progress_callback=progress_callback
+                            )
+                            
+                            # AI 修复字幕（如果启用）
+                            if self.use_ai_fix and self.ai_fix_service.is_configured() and segments:
+                                try:
+                                    self._pending_progress = (
+                                        f"AI 修复中: {file_path.name}", None
+                                    )
+                                    
+                                    def ai_fix_progress(msg, prog):
+                                        self._pending_progress = (
+                                            f"{msg}: {file_path.name}", None
+                                        )
+                                    
+                                    segments = self.ai_fix_service.fix_segments(
+                                        segments,
+                                        language=language,
+                                        progress_callback=ai_fix_progress
+                                    )
+                                    logger.info(f"AI 修复完成: {file_path.name}")
+                                except Exception as e:
+                                    logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                            
+                            # 转换为对应的字幕格式
+                            if output_format == 'srt':
+                                content = segments_to_srt(segments)
+                            elif output_format == 'vtt':
+                                content = segments_to_vtt(segments)
+                            else:  # lrc
+                                content = segments_to_lrc(segments, title=file_path.stem)
+                        else:
+                            # txt 格式，使用普通识别方法
+                            text = self.speech_service.recognize(
+                                input_path,
+                                language=language,
+                                task=task,
+                                progress_callback=progress_callback
+                            )
+                            
+                            # AI 修复文本（如果启用）
+                            if self.use_ai_fix and self.ai_fix_service.is_configured() and text:
+                                try:
+                                    self._pending_progress = (
+                                        f"AI 修复中: {file_path.name}", None
+                                    )
+                                    
+                                    def ai_fix_progress(msg, prog):
+                                        self._pending_progress = (
+                                            f"{msg}: {file_path.name}", None
+                                        )
+                                    
+                                    text = self.ai_fix_service.fix_plain_text(
+                                        text,
+                                        language=language,
+                                        progress_callback=ai_fix_progress
+                                    )
+                                    logger.info(f"AI 修复完成: {file_path.name}")
+                                except Exception as e:
+                                    logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                            
+                            content = text
+                        
+                        # 确定输出路径
+                        if self.output_mode_radio.value == "custom":
+                            output_dir = Path(self.custom_output_dir.value)
+                            output_dir.mkdir(parents=True, exist_ok=True)
+                            output_path = output_dir / f"{file_path.stem}.{output_format}"
+                        else:  # same
+                            output_path = file_path.with_suffix(f".{output_format}")
+                        
+                        # 根据全局设置决定是否添加序号
+                        add_sequence = self.config_service.get_config_value("output_add_sequence", False)
+                        output_path = get_unique_path(output_path, add_sequence=add_sequence)
+                        
+                        # 保存结果（UTF-8 with BOM）
+                        with open(output_path, 'w', encoding='utf-8-sig') as f:
+                            f.write(content)
+                        
+                        logger.info(f"识别完成: {file_path} -> {output_path} (编码: UTF-8 with BOM)")
+                        
+                        # 清理人声分离临时目录
+                        if self.use_vocal_separation and input_path != file_path:
+                            try:
+                                import shutil
+                                temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
+                                if temp_dir.exists():
+                                    shutil.rmtree(temp_dir, ignore_errors=True)
+                                    logger.debug(f"已清理人声分离临时目录: {temp_dir}")
+                            except Exception:
+                                pass
+                        
+                    except Exception as e:
+                        logger.error(f"处理文件失败 {file_path}: {e}")
+                        errors.append((file_path.name, str(e)))
+                
+                return total_files, errors
             
             total_files = len(self.selected_files)
+            errors = []
             
-            for i, file_path in enumerate(self.selected_files):
-                try:
-                    # 更新进度
-                    self.progress_text.value = f"正在处理: {file_path.name} ({i+1}/{total_files})"
-                    self.progress_bar.value = i / total_files
-                    try:
-                        self._page.update()
-                    except:
-                        pass
-                    
-                    # 进度回调
-                    def progress_callback(message: str, progress: float):
-                        self.progress_text.value = f"{file_path.name}: {message}"
-                        file_progress = (i + progress) / total_files
-                        self.progress_bar.value = file_progress
-                        try:
-                            self._page.update()
-                        except:
-                            pass
-                    
-                    # 获取输出格式
-                    output_format = self.output_format_dropdown.value
-                    
-                    # 获取识别参数
-                    language = self.config_service.get_config_value("whisper_language", "auto")
-                    task = self.config_service.get_config_value("whisper_task", "transcribe")
-
-                    # === 预处理：人声分离（降噪）===
-                    input_path = file_path
-                    if self.use_vocal_separation:
-                        if not self.vocal_loaded:
-                            # 尝试自动加载（如果用户已下载模型）
-                            try:
-                                self._load_vocal_model()
-                            except Exception as ex:
-                                logger.warning(f"人声分离模型未加载，跳过降噪：{ex}")
-                        if self.vocal_loaded:
-                            try:
-                                temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
-                                temp_dir.mkdir(parents=True, exist_ok=True)
-
-                                def vocal_progress(msg: str, p: float):
-                                    # 给分离留出 0.0~0.25 的进度区间
-                                    progress_callback(f"降噪中：{msg}", min(0.25, 0.25 * p))
-
-                                vocals_path, _ = self.vocal_service.separate(
-                                    audio_path=file_path,
-                                    output_dir=temp_dir,
-                                    progress_callback=vocal_progress,
-                                    output_format="wav",
-                                    output_sample_rate=None,
-                                )
-                                input_path = vocals_path
-                                logger.info(f"人声分离完成: {file_path} -> {vocals_path}")
-                            except Exception as ex:
-                                logger.error(f"人声分离失败，继续使用原文件识别: {ex}")
-                                input_path = file_path
-                    
-                    # 根据输出格式选择识别方法
-                    if output_format in ['srt', 'vtt', 'lrc']:
-                        # 使用带时间戳的识别方法
-                        segments = self.speech_service.recognize_with_timestamps(
-                            input_path,
-                            language=language,
-                            task=task,
-                            progress_callback=progress_callback
-                        )
-                        
-                        # AI 修复字幕（如果启用）
-                        if self.use_ai_fix and self.ai_fix_service.is_configured() and segments:
-                            try:
-                                self.progress_text.value = f"AI 修复中: {file_path.name}"
-                                self._page.update()
-                                
-                                def ai_fix_progress(msg, prog):
-                                    self.progress_text.value = f"{msg}: {file_path.name}"
-                                    try:
-                                        self._page.update()
-                                    except:
-                                        pass
-                                
-                                segments = self.ai_fix_service.fix_segments(
-                                    segments,
-                                    language=language,
-                                    progress_callback=ai_fix_progress
-                                )
-                                logger.info(f"AI 修复完成: {file_path.name}")
-                            except Exception as e:
-                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
-                        
-                        # 转换为对应的字幕格式
-                        if output_format == 'srt':
-                            content = segments_to_srt(segments)
-                        elif output_format == 'vtt':
-                            content = segments_to_vtt(segments)
-                        else:  # lrc
-                            # 使用文件名作为标题
-                            content = segments_to_lrc(segments, title=file_path.stem)
-                    else:
-                        # txt 格式，使用普通识别方法
-                        text = self.speech_service.recognize(
-                            input_path,
-                            language=language,
-                            task=task,
-                            progress_callback=progress_callback
-                        )
-                        
-                        # AI 修复文本（如果启用）
-                        if self.use_ai_fix and self.ai_fix_service.is_configured() and text:
-                            try:
-                                self.progress_text.value = f"AI 修复中: {file_path.name}"
-                                self._page.update()
-                                
-                                def ai_fix_progress(msg, prog):
-                                    self.progress_text.value = f"{msg}: {file_path.name}"
-                                    try:
-                                        self._page.update()
-                                    except:
-                                        pass
-                                
-                                text = self.ai_fix_service.fix_plain_text(
-                                    text,
-                                    language=language,
-                                    progress_callback=ai_fix_progress
-                                )
-                                logger.info(f"AI 修复完成: {file_path.name}")
-                            except Exception as e:
-                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
-                        
-                        content = text
-                    
-                    # 确定输出路径
-                    if self.output_mode_radio.value == "custom":
-                        output_dir = Path(self.custom_output_dir.value)
-                        output_dir.mkdir(parents=True, exist_ok=True)
-                        output_path = output_dir / f"{file_path.stem}.{output_format}"
-                    else:  # same
-                        output_path = file_path.with_suffix(f".{output_format}")
-                    
-                    # 根据全局设置决定是否添加序号
-                    add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                    output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
-                    # 保存结果
-                    # 统一使用 UTF-8 with BOM 编码，确保中文正确显示
-                    # UTF-8 with BOM 可以让 Windows 记事本等程序正确识别编码
-                    with open(output_path, 'w', encoding='utf-8-sig') as f:
-                        f.write(content)
-                    used_encoding = "UTF-8 with BOM"
-                    
-                    logger.info(f"识别完成: {file_path} -> {output_path} (编码: {used_encoding})")
-                    
-                    # 清理人声分离临时目录
-                    if self.use_vocal_separation and input_path != file_path:
-                        try:
-                            import shutil
-                            temp_dir = self.config_service.get_temp_dir() / "asr_vocals" / f"{file_path.stem}_{i}"
-                            if temp_dir.exists():
-                                shutil.rmtree(temp_dir, ignore_errors=True)
-                                logger.debug(f"已清理人声分离临时目录: {temp_dir}")
-                        except:
-                            pass
-                    
-                except Exception as e:
-                    logger.error(f"处理文件失败 {file_path}: {e}")
-                    self._show_error("处理失败", f"文件 {file_path.name} 处理失败: {str(e)}")
+            poll_task = asyncio.create_task(_poll())
+            try:
+                total_files, errors = await asyncio.to_thread(_do_process)
+            except Exception as e:
+                logger.error(f"批量处理失败: {e}")
+                self._show_error("处理失败", str(e))
+            finally:
+                self._process_finished = True
+                await poll_task
             
-            # 完成
+            # 完成 - 更新UI
             self.progress_text.value = f"全部完成! 共处理 {total_files} 个文件"
             self.progress_bar.value = 1.0
             
-            self._show_success("处理完成", f"成功处理 {total_files} 个文件")
+            if errors:
+                for file_name, err_msg in errors:
+                    self._show_error("处理失败", f"文件 {file_name} 处理失败: {err_msg}")
+            
+            success_count = total_files - len(errors)
+            if success_count > 0:
+                self._show_success("处理完成", f"成功处理 {success_count} 个文件")
             
         except Exception as e:
             logger.error(f"批量处理失败: {e}")
@@ -2354,10 +2390,7 @@ class AudioToTextView(ft.Container):
             
             # 隐藏进度条
             self.progress_bar.visible = False
-            try:
-                self._page.update()
-            except:
-                pass
+            self._page.update()
     
     async def _on_empty_area_click(self, e: ft.ControlEvent) -> None:
         """点击空白区域，触发选择文件。"""

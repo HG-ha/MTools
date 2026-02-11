@@ -6,7 +6,6 @@
 
 import os
 import tempfile
-import threading
 from pathlib import Path
 from typing import Callable, List, Optional, Dict, Any
 
@@ -1397,7 +1396,7 @@ class VideoSubtitleView(ft.Container):
                                     try:
                                         font = ImageFont.truetype(fp, font_size)
                                         break
-                                    except:
+                                    except Exception:
                                         continue
                             if font is None:
                                 font = ImageFont.load_default()
@@ -1428,7 +1427,7 @@ class VideoSubtitleView(ft.Container):
                     try:
                         bbox = draw.textbbox((0, 0), line, font=font)
                         text_width = bbox[2] - bbox[0]
-                    except:
+                    except Exception:
                         text_width = len(line) * font_size
                     
                     x = (width - text_width) // 2
@@ -1732,11 +1731,11 @@ class VideoSubtitleView(ft.Container):
                                 try:
                                     font = ImageFont.truetype(fp, font_size)
                                     break
-                                except:
+                                except Exception:
                                     continue
                         if font is None:
                             font = ImageFont.load_default()
-                except:
+                except Exception:
                     font = ImageFont.load_default()
                 
                 # 自动换行
@@ -1749,7 +1748,7 @@ class VideoSubtitleView(ft.Container):
                         try:
                             bbox = draw.textbbox((0, 0), test_line, font=font)
                             line_width = bbox[2] - bbox[0]
-                        except:
+                        except Exception:
                             line_width = len(test_line) * font_size * 0.6
                         
                         if line_width <= max_width:
@@ -1779,7 +1778,7 @@ class VideoSubtitleView(ft.Container):
                     try:
                         bbox = draw.textbbox((0, 0), line, font=font)
                         text_width = bbox[2] - bbox[0]
-                    except:
+                    except Exception:
                         text_width = len(line) * font_size * 0.6
                     
                     x = (w - text_width) // 2
@@ -2484,7 +2483,7 @@ class VideoSubtitleView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _init_vad_status(self, auto_load: bool = False) -> None:
@@ -2513,7 +2512,7 @@ class VideoSubtitleView(ft.Container):
                 
                 # 自动加载（如果启用且未加载）
                 if auto_load and self.use_vad:
-                    self._load_vad_model()
+                    self._page.run_task(self._load_vad_model_async)
         else:
             self.vad_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
             self.vad_status_icon.color = ft.Colors.ORANGE
@@ -2546,7 +2545,7 @@ class VideoSubtitleView(ft.Container):
                 
                 # 自动加载（如果启用且未加载）
                 if auto_load and self.use_vocal_separation:
-                    self._load_vocal_model()
+                    self._page.run_task(self._load_vocal_model_async)
         else:
             self.vocal_status_icon.name = ft.Icons.CLOUD_DOWNLOAD
             self.vocal_status_icon.color = ft.Colors.ORANGE
@@ -2606,7 +2605,7 @@ class VideoSubtitleView(ft.Container):
         self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_subtitle_keep_punct_change(self, e: ft.ControlEvent) -> None:
@@ -2621,59 +2620,87 @@ class VideoSubtitleView(ft.Container):
         self.vad_status_text.value = "下载中..."
         self._page.update()
         
-        def download_task():
-            try:
-                vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
-                
-                def progress_callback(progress: float, message: str):
-                    self.vad_status_text.value = message
+        self._page.run_task(self._download_vad_async)
+    
+    async def _download_vad_async(self) -> None:
+        """异步下载 VAD 模型。"""
+        import asyncio
+        
+        self._task_finished = False
+        self._pending_progress = None
+        
+        def _do_download():
+            vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
+            
+            def progress_callback(progress: float, message: str):
+                self._pending_progress = message
+            
+            self.vad_service.download_model(
+                DEFAULT_VAD_MODEL_KEY,
+                vad_model_info,
+                progress_callback
+            )
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress:
+                    val = self._pending_progress
+                    self._pending_progress = None
+                    self.vad_status_text.value = val
                     try:
                         self._page.update()
-                    except:
+                    except Exception:
                         pass
-                
-                self.vad_service.download_model(
-                    DEFAULT_VAD_MODEL_KEY,
-                    vad_model_info,
-                    progress_callback
-                )
-                
-                self.vad_status_icon.name = ft.Icons.CHECK_CIRCLE
-                self.vad_status_icon.color = ft.Colors.GREEN
-                self.vad_status_text.value = "已下载"
-                self.vad_load_btn.visible = True
-                self._page.update()
-                
-                # 自动加载
-                self._load_vad_model()
-                
-            except Exception as ex:
-                self.vad_status_icon.name = ft.Icons.ERROR
-                self.vad_status_icon.color = ft.Colors.ERROR
-                self.vad_status_text.value = f"下载失败: {ex}"
-                self.vad_download_btn.visible = True
-                self._page.update()
+                await asyncio.sleep(0.3)
         
-        self._page.run_thread(download_task)
+        poll_task = asyncio.create_task(_poll())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as ex:
+            self._task_finished = True
+            await poll_task
+            self.vad_status_icon.name = ft.Icons.ERROR
+            self.vad_status_icon.color = ft.Colors.ERROR
+            self.vad_status_text.value = f"下载失败: {ex}"
+            self.vad_download_btn.visible = True
+            self._page.update()
+            return
+        finally:
+            self._task_finished = True
+            if not poll_task.done():
+                await poll_task
+        
+        self.vad_status_icon.name = ft.Icons.CHECK_CIRCLE
+        self.vad_status_icon.color = ft.Colors.GREEN
+        self.vad_status_text.value = "已下载"
+        self.vad_load_btn.visible = True
+        self._page.update()
+        
+        # 自动加载
+        await self._load_vad_model_async()
     
     def _on_load_vad(self, e: ft.ControlEvent) -> None:
         """加载 VAD 模型。"""
-        self._load_vad_model()
+        self._page.run_task(self._load_vad_model_async)
     
-    def _load_vad_model(self) -> None:
-        """加载 VAD 模型。"""
+    async def _load_vad_model_async(self) -> None:
+        """异步加载 VAD 模型。"""
+        import asyncio
         try:
             vad_model_info = VAD_MODELS[DEFAULT_VAD_MODEL_KEY]
             model_dir = self.vad_service.get_model_dir(DEFAULT_VAD_MODEL_KEY)
             model_path = model_dir / vad_model_info.filename
             
-            self.vad_service.load_model(
-                model_path,
-                threshold=vad_model_info.threshold,
-                min_silence_duration=vad_model_info.min_silence_duration,
-                min_speech_duration=vad_model_info.min_speech_duration,
-                window_size=vad_model_info.window_size
-            )
+            def _do_load():
+                self.vad_service.load_model(
+                    model_path,
+                    threshold=vad_model_info.threshold,
+                    min_silence_duration=vad_model_info.min_silence_duration,
+                    min_speech_duration=vad_model_info.min_speech_duration,
+                    window_size=vad_model_info.window_size
+                )
+
+            await asyncio.to_thread(_do_load)
             
             self.vad_loaded = True
             self.speech_service.set_use_vad(True)
@@ -2694,55 +2721,83 @@ class VideoSubtitleView(ft.Container):
         self.vocal_status_text.value = "下载中..."
         self._page.update()
         
-        def download_task():
-            try:
-                vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
-                
-                def progress_callback(progress: float, message: str):
-                    self.vocal_status_text.value = message
+        self._page.run_task(self._download_vocal_async)
+    
+    async def _download_vocal_async(self) -> None:
+        """异步下载人声分离模型。"""
+        import asyncio
+        
+        self._task_finished = False
+        self._pending_progress = None
+        
+        def _do_download():
+            vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
+            
+            def progress_callback(progress: float, message: str):
+                self._pending_progress = message
+            
+            self.vocal_service.download_model(
+                self.current_vocal_model_key,
+                vocal_model_info,
+                progress_callback
+            )
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress:
+                    val = self._pending_progress
+                    self._pending_progress = None
+                    self.vocal_status_text.value = val
                     try:
                         self._page.update()
-                    except:
+                    except Exception:
                         pass
-                
-                self.vocal_service.download_model(
-                    self.current_vocal_model_key,
-                    vocal_model_info,
-                    progress_callback
-                )
-                
-                self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
-                self.vocal_status_icon.color = ft.Colors.GREEN
-                self.vocal_status_text.value = "已下载"
-                self.vocal_load_btn.visible = True
-                self._page.update()
-                
-                # 自动加载
-                self._load_vocal_model()
-                
-            except Exception as ex:
-                self.vocal_status_icon.name = ft.Icons.ERROR
-                self.vocal_status_icon.color = ft.Colors.ERROR
-                self.vocal_status_text.value = f"下载失败: {ex}"
-                self.vocal_download_btn.visible = True
-                self._page.update()
+                await asyncio.sleep(0.3)
         
-        self._page.run_thread(download_task)
+        poll_task = asyncio.create_task(_poll())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as ex:
+            self._task_finished = True
+            await poll_task
+            self.vocal_status_icon.name = ft.Icons.ERROR
+            self.vocal_status_icon.color = ft.Colors.ERROR
+            self.vocal_status_text.value = f"下载失败: {ex}"
+            self.vocal_download_btn.visible = True
+            self._page.update()
+            return
+        finally:
+            self._task_finished = True
+            if not poll_task.done():
+                await poll_task
+        
+        self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
+        self.vocal_status_icon.color = ft.Colors.GREEN
+        self.vocal_status_text.value = "已下载"
+        self.vocal_load_btn.visible = True
+        self._page.update()
+        
+        # 自动加载
+        await self._load_vocal_model_async()
     
     def _on_load_vocal(self, e: ft.ControlEvent) -> None:
         """加载人声分离模型。"""
-        self._load_vocal_model()
+        self._page.run_task(self._load_vocal_model_async)
     
-    def _load_vocal_model(self) -> None:
-        """加载人声分离模型。"""
+    async def _load_vocal_model_async(self) -> None:
+        """异步加载人声分离模型。"""
+        import asyncio
         try:
             vocal_model_info = VOCAL_SEPARATION_MODELS[self.current_vocal_model_key]
             model_path = self.vocal_service.model_dir / vocal_model_info.filename
             
-            self.vocal_service.load_model(
-                model_path,
-                invert_output=vocal_model_info.invert_output
-            )
+            def _do_load():
+                self.vocal_service.load_model(
+                    model_path,
+                    invert_output=vocal_model_info.invert_output
+                )
+
+            await asyncio.to_thread(_do_load)
             
             self.vocal_loaded = True
             self.vocal_status_icon.name = ft.Icons.CHECK_CIRCLE
@@ -2759,37 +2814,42 @@ class VideoSubtitleView(ft.Container):
     def _try_auto_load_model(self) -> None:
         """尝试自动加载模型。"""
         if self._check_all_model_files_exist() and not self.model_loaded:
-            threading.Thread(target=self._auto_load_thread, daemon=True).start()
+            self._page.run_task(self._auto_load_async)
     
-    def _auto_load_thread(self) -> None:
-        """自动加载模型的线程。"""
+    async def _auto_load_async(self) -> None:
+        """异步自动加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         try:
-            model_dir = self.speech_service.get_model_dir(self.current_model_key)
-            
-            if isinstance(self.current_model, SenseVoiceModelInfo):
-                model_path = model_dir / self.current_model.model_filename
-                tokens_path = model_dir / self.current_model.tokens_filename
+            def _do_load():
+                model_dir = self.speech_service.get_model_dir(self.current_model_key)
                 
-                self.speech_service.load_sensevoice_model(
-                    model_path=model_path,
-                    tokens_path=tokens_path,
-                    use_gpu=False,
-                    language="auto",
-                    model_type=self.current_model.model_type,  # 传递模型类型
-                )
-            elif isinstance(self.current_model, WhisperModelInfo):
-                encoder_path = model_dir / self.current_model.encoder_filename
-                decoder_path = model_dir / self.current_model.decoder_filename
-                config_path = model_dir / self.current_model.config_filename
-                
-                self.speech_service.load_model(
-                    encoder_path,
-                    decoder_path,
-                    config_path,
-                    use_gpu=False,
-                    language="auto",
-                )
-            
+                if isinstance(self.current_model, SenseVoiceModelInfo):
+                    model_path = model_dir / self.current_model.model_filename
+                    tokens_path = model_dir / self.current_model.tokens_filename
+                    
+                    self.speech_service.load_sensevoice_model(
+                        model_path=model_path,
+                        tokens_path=tokens_path,
+                        use_gpu=False,
+                        language="auto",
+                        model_type=self.current_model.model_type,  # 传递模型类型
+                    )
+                elif isinstance(self.current_model, WhisperModelInfo):
+                    encoder_path = model_dir / self.current_model.encoder_filename
+                    decoder_path = model_dir / self.current_model.decoder_filename
+                    config_path = model_dir / self.current_model.config_filename
+                    
+                    self.speech_service.load_model(
+                        encoder_path,
+                        decoder_path,
+                        config_path,
+                        use_gpu=False,
+                        language="auto",
+                    )
+
+            await asyncio.to_thread(_do_load)
+
             self.model_loaded = True
             self._init_model_status()
             
@@ -3135,7 +3195,7 @@ class VideoSubtitleView(ft.Container):
                 if model_dir.exists() and not any(model_dir.iterdir()):
                     model_dir.rmdir()
                     logger.info(f"模型目录已删除: {model_dir.name}")
-            except:
+            except Exception:
                 pass
             
             # 更新状态
@@ -3155,52 +3215,80 @@ class VideoSubtitleView(ft.Container):
         self.model_status_text.value = "正在下载模型..."
         self._page.update()
         
-        def download_thread():
-            try:
-                def progress_callback(progress: float, message: str):
-                    self.model_status_text.value = f"下载中: {message} ({progress:.1%})"
+        self._page.run_task(self._download_model_async)
+    
+    async def _download_model_async(self) -> None:
+        """异步下载模型。"""
+        import asyncio
+        
+        self._task_finished = False
+        self._pending_progress = None
+        
+        def _do_download():
+            def progress_callback(progress: float, message: str):
+                self._pending_progress = f"下载中: {message} ({progress:.1%})"
+            
+            # 根据模型类型下载
+            if isinstance(self.current_model, SenseVoiceModelInfo):
+                # 下载 SenseVoice/Paraformer 单文件模型
+                model_path, tokens_path = self.speech_service.download_sensevoice_model(
+                    self.current_model_key,
+                    self.current_model,
+                    progress_callback
+                )
+                logger.info(f"模型下载完成: {model_path.name}, {tokens_path.name}")
+            elif isinstance(self.current_model, WhisperModelInfo):
+                # 下载 Whisper 模型
+                encoder_path, decoder_path, config_path = self.speech_service.download_model(
+                    self.current_model_key,
+                    self.current_model,
+                    progress_callback
+                )
+                logger.info(f"模型下载完成: {encoder_path.name}, {decoder_path.name}, {config_path.name}")
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress:
+                    val = self._pending_progress
+                    self._pending_progress = None
+                    self.model_status_text.value = val
                     try:
                         self._page.update()
-                    except:
+                    except Exception:
                         pass
-                
-                # 根据模型类型下载
-                if isinstance(self.current_model, SenseVoiceModelInfo):
-                    # 下载 SenseVoice/Paraformer 单文件模型
-                    model_path, tokens_path = self.speech_service.download_sensevoice_model(
-                        self.current_model_key,
-                        self.current_model,
-                        progress_callback
-                    )
-                    logger.info(f"模型下载完成: {model_path.name}, {tokens_path.name}")
-                elif isinstance(self.current_model, WhisperModelInfo):
-                    # 下载 Whisper 模型
-                    encoder_path, decoder_path, config_path = self.speech_service.download_model(
-                        self.current_model_key,
-                        self.current_model,
-                        progress_callback
-                    )
-                    logger.info(f"模型下载完成: {encoder_path.name}, {decoder_path.name}, {config_path.name}")
-                
-                self.model_status_text.value = "下载完成"
-                self._init_model_status()
-                
-                # 如果启用自动加载，立即加载模型
-                if self.auto_load_model:
-                    self._auto_load_thread()
-                
-            except Exception as ex:
-                self.model_status_text.value = f"下载失败: {ex}"
-                self.model_status_text.color = ft.Colors.ERROR
-                self.model_download_btn.disabled = False
-            finally:
-                self.model_loading = False
-                try:
-                    self._page.update()
-                except:
-                    pass
+                await asyncio.sleep(0.3)
         
-        threading.Thread(target=download_thread, daemon=True).start()
+        poll_task = asyncio.create_task(_poll())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as ex:
+            self._task_finished = True
+            await poll_task
+            self.model_status_text.value = f"下载失败: {ex}"
+            self.model_status_text.color = ft.Colors.ERROR
+            self.model_download_btn.disabled = False
+            self.model_loading = False
+            try:
+                self._page.update()
+            except Exception:
+                pass
+            return
+        finally:
+            self._task_finished = True
+            if not poll_task.done():
+                await poll_task
+        
+        self.model_status_text.value = "下载完成"
+        self._init_model_status()
+        self.model_loading = False
+        try:
+            self._page.update()
+        except Exception:
+            pass
+        
+        # 如果启用自动加载，立即加载模型
+        if self.auto_load_model:
+            await self._auto_load_async()
     
     def _on_load_model(self, e: ft.ControlEvent) -> None:
         """加载模型。"""
@@ -3212,51 +3300,56 @@ class VideoSubtitleView(ft.Container):
         self.model_status_text.value = "正在加载模型..."
         self._page.update()
         
-        def load_thread():
+        self._page.run_task(self._load_model_async)
+    
+    async def _load_model_async(self) -> None:
+        """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
+
+        def _do_load():
+            model_dir = self.speech_service.get_model_dir(self.current_model_key)
+            
+            if isinstance(self.current_model, SenseVoiceModelInfo):
+                # 加载 SenseVoice/Paraformer 单文件模型
+                model_path = model_dir / self.current_model.model_filename
+                tokens_path = model_dir / self.current_model.tokens_filename
+                
+                self.speech_service.load_sensevoice_model(
+                    model_path=model_path,
+                    tokens_path=tokens_path,
+                    use_gpu=False,  # 默认使用 CPU
+                    language="auto",
+                    model_type=self.current_model.model_type,  # 传递模型类型
+                )
+            elif isinstance(self.current_model, WhisperModelInfo):
+                # 加载 Whisper 模型
+                encoder_path = model_dir / self.current_model.encoder_filename
+                decoder_path = model_dir / self.current_model.decoder_filename
+                config_path = model_dir / self.current_model.config_filename
+                
+                self.speech_service.load_model(
+                    encoder_path,
+                    decoder_path,
+                    config_path,
+                    use_gpu=False,  # 默认使用 CPU
+                    language="auto",
+                )
+
+        try:
+            await asyncio.to_thread(_do_load)
+            self.model_loaded = True
+            self._init_model_status()
+        except Exception as ex:
+            self.model_status_text.value = f"加载失败: {ex}"
+            self.model_status_text.color = ft.Colors.ERROR
+            self.model_load_btn.disabled = False
+        finally:
+            self.model_loading = False
             try:
-                model_dir = self.speech_service.get_model_dir(self.current_model_key)
-                
-                if isinstance(self.current_model, SenseVoiceModelInfo):
-                    # 加载 SenseVoice/Paraformer 单文件模型
-                    model_path = model_dir / self.current_model.model_filename
-                    tokens_path = model_dir / self.current_model.tokens_filename
-                    
-                    self.speech_service.load_sensevoice_model(
-                        model_path=model_path,
-                        tokens_path=tokens_path,
-                        use_gpu=False,  # 默认使用 CPU
-                        language="auto",
-                        model_type=self.current_model.model_type,  # 传递模型类型
-                    )
-                elif isinstance(self.current_model, WhisperModelInfo):
-                    # 加载 Whisper 模型
-                    encoder_path = model_dir / self.current_model.encoder_filename
-                    decoder_path = model_dir / self.current_model.decoder_filename
-                    config_path = model_dir / self.current_model.config_filename
-                    
-                    self.speech_service.load_model(
-                        encoder_path,
-                        decoder_path,
-                        config_path,
-                        use_gpu=False,  # 默认使用 CPU
-                        language="auto",
-                    )
-                
-                self.model_loaded = True
-                self._init_model_status()
-                
-            except Exception as ex:
-                self.model_status_text.value = f"加载失败: {ex}"
-                self.model_status_text.color = ft.Colors.ERROR
-                self.model_load_btn.disabled = False
-            finally:
-                self.model_loading = False
-                try:
-                    self._page.update()
-                except:
-                    pass
-        
-        threading.Thread(target=load_thread, daemon=True).start()
+                self._page.update()
+            except Exception:
+                pass
     
     def _on_unload_model(self, e: ft.ControlEvent) -> None:
         """卸载模型。"""
@@ -3274,7 +3367,7 @@ class VideoSubtitleView(ft.Container):
         self.process_btn.content.disabled = not can_process
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_translate_toggle(self, e) -> None:
@@ -3338,18 +3431,37 @@ class VideoSubtitleView(ft.Container):
         # 如果使用心流 AI 翻译
         if self.translate_engine == "iflow" and self.ai_fix_service.is_configured():
             try:
-                def ai_progress(msg, prog):
-                    if progress_callback:
-                        current = int(prog * len(segments))
-                        progress_callback(current, len(segments), msg)
+                _state = {"finished": False, "progress": None}
                 
-                return self.ai_fix_service.translate_segments(
-                    segments,
-                    target_lang=target_lang,
-                    source_lang="auto",
-                    progress_callback=ai_progress,
-                    batch_size=5
-                )
+                def ai_progress(msg, prog):
+                    current = int(prog * len(segments))
+                    _state["progress"] = (current, len(segments), msg)
+                
+                async def _poll_translate():
+                    while not _state["finished"]:
+                        if _state["progress"] is not None:
+                            vals = _state["progress"]
+                            _state["progress"] = None
+                            if progress_callback:
+                                progress_callback(*vals)
+                        await asyncio.sleep(0.3)
+                
+                def _do_translate():
+                    return self.ai_fix_service.translate_segments(
+                        segments,
+                        target_lang=target_lang,
+                        source_lang="auto",
+                        progress_callback=ai_progress,
+                        batch_size=5
+                    )
+                
+                poll_task = asyncio.create_task(_poll_translate())
+                try:
+                    result = await asyncio.to_thread(_do_translate)
+                finally:
+                    _state["finished"] = True
+                    await poll_task
+                return result
             except Exception as e:
                 logger.warning(f"心流 AI 翻译失败，回退到 Bing 翻译: {e}")
                 # 继续使用 Bing 翻译
@@ -3667,264 +3779,303 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         self.progress_text.visible = True
         self._page.update()
         
-        def process_task():
-            try:
-                total = len(self.selected_files)
+        self._page.run_task(self._process_task_async, output_dir)
+    
+    async def _process_task_async(self, output_dir) -> None:
+        """异步处理视频任务。"""
+        import asyncio
+        try:
+            total = len(self.selected_files)
+            
+            for idx, file_path in enumerate(self.selected_files):
+                self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
+                self.progress_bar.value = idx / total
+                self._page.update()
                 
-                for idx, file_path in enumerate(self.selected_files):
-                    self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
-                    self.progress_bar.value = idx / total
+                try:
+                    # 步骤1：提取音频
+                    self.progress_text.value = f"[{idx + 1}/{total}] 提取音频..."
                     self._page.update()
                     
-                    try:
-                        # 步骤1：提取音频
-                        self.progress_text.value = f"[{idx + 1}/{total}] 提取音频..."
+                    temp_audio = Path(tempfile.gettempdir()) / f"temp_audio_{file_path.stem}.wav"
+                    await asyncio.to_thread(self._extract_audio, file_path, temp_audio)
+                    
+                    # 步骤1.5：人声分离（如果启用）
+                    audio_for_recognition = temp_audio
+                    if self.use_vocal_separation and self.vocal_loaded:
+                        self.progress_text.value = f"[{idx + 1}/{total}] 人声分离..."
                         self._page.update()
                         
-                        temp_audio = Path(tempfile.gettempdir()) / f"temp_audio_{file_path.stem}.wav"
-                        self._extract_audio(file_path, temp_audio)
-                        
-                        # 步骤1.5：人声分离（如果启用）
-                        audio_for_recognition = temp_audio
-                        if self.use_vocal_separation and self.vocal_loaded:
-                            self.progress_text.value = f"[{idx + 1}/{total}] 人声分离..."
-                            self._page.update()
+                        try:
+                            # 创建临时目录存放分离结果
+                            vocal_temp_dir = self.config_service.get_temp_dir() / "video_subtitle_vocals" / f"{file_path.stem}_{idx}"
+                            vocal_temp_dir.mkdir(parents=True, exist_ok=True)
                             
-                            try:
-                                # 创建临时目录存放分离结果
-                                vocal_temp_dir = self.config_service.get_temp_dir() / "video_subtitle_vocals" / f"{file_path.stem}_{idx}"
-                                vocal_temp_dir.mkdir(parents=True, exist_ok=True)
-                                
-                                # 执行人声分离
-                                vocals_path, _ = self.vocal_service.separate(
-                                    temp_audio,
-                                    vocal_temp_dir,
-                                    output_format='wav'
-                                )
-                                
-                                audio_for_recognition = vocals_path
-                                logger.info(f"人声分离完成: {temp_audio} -> {vocals_path}")
-                            except Exception as e:
-                                logger.warning(f"人声分离失败，使用原始音频: {e}")
-                                audio_for_recognition = temp_audio
-                        
-                        # 步骤2：语音识别
-                        self.progress_text.value = f"[{idx + 1}/{total}] 语音识别中..."
-                        self._page.update()
-                        
-                        def recognition_progress(message: str, progress: float):
-                            self.progress_text.value = f"[{idx + 1}/{total}] {message}"
-                            self.progress_bar.value = (idx + progress * 0.5) / total
-                            try:
-                                self._page.update()
-                            except:
-                                pass
-                        
-                        segments = self.speech_service.recognize_with_timestamps(
+                            # 执行人声分离
+                            vocals_path, _ = await asyncio.to_thread(
+                                self.vocal_service.separate,
+                                temp_audio,
+                                vocal_temp_dir,
+                                'wav'
+                            )
+                            
+                            audio_for_recognition = vocals_path
+                            logger.info(f"人声分离完成: {temp_audio} -> {vocals_path}")
+                        except Exception as e:
+                            logger.warning(f"人声分离失败，使用原始音频: {e}")
+                            audio_for_recognition = temp_audio
+                    
+                    # 步骤2：语音识别（使用轮询获取进度）
+                    self.progress_text.value = f"[{idx + 1}/{total}] 语音识别中..."
+                    self._page.update()
+                    
+                    self._task_finished = False
+                    self._pending_progress = None
+                    
+                    _idx = idx  # 捕获循环变量
+                    _total = total
+                    
+                    def recognition_progress(message: str, progress: float):
+                        self._pending_progress = (
+                            f"[{_idx + 1}/{_total}] {message}",
+                            (_idx + progress * 0.5) / _total
+                        )
+                    
+                    async def _poll_recognition():
+                        while not self._task_finished:
+                            if self._pending_progress:
+                                text_val, bar_val = self._pending_progress
+                                self._pending_progress = None
+                                self.progress_text.value = text_val
+                                self.progress_bar.value = bar_val
+                                try:
+                                    self._page.update()
+                                except Exception:
+                                    pass
+                            await asyncio.sleep(0.3)
+                    
+                    poll_task = asyncio.create_task(_poll_recognition())
+                    try:
+                        segments = await asyncio.to_thread(
+                            self.speech_service.recognize_with_timestamps,
                             audio_for_recognition,
                             progress_callback=recognition_progress
                         )
+                    finally:
+                        self._task_finished = True
+                        await poll_task
+                    
+                    if not segments:
+                        logger.error(f"语音识别失败: {file_path}")
+                        continue
+                    
+                    # 步骤2.5：AI 修复字幕（如果启用，使用轮询获取进度）
+                    if self.use_ai_fix and self.ai_fix_service.is_configured():
+                        self.progress_text.value = f"[{idx + 1}/{total}] AI 修复字幕..."
+                        self._page.update()
                         
-                        if not segments:
-                            logger.error(f"语音识别失败: {file_path}")
-                            continue
-                        
-                        # 步骤2.5：AI 修复字幕（如果启用）
-                        if self.use_ai_fix and self.ai_fix_service.is_configured():
-                            self.progress_text.value = f"[{idx + 1}/{total}] AI 修复字幕..."
-                            self._page.update()
+                        try:
+                            self._task_finished = False
+                            self._pending_progress = None
                             
+                            def ai_fix_progress(msg, prog):
+                                self._pending_progress = (
+                                    f"[{_idx + 1}/{_total}] {msg}",
+                                    None
+                                )
+                            
+                            async def _poll_ai_fix():
+                                while not self._task_finished:
+                                    if self._pending_progress:
+                                        text_val, _ = self._pending_progress
+                                        self._pending_progress = None
+                                        self.progress_text.value = text_val
+                                        try:
+                                            self._page.update()
+                                        except Exception:
+                                            pass
+                                    await asyncio.sleep(0.3)
+                            
+                            poll_task = asyncio.create_task(_poll_ai_fix())
                             try:
-                                def ai_fix_progress(msg, prog):
-                                    self.progress_text.value = f"[{idx + 1}/{total}] {msg}"
-                                    try:
-                                        self._page.update()
-                                    except:
-                                        pass
-                                
-                                segments = self.ai_fix_service.fix_segments(
+                                segments = await asyncio.to_thread(
+                                    self.ai_fix_service.fix_segments,
                                     segments,
                                     language="auto",
                                     progress_callback=ai_fix_progress
                                 )
-                                logger.info(f"AI 修复完成: {file_path.name}")
-                            except Exception as e:
-                                logger.warning(f"AI 修复失败，使用原始结果: {e}")
-                        
-                        # 步骤3：获取视频信息
-                        video_info = self.ffmpeg_service.safe_probe(str(file_path))
-                        if not video_info:
-                            logger.error(f"无法获取视频信息: {file_path}")
-                            continue
-                        
-                        video_stream = next(
-                            (s for s in video_info.get('streams', []) if s.get('codec_type') == 'video'),
-                            None
-                        )
-                        if not video_stream:
-                            logger.error(f"未找到视频流: {file_path}")
-                            continue
-                        
-                        video_width = video_stream.get('width', 1920)
-                        video_height = video_stream.get('height', 1080)
-                        
-                        # 步骤3.5：如果启用翻译，进行翻译
-                        if self.enable_translation:
-                            self.progress_text.value = f"[{idx + 1}/{total}] 翻译字幕..."
-                            self._page.update()
-                            
-                            import asyncio
-                            
-                            def translate_progress(current, total_items, msg):
-                                self.progress_text.value = f"[{idx + 1}/{total}] {msg}"
-                                self._page.update()
-                            
-                            # 异步翻译
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            try:
-                                segments = loop.run_until_complete(
-                                    self._translate_segments(
-                                        segments, 
-                                        self.target_language,
-                                        translate_progress
-                                    )
-                                )
                             finally:
-                                loop.close()
-                        
-                        # 获取该视频的设置
-                        video_settings = self._get_video_settings(file_path)
-                        
-                        # 计算每行最大字符数
-                        font_size = int(video_settings["font_size"])
-                        max_width_pct = int(video_settings["max_width"])
-                        estimated_char_width = font_size * 0.6  # 估算字符宽度
-                        max_line_width = video_width * max_width_pct / 100
-                        max_chars_per_line = int(max_line_width / estimated_char_width)
-                        max_chars_per_line = max(10, min(max_chars_per_line, 50))  # 限制范围
-                        
-                        # 步骤4：生成 ASS 字幕
-                        self.progress_text.value = f"[{idx + 1}/{total}] 生成字幕..."
+                                self._task_finished = True
+                                await poll_task
+                            logger.info(f"AI 修复完成: {file_path.name}")
+                        except Exception as e:
+                            logger.warning(f"AI 修复失败，使用原始结果: {e}")
+                    
+                    # 步骤3：获取视频信息
+                    video_info = await asyncio.to_thread(self.ffmpeg_service.safe_probe, str(file_path))
+                    if not video_info:
+                        logger.error(f"无法获取视频信息: {file_path}")
+                        continue
+                    
+                    video_stream = next(
+                        (s for s in video_info.get('streams', []) if s.get('codec_type') == 'video'),
+                        None
+                    )
+                    if not video_stream:
+                        logger.error(f"未找到视频流: {file_path}")
+                        continue
+                    
+                    video_width = video_stream.get('width', 1920)
+                    video_height = video_stream.get('height', 1080)
+                    
+                    # 步骤3.5：如果启用翻译，进行翻译（已是异步，直接 await）
+                    if self.enable_translation:
+                        self.progress_text.value = f"[{idx + 1}/{total}] 翻译字幕..."
                         self._page.update()
                         
-                        ass_style = self._generate_ass_style(video_width, video_height, file_path)
-                        ass_events = self._segments_to_ass_events(segments, max_chars_per_line)
-                        ass_content = ass_style + ass_events
+                        def translate_progress(current, total_items, msg):
+                            self.progress_text.value = f"[{_idx + 1}/{_total}] {msg}"
+                            try:
+                                self._page.update()
+                            except Exception:
+                                pass
                         
-                        temp_ass = Path(tempfile.gettempdir()) / f"temp_subtitle_{file_path.stem}.ass"
-                        with open(temp_ass, 'w', encoding='utf-8') as f:
-                            f.write(ass_content)
+                        segments = await self._translate_segments(
+                            segments, 
+                            self.target_language,
+                            translate_progress
+                        )
+                    
+                    # 获取该视频的设置
+                    video_settings = self._get_video_settings(file_path)
+                    
+                    # 计算每行最大字符数
+                    font_size = int(video_settings["font_size"])
+                    max_width_pct = int(video_settings["max_width"])
+                    estimated_char_width = font_size * 0.6  # 估算字符宽度
+                    max_line_width = video_width * max_width_pct / 100
+                    max_chars_per_line = int(max_line_width / estimated_char_width)
+                    max_chars_per_line = max(10, min(max_chars_per_line, 50))  # 限制范围
+                    
+                    # 步骤4：生成 ASS 字幕
+                    self.progress_text.value = f"[{idx + 1}/{total}] 生成字幕..."
+                    self._page.update()
+                    
+                    ass_style = self._generate_ass_style(video_width, video_height, file_path)
+                    ass_events = self._segments_to_ass_events(segments, max_chars_per_line)
+                    ass_content = ass_style + ass_events
+                    
+                    temp_ass = Path(tempfile.gettempdir()) / f"temp_subtitle_{file_path.stem}.ass"
+                    with open(temp_ass, 'w', encoding='utf-8') as f:
+                        f.write(ass_content)
+                    
+                    # 步骤4.5：导出字幕文件（如果启用）
+                    export_subtitle = self.export_subtitle_checkbox.value
+                    only_subtitle = self.only_subtitle_checkbox.value
+                    subtitle_format = self.subtitle_format_dropdown.value
+                    
+                    if export_subtitle:
+                        self.progress_text.value = f"[{idx + 1}/{total}] 导出字幕文件..."
+                        self._page.update()
                         
-                        # 步骤4.5：导出字幕文件（如果启用）
-                        export_subtitle = self.export_subtitle_checkbox.value
-                        only_subtitle = self.only_subtitle_checkbox.value
-                        subtitle_format = self.subtitle_format_dropdown.value
-                        
-                        if export_subtitle:
-                            self.progress_text.value = f"[{idx + 1}/{total}] 导出字幕文件..."
-                            self._page.update()
-                            
-                            if output_dir:
-                                subtitle_dir = output_dir
-                            else:
-                                subtitle_dir = file_path.parent
-                            
-                            # 根据全局设置决定是否添加序号
-                            add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                            
-                            # 使用系统默认编码，避免乱码
-                            import locale
-                            system_encoding = locale.getpreferredencoding(False)
-                            
-                            if subtitle_format == "ass":
-                                # 导出 ASS 格式
-                                subtitle_path = subtitle_dir / f"{file_path.stem}.ass"
-                                subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
-                                try:
-                                    with open(subtitle_path, 'w', encoding=system_encoding) as f:
-                                        f.write(ass_content)
-                                except UnicodeEncodeError:
-                                    # 如果系统编码无法编码某些字符，回退到 UTF-8
-                                    with open(subtitle_path, 'w', encoding='utf-8') as f:
-                                        f.write(ass_content)
-                                    logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
-                                logger.info(f"已导出 ASS 字幕: {subtitle_path} (编码: {system_encoding})")
-                            else:
-                                # 导出 SRT 格式
-                                subtitle_path = subtitle_dir / f"{file_path.stem}.srt"
-                                subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
-                                srt_content = self._segments_to_srt(segments)
-                                try:
-                                    with open(subtitle_path, 'w', encoding=system_encoding) as f:
-                                        f.write(srt_content)
-                                except UnicodeEncodeError:
-                                    # 如果系统编码无法编码某些字符，回退到 UTF-8
-                                    with open(subtitle_path, 'w', encoding='utf-8') as f:
-                                        f.write(srt_content)
-                                    logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
-                                logger.info(f"已导出 SRT 字幕: {subtitle_path} (编码: {system_encoding})")
-                        
-                        # 步骤5：烧录字幕到视频（如果不是"仅导出字幕"模式）
-                        if not only_subtitle:
-                            self.progress_text.value = f"[{idx + 1}/{total}] 烧录字幕..."
-                            self.progress_bar.value = (idx + 0.7) / total
-                            self._page.update()
-                            
-                            if output_dir:
-                                output_path = output_dir / f"{file_path.stem}_subtitled.mp4"
-                            else:
-                                output_path = file_path.parent / f"{file_path.stem}_subtitled.mp4"
-                            
-                            # 根据全局设置决定是否添加序号
-                            add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                            output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                            
-                            # 获取字体目录（如果使用外部字体）
-                            font_dir = None
-                            custom_font_path = video_settings.get("custom_font_path")
-                            if custom_font_path and Path(custom_font_path).exists():
-                                font_dir = str(Path(custom_font_path).parent)
-                            
-                            self._burn_subtitles(file_path, temp_ass, output_path, font_dir)
-                            logger.info(f"处理完成: {output_path}")
+                        if output_dir:
+                            subtitle_dir = output_dir
                         else:
-                            logger.info(f"仅导出字幕完成: {file_path.name}")
+                            subtitle_dir = file_path.parent
                         
-                        # 清理临时文件
-                        try:
-                            temp_audio.unlink()
-                            temp_ass.unlink()
-                            
-                            # 清理人声分离临时目录
-                            if self.use_vocal_separation and audio_for_recognition != temp_audio:
-                                import shutil
-                                vocal_temp_dir = self.config_service.get_temp_dir() / "video_subtitle_vocals" / f"{file_path.stem}_{idx}"
-                                if vocal_temp_dir.exists():
-                                    shutil.rmtree(vocal_temp_dir, ignore_errors=True)
-                                    logger.debug(f"已清理人声分离临时目录: {vocal_temp_dir}")
-                        except:
-                            pass
+                        # 根据全局设置决定是否添加序号
+                        add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                         
-                    except Exception as ex:
-                        logger.error(f"处理文件失败 {file_path}: {ex}", exc_info=True)
-                        continue
-                
-                self.progress_text.value = f"处理完成，共处理 {total} 个文件"
-                self.progress_bar.value = 1.0
-                self._page.update()
-                
-            except Exception as e:
-                logger.error(f"处理失败: {e}", exc_info=True)
-                self.progress_text.value = f"处理失败: {str(e)}"
-                self._page.update()
-            finally:
-                self.is_processing = False
-                self.process_btn.content.disabled = False
-                self._update_process_button()
-                self._page.update()
-        
-        threading.Thread(target=process_task, daemon=True).start()
+                        # 使用系统默认编码，避免乱码
+                        import locale
+                        system_encoding = locale.getpreferredencoding(False)
+                        
+                        if subtitle_format == "ass":
+                            # 导出 ASS 格式
+                            subtitle_path = subtitle_dir / f"{file_path.stem}.ass"
+                            subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
+                            try:
+                                with open(subtitle_path, 'w', encoding=system_encoding) as f:
+                                    f.write(ass_content)
+                            except UnicodeEncodeError:
+                                # 如果系统编码无法编码某些字符，回退到 UTF-8
+                                with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                    f.write(ass_content)
+                                logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                            logger.info(f"已导出 ASS 字幕: {subtitle_path} (编码: {system_encoding})")
+                        else:
+                            # 导出 SRT 格式
+                            subtitle_path = subtitle_dir / f"{file_path.stem}.srt"
+                            subtitle_path = get_unique_path(subtitle_path, add_sequence=add_sequence)
+                            srt_content = self._segments_to_srt(segments)
+                            try:
+                                with open(subtitle_path, 'w', encoding=system_encoding) as f:
+                                    f.write(srt_content)
+                            except UnicodeEncodeError:
+                                # 如果系统编码无法编码某些字符，回退到 UTF-8
+                                with open(subtitle_path, 'w', encoding='utf-8') as f:
+                                    f.write(srt_content)
+                                logger.warning(f"系统编码({system_encoding})无法编码某些字符，已使用UTF-8编码")
+                            logger.info(f"已导出 SRT 字幕: {subtitle_path} (编码: {system_encoding})")
+                    
+                    # 步骤5：烧录字幕到视频（如果不是"仅导出字幕"模式）
+                    if not only_subtitle:
+                        self.progress_text.value = f"[{idx + 1}/{total}] 烧录字幕..."
+                        self.progress_bar.value = (idx + 0.7) / total
+                        self._page.update()
+                        
+                        if output_dir:
+                            output_path = output_dir / f"{file_path.stem}_subtitled.mp4"
+                        else:
+                            output_path = file_path.parent / f"{file_path.stem}_subtitled.mp4"
+                        
+                        # 根据全局设置决定是否添加序号
+                        add_sequence = self.config_service.get_config_value("output_add_sequence", False)
+                        output_path = get_unique_path(output_path, add_sequence=add_sequence)
+                        
+                        # 获取字体目录（如果使用外部字体）
+                        font_dir = None
+                        custom_font_path = video_settings.get("custom_font_path")
+                        if custom_font_path and Path(custom_font_path).exists():
+                            font_dir = str(Path(custom_font_path).parent)
+                        
+                        await asyncio.to_thread(self._burn_subtitles, file_path, temp_ass, output_path, font_dir)
+                        logger.info(f"处理完成: {output_path}")
+                    else:
+                        logger.info(f"仅导出字幕完成: {file_path.name}")
+                    
+                    # 清理临时文件
+                    try:
+                        temp_audio.unlink()
+                        temp_ass.unlink()
+                        
+                        # 清理人声分离临时目录
+                        if self.use_vocal_separation and audio_for_recognition != temp_audio:
+                            import shutil
+                            vocal_temp_dir = self.config_service.get_temp_dir() / "video_subtitle_vocals" / f"{file_path.stem}_{idx}"
+                            if vocal_temp_dir.exists():
+                                shutil.rmtree(vocal_temp_dir, ignore_errors=True)
+                                logger.debug(f"已清理人声分离临时目录: {vocal_temp_dir}")
+                    except Exception:
+                        pass
+                    
+                except Exception as ex:
+                    logger.error(f"处理文件失败 {file_path}: {ex}", exc_info=True)
+                    continue
+            
+            self.progress_text.value = f"处理完成，共处理 {total} 个文件"
+            self.progress_bar.value = 1.0
+            self._page.update()
+            
+        except Exception as e:
+            logger.error(f"处理失败: {e}", exc_info=True)
+            self.progress_text.value = f"处理失败: {str(e)}"
+            self._page.update()
+        finally:
+            self.is_processing = False
+            self.process_btn.content.disabled = False
+            self._update_process_button()
+            self._page.update()
     
     def _extract_audio(self, video_path: Path, audio_path: Path) -> None:
         """从视频中提取音频。"""

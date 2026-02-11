@@ -435,8 +435,8 @@ class ImagePuzzleMergeView(ft.Container):
             else:
                 self.preview_info_text.value = "选择图片后，点击「生成预览」查看效果"
             try:
-                self.preview_info_text.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
         
         # 如果打开了自动预览，立即生成一次预览
@@ -448,7 +448,7 @@ class ImagePuzzleMergeView(ft.Container):
         # 网格排列时显示列数输入
         if hasattr(e.control, 'value') and e.control == self.merge_direction:
             self.merge_cols.visible = (self.merge_direction.value == "grid")
-            self.merge_cols.update()
+            self._page.update()
         
         # 如果启用了自动预览且已选择足够的文件，则自动更新预览
         if self._auto_preview_enabled and len(self.selected_files) >= 2:
@@ -464,10 +464,8 @@ class ImagePuzzleMergeView(ft.Container):
         self.custom_color_g.visible = is_custom
         self.custom_color_b.visible = is_custom
         try:
-            self.custom_color_r.update()
-            self.custom_color_g.update()
-            self.custom_color_b.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
         
         # 如果启用了自动预览且已选择足够的文件，则自动更新预览
@@ -694,9 +692,8 @@ class ImagePuzzleMergeView(ft.Container):
         self.keep_gif_animation.visible = has_gif
         
         try:
-            self.file_list_view.update()
-            self.keep_gif_animation.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _on_move_up(self, index: int) -> None:
@@ -805,10 +802,8 @@ class ImagePuzzleMergeView(ft.Container):
         self.preview_info_text.visible = True
         self.save_button.disabled = True
         try:
-            self.preview_image_widget.update()
-            self.preview_info_text.update()
-            self.save_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _on_generate_preview(self, e: ft.ControlEvent) -> None:
@@ -822,8 +817,8 @@ class ImagePuzzleMergeView(ft.Container):
                 self.preview_info_text.value = "正在处理中，请稍候..."
                 self.preview_info_text.visible = True
                 try:
-                    self.preview_info_text.update()
-                except:
+                    self._page.update()
+                except Exception:
                     pass
             return
         
@@ -863,10 +858,11 @@ class ImagePuzzleMergeView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        def process_task():
+        async def _process_task():
+            import asyncio
             try:
                 # 检查是否保留GIF动画
                 keep_animation = self.keep_gif_animation.value
@@ -878,7 +874,9 @@ class ImagePuzzleMergeView(ft.Container):
                         self._show_snackbar(f"正在生成 GIF 动画 ({max_frames} 帧)...", ft.Colors.BLUE)
                     
                     # 生成GIF动画
-                    result_frames, duration = self._merge_as_gif(direction, spacing, grid_cols, bg_color, custom_rgb)
+                    result_frames, duration = await asyncio.to_thread(
+                        self._merge_as_gif, direction, spacing, grid_cols, bg_color, custom_rgb
+                    )
                     if result_frames:
                         # 将 GIF 帧列表传递给预览，以显示动态 GIF
                         self._update_preview_gif(result_frames, duration)
@@ -890,22 +888,25 @@ class ImagePuzzleMergeView(ft.Container):
                         raise Exception("生成GIF动画失败")
                 else:
                     # 读取所有图片（GIF使用选择的帧）
-                    images = []
-                    for f in self.selected_files:
-                        if str(f) in self.gif_info:
-                            # 是GIF，提取选择的帧
-                            _, _, frame_idx = self.gif_info[str(f)]
-                            frame = GifUtils.extract_frame(f, frame_idx)
-                            if frame:
-                                images.append(frame)
+                    def _do_merge():
+                        images = []
+                        for f in self.selected_files:
+                            if str(f) in self.gif_info:
+                                # 是GIF，提取选择的帧
+                                _, _, frame_idx = self.gif_info[str(f)]
+                                frame = GifUtils.extract_frame(f, frame_idx)
+                                if frame:
+                                    images.append(frame)
+                                else:
+                                    raise Exception(f"无法提取GIF帧: {f.name}")
                             else:
-                                raise Exception(f"无法提取GIF帧: {f.name}")
-                        else:
-                            # 普通图片
-                            images.append(Image.open(f))
+                                # 普通图片
+                                images.append(Image.open(f))
+                        
+                        # 合并图片
+                        return self._merge_images(images, direction, spacing, grid_cols, bg_color, custom_rgb)
                     
-                    # 合并图片
-                    result = self._merge_images(images, direction, spacing, grid_cols, bg_color, custom_rgb)
+                    result = await asyncio.to_thread(_do_merge)
                     
                     # 更新预览
                     self._update_preview(result)
@@ -918,7 +919,7 @@ class ImagePuzzleMergeView(ft.Container):
             finally:
                 self.is_processing = False
         
-        threading.Thread(target=process_task, daemon=True).start()
+        self._page.run_task(_process_task)
     
     def _merge_images(
         self,
@@ -1116,7 +1117,7 @@ class ImagePuzzleMergeView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _update_preview_gif(self, frames: list, duration: int) -> None:
@@ -1174,7 +1175,7 @@ class ImagePuzzleMergeView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_save_result(self, e: ft.ControlEvent) -> None:
@@ -1411,7 +1412,7 @@ class ImagePuzzleMergeView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:

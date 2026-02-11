@@ -514,7 +514,7 @@ class VideoConvertView(ft.Container):
                 try:
                     file_size = file_path.stat().st_size
                     size_str = format_file_size(file_size)
-                except:
+                except Exception:
                     size_str = "未知大小"
                 
                 # 获取文件扩展名
@@ -622,8 +622,9 @@ class VideoConvertView(ft.Container):
         self.speed_text.value = ""
         self._page.update()
         
-        # 在后台线程中执行转换
-        def convert_thread():
+        # 启动异步转换任务
+        async def convert_task():
+            import asyncio
             total_files = len(self.selected_files)
             success_count = 0
             
@@ -652,10 +653,7 @@ class VideoConvertView(ft.Container):
                         self.progress_bar.value = overall_progress
                         self.progress_text.value = f"正在转换: {input_file.name} ({i+1}/{total_files})"
                         self.speed_text.value = ""
-                        try:
-                            self._page.update()
-                        except:
-                            pass
+                        self._page.update()
                         
                         # 构建输出路径
                         if output_dir:
@@ -667,19 +665,22 @@ class VideoConvertView(ft.Container):
                         add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                         output_path = get_unique_path(output_path, add_sequence=add_sequence)
                         
-                        # 执行转换
-                        def progress_callback(progress: float, speed: str, remaining: str):
+                        # 执行转换 - 进度回调通过 run_task 安全地更新UI
+                        def progress_callback(progress: float, speed: str, remaining: str, _i=i, _input_file=input_file):
                             # 计算总体进度
-                            file_progress = (i + progress) / total_files
-                            self.progress_bar.value = file_progress
-                            self.progress_text.value = f"转换中: {input_file.name} ({i+1}/{total_files}) - {int(progress * 100)}%"
-                            self.speed_text.value = f"速度: {speed} | 剩余: {remaining}"
-                            try:
+                            file_progress = (_i + progress) / total_files
+                            async def _update_progress():
+                                self.progress_bar.value = file_progress
+                                self.progress_text.value = f"转换中: {_input_file.name} ({_i+1}/{total_files}) - {int(progress * 100)}%"
+                                self.speed_text.value = f"速度: {speed} | 剩余: {remaining}"
                                 self._page.update()
-                            except:
+                            try:
+                                self._page.run_task(_update_progress)
+                            except Exception:
                                 pass
                         
-                        success, message = self._convert_video(
+                        success, message = await asyncio.to_thread(
+                            self._convert_video,
                             input_file,
                             output_path,
                             params,
@@ -719,9 +720,7 @@ class VideoConvertView(ft.Container):
                 self._show_error(f"转换失败: {str(ex)}")
                 self._page.update()
         
-        # 启动转换线程
-        thread = threading.Thread(target=convert_thread, daemon=True)
-        thread.start()
+        self._page.run_task(convert_task)
     
     def _convert_video(
         self,

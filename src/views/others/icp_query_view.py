@@ -167,8 +167,12 @@ class ICPQueryView(ft.Container):
         try:
             import shutil
 
-            # 卸载模型（使用标准化的unload_model方法）
-            await asyncio.to_thread(self.icp_service.unload_model)
+            # 卸载模型
+            def _do_unload():
+                self.icp_service.unload_model()
+
+            await asyncio.to_thread(_do_unload)
+
             self.models_loaded = False
 
             # 删除模型目录
@@ -469,20 +473,29 @@ class ICPQueryView(ft.Container):
         import asyncio
         await asyncio.sleep(0.05)  # 短暂延迟，确保界面已经显示
 
-        # 在线程池中检查模型文件是否存在（避免 IO 阻塞事件循环）
-        exists = await asyncio.to_thread(self.icp_service.check_models_exist)
+        def _do_check():
+            return self.icp_service.check_models_exist()
+
+        exists = await asyncio.to_thread(_do_check)
 
         if exists:
             # 模型存在，显示"加载模型"按钮
             self._update_model_status("unloaded", "模型已下载，点击加载")
 
-            # 如果开启了自动加载，则自动加载模型
+            # 如果开启了自动加载，调度为独立任务（不直接 await）
+            # 让事件循环先完成 UI 渲染，避免模型加载阻塞界面
             if self.config_service.get_config_value("icp_auto_load_model", False):
                 logger.info("自动加载ICP模型...")
-                await self._load_models_only()
+                self._page.run_task(self._auto_load_with_delay)
         else:
             # 模型不存在，显示"下载模型"按钮
             self._update_model_status("need_download", "需要下载模型才能使用")
+    
+    async def _auto_load_with_delay(self) -> None:
+        """延迟自动加载模型，确保 UI 已完成渲染。"""
+        import asyncio
+        await asyncio.sleep(0.5)  # 等待 UI 渲染完成
+        await self._load_models_only()
     
     def _update_model_status(self, status: str, message: str) -> None:
         """更新模型状态显示。
@@ -638,9 +651,13 @@ class ICPQueryView(ft.Container):
 
     async def _load_models_only(self):
         """仅加载模型，不下载。"""
+        import asyncio
         try:
             self.is_model_loading = True
             self._update_model_status("loading", "正在加载模型...")
+            
+            # 等待 UI 渲染"正在加载模型..."后再开始
+            await asyncio.sleep(0.3)
             
             # 加载模型
             detector_path, siamese_path = self.icp_service.get_model_paths()

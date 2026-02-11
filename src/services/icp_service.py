@@ -572,7 +572,6 @@ class ICPService:
                 logger.error(f"相似度模型文件不存在: {siamese_path}")
                 return False
             
-            # 模型初始化是 CPU 密集型操作，放到线程池中避免阻塞 UI 事件循环
             def _do_load():
                 self.detector = YOLODetector(detector_path, self.config_service)
                 self.siamese = Siamese(siamese_path, self.config_service)

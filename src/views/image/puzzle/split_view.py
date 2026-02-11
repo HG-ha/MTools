@@ -604,15 +604,15 @@ class ImagePuzzleSplitView(ft.Container):
             self.performance_warning.visible = should_warn
             
             try:
-                self.performance_warning.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
         except ValueError:
             # 输入无效时隐藏警告
             self.performance_warning.visible = False
             try:
-                self.performance_warning.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
@@ -635,8 +635,8 @@ class ImagePuzzleSplitView(ft.Container):
             self.save_button.disabled = not bool(self.preview_image)
         
         try:
-            self.save_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
         
         # 触发实时预览
@@ -675,8 +675,8 @@ class ImagePuzzleSplitView(ft.Container):
             else:
                 self.preview_info_text.value = "选择图片后，点击「生成预览」查看效果"
             try:
-                self.preview_info_text.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
         
         # 如果打开了自动预览，立即生成一次预览
@@ -695,11 +695,8 @@ class ImagePuzzleSplitView(ft.Container):
         self.bg_image_button.visible = is_image
         
         try:
-            self.custom_color_r.update()
-            self.custom_color_g.update()
-            self.custom_color_b.update()
-            self.bg_image_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
         
         # 触发实时预览
@@ -719,8 +716,8 @@ class ImagePuzzleSplitView(ft.Container):
             self.bg_image_path = Path(result[0].path)
             self.bg_image_button.text = f"背景: {self.bg_image_path.name[:15]}..."
             try:
-                self.bg_image_button.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
             
             # 触发实时预览
@@ -745,8 +742,8 @@ class ImagePuzzleSplitView(ft.Container):
             if self.output_mode.value == "individual":
                 self.save_button.disabled = False
                 try:
-                    self.save_button.update()
-                except:
+                    self._page.update()
+                except Exception:
                     pass
             
             # 选择文件后自动生成首次预览
@@ -830,10 +827,8 @@ class ImagePuzzleSplitView(ft.Container):
                         self.original_image_widget.visible = False
         
         try:
-            self.empty_state_widget.update()
-            self.original_image_widget.update()
-            self.gif_frame_selector.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _clear_preview(self) -> None:
@@ -851,10 +846,8 @@ class ImagePuzzleSplitView(ft.Container):
         self.preview_info_text.visible = True
         self.save_button.disabled = True
         try:
-            self.preview_image_widget.update()
-            self.preview_info_text.update()
-            self.save_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _on_generate_preview(self, e: ft.ControlEvent) -> None:
@@ -868,8 +861,8 @@ class ImagePuzzleSplitView(ft.Container):
                 self.preview_info_text.value = "正在处理中，请稍候..."
                 self.preview_info_text.visible = True
                 try:
-                    self.preview_info_text.update()
-                except:
+                    self._page.update()
+                except Exception:
                     pass
             return
         
@@ -930,10 +923,11 @@ class ImagePuzzleSplitView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        def process_task():
+        async def _process_task():
+            import asyncio
             try:
                 # 检查是否需要生成 GIF 动画预览
                 keep_animation = self.is_animated_gif and self.keep_gif_animation.value
@@ -943,7 +937,8 @@ class ImagePuzzleSplitView(ft.Container):
                     if not is_auto:
                         self._show_snackbar(f"正在生成 GIF 动画预览 ({self.gif_frame_count} 帧)...", ft.Colors.BLUE)
                     
-                    result_frames, durations = self._generate_gif_frames(
+                    result_frames, durations = await asyncio.to_thread(
+                        self._generate_gif_frames,
                         rows, cols, shuffle, spacing,
                         corner_radius, overall_corner_radius,
                         bg_color, custom_rgb, piece_opacity, bg_opacity
@@ -958,21 +953,24 @@ class ImagePuzzleSplitView(ft.Container):
                         raise Exception("生成GIF动画失败")
                 else:
                     # 生成静态图片预览
-                    # 读取图片（如果是 GIF，使用提取的帧）
-                    if self.is_animated_gif:
-                        image = GifUtils.extract_frame(self.selected_file, self.current_frame_index)
-                        if image is None:
-                            raise Exception("无法提取 GIF 帧")
-                    else:
-                        image = Image.open(self.selected_file)
+                    def _do_split():
+                        # 读取图片（如果是 GIF，使用提取的帧）
+                        if self.is_animated_gif:
+                            image = GifUtils.extract_frame(self.selected_file, self.current_frame_index)
+                            if image is None:
+                                raise Exception("无法提取 GIF 帧")
+                        else:
+                            image = Image.open(self.selected_file)
+                        
+                        # 切分并重新拼接
+                        return self._split_and_reassemble(
+                            image, rows, cols, shuffle, spacing, 
+                            corner_radius, overall_corner_radius,
+                            bg_color, custom_rgb, self.bg_image_path,
+                            piece_opacity, bg_opacity
+                        )
                     
-                    # 切分并重新拼接
-                    result, _ = self._split_and_reassemble(
-                        image, rows, cols, shuffle, spacing, 
-                        corner_radius, overall_corner_radius,
-                        bg_color, custom_rgb, self.bg_image_path,
-                        piece_opacity, bg_opacity
-                    )
+                    result, _ = await asyncio.to_thread(_do_split)
                     
                     # 更新预览
                     self._update_preview(result)
@@ -987,7 +985,7 @@ class ImagePuzzleSplitView(ft.Container):
             finally:
                 self.is_processing = False
         
-        threading.Thread(target=process_task, daemon=True).start()
+        self._page.run_task(_process_task)
     
     def _split_and_reassemble(
         self,
@@ -1339,7 +1337,7 @@ class ImagePuzzleSplitView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _update_preview_gif(self, frames: list, durations: list, bg_color: str, custom_rgb: tuple, bg_opacity: int) -> None:
@@ -1434,7 +1432,7 @@ class ImagePuzzleSplitView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_save_result(self, e: ft.ControlEvent) -> None:
@@ -2053,11 +2051,11 @@ class ImagePuzzleSplitView(ft.Container):
             else:
                 self._show_snackbar(f"帧号必须在 1-{self.gif_frame_count} 之间", ft.Colors.ORANGE)
                 self.gif_frame_input.value = str(self.current_frame_index + 1)
-                self.gif_frame_input.update()
+                self._page.update()
         except ValueError:
             self._show_snackbar("请输入有效的帧号", ft.Colors.RED)
             self.gif_frame_input.value = str(self.current_frame_index + 1)
-            self.gif_frame_input.update()
+            self._page.update()
     
     def _update_gif_frame(self) -> None:
         """更新 GIF 当前帧的显示。"""
@@ -2092,8 +2090,7 @@ class ImagePuzzleSplitView(ft.Container):
                 self.original_image_widget.src = str(temp_path)
                 
                 # 更新界面
-                self.gif_frame_input.update()
-                self.original_image_widget.update()
+                self._page.update()
                 
                 # GIF 帧切换后自动更新预览
                 if self._auto_preview_enabled:
@@ -2116,7 +2113,7 @@ class ImagePuzzleSplitView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:

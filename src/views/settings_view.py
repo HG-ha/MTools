@@ -124,7 +124,7 @@ class SettingsView(ft.Container):
                         self._page.fonts = {}
                     
                     self._page.fonts[custom_font_key] = str(font_path)
-                    self._page.update()
+                    # 不在 init 阶段调用 page.update()，让外部统一刷新
                     
                     # 只有当前正在使用这个自定义字体时，才记录恢复日志
                     if is_using_custom_font:
@@ -152,8 +152,10 @@ class SettingsView(ft.Container):
         
         if auto_switch_enabled or is_bing_wallpaper:
             # 如果启用了自动切换，或者当前使用的是必应壁纸，则自动获取壁纸列表
-            def fetch_wallpapers():
-                wallpapers = self._fetch_bing_wallpaper()
+            # 使用异步任务获取，避免阻塞UI启动
+            async def async_fetch_wallpapers():
+                import asyncio
+                wallpapers = await asyncio.to_thread(self._fetch_bing_wallpaper)
                 if wallpapers:
                     self.bing_wallpapers = wallpapers
                     
@@ -172,10 +174,7 @@ class SettingsView(ft.Container):
                         interval = self.config_service.get_config_value("wallpaper_switch_interval", 30)
                         self._start_auto_switch(interval)
             
-            # 使用后台线程获取，避免阻塞UI启动
-            import threading
-            thread = threading.Thread(target=fetch_wallpapers, daemon=True)
-            thread.start()
+            self._page.run_task(async_fetch_wallpapers)
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -394,12 +393,6 @@ class SettingsView(ft.Container):
                     2 if is_selected else 1,
                     ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
                 )
-                # 只在控件已添加到页面时才更新
-                try:
-                    if container.page:
-                        container.update()
-                except:
-                    pass
             
             if page:
                 page.update()
@@ -1634,9 +1627,8 @@ class SettingsView(ft.Container):
         if hasattr(self, 'switch_interval_text'):
             self.switch_interval_text.value = f"{interval} 分钟"
             try:
-                if self.switch_interval_text.page:
-                    self.switch_interval_text.update()
-            except:
+                self._page.update()
+            except Exception:
                 pass
     
     def _start_auto_switch(self, interval_minutes: int) -> None:
@@ -1648,20 +1640,28 @@ class SettingsView(ft.Container):
         # 先停止现有定时器
         self._stop_auto_switch()
         
-        # 创建新定时器
-        def switch_task():
-            if self.bing_wallpapers:
-                self._next_wallpaper()
-            # 递归调用，继续下一次定时
-            self._start_auto_switch(interval_minutes)
+        # 使用代数计数器来安全地取消旧的异步任务
+        self._auto_switch_generation = getattr(self, '_auto_switch_generation', 0) + 1
+        current_gen = self._auto_switch_generation
         
-        interval_seconds = interval_minutes * 60
-        self.auto_switch_timer = threading.Timer(interval_seconds, switch_task)
-        self.auto_switch_timer.daemon = True
-        self.auto_switch_timer.start()
+        async def switch_task():
+            import asyncio
+            await asyncio.sleep(interval_minutes * 60)
+            # 仅当代数未变（未被 stop 或新 start 取消）时才执行
+            if getattr(self, '_auto_switch_generation', -1) == current_gen:
+                if self.bing_wallpapers:
+                    self._next_wallpaper()
+                # 递归调用，继续下一次定时
+                self._start_auto_switch(interval_minutes)
+        
+        page = getattr(self, '_saved_page', self._page)
+        if page:
+            page.run_task(switch_task)
     
     def _stop_auto_switch(self) -> None:
         """停止自动切换定时器。"""
+        # 递增代数计数器，使所有正在等待的异步定时任务失效
+        self._auto_switch_generation = getattr(self, '_auto_switch_generation', 0) + 1
         if self.auto_switch_timer:
             self.auto_switch_timer.cancel()
             self.auto_switch_timer = None
@@ -1865,7 +1865,7 @@ class SettingsView(ft.Container):
         if not self._is_compiled():
             self._show_snackbar("此功能仅在编译后的版本中可用", ft.Colors.ORANGE)
             e.control.value = False
-            e.control.update()
+            self._page.update()
             return
         
         # 设置注册表
@@ -1878,7 +1878,7 @@ class SettingsView(ft.Container):
         else:
             self._show_snackbar("设置开机自启动失败，请检查权限", ft.Colors.RED)
             e.control.value = not enabled
-            e.control.update()
+            self._page.update()
     
     def _set_auto_start(self, enable: bool) -> bool:
         """设置开机自启动（注册表方式）。
@@ -1941,51 +1941,83 @@ class SettingsView(ft.Container):
             weight=ft.FontWeight.W_600,
         )
 
-        gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
+        import platform as _platform
+        _is_macos = _platform.system() == "Darwin"
+        gpu_enabled = self.config_service.get_config_value("gpu_acceleration", not _is_macos)
         gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
         gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
         enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
 
-        # GPU开关
-        self.gpu_acceleration_switch = ft.Switch(
-            label="启用GPU加速",
-            value=gpu_enabled,
-            on_change=self._on_gpu_acceleration_change,
-        )
+        # GPU开关（macOS 上禁用）
+        if _is_macos:
+            gpu_enabled = False
+            self.gpu_acceleration_switch = ft.Switch(
+                label="启用GPU加速",
+                value=False,
+                disabled=True,
+            )
+            status_text = ft.Text(
+                "macOS 暂不支持 GPU 加速，当前使用 CPU 模式。\n"
+                "CoreML 编译模型时会阻塞主线程导致界面卡死，待后续版本优化后开放。",
+                size=12,
+                color=ft.Colors.ON_SURFACE_VARIANT,
+            )
+        else:
+            self.gpu_acceleration_switch = ft.Switch(
+                label="启用GPU加速",
+                value=gpu_enabled,
+                on_change=self._on_gpu_acceleration_change,
+            )
 
-        # 检测ONNX Runtime的GPU支持（用于AI功能：智能抠图、人声分离）
-        try:
-            import onnxruntime as ort
-            available_providers = ort.get_available_providers()
-            
-            gpu_providers = []
-            if 'CUDAExecutionProvider' in available_providers:
-                gpu_providers.append("NVIDIA CUDA")
-            if 'DmlExecutionProvider' in available_providers:
-                gpu_providers.append("DirectML")
-            if 'ROCMExecutionProvider' in available_providers:
-                gpu_providers.append("AMD ROCm")
-            if 'CoreMLExecutionProvider' in available_providers:
-                gpu_providers.append("Apple CoreML")
-            
-            if gpu_providers:
-                provider_text = "、".join(gpu_providers)
-                status_text = ft.Text(
-                    f"检测到GPU加速支持: {provider_text}",
-                    size=12,
-                    color=ft.Colors.GREEN,
-                )
-            else:
+            # 检测ONNX Runtime的GPU支持（用于AI功能：智能抠图、人声分离）
+            try:
+                import onnxruntime as ort
+                available_providers = ort.get_available_providers()
+                
+                gpu_providers = []
+                if 'CUDAExecutionProvider' in available_providers:
+                    gpu_providers.append("NVIDIA CUDA")
+                if 'DmlExecutionProvider' in available_providers:
+                    gpu_providers.append("DirectML")
+                if 'ROCMExecutionProvider' in available_providers:
+                    gpu_providers.append("AMD ROCm")
+                
+                if gpu_providers:
+                    provider_text = "、".join(gpu_providers)
+                    status_text = ft.Text(
+                        f"检测到GPU加速支持: {provider_text}",
+                        size=12,
+                        color=ft.Colors.GREEN,
+                    )
+                else:
+                    status_text = ft.Text(
+                        "未检测到GPU加速支持，将使用CPU模式",
+                        size=12,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    )
+            except Exception:
                 status_text = ft.Text(
                     "未检测到GPU加速支持，将使用CPU模式",
                     size=12,
                     color=ft.Colors.ON_SURFACE_VARIANT,
                 )
-        except Exception:
-            status_text = ft.Text(
-                "未检测到GPU加速支持，将使用CPU模式",
-                size=12,
-                color=ft.Colors.ON_SURFACE_VARIANT,
+
+        # macOS 不显示高级参数，直接返回简化版
+        if _is_macos:
+            return ft.Container(
+                content=ft.Column(
+                    controls=[
+                        section_title,
+                        ft.Container(height=PADDING_MEDIUM),
+                        self.gpu_acceleration_switch,
+                        ft.Container(height=PADDING_SMALL),
+                        status_text,
+                    ],
+                    spacing=0,
+                ),
+                padding=PADDING_LARGE,
+                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border_radius=BORDER_RADIUS_MEDIUM,
             )
 
         # 高级设置控件
@@ -2264,11 +2296,6 @@ class SettingsView(ft.Container):
         memory_limit = int(e.control.value)
         if self.config_service.set_config_value("gpu_memory_limit", memory_limit):
             self.gpu_memory_value_text.value = f"{memory_limit} MB"
-            try:
-                if self.gpu_memory_value_text.page:
-                    self.gpu_memory_value_text.update()
-            except:
-                pass
             self._show_snackbar(f"GPU内存限制已设置为 {memory_limit} MB，需重新加载模型生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("GPU内存限制设置更新失败", ft.Colors.RED)
@@ -2350,31 +2377,14 @@ class SettingsView(ft.Container):
         for ctrl in (self.gpu_memory_slider, self.gpu_device_dropdown, self.memory_arena_switch):
             ctrl.disabled = not enabled
             ctrl.opacity = 1.0 if enabled else 0.6
-            try:
-                if ctrl.page:
-                    ctrl.update()
-            except:
-                pass
 
         self.gpu_advanced_container.opacity = 1.0 if enabled else 0.5
-        try:
-            if self.gpu_advanced_container.page:
-                self.gpu_advanced_container.update()
-        except:
-            pass
-
         self.gpu_memory_value_text.opacity = 1.0 if enabled else 0.6
-        try:
-            if self.gpu_memory_value_text.page:
-                self.gpu_memory_value_text.update()
-        except:
-            pass
-
         self.gpu_advanced_title.opacity = 1.0 if enabled else 0.6
+
         try:
-            if self.gpu_advanced_title.page:
-                self.gpu_advanced_title.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _build_theme_color_section(self) -> ft.Container:
@@ -2742,9 +2752,6 @@ class SettingsView(ft.Container):
                 r_slider.value = rgb[0]
                 g_slider.value = rgb[1]
                 b_slider.value = rgb[2]
-                r_slider.update()
-                g_slider.update()
-                b_slider.update()
                 self._update_color_preview_in_dialog(
                     rgb[0], rgb[1], rgb[2], preview_box, rgb_text, color_input
                 )
@@ -2868,13 +2875,8 @@ class SettingsView(ft.Container):
         rgb_text.value = f"RGB({r}, {g}, {b})"
         color_input.value = hex_color
         try:
-            if preview_box.page:
-                preview_box.update()
-            if rgb_text.page:
-                rgb_text.update()
-            if color_input.page:
-                color_input.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _apply_preset_color(
@@ -2907,15 +2909,6 @@ class SettingsView(ft.Container):
         r_slider.value = r
         g_slider.value = g
         b_slider.value = b
-        try:
-            if r_slider.page:
-                r_slider.update()
-            if g_slider.page:
-                g_slider.update()
-            if b_slider.page:
-                b_slider.update()
-        except:
-            pass
         self._update_color_preview_in_dialog(r, g, b, preview_box, rgb_text, color_input)
     
     
@@ -2967,14 +2960,7 @@ class SettingsView(ft.Container):
                         if len(card.content.controls) > 4:
                             card.content.controls[4] = ft.Container(height=16)
                     
-                    # 只在控件已添加到页面时才更新
-                    try:
-                        if card.page:
-                            card.update()
-                    except:
-                        pass
-            
-            # 更新整个页面
+            # 更新整个页面（无需逐个卡片 update，page.update 会统一刷新）
             page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
@@ -3052,14 +3038,7 @@ class SettingsView(ft.Container):
                         else:
                             card.content.controls[4] = ft.Container(height=16)
                 
-                # 只在控件已添加到页面时才更新
-                try:
-                    if card.page:
-                        card.update()
-                except:
-                    pass
-            
-            # 更新整个页面
+            # 更新整个页面（无需逐个卡片 update，page.update 会统一刷新）
             page = getattr(self, '_saved_page', self._page)
             if page:
                 page.update()
@@ -3413,11 +3392,12 @@ class SettingsView(ft.Container):
         if page:
             page.update()
         
-        # 在后台线程中检查更新
-        def check_update_task():
+        # 在异步任务中检查更新
+        async def check_update_task():
+            import asyncio
             try:
                 update_service = UpdateService()
-                update_info = update_service.check_update()
+                update_info = await asyncio.to_thread(update_service.check_update)
                 
                 # 在主线程中更新UI
                 self._update_check_result(update_info)
@@ -3429,8 +3409,9 @@ class SettingsView(ft.Container):
                     error_message=f"检查更新出错: {str(ex)}",
                 ))
         
-        thread = threading.Thread(target=check_update_task, daemon=True)
-        thread.start()
+        page = getattr(self, '_saved_page', self._page)
+        if page:
+            page.run_task(check_update_task)
     
     def _update_check_result(self, update_info: UpdateInfo) -> None:
         """更新检查结果到UI。
@@ -3613,33 +3594,31 @@ class SettingsView(ft.Container):
         if page:
             page.update()
         
-        # 在后台线程中下载和安装更新
-        def update_task():
+        # 在异步任务中下载和安装更新
+        async def update_task():
             try:
                 import asyncio
                 updater = AutoUpdater()
                 
-                # 定义进度回调
+                # 定义进度回调（从 download_update 的异步上下文中调用，安全更新UI）
                 def progress_callback(downloaded: int, total: int):
                     if total > 0:
                         progress = downloaded / total
-                        progress_bar.value = progress
-                        
-                        # 格式化显示
-                        downloaded_mb = downloaded / 1024 / 1024
-                        total_mb = total / 1024 / 1024
-                        progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
-                        
-                        if page:
-                            page.update()
+                        async def _update_dl_progress():
+                            progress_bar.value = progress
+                            downloaded_mb = downloaded / 1024 / 1024
+                            total_mb = total / 1024 / 1024
+                            progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
+                            if page:
+                                page.update()
+                        try:
+                            if page:
+                                page.run_task(_update_dl_progress)
+                        except Exception:
+                            pass
                 
                 # 下载更新
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                download_path = loop.run_until_complete(
-                    updater.download_update(update_info.download_url, progress_callback)
-                )
+                download_path = await updater.download_update(update_info.download_url, progress_callback)
                 
                 # 解压
                 progress_text.value = "正在解压更新..."
@@ -3647,14 +3626,14 @@ class SettingsView(ft.Container):
                 if page:
                     page.update()
                 
-                extract_dir = updater.extract_update(download_path)
+                extract_dir = await asyncio.to_thread(updater.extract_update, download_path)
                 
                 # 应用更新
                 progress_text.value = "正在应用更新，应用即将重启..."
                 if page:
                     page.update()
                 
-                time.sleep(1)  # 让用户看到提示
+                await asyncio.sleep(1)  # 让用户看到提示
                 
                 # 定义优雅退出回调
                 def exit_callback():
@@ -3675,7 +3654,7 @@ class SettingsView(ft.Container):
                         raise
                 
                 # 应用更新会退出应用
-                updater.apply_update(extract_dir, exit_callback)
+                await asyncio.to_thread(updater.apply_update, extract_dir, exit_callback)
                 
             except Exception as ex:
                 logger.error(f"自动更新失败: {ex}")
@@ -3694,8 +3673,8 @@ class SettingsView(ft.Container):
                 if page:
                     page.update()
         
-        thread = threading.Thread(target=update_task, daemon=True)
-        thread.start()
+        if page:
+            page.run_task(update_task)
     
     def _open_release_page(self, update_info: UpdateInfo, dialog: ft.AlertDialog) -> None:
         """打开 Release 页面。
@@ -3980,66 +3959,71 @@ class SettingsView(ft.Container):
             dialog.open = True
             page.update()
         
-        # 在后台线程执行迁移
-        def migrate_thread():
+        # 在异步任务中执行迁移
+        async def migrate_task():
+            import asyncio
+            
             def progress_callback(current, total, message):
-                """进度回调"""
-                progress_bar.value = current / total if total > 0 else 0
-                progress_text.value = message
+                """进度回调 - 通过 run_task 安全地更新UI"""
+                async def _update_migrate_progress():
+                    progress_bar.value = current / total if total > 0 else 0
+                    progress_text.value = message
+                    try:
+                        _page = getattr(self, '_saved_page', self._page)
+                        if _page:
+                            _page.update()
+                    except Exception:
+                        pass
                 try:
-                    page = getattr(self, '_saved_page', self._page)
-                    if page:
-                        page.update()
-                except:
+                    _page = getattr(self, '_saved_page', self._page)
+                    if _page:
+                        _page.run_task(_update_migrate_progress)
+                except Exception:
                     pass
             
             # 执行迁移
-            success, message = self.config_service.migrate_data(
+            success, message = await asyncio.to_thread(
+                self.config_service.migrate_data,
                 old_dir, new_dir, progress_callback
             )
             
             # 关闭进度对话框
             dialog.open = False
             try:
-                page = getattr(self, '_saved_page', self._page)
-                if page:
-                    page.update()
-            except:
+                _page = getattr(self, '_saved_page', self._page)
+                if _page:
+                    _page.update()
+            except Exception:
                 pass
             
             if success:
                 # 更新配置
                 if self.config_service.set_data_dir(str(new_dir), is_custom=True):
                     self.data_dir_text.value = str(new_dir)
-                    try:
-                        self.data_dir_text.update()
-                    except:
-                        pass
                     
                     # 更新单选按钮状态
                     default_dir = self.config_service._get_default_data_dir()
                     is_custom_dir = (new_dir != default_dir)
                     self.dir_type_radio.value = "custom" if is_custom_dir else "default"
                     self.browse_button.disabled = not is_custom_dir
-                    try:
-                        self.dir_type_radio.update()
-                        self.browse_button.update()
-                    except:
-                        pass
+                    
+                    _page = getattr(self, '_saved_page', self._page)
+                    if _page:
+                        _page.update()
                     
                     self._show_snackbar(f"✓ {message}", ft.Colors.GREEN)
                     
                     # 询问是否删除旧数据
-                    import time
-                    time.sleep(0.5)  # 稍微延迟一下，让用户看到成功消息
+                    await asyncio.sleep(0.5)  # 稍微延迟一下，让用户看到成功消息
                     self._show_delete_old_data_dialog(old_dir)
                 else:
                     self._show_snackbar("更新配置失败", ft.Colors.RED)
             else:
                 self._show_snackbar(f"✗ {message}", ft.Colors.RED)
         
-        thread = threading.Thread(target=migrate_thread, daemon=True)
-        thread.start()
+        page = getattr(self, '_saved_page', self._page)
+        if page:
+            page.run_task(migrate_task)
     
     def _show_delete_old_data_dialog(self, old_dir: Path) -> None:
         """显示删除旧数据确认对话框。
@@ -4052,8 +4036,9 @@ class SettingsView(ft.Container):
             dialog.open = False
             self._page.update()
             
-            # 在后台线程执行删除
-            def delete_thread():
+            # 在异步任务中执行删除
+            async def delete_task():
+                import asyncio
                 try:
                     import shutil
                     
@@ -4062,20 +4047,22 @@ class SettingsView(ft.Container):
                         return
                     
                     # 删除旧数据目录中的内容，但保留 config.json
-                    deleted_count = 0
-                    for item in old_dir.iterdir():
-                        # 跳过 config.json
-                        if item.name == "config.json":
-                            continue
-                        
-                        try:
-                            if item.is_dir():
-                                shutil.rmtree(item)
-                            else:
-                                item.unlink()
-                            deleted_count += 1
-                        except Exception as e:
-                            logger.error(f"删除 {item.name} 失败: {e}")
+                    def _do_delete():
+                        count = 0
+                        for item in old_dir.iterdir():
+                            if item.name == "config.json":
+                                continue
+                            try:
+                                if item.is_dir():
+                                    shutil.rmtree(item)
+                                else:
+                                    item.unlink()
+                                count += 1
+                            except Exception as e:
+                                logger.error(f"删除 {item.name} 失败: {e}")
+                        return count
+                    
+                    deleted_count = await asyncio.to_thread(_do_delete)
                     
                     if deleted_count > 0:
                         self._show_snackbar(f"已删除 {deleted_count} 项旧数据（保留了 config.json）", ft.Colors.GREEN)
@@ -4084,8 +4071,7 @@ class SettingsView(ft.Container):
                 except Exception as e:
                     self._show_snackbar(f"删除失败: {str(e)}", ft.Colors.RED)
             
-            thread = threading.Thread(target=delete_thread, daemon=True)
-            thread.start()
+            self._page.run_task(delete_task)
         
         def on_keep(e):
             """保留旧数据"""

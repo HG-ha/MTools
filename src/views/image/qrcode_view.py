@@ -414,7 +414,7 @@ class QRCodeGeneratorView(ft.Container):
     def _set_template(self, template: str) -> None:
         """设置快速模板。"""
         self.content_input.value = template
-        self.content_input.update()
+        self._page.update()
     
     async def _on_select_image(self, e: ft.ControlEvent) -> None:
         """选择背景图片。"""
@@ -427,13 +427,13 @@ class QRCodeGeneratorView(ft.Container):
             file_path = Path(result[0].path)
             self.background_image_path = file_path
             self.selected_image_text.value = f"已选择: {file_path.name}"
-            self.selected_image_text.update()
+            self._page.update()
     
     def _on_clear_image(self, e: ft.ControlEvent) -> None:
         """清除背景图片。"""
         self.background_image_path = None
         self.selected_image_text.value = "未选择图片"
-        self.selected_image_text.update()
+        self._page.update()
     
     def _generate_base_qr(self, content: str, version: int, level: str) -> Image.Image:
         """生成基础二维码图像。
@@ -639,7 +639,8 @@ class QRCodeGeneratorView(ft.Container):
         self._page.update()
         
         # 后台生成
-        def generate_task():
+        async def _generate_task():
+            import asyncio
             try:
                 # 准备参数
                 version = int(self.version_slider.value)
@@ -647,48 +648,49 @@ class QRCodeGeneratorView(ft.Container):
                 colorized = self.colorized_checkbox.value
                 contrast = self.contrast_slider.value
                 brightness = self.brightness_slider.value
+                bg_path = self.background_image_path
                 
-                # 生成基础二维码
-                qr_img = self._generate_base_qr(content, version, level)
-                
-                # 如果有背景图片
-                if self.background_image_path:
-                    bg_path = self.background_image_path
+                def _do_work():
+                    # 生成基础二维码
+                    qr_img = self._generate_base_qr(content, version, level)
                     
-                    # 如果是GIF
-                    if bg_path.suffix.lower() == '.gif':
-                        self.qr_image_path = self._generate_gif_qr(
-                            content, version, level, bg_path,
-                            colorized, contrast, brightness
-                        )
+                    # 如果有背景图片
+                    if bg_path:
+                        # 如果是GIF
+                        if bg_path.suffix.lower() == '.gif':
+                            self.qr_image_path = self._generate_gif_qr(
+                                content, version, level, bg_path,
+                                colorized, contrast, brightness
+                            )
+                        else:
+                            # 静态图片
+                            result = self._apply_background(qr_img, bg_path, colorized)
+                            result = self._apply_adjustments(result, contrast, brightness)
+                            
+                            # 保存
+                            temp_dir = Path(tempfile.mkdtemp())
+                            self.qr_image_path = temp_dir / "qrcode.png"
+                            result.save(self.qr_image_path, quality=95)
                     else:
-                        # 静态图片
-                        result = self._apply_background(qr_img, bg_path, colorized)
-                        result = self._apply_adjustments(result, contrast, brightness)
+                        # 纯二维码
+                        result = self._apply_adjustments(qr_img, contrast, brightness)
                         
                         # 保存
                         temp_dir = Path(tempfile.mkdtemp())
                         self.qr_image_path = temp_dir / "qrcode.png"
                         result.save(self.qr_image_path, quality=95)
-                else:
-                    # 纯二维码
-                    result = self._apply_adjustments(qr_img, contrast, brightness)
-                    
-                    # 保存
-                    temp_dir = Path(tempfile.mkdtemp())
-                    self.qr_image_path = temp_dir / "qrcode.png"
-                    result.save(self.qr_image_path, quality=95)
+                
+                await asyncio.to_thread(_do_work)
                 
                 # 更新UI
-                self._page.run_task(self._update_preview)
+                await self._update_preview()
                 
             except Exception as ex:
                 import traceback
                 traceback.print_exc()
-                self._page.run_task(self._show_error, str(ex))
+                await self._show_error(str(ex))
         
-        thread = threading.Thread(target=generate_task, daemon=True)
-        thread.start()
+        self._page.run_task(_generate_task)
     
     async def _update_preview(self) -> None:
         """更新预览（在主线程中调用）。"""
@@ -707,12 +709,10 @@ class QRCodeGeneratorView(ft.Container):
             # 显示预览
             self.preview_image.src = img_base64
             self.preview_image.visible = True
-            self.preview_image.update()
             
             # 显示保存按钮和预览区域
             self.preview_section.visible = True
             self.save_button.visible = True
-            self.preview_section.update()
             
             # 隐藏进度
             self.progress_bar.visible = False

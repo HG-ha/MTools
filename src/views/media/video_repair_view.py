@@ -451,7 +451,7 @@ class VideoRepairView(ft.Container):
                         padding=PADDING_MEDIUM,
                     )
                 )
-        self.file_list_view.update()
+        self._page.update()
 
     def _on_remove_file(self, index: int) -> None:
         """移除文件。"""
@@ -477,7 +477,7 @@ class VideoRepairView(ft.Container):
         folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         if folder_path:
             self.custom_output_dir.value = folder_path
-            self.custom_output_dir.update()
+            self._page.update()
 
     def _on_process(self, e: ft.ControlEvent) -> None:
         """开始修复视频。"""
@@ -492,14 +492,31 @@ class VideoRepairView(ft.Container):
         self.progress_bar.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备修复..."
-        self.progress_container.update()
         self._page.update()
 
-        def process_task():
+        self._page.run_task(lambda: self._process_task(repair_mode, output_mode))
+
+    async def _process_task(self, repair_mode: str, output_mode: str) -> None:
+        import asyncio
+
+        self._task_finished = False
+        self._pending_progress = None
+
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    self.progress_bar.value = bar_val
+                    self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+
+        def _do_work():
             total = len(self.selected_files)
             success_count = 0
             failed_files = []
-            
+
             for i, input_path in enumerate(self.selected_files):
                 try:
                     # 确定输出路径
@@ -511,58 +528,64 @@ class VideoRepairView(ft.Container):
                         output_dir = Path(self.custom_output_dir.value)
                         output_dir.mkdir(parents=True, exist_ok=True)
                         output_path = output_dir / input_path.name
-                    
+
                     # 根据全局设置决定是否添加序号
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
+
                     def progress_handler(progress, speed_str, remaining_time):
                         # 计算总体进度
                         overall_progress = (i + progress) / total
-                        self.progress_bar.value = overall_progress
-                        
-                        # 显示详细信息
                         percent = int(progress * 100)
-                        self.progress_text.value = (
+                        self._pending_progress = (
+                            overall_progress,
                             f"正在修复 ({i+1}/{total}): {input_path.name}\n"
                             f"进度: {percent}% | 速度: {speed_str} | 预计剩余: {remaining_time}"
                         )
-                        self._page.update()
-                    
+
                     # 显示开始处理
-                    self.progress_text.value = f"开始修复 ({i+1}/{total}): {input_path.name}..."
-                    self._page.update()
-                    
+                    self._pending_progress = (
+                        i / total,
+                        f"开始修复 ({i+1}/{total}): {input_path.name}..."
+                    )
+
                     result, message = self.ffmpeg_service.repair_video(
                         input_path, output_path, repair_mode, progress_handler
                     )
-                    
+
                     if result:
                         success_count += 1
                     else:
                         failed_files.append(f"{input_path.name}: {message}")
-                    
+
                 except Exception as e:
                     failed_files.append(f"{input_path.name}: {str(e)}")
 
-            # 完成后显示结果
-            self.progress_bar.visible = False
-            self.progress_container.visible = False
-            
-            if failed_files:
-                self.progress_text.value = (
-                    f"修复完成！成功: {success_count}/{total}\n"
-                    f"失败: {len(failed_files)} 个文件\n"
-                    f"提示: 失败的文件可尝试其他修复模式"
-                )
-                self._show_message(f"部分文件修复失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
-            else:
-                self.progress_text.value = f"修复完成！成功修复 {total} 个文件。"
-                self._show_message("全部修复完成！", ft.Colors.GREEN)
-            
-            self._page.update()
+            return success_count, failed_files, total
 
-        threading.Thread(target=process_task, daemon=True).start()
+        poll = asyncio.create_task(_poll())
+        try:
+            success_count, failed_files, total = await asyncio.to_thread(_do_work)
+        finally:
+            self._task_finished = True
+            await poll
+
+        # 完成后显示结果
+        self.progress_bar.visible = False
+        self.progress_container.visible = False
+
+        if failed_files:
+            self.progress_text.value = (
+                f"修复完成！成功: {success_count}/{total}\n"
+                f"失败: {len(failed_files)} 个文件\n"
+                f"提示: 失败的文件可尝试其他修复模式"
+            )
+            self._show_message(f"部分文件修复失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
+        else:
+            self.progress_text.value = f"修复完成！成功修复 {total} 个文件。"
+            self._show_message("全部修复完成！", ft.Colors.GREEN)
+
+        self._page.update()
 
     def _on_back_click(self, e: Optional[ft.ControlEvent] = None) -> None:
         """返回按钮点击事件。"""

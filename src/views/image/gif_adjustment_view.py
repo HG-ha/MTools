@@ -4,6 +4,7 @@
 提供 GIF 动画调整功能的用户界面。
 """
 
+import asyncio
 import threading
 from pathlib import Path
 from typing import Callable, Optional
@@ -72,7 +73,7 @@ class GifAdjustmentView(ft.Container):
         self.video_duration: float = 0.0  # 实况图视频时长（秒）
         
         # 封面预览防抖定时器
-        self.cover_preview_timer: Optional[threading.Timer] = None
+        self.cover_preview_timer: Optional[asyncio.Task] = None
         self.cover_preview_lock: threading.Lock = threading.Lock()
         self.current_preview_frame: int = -1  # 当前正在预览的帧索引
         self.current_file_id: str = ""  # 当前文件的唯一标识符（防止显示旧文件的帧）
@@ -650,20 +651,17 @@ class GifAdjustmentView(ft.Container):
         try:
             with Image.open(file_path) as img:
                 self.original_loop = int(img.info.get('loop', 0) or 0)
-        except:
+        except Exception:
             self.original_loop = 0
         
         # 更新文件信息
         file_size = format_file_size(file_path.stat().st_size)
         self.file_info_text.value = f"{file_path.name} ({self.frame_count} 帧, {file_size})"
-        self.file_info_text.update()
         
         # 显示预览
         self.gif_preview.src = str(file_path.absolute())
         self.gif_preview.visible = True
         self.preview_placeholder.visible = False
-        self.gif_preview.update()
-        self.preview_placeholder.update()
         
         # 启用控件
         self._enable_controls()
@@ -672,23 +670,17 @@ class GifAdjustmentView(ft.Container):
         self.cover_frame_slider.max = self.frame_count - 1
         self.cover_frame_slider.divisions = self.frame_count - 1
         self.cover_frame_slider.value = 0
-        self.cover_frame_slider.update()
         
         self.trim_start_field.value = "1"
         self.trim_end_field.value = str(self.frame_count)
-        self.trim_start_field.update()
-        self.trim_end_field.update()
         
         self.loop_checkbox.value = (self.original_loop == 0)
         self.loop_count_field.value = str(self.original_loop)
         self.loop_count_field.disabled = self.loop_checkbox.value
-        self.loop_checkbox.update()
-        self.loop_count_field.update()
         
         # 启用处理按钮
         button = self.process_button.content
         button.disabled = False
-        self.process_button.update()
         
         # 重置实况图标记
         self.is_live_photo = False
@@ -698,19 +690,20 @@ class GifAdjustmentView(ft.Container):
         # 显示格式选择（GIF 可导出为 GIF 或视频）
         self._update_format_options(is_live_photo=False)
         
+        # 更新UI
+        self._page.update()
+        
         # 保存当前文件ID用于延迟预览
         saved_file_id = self.current_file_id
         
         # 延迟显示第一帧的预览（确保UI已更新）
-        def delayed_preview():
-            import time
-            time.sleep(0.3)  # 等待300ms，确保清除和UI更新都完成
+        async def delayed_preview():
+            await asyncio.sleep(0.3)
             # 确认还是当前文件（双重检查）
             if self.current_file_id == saved_file_id:
                 self._update_cover_preview(0, saved_file_id)
         
-        thread = threading.Thread(target=delayed_preview, daemon=True)
-        thread.start()
+        self._page.run_task(delayed_preview)
     
     def _load_live_photo_file(self, file_path: Path) -> None:
         """加载实况图文件。
@@ -729,180 +722,162 @@ class GifAdjustmentView(ft.Container):
         # 显示加载提示
         self._show_snackbar("正在检测实况图...", ft.Colors.BLUE)
         
-        # 在后台线程中处理，避免阻塞UI
-        def process():
+        # 异步处理，避免阻塞UI
+        async def _process_live_photo_async():
             try:
-                # 读取文件数据
-                with open(file_path, 'rb') as f:
-                    file_data = f.read()
-                
-                
-                # 检测实况图
-                live_info = self.image_service._detect_live_photo(file_path, file_data)
-                
-                if not live_info:
-                    self._show_snackbar("所选文件不是实况图", ft.Colors.ORANGE)
-                    return
-                
-                # 检查是否有可提取的视频
-                has_video = (live_info.get('has_embedded_video') or 
-                           live_info.get('has_companion_video'))
-                
-                if not has_video:
-                    self._show_snackbar("此实况图不包含视频数据", ft.Colors.ORANGE)
-                    return
-                
-                # 提取视频到临时文件
-                import tempfile
-                temp_dir = Path(tempfile.mkdtemp())
-                temp_video = temp_dir / "live_photo_video.mp4"
-                
-                success, message = self.image_service.extract_live_photo_video(
-                    file_path, temp_video
-                )
-                
-                if not success:
-                    self._show_snackbar(f"提取视频失败: {message}", ft.Colors.RED)
-                    return
-                
-                # 保存临时视频路径，用于封面预览
-                self.temp_video_path = temp_video
-                
-                # 获取视频信息（使用 ffmpeg-python）
-                import ffmpeg
-                
-                try:
-                    # 设置 ffmpeg 环境
-                    self._setup_ffmpeg_env()
+                def _do_io_work():
+                    """在后台线程中执行I/O密集型工作。"""
+                    # 读取文件数据
+                    with open(file_path, 'rb') as f:
+                        file_data = f.read()
                     
-                    # 使用 ffmpeg.probe 获取视频信息
-                    probe = ffmpeg.probe(str(temp_video))
+                    # 检测实况图
+                    live_info = self.image_service._detect_live_photo(file_path, file_data)
                     
-                    # 获取视频流信息
-                    video_stream = None
-                    for stream in probe.get('streams', []):
-                        if stream.get('codec_type') == 'video':
-                            video_stream = stream
-                            break
+                    if not live_info:
+                        return (False, "所选文件不是实况图", ft.Colors.ORANGE)
                     
+                    # 检查是否有可提取的视频
+                    has_video = (live_info.get('has_embedded_video') or 
+                               live_info.get('has_companion_video'))
                     
-                    if video_stream:
-                        # 计算帧数和 FPS
-                        r_frame_rate = video_stream.get('r_frame_rate', '30/1')
-                        duration = float(video_stream.get('duration', 0))
-                        nb_frames = int(video_stream.get('nb_frames', 0))
+                    if not has_video:
+                        return (False, "此实况图不包含视频数据", ft.Colors.ORANGE)
+                    
+                    # 提取视频到临时文件
+                    import tempfile
+                    temp_dir = Path(tempfile.mkdtemp())
+                    temp_video = temp_dir / "live_photo_video.mp4"
+                    
+                    success, message = self.image_service.extract_live_photo_video(
+                        file_path, temp_video
+                    )
+                    
+                    if not success:
+                        return (False, f"提取视频失败: {message}", ft.Colors.RED)
+                    
+                    # 保存临时视频路径，用于封面预览
+                    self.temp_video_path = temp_video
+                    
+                    # 获取视频信息（使用 ffmpeg-python）
+                    import ffmpeg
+                    
+                    try:
+                        # 设置 ffmpeg 环境
+                        self._setup_ffmpeg_env()
                         
-                        # 正确解析帧率（格式如 "30000/1001" 或 "30/1"）
-                        try:
-                            if '/' in r_frame_rate:
-                                num, den = r_frame_rate.split('/')
-                                fps = float(num) / float(den)
-                            else:
-                                fps = float(r_frame_rate)
-                        except:
-                            fps = 30.0
+                        # 使用 ffmpeg.probe 获取视频信息
+                        probe = ffmpeg.probe(str(temp_video))
                         
+                        # 获取视频流信息
+                        video_stream = None
+                        for stream in probe.get('streams', []):
+                            if stream.get('codec_type') == 'video':
+                                video_stream = stream
+                                break
                         
-                        if nb_frames == 0 and duration > 0:
-                            nb_frames = int(duration * fps)
-                        
-                        self.frame_count = max(1, nb_frames)
-                        self.video_duration = duration  # 保存视频时长
-                        
-                        # 估算每帧持续时间（毫秒）
-                        frame_duration = int(1000 / fps) if fps > 0 else 100
-                        frame_duration = max(10, frame_duration)  # 至少 10ms
-                        self.original_durations = [frame_duration] * self.frame_count
-                        
-                    else:
-                        # 默认值
+                        if video_stream:
+                            # 计算帧数和 FPS
+                            r_frame_rate = video_stream.get('r_frame_rate', '30/1')
+                            duration = float(video_stream.get('duration', 0))
+                            nb_frames = int(video_stream.get('nb_frames', 0))
+                            
+                            # 正确解析帧率（格式如 "30000/1001" 或 "30/1"）
+                            try:
+                                if '/' in r_frame_rate:
+                                    num, den = r_frame_rate.split('/')
+                                    fps = float(num) / float(den)
+                                else:
+                                    fps = float(r_frame_rate)
+                            except Exception:
+                                fps = 30.0
+                            
+                            if nb_frames == 0 and duration > 0:
+                                nb_frames = int(duration * fps)
+                            
+                            self.frame_count = max(1, nb_frames)
+                            self.video_duration = duration  # 保存视频时长
+                            
+                            # 估算每帧持续时间（毫秒）
+                            frame_duration = int(1000 / fps) if fps > 0 else 100
+                            frame_duration = max(10, frame_duration)  # 至少 10ms
+                            self.original_durations = [frame_duration] * self.frame_count
+                            
+                        else:
+                            # 默认值
+                            self.frame_count = 30
+                            self.original_durations = [100] * self.frame_count
+                            
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        # 使用默认值
                         self.frame_count = 30
                         self.original_durations = [100] * self.frame_count
-                        
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    # 使用默认值
-                    self.frame_count = 30
-                    self.original_durations = [100] * self.frame_count
+                    
+                    # 保存实况图信息
+                    self.selected_file = file_path
+                    self.is_live_photo = True
+                    self.live_photo_info = live_info
+                    self.original_loop = 0  # 实况图默认不循环
+                    
+                    return (True, live_info)
                 
-                # 保存实况图信息
-                self.selected_file = file_path
-                self.is_live_photo = True
-                self.live_photo_info = live_info
-                self.original_loop = 0  # 实况图默认不循环
+                result = await asyncio.to_thread(_do_io_work)
                 
+                if not result[0]:
+                    self._show_snackbar(result[1], result[2])
+                    return
                 
-                # 更新UI（在主线程）
-                async def update_ui():
-                    # 更新文件信息
-                    file_size = format_file_size(file_path.stat().st_size)
-                    live_type = live_info.get('type', '实况图')
-                    self.file_info_text.value = f"{file_path.name} ({live_type}, {self.frame_count} 帧, {file_size})"
-                    self.file_info_text.update()
-                    
-                    # 显示预览（显示原图）
-                    self.gif_preview.src = str(file_path.absolute())
-                    self.gif_preview.visible = True
-                    self.preview_placeholder.visible = False
-                    self.gif_preview.update()
-                    self.preview_placeholder.update()
-                    
-                    # 启用控件
-                    self._enable_controls()
-                    
-                    # 初始化控件值
-                    self.cover_frame_slider.max = self.frame_count - 1
-                    self.cover_frame_slider.divisions = self.frame_count - 1
-                    self.cover_frame_slider.value = 0
-                    self.cover_frame_slider.update()
-                    
-                    self.trim_start_field.value = "1"
-                    self.trim_end_field.value = str(self.frame_count)
-                    self.trim_start_field.update()
-                    self.trim_end_field.update()
-                    
-                    self.loop_checkbox.value = True  # 默认无限循环
-                    self.loop_count_field.value = "0"
-                    self.loop_count_field.disabled = True
-                    self.loop_checkbox.update()
-                    self.loop_count_field.update()
-                    
-                    # 启用处理按钮
-                    button = self.process_button.content
-                    button.disabled = False
-                    self.process_button.update()
-                    
-                    # 显示格式选择（实况图可导出为实况图、GIF 或视频）
-                    self._update_format_options(is_live_photo=True)
-                    
-                    self._show_snackbar("✓ 实况图加载成功", ft.Colors.GREEN)
+                live_info = result[1]
                 
-                self._page.run_task(update_ui)
+                # 更新UI（在事件循环中）
+                file_size = format_file_size(file_path.stat().st_size)
+                live_type = live_info.get('type', '实况图')
+                self.file_info_text.value = f"{file_path.name} ({live_type}, {self.frame_count} 帧, {file_size})"
                 
-                # 保存当前文件ID用于延迟预览
+                # 显示预览（显示原图）
+                self.gif_preview.src = str(file_path.absolute())
+                self.gif_preview.visible = True
+                self.preview_placeholder.visible = False
+                
+                # 启用控件
+                self._enable_controls()
+                
+                # 初始化控件值
+                self.cover_frame_slider.max = self.frame_count - 1
+                self.cover_frame_slider.divisions = self.frame_count - 1
+                self.cover_frame_slider.value = 0
+                
+                self.trim_start_field.value = "1"
+                self.trim_end_field.value = str(self.frame_count)
+                
+                self.loop_checkbox.value = True  # 默认无限循环
+                self.loop_count_field.value = "0"
+                self.loop_count_field.disabled = True
+                
+                # 启用处理按钮
+                button = self.process_button.content
+                button.disabled = False
+                
+                # 显示格式选择（实况图可导出为实况图、GIF 或视频）
+                self._update_format_options(is_live_photo=True)
+                self._page.update()
+                
+                self._show_snackbar("✓ 实况图加载成功", ft.Colors.GREEN)
+                
+                # 延迟显示第一帧的预览
                 saved_file_id = self.current_file_id
-                
-                # 在UI更新后，延迟显示第一帧的预览
-                def delayed_preview():
-                    import time
-                    time.sleep(0.3)  # 等待300ms，确保UI更新完成
-                    # 检查当前文件ID用于检查
-                    current_id = self.current_file_id
-                    if current_id == saved_file_id:  # 确保还是当前文件
-                        self._update_cover_preview(0, saved_file_id)
-                
-                preview_thread = threading.Thread(target=delayed_preview, daemon=True)
-                preview_thread.start()
+                await asyncio.sleep(0.3)
+                if self.current_file_id == saved_file_id:
+                    self._update_cover_preview(0, saved_file_id)
                 
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 self._show_snackbar(f"加载失败: {str(e)}", ft.Colors.RED)
         
-        # 在后台线程运行
-        thread = threading.Thread(target=process, daemon=True)
-        thread.start()
+        self._page.run_task(_process_live_photo_async)
     
     def _enable_controls(self) -> None:
         """启用所有控件。"""
@@ -914,15 +889,6 @@ class GifAdjustmentView(ft.Container):
         self.trim_end_field.disabled = False
         self.drop_frame_slider.disabled = False
         self.reverse_checkbox.disabled = False
-        
-        self.cover_frame_slider.update()
-        self.speed_slider.update()
-        self.loop_checkbox.update()
-        self.loop_count_field.update()
-        self.trim_start_field.update()
-        self.trim_end_field.update()
-        self.drop_frame_slider.update()
-        self.reverse_checkbox.update()
     
     def _setup_ffmpeg_env(self) -> None:
         """设置 ffmpeg 环境变量，使 ffmpeg-python 可以找到我们的 ffmpeg。"""
@@ -969,9 +935,7 @@ class GifAdjustmentView(ft.Container):
         self.format_divider.visible = True
         
         # 更新UI
-        self.output_format_radio.update()
-        self.output_format_container.update()
-        self.format_divider.update()
+        self._page.update()
     
     def _on_cover_frame_change(self, e: ft.ControlEvent) -> None:
         """首帧滑块变化事件。
@@ -981,7 +945,7 @@ class GifAdjustmentView(ft.Container):
         """
         frame_index = int(self.cover_frame_slider.value)
         self.cover_frame_text.value = f"首帧: 第 {frame_index + 1} 帧"
-        self.cover_frame_text.update()
+        self._page.update()
         
         # 使用防抖机制更新封面预览（等待用户停止拖动）
         self._debounced_update_cover_preview(frame_index)
@@ -995,7 +959,7 @@ class GifAdjustmentView(ft.Container):
         speed = self.speed_slider.value
         speed_desc = "原速" if abs(speed - 1.0) < 0.01 else ("加速" if speed > 1.0 else "减速")
         self.speed_text.value = f"播放速度: {speed:.2f}x ({speed_desc})"
-        self.speed_text.update()
+        self._page.update()
     
     def _on_loop_checkbox_change(self, e: ft.ControlEvent) -> None:
         """循环复选框变化事件。
@@ -1007,7 +971,7 @@ class GifAdjustmentView(ft.Container):
         self.loop_count_field.disabled = is_infinite
         if is_infinite:
             self.loop_count_field.value = "0"
-        self.loop_count_field.update()
+        self._page.update()
     
     def _on_loop_count_change(self, e: ft.ControlEvent) -> None:
         """循环次数输入框变化事件。
@@ -1019,10 +983,10 @@ class GifAdjustmentView(ft.Container):
             count = int(self.loop_count_field.value)
             if count < 0:
                 self.loop_count_field.value = "0"
-                self.loop_count_field.update()
+                self._page.update()
         except ValueError:
             self.loop_count_field.value = "0"
-            self.loop_count_field.update()
+            self._page.update()
     
     def _on_drop_frame_change(self, e: ft.ControlEvent) -> None:
         """跳帧滑块变化事件。
@@ -1036,7 +1000,7 @@ class GifAdjustmentView(ft.Container):
         else:
             estimated_frames = self.frame_count // step
             self.drop_frame_text.value = f"每 {step} 帧保留 1 帧 (约 {estimated_frames} 帧)"
-        self.drop_frame_text.update()
+        self._page.update()
     
     def _on_output_format_change(self, e: ft.ControlEvent) -> None:
         """输出格式改变事件。
@@ -1056,8 +1020,7 @@ class GifAdjustmentView(ft.Container):
         is_custom = self.output_mode_radio.value == "custom"
         self.custom_output_field.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
-        self.custom_output_field.update()
-        self.browse_output_button.update()
+        self._page.update()
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
         """浏览输出路径按钮点击事件。
@@ -1091,7 +1054,7 @@ class GifAdjustmentView(ft.Container):
         
         if result:
             self.custom_output_field.value = result
-            self.custom_output_field.update()
+            self._page.update()
     
     def _on_process(self, e: ft.ControlEvent) -> None:
         """开始处理按钮点击事件。
@@ -1164,37 +1127,35 @@ class GifAdjustmentView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        # 在后台线程处理
-        def process_task():
-            if self.is_live_photo:
-                # 处理实况图
-                if output_format == "live_photo":
-                    # 实况图 -> 实况图
-                    success, message = self._process_live_photo_to_live_photo(output_path, options)
-                elif output_format == "video":
-                    # 实况图 -> 视频
-                    success, message = self._process_live_photo_to_video(output_path, options)
-                else:  # gif
-                    # 实况图 -> GIF
-                    success, message = self._process_live_photo_to_gif(output_path, options)
-            else:
-                # 处理 GIF
-                if output_format == "video":
-                    # GIF -> 视频
-                    success, message = self._process_gif_to_video(output_path, options)
-                else:  # gif
-                    # GIF -> GIF
-                    success, message = self.image_service.adjust_gif(
-                        self.selected_file,
-                        output_path,
-                        options
-                    )
+        # 异步处理
+        async def process_task_async():
+            def _do_process():
+                if self.is_live_photo:
+                    # 处理实况图
+                    if output_format == "live_photo":
+                        return self._process_live_photo_to_live_photo(output_path, options)
+                    elif output_format == "video":
+                        return self._process_live_photo_to_video(output_path, options)
+                    else:  # gif
+                        return self._process_live_photo_to_gif(output_path, options)
+                else:
+                    # 处理 GIF
+                    if output_format == "video":
+                        return self._process_gif_to_video(output_path, options)
+                    else:  # gif
+                        return self.image_service.adjust_gif(
+                            self.selected_file,
+                            output_path,
+                            options
+                        )
+            
+            success, message = await asyncio.to_thread(_do_process)
             self._on_process_complete(success, message, output_path)
         
-        threading.Thread(target=process_task, daemon=True).start()
+        self._page.run_task(process_task_async)
     
     def _process_live_photo_to_gif(self, output_path: Path, options: GifAdjustmentOptions) -> tuple[bool, str]:
         """处理实况图并导出为 GIF。
@@ -1325,7 +1286,7 @@ class GifAdjustmentView(ft.Container):
                 # 清理临时目录
                 try:
                     shutil.rmtree(temp_dir)
-                except:
+                except Exception:
                     pass
         
         except Exception as e:
@@ -1422,7 +1383,7 @@ class GifAdjustmentView(ft.Container):
                 # 清理临时目录
                 try:
                     shutil.rmtree(temp_dir)
-                except:
+                except Exception:
                     pass
         
         except Exception as e:
@@ -1483,7 +1444,7 @@ class GifAdjustmentView(ft.Container):
                         
                         if not temp_cover.exists():
                             raise Exception("提取封面帧失败")
-                    except:
+                    except Exception:
                         # 使用原图作为封面
                         with Image.open(self.selected_file) as img:
                             if img.mode != 'RGB':
@@ -1524,7 +1485,7 @@ class GifAdjustmentView(ft.Container):
                 # 清理临时目录
                 try:
                     shutil.rmtree(temp_dir)
-                except:
+                except Exception:
                     pass
         
         except Exception as e:
@@ -1610,7 +1571,7 @@ class GifAdjustmentView(ft.Container):
                 # 清理临时目录
                 try:
                     shutil.rmtree(temp_dir)
-                except:
+                except Exception:
                     pass
         
         except Exception as e:
@@ -1636,7 +1597,7 @@ class GifAdjustmentView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
         if success:
@@ -1660,7 +1621,7 @@ class GifAdjustmentView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _show_ffmpeg_install_view(self) -> None:
@@ -1686,7 +1647,7 @@ class GifAdjustmentView(ft.Container):
         self.parent_container.content = self.ffmpeg_install_view
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_ffmpeg_installed(self) -> None:
@@ -1697,7 +1658,7 @@ class GifAdjustmentView(ft.Container):
             self.parent_container.content = self
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
         
         # 如果有待处理的文件，自动加载
@@ -1705,20 +1666,17 @@ class GifAdjustmentView(ft.Container):
             file_to_load = self.pending_file
             self.pending_file = None  # 清除待处理文件
             
-            
-            # 使用 Timer 延迟加载，让界面先更新
-            def delayed_load():
+            # 使用异步延迟加载，让界面先更新
+            async def delayed_load():
                 try:
+                    await asyncio.sleep(0.5)
                     self._load_live_photo_file(file_to_load)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
                     self._show_snackbar(f"自动加载失败: {str(e)}", ft.Colors.RED)
             
-            import threading
-            timer = threading.Timer(0.5, delayed_load)
-            timer.daemon = True
-            timer.start()
+            self._page.run_task(delayed_load)
     
     def _on_ffmpeg_installed_rebuild(self) -> None:
         """FFmpeg 安装完成后重建界面。"""
@@ -1761,7 +1719,7 @@ class GifAdjustmentView(ft.Container):
     def _clear_preview_tasks(self) -> None:
         """清除所有预览相关的任务。"""
         with self.cover_preview_lock:
-            # 取消定时器
+            # 取消定时器/异步任务
             if self.cover_preview_timer is not None:
                 self.cover_preview_timer.cancel()
                 self.cover_preview_timer = None
@@ -1776,22 +1734,20 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.src = ""  # 清空图片源
                     self.cover_preview_image.visible = False
                     self.cover_preview_placeholder.visible = True
-                    self.cover_preview_image.update()
-                    self.cover_preview_placeholder.update()
+                    self._page.update()
                 except Exception as e:
                     logger.error(f"[_clear_preview_tasks] 清除UI失败: {e}")
             
             try:
                 self._page.run_task(clear_preview_ui)
-            except:
+            except Exception:
                 # 如果异步失败，尝试同步更新
                 try:
                     self.cover_preview_image.src = ""
                     self.cover_preview_image.visible = False
                     self.cover_preview_placeholder.visible = True
-                    self.cover_preview_image.update()
-                    self.cover_preview_placeholder.update()
-                except:
+                    self._page.update()
+                except Exception:
                     pass
     
     def _debounced_update_cover_preview(self, frame_index: int) -> None:
@@ -1801,21 +1757,19 @@ class GifAdjustmentView(ft.Container):
             frame_index: 帧索引
         """
         with self.cover_preview_lock:
-            # 取消之前的定时器
+            # 取消之前的异步任务
             if self.cover_preview_timer is not None:
                 self.cover_preview_timer.cancel()
             
-            # 保存当前文件ID，传递给定时器
+            # 保存当前文件ID
             current_file_id = self.current_file_id
             
-            # 设置新的定时器，300ms 后执行
-            self.cover_preview_timer = threading.Timer(
-                0.3,  # 300ms 延迟
-                self._update_cover_preview,
-                args=(frame_index, current_file_id)
-            )
-            self.cover_preview_timer.daemon = True
-            self.cover_preview_timer.start()
+            # 设置新的异步延迟任务，300ms 后执行
+            async def _delayed_preview():
+                await asyncio.sleep(0.3)
+                self._update_cover_preview(frame_index, current_file_id)
+            
+            self.cover_preview_timer = self._page.run_task(_delayed_preview)
     
     def _update_cover_preview(self, frame_index: int, file_id: str = "") -> None:
         """更新封面预览图。
@@ -1837,12 +1791,9 @@ class GifAdjustmentView(ft.Container):
         
         self.current_preview_frame = frame_index
         
-        # 在后台线程中提取帧
-        def extract_frame():
+        # 异步提取帧
+        async def extract_frame_async():
             try:
-                import tempfile
-                from PIL import Image
-                
                 # 再次检查文件ID
                 if file_id and file_id != self.current_file_id:
                     return
@@ -1853,17 +1804,16 @@ class GifAdjustmentView(ft.Container):
                 
                 if self.is_live_photo and self.temp_video_path:
                     # 对于实况图，从视频中提取帧
-                    self._extract_frame_from_video(frame_index, file_id)
+                    await asyncio.to_thread(self._extract_frame_from_video, frame_index, file_id)
                 else:
                     # 对于 GIF，从 GIF 中提取帧
-                    self._extract_frame_from_gif(frame_index, file_id)
+                    await asyncio.to_thread(self._extract_frame_from_gif, frame_index, file_id)
                     
             except Exception as e:
                 import traceback
                 traceback.print_exc()
         
-        thread = threading.Thread(target=extract_frame, daemon=True)
-        thread.start()
+        self._page.run_task(extract_frame_async)
     
     def _extract_frame_from_gif(self, frame_index: int, file_id: str = "") -> None:
         """从 GIF 中提取指定帧。
@@ -1918,8 +1868,7 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.src = str(temp_file.absolute())
                     self.cover_preview_image.visible = True
                     self.cover_preview_placeholder.visible = False
-                    self.cover_preview_image.update()
-                    self.cover_preview_placeholder.update()
+                    self._page.update()
                 
                 self._page.run_task(update_preview)
                 
@@ -1995,8 +1944,7 @@ class GifAdjustmentView(ft.Container):
                     self.cover_preview_image.src = str(temp_file.absolute())
                     self.cover_preview_image.visible = True
                     self.cover_preview_placeholder.visible = False
-                    self.cover_preview_image.update()
-                    self.cover_preview_placeholder.update()
+                    self._page.update()
                 
                 self._page.run_task(update_preview)
                 

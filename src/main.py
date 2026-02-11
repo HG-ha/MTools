@@ -117,8 +117,12 @@ def main(page: ft.Page) -> None:
     # 设置路由变更处理器（仅用于管理内容切换逻辑）
     def route_change(e):
         """处理路由变更事件。"""
-        # 让主视图处理路由变更
-        main_view.handle_route_change(page.route)
+        if main_view._is_closing:
+            return
+        try:
+            main_view.handle_route_change(page.route)
+        except RuntimeError:
+            pass  # Session closed
     
     page.on_route_change = route_change
     

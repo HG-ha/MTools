@@ -491,24 +491,22 @@ class ImageView(ft.Container):
         if not view_attr:
             return
         
-        def delayed_import():
-            """延迟导入，等待视图创建完成（某些视图使用 Timer 延迟创建）"""
-            import time
+        async def delayed_import():
+            """延迟导入，等待视图创建完成（某些视图使用异步延迟创建）"""
+            import asyncio
             max_wait = 1.0  # 最多等待1秒
             wait_interval = 0.05  # 每50ms检查一次
-            waited = 0
+            waited = 0.0
             
             while waited < max_wait:
                 view = getattr(self, view_attr, None)
                 if view and hasattr(view, 'add_files'):
                     view.add_files(pending_files)
                     return
-                time.sleep(wait_interval)
+                await asyncio.sleep(wait_interval)
                 waited += wait_interval
         
-        # 在后台线程中执行延迟导入
-        import threading
-        threading.Thread(target=delayed_import, daemon=True).start()
+        self._saved_page.run_task(delayed_import)
     
     def _on_scroll(self, e: ft.OnScrollEvent) -> None:
         """跟踪滚动位置。"""
@@ -635,10 +633,10 @@ class ImageView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        # 使用定时器延迟切换，让点击动画先完成（Material Design 涟漪动画约150-200ms）
-        import threading
-        
-        def delayed_create_and_switch():
+        # 使用异步延迟切换，让点击动画先完成（Material Design 涟漪动画约150-200ms）
+        async def delayed_create_and_switch():
+            import asyncio
+            await asyncio.sleep(0.2)
             # 创建背景移除视图（如果还没创建）
             if not self.background_view:
                 self.background_view = ImageBackgroundView(
@@ -656,10 +654,7 @@ class ImageView(ft.Container):
             self.parent_container.content = self.background_view
             self._safe_page_update()
         
-        # 使用定时器延迟执行，让点击动画先播放完
-        timer = threading.Timer(0.2, delayed_create_and_switch)
-        timer.daemon = True
-        timer.start()
+        self._saved_page.run_task(delayed_create_and_switch)
     
     def _open_enhance_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图像增强工具界面。
@@ -674,9 +669,9 @@ class ImageView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        import threading
-        
-        def delayed_create_and_switch():
+        async def delayed_create_and_switch():
+            import asyncio
+            await asyncio.sleep(0.2)
             # 创建图像增强视图（如果还没创建）
             if not self.enhance_view:
                 self.enhance_view = ImageEnhanceView(
@@ -694,9 +689,7 @@ class ImageView(ft.Container):
             self.parent_container.content = self.enhance_view
             self._safe_page_update()
         
-        timer = threading.Timer(0.2, delayed_create_and_switch)
-        timer.daemon = True
-        timer.start()
+        self._saved_page.run_task(delayed_create_and_switch)
     
     def _open_split_dialog(self, e: ft.ControlEvent) -> None:
         """切换到九宫格切分工具界面。

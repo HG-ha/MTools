@@ -568,14 +568,32 @@ class AudioSpeedView(ft.Container):
         self.progress_bar.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备处理..."
-        self.progress_container.update()
         self._page.update()
 
-        def process_task():
+        self._page.run_task(lambda: self._process_task(speed, output_mode, output_format))
+
+    async def _process_task(self, speed, output_mode, output_format) -> None:
+        """异步处理音频任务。"""
+        import asyncio
+
+        self._task_finished = False
+        self._pending_progress = None
+
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    self.progress_bar.value = bar_val
+                    self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+
+        def _do_work():
             total = len(self.selected_files)
             success_count = 0
             failed_files = []
-            
+
             for i, input_path in enumerate(self.selected_files):
                 try:
                     # 确定输出路径
@@ -594,57 +612,63 @@ class AudioSpeedView(ft.Container):
                             output_path = output_dir / input_path.name
                         else:
                             output_path = output_dir / f"{input_path.stem}.{output_format}"
-                    
+
                     # 根据全局设置决定是否添加序号
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
+
                     def progress_handler(progress, speed_str, remaining_time):
                         # 计算总体进度
                         overall_progress = (i + progress) / total
-                        self.progress_bar.value = overall_progress
-                        
-                        # 显示详细信息
                         percent = int(progress * 100)
-                        self.progress_text.value = (
+                        self._pending_progress = (
+                            overall_progress,
                             f"正在处理 ({i+1}/{total}): {input_path.name}\n"
                             f"进度: {percent}% | 速度: {speed_str} | 预计剩余: {remaining_time}"
                         )
-                        self._page.update()
-                    
+
                     # 显示开始处理
-                    self.progress_text.value = f"开始处理 ({i+1}/{total}): {input_path.name}..."
-                    self._page.update()
-                    
+                    self._pending_progress = (
+                        i / total,
+                        f"开始处理 ({i+1}/{total}): {input_path.name}..."
+                    )
+
                     result, message = self.ffmpeg_service.adjust_audio_speed(
                         input_path, output_path, speed, progress_handler
                     )
-                    
+
                     if result:
                         success_count += 1
                     else:
                         failed_files.append(f"{input_path.name}: {message}")
-                    
+
                 except Exception as e:
                     failed_files.append(f"{input_path.name}: {str(e)}")
 
-            # 完成后显示结果
-            self.progress_bar.visible = False
-            self.progress_container.visible = False
-            
-            if failed_files:
-                self.progress_text.value = (
-                    f"处理完成！成功: {success_count}/{total}\n"
-                    f"失败: {len(failed_files)} 个文件"
-                )
-                self._show_message(f"部分文件处理失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
-            else:
-                self.progress_text.value = f"处理完成！成功处理 {total} 个文件。"
-                self._show_message("全部处理完成！", ft.Colors.GREEN)
-            
-            self._page.update()
+            return success_count, failed_files, total
 
-        threading.Thread(target=process_task, daemon=True).start()
+        poll = asyncio.create_task(_poll())
+        try:
+            success_count, failed_files, total = await asyncio.to_thread(_do_work)
+        finally:
+            self._task_finished = True
+            await poll
+
+        # 完成后显示结果
+        self.progress_bar.visible = False
+        self.progress_container.visible = False
+
+        if failed_files:
+            self.progress_text.value = (
+                f"处理完成！成功: {success_count}/{total}\n"
+                f"失败: {len(failed_files)} 个文件"
+            )
+            self._show_message(f"部分文件处理失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
+        else:
+            self.progress_text.value = f"处理完成！成功处理 {total} 个文件。"
+            self._show_message("全部处理完成！", ft.Colors.GREEN)
+
+        self._page.update()
 
     def _on_back_click(self, e: Optional[ft.ControlEvent] = None) -> None:
         """返回按钮点击事件。"""

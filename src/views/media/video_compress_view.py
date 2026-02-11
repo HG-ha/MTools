@@ -834,7 +834,7 @@ class VideoCompressView(ft.Container):
                         padding=PADDING_MEDIUM,
                     )
                 )
-        self.file_list_view.update()
+        self._page.update()
 
     def _on_acodec_change(self, e: ft.ControlEvent) -> None:
         """音频编码器改变事件。"""
@@ -891,7 +891,7 @@ class VideoCompressView(ft.Container):
     def _on_crf_change(self, e: ft.ControlEvent) -> None:
         crf = int(e.control.value)
         self.crf_text.value = f"质量 (CRF): {crf} (数值越小，质量越好)"
-        self.crf_text.update()
+        self._page.update()
 
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         mode = e.control.value
@@ -904,7 +904,7 @@ class VideoCompressView(ft.Container):
         result = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         if result:
             self.custom_output_dir.value = result
-            self.custom_output_dir.update()
+            self._page.update()
 
     def _on_compress(self, e: ft.ControlEvent) -> None:
         if not self.selected_files:
@@ -915,8 +915,12 @@ class VideoCompressView(ft.Container):
         self.progress_bar.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备压缩..."
-        self.progress_container.update()
         self._page.update()
+
+        self._page.run_task(self._compress_task)
+
+    async def _compress_task(self) -> None:
+        import asyncio
 
         compression_params = {
             "mode": self.mode_radio.value,
@@ -941,11 +945,24 @@ class VideoCompressView(ft.Container):
         }
         output_mode = self.output_mode_radio.value
 
-        def compress_task():
+        self._task_finished = False
+        self._pending_progress = None
+
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    self.progress_bar.value = bar_val
+                    self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+
+        def _do_work():
             total = len(self.selected_files)
             success_count = 0
             failed_files = []
-            
+
             for i, input_path in enumerate(self.selected_files):
                 try:
                     # 确定输出格式
@@ -964,57 +981,63 @@ class VideoCompressView(ft.Container):
                             output_path = output_dir / input_path.name
                         else:
                             output_path = output_dir / f"{input_path.stem}.{output_format}"
-                    
+
                     # 根据全局设置决定是否添加序号
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
+
                     def progress_handler(progress, speed, remaining_time):
                         # 计算总体进度
                         overall_progress = (i + progress) / total
-                        self.progress_bar.value = overall_progress
-                        
-                        # 显示详细信息
                         percent = int(progress * 100)
-                        self.progress_text.value = (
+                        self._pending_progress = (
+                            overall_progress,
                             f"正在处理 ({i+1}/{total}): {input_path.name}\n"
                             f"进度: {percent}% | 速度: {speed} | 预计剩余: {remaining_time}"
                         )
-                        self._page.update()
-                    
+
                     # 显示开始处理
-                    self.progress_text.value = f"开始处理 ({i+1}/{total}): {input_path.name}..."
-                    self._page.update()
-                    
+                    self._pending_progress = (
+                        i / total,
+                        f"开始处理 ({i+1}/{total}): {input_path.name}..."
+                    )
+
                     result, message = self.ffmpeg_service.compress_video(
                         input_path, output_path, compression_params, progress_handler
                     )
-                    
+
                     if result:
                         success_count += 1
                     else:
                         failed_files.append(f"{input_path.name}: {message}")
-                    
+
                 except Exception as e:
                     failed_files.append(f"{input_path.name}: {str(e)}")
 
-            # 完成后显示结果
-            self.progress_bar.visible = False
-            self.progress_container.visible = False
-            
-            if failed_files:
-                self.progress_text.value = (
-                    f"压缩完成！成功: {success_count}/{total}\n"
-                    f"失败: {len(failed_files)} 个文件"
-                )
-                self._show_message(f"部分文件压缩失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
-            else:
-                self.progress_text.value = f"压缩完成！成功处理 {total} 个文件。"
-                self._show_message("全部压缩完成！", ft.Colors.GREEN)
-            
-            self._page.update()
+            return success_count, failed_files, total
 
-        threading.Thread(target=compress_task, daemon=True).start()
+        poll = asyncio.create_task(_poll())
+        try:
+            success_count, failed_files, total = await asyncio.to_thread(_do_work)
+        finally:
+            self._task_finished = True
+            await poll
+
+        # 完成后显示结果
+        self.progress_bar.visible = False
+        self.progress_container.visible = False
+
+        if failed_files:
+            self.progress_text.value = (
+                f"压缩完成！成功: {success_count}/{total}\n"
+                f"失败: {len(failed_files)} 个文件"
+            )
+            self._show_message(f"部分文件压缩失败 ({len(failed_files)}个)", ft.Colors.ORANGE)
+        else:
+            self.progress_text.value = f"压缩完成！成功处理 {total} 个文件。"
+            self._show_message("全部压缩完成！", ft.Colors.GREEN)
+
+        self._page.update()
 
     def _on_back_click(self, e: Optional[ft.ControlEvent] = None) -> None:
         """返回按钮点击事件。

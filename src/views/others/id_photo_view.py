@@ -5,7 +5,6 @@
 """
 
 import gc
-import threading
 import uuid
 from pathlib import Path
 from typing import Optional, List, Callable, Tuple, TYPE_CHECKING, Dict
@@ -559,6 +558,9 @@ class IDPhotoView(ft.Container):
         
         # 初始化文件列表
         self._update_file_list()
+        
+        # 延迟检查模型状态，避免阻塞界面初始化
+        self._page.run_task(self._check_model_status_async)
     
     # ==================== 文件操作 ====================
     
@@ -639,7 +641,7 @@ class IDPhotoView(ft.Container):
                 try:
                     file_size = file_path.stat().st_size
                     size_str = format_file_size(file_size)
-                except:
+                except Exception:
                     size_str = "未知"
                 
                 # 检查是否已处理
@@ -720,8 +722,8 @@ class IDPhotoView(ft.Container):
                 )
         
         try:
-            self.file_list_view.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _on_preview_result(self, file_path: Path) -> None:
@@ -810,9 +812,10 @@ class IDPhotoView(ft.Container):
     
     # ==================== 模型管理 ====================
     
-    def _check_model_status_async(self) -> None:
-        import time
-        time.sleep(0.05)
+    async def _check_model_status_async(self) -> None:
+        """异步检查模型状态，避免阻塞界面初始化。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         self._check_model_status()
     
     def _check_model_status(self) -> None:
@@ -932,55 +935,80 @@ class IDPhotoView(ft.Container):
         self.model_download_text.visible = True
         self.model_download_progress.visible = True
         self.model_download_progress.value = 0
-        self._safe_update()
+        self._page.update()
         
-        def download_task():
-            try:
-                import httpx
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                with httpx.stream("GET", model_info.url, follow_redirects=True, timeout=120.0) as response:
-                    response.raise_for_status()
-                    total_size = int(response.headers.get('content-length', 0))
-                    downloaded = 0
-                    
-                    with open(model_path, 'wb') as f:
-                        for chunk in response.iter_bytes(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if total_size > 0:
-                                    self.model_download_progress.value = downloaded / total_size
-                                    self.model_download_text.value = f"下载中: {downloaded / 1024 / 1024:.1f} / {total_size / 1024 / 1024:.1f} MB"
-                                    self._safe_update()
-                
-                self.model_download_progress.visible = False
-                self.model_download_text.visible = False
-                self.is_model_loading = False
-                self._show_snackbar(f"{model_info.display_name} 下载完成", ft.Colors.GREEN)
-                
-                # 如果启用自动加载，直接加载模型
-                if self.auto_load_checkbox.value:
-                    self._load_model_after_download(model_type)
-                else:
-                    self._check_model_status()
-                
-            except Exception as e:
-                self.model_download_progress.visible = False
-                self.model_download_text.visible = False
-                self.is_model_loading = False
-                self._show_snackbar(f"下载失败: {e}", ft.Colors.RED)
-                self._check_model_status()
-        
-        threading.Thread(target=download_task, daemon=True).start()
+        self._page.run_task(self._download_model_async, model_type, model_info, model_path)
     
-    def _load_model_after_download(self, model_type: str) -> None:
-        """下载完成后直接加载模型（在下载线程中调用）。"""
-        self.model_download_text.value = "正在加载模型..."
-        self.model_download_text.visible = True
-        self._safe_update()
+    async def _download_model_async(self, model_type: str, model_info, model_path: Path) -> None:
+        """异步下载模型，使用轮询更新进度。"""
+        import asyncio
+        
+        self._download_finished = False
+        self._pending_progress = None
+        
+        async def _poll_progress():
+            while not self._download_finished:
+                if self._pending_progress is not None:
+                    progress_val, progress_text = self._pending_progress
+                    self.model_download_progress.value = progress_val
+                    self.model_download_text.value = progress_text
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+        
+        def _do_download():
+            import httpx
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with httpx.stream("GET", model_info.url, follow_redirects=True, timeout=120.0) as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(model_path, 'wb') as f:
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                self._pending_progress = (
+                                    downloaded / total_size,
+                                    f"下载中: {downloaded / 1024 / 1024:.1f} / {total_size / 1024 / 1024:.1f} MB",
+                                )
         
         try:
+            poll = asyncio.create_task(_poll_progress())
+            await asyncio.to_thread(_do_download)
+            self._download_finished = True
+            await poll
+            
+            self.model_download_progress.visible = False
+            self.model_download_text.visible = False
+            self.is_model_loading = False
+            self._show_snackbar(f"{model_info.display_name} 下载完成", ft.Colors.GREEN)
+            
+            # 如果启用自动加载，直接加载模型
+            if self.auto_load_checkbox.value:
+                await self._load_model_after_download_async(model_type)
+            else:
+                self._check_model_status()
+        except Exception as e:
+            self._download_finished = True
+            self.model_download_progress.visible = False
+            self.model_download_text.visible = False
+            self.is_model_loading = False
+            self._show_snackbar(f"下载失败: {e}", ft.Colors.RED)
+            self._check_model_status()
+    
+    async def _load_model_after_download_async(self, model_type: str) -> None:
+        """下载完成后直接加载模型（在事件循环中调用）。"""
+        import asyncio
+        
+        self.model_download_text.value = "正在加载模型..."
+        self.model_download_text.visible = True
+        self._page.update()
+        
+        def _do_load():
             if model_type == "background":
                 bg_path = self._get_model_path("background")
                 if bg_path.exists():
@@ -989,14 +1017,15 @@ class IDPhotoView(ft.Container):
                 face_path = self._get_model_path("face")
                 if face_path.exists():
                     self.id_photo_service.load_face_model()
-            
+        
+        try:
+            await asyncio.to_thread(_do_load)
             self.model_download_text.visible = False
             self._show_snackbar("模型加载成功", ft.Colors.GREEN)
             self._check_model_status()
-            
-        except Exception as ex:
+        except Exception as e:
             self.model_download_text.visible = False
-            self._show_snackbar(f"模型加载失败: {ex}", ft.Colors.RED)
+            self._show_snackbar(f"模型加载失败: {e}", ft.Colors.RED)
             self._check_model_status()
     
     def _on_load_model(self, model_type: str, e: ft.ControlEvent = None) -> None:
@@ -1007,32 +1036,37 @@ class IDPhotoView(ft.Container):
         self.is_model_loading = True
         self.model_download_text.value = "正在加载模型..."
         self.model_download_text.visible = True
-        self._safe_update()
+        self._page.update()
         
-        def load_task():
-            try:
-                if model_type in ["background", "both"]:
-                    bg_path = self._get_model_path("background")
-                    if bg_path.exists() and not self.id_photo_service.is_background_model_loaded():
-                        self.id_photo_service.load_background_model(self.current_bg_model_key)
-                
-                if model_type in ["face", "both"]:
-                    face_path = self._get_model_path("face")
-                    if face_path.exists() and not self.id_photo_service.is_face_model_loaded():
-                        self.id_photo_service.load_face_model()
-                
-                self.is_model_loading = False
-                self.model_download_text.visible = False
-                self._show_snackbar("模型加载成功", ft.Colors.GREEN)
-                self._check_model_status()
-                
-            except Exception as ex:
-                self.is_model_loading = False
-                self.model_download_text.visible = False
-                self._show_snackbar(f"模型加载失败: {ex}", ft.Colors.RED)
-                self._check_model_status()
+        self._page.run_task(self._load_model_async, model_type)
+    
+    async def _load_model_async(self, model_type: str) -> None:
+        """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         
-        threading.Thread(target=load_task, daemon=True).start()
+        def _do_load():
+            if model_type in ["background", "both"]:
+                bg_path = self._get_model_path("background")
+                if bg_path.exists() and not self.id_photo_service.is_background_model_loaded():
+                    self.id_photo_service.load_background_model(self.current_bg_model_key)
+            
+            if model_type in ["face", "both"]:
+                face_path = self._get_model_path("face")
+                if face_path.exists() and not self.id_photo_service.is_face_model_loaded():
+                    self.id_photo_service.load_face_model()
+        
+        try:
+            await asyncio.to_thread(_do_load)
+            self.is_model_loading = False
+            self.model_download_text.visible = False
+            self._show_snackbar("模型加载成功", ft.Colors.GREEN)
+            self._check_model_status()
+        except Exception as e:
+            self.is_model_loading = False
+            self.model_download_text.visible = False
+            self._show_snackbar(f"模型加载失败: {e}", ft.Colors.RED)
+            self._check_model_status()
     
     def _on_unload_model(self, model_type: str, e: ft.ControlEvent = None) -> None:
         """卸载模型。"""
@@ -1180,7 +1214,7 @@ class IDPhotoView(ft.Container):
         if bg_color_name == "custom":
             try:
                 bg_color = hex_to_rgb(self.custom_color_input.value)
-            except:
+            except Exception:
                 bg_color = (67, 142, 219)
         else:
             bg_color = next((c for name, c in PRESET_COLORS if name == bg_color_name), (67, 142, 219))
@@ -1228,7 +1262,7 @@ class IDPhotoView(ft.Container):
         self.progress_text.visible = True
         self.progress_bar.visible = True
         self.progress_bar.value = 0
-        self._safe_update()
+        self._page.update()
         
         params, bg_color, render_mode = self._get_params()
         generate_layout = self.layout_checkbox.value
@@ -1241,32 +1275,54 @@ class IDPhotoView(ft.Container):
         }
         layout_size = layout_size_map.get(self.layout_size_dropdown.value, (1205, 1795))
         
-        def process_all_task():
-            total_files = len(self.selected_files)
-            success_count = 0
-            failed_count = 0
+        # 在事件循环中读取 UI 控件值，避免从后台线程访问
+        kb_limit_enabled = self.kb_limit_checkbox.value
+        try:
+            target_kb = int(self.kb_value_field.value)
+            if target_kb <= 0:
+                target_kb = 48
+        except ValueError:
+            target_kb = 48
+        
+        self._page.run_task(
+            self._process_all_async, params, bg_color, render_mode,
+            generate_layout, layout_size, kb_limit_enabled, target_kb,
+        )
+    
+    async def _process_all_async(
+        self, params, bg_color, render_mode,
+        generate_layout, layout_size, kb_limit_enabled: bool, target_kb: int,
+    ) -> None:
+        """异步批量处理证件照。"""
+        import asyncio
+        
+        total_files = len(self.selected_files)
+        success_count = 0
+        failed_count = 0
+        
+        for idx, file_path in enumerate(self.selected_files):
+            # 更新进度（在事件循环中，安全）
+            self.progress_bar.value = idx / total_files
+            self.progress_text.value = f"正在处理 ({idx + 1}/{total_files}): {file_path.name}"
+            self._page.update()
             
-            for idx, file_path in enumerate(self.selected_files):
-                try:
-                    # 更新进度
-                    self.progress_bar.value = idx / total_files
-                    self.progress_text.value = f"正在处理 ({idx + 1}/{total_files}): {file_path.name}"
-                    self._safe_update()
-                    
+            try:
+                def _do_process_one(fp=file_path):
+                    """在后台线程中处理单张照片。"""
                     # 读取图片
-                    if not file_path.exists():
-                        raise ValueError(f"文件不存在: {file_path}")
+                    if not fp.exists():
+                        raise ValueError(f"文件不存在: {fp}")
                     
-                    file_ext = file_path.suffix.lower()
+                    file_ext = fp.suffix.lower()
                     if file_ext in ['.heic', '.heif']:
                         from PIL import Image as PILImage
-                        pil_image = PILImage.open(file_path)
+                        pil_image = PILImage.open(fp)
                         if pil_image.mode != 'RGB':
                             pil_image = pil_image.convert('RGB')
                         image = np.array(pil_image)
                         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                     else:
-                        with open(file_path, 'rb') as f:
+                        with open(fp, 'rb') as f:
                             file_data = f.read()
                         file_array = np.frombuffer(file_data, dtype=np.uint8)
                         image = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
@@ -1286,28 +1342,18 @@ class IDPhotoView(ft.Container):
                     )
                     
                     # 保存结果
-                    standard_path = self._get_output_path(file_path, "_standard")
-                    hd_path = self._get_output_path(file_path, "_hd")
+                    standard_path = self._get_output_path(fp, "_standard")
+                    hd_path = self._get_output_path(fp, "_hd")
                     
                     # 标准照：根据KB限制选项决定格式和压缩
-                    if self.kb_limit_checkbox.value:
-                        # 启用KB限制，压缩为JPEG
-                        try:
-                            target_kb = int(self.kb_value_field.value)
-                            if target_kb <= 0:
-                                target_kb = 48
-                        except ValueError:
-                            target_kb = 48
-                        
+                    if kb_limit_enabled:
                         standard_compressed = self.id_photo_service.compress_image_to_kb(result.standard, target_kb=target_kb)
-                        # 对 JPG 路径也应用序号设置
                         jpg_path = standard_path.with_suffix('.jpg')
                         add_sequence = self.config_service.get_config_value("output_add_sequence", False) if self.config_service else False
                         jpg_path = get_unique_path(jpg_path, add_sequence=add_sequence)
                         with open(jpg_path, 'wb') as f:
                             f.write(standard_compressed)
                     else:
-                        # 不限制KB，保存为PNG
                         is_success, buffer = cv2.imencode('.png', result.standard)
                         if is_success:
                             with open(standard_path, 'wb') as f:
@@ -1320,45 +1366,46 @@ class IDPhotoView(ft.Container):
                             f.write(buffer)
                     
                     if result.layout is not None:
-                        layout_path = self._get_output_path(file_path, "_layout")
+                        layout_path = self._get_output_path(fp, "_layout")
                         is_success, buffer = cv2.imencode('.png', result.layout)
                         if is_success:
                             with open(layout_path, 'wb') as f:
                                 f.write(buffer)
                     
-                    # 保存到结果字典
-                    self.processing_results[str(file_path)] = result
-                    success_count += 1
-                    
-                except Exception as ex:
-                    logger.error(f"处理失败 {file_path.name}: {ex}")
-                    failed_count += 1
-            
-            # 完成
-            self.is_processing = False
-            self.generate_button.content.disabled = False
-            self.progress_bar.value = 1.0
-            self.progress_text.value = f"处理完成！成功: {success_count}, 失败: {failed_count}"
-            
-            # 更新文件列表以显示预览按钮
-            self._update_file_list()
-            
-            if success_count > 0:
-                self._show_snackbar(f"成功生成 {success_count} 张证件照", ft.Colors.GREEN)
-            if failed_count > 0:
-                self._show_snackbar(f"{failed_count} 张照片处理失败", ft.Colors.ORANGE)
-            
-            self._safe_update()
+                    return result
+                
+                result = await asyncio.to_thread(_do_process_one)
+                # 保存到结果字典（在事件循环中）
+                self.processing_results[str(file_path)] = result
+                success_count += 1
+                
+            except Exception as ex:
+                logger.error(f"处理失败 {file_path.name}: {ex}")
+                failed_count += 1
         
-        threading.Thread(target=process_all_task, daemon=True).start()
+        # 完成（在事件循环中，安全更新 UI）
+        self.is_processing = False
+        self.generate_button.content.disabled = False
+        self.progress_bar.value = 1.0
+        self.progress_text.value = f"处理完成！成功: {success_count}, 失败: {failed_count}"
+        
+        # 更新文件列表以显示预览按钮
+        self._update_file_list()
+        
+        if success_count > 0:
+            self._show_snackbar(f"成功生成 {success_count} 张证件照", ft.Colors.GREEN)
+        if failed_count > 0:
+            self._show_snackbar(f"{failed_count} 张照片处理失败", ft.Colors.ORANGE)
+        
+        self._page.update()
     
     # ==================== 工具方法 ====================
     
     def _safe_update(self) -> None:
         """安全更新UI。"""
         try:
-            self.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _show_snackbar(self, message: str, color: str = None) -> None:
@@ -1368,7 +1415,7 @@ class IDPhotoView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:
@@ -1434,7 +1481,7 @@ class IDPhotoView(ft.Container):
             snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def cleanup(self) -> None:

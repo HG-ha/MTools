@@ -4,6 +4,7 @@
 为音频/视频处理工具提供统一的FFmpeg安装提示界面。
 """
 
+import asyncio
 import threading
 from pathlib import Path
 from typing import Callable, Optional
@@ -175,46 +176,62 @@ class FFmpegInstallView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        # 在后台线程下载
-        def download_task():
-            def progress_callback(progress: float, message: str):
-                """进度回调函数。"""
-                self.download_progress_bar.value = progress
-                self.download_progress_text.value = message
-                try:
-                    self._page.update()
-                except:
-                    pass
-            
-            # 执行下载
-            success, message = self.ffmpeg_service.download_ffmpeg(progress_callback)
-            
-            # 下载完成后的处理
-            if success:
-                self.download_progress_text.value = "✓ " + message
-                self._show_snackbar("FFmpeg 安装成功！", ft.Colors.GREEN)
-                
-                # 延迟一下后调用回调
-                import time
-                time.sleep(1)
-                
-                # 调用安装成功回调
-                if self.on_installed:
-                    self.on_installed()
-            else:
-                self.download_progress_text.value = "✗ " + message
-                self.auto_install_button.disabled = False
-                self._show_snackbar(f"安装失败: {message}", ft.Colors.RED)
-                
-                try:
-                    self._page.update()
-                except:
-                    pass
+        # 启动异步下载任务
+        self._page.run_task(self._download_ffmpeg_async)
+    
+    async def _download_ffmpeg_async(self) -> None:
+        """异步下载FFmpeg（轮询模式）。"""
+        self._download_progress = 0.0
+        self._download_status = "准备下载..."
+        self._download_done = False
+        self._download_result = None
         
-        threading.Thread(target=download_task, daemon=True).start()
+        def progress_callback(progress: float, message: str) -> None:
+            self._download_progress = progress
+            self._download_status = message
+        
+        def do_download():
+            result = self.ffmpeg_service.download_ffmpeg(progress_callback)
+            self._download_result = result
+            self._download_done = True
+        
+        # 在后台线程执行下载
+        thread = threading.Thread(target=do_download, daemon=True)
+        thread.start()
+        
+        # 轮询进度更新UI
+        while not self._download_done:
+            self.download_progress_bar.value = self._download_progress
+            self.download_progress_text.value = self._download_status
+            try:
+                self._page.update()
+            except Exception:
+                pass
+            await asyncio.sleep(0.1)
+        
+        # 下载完成
+        success, message = self._download_result
+        
+        if success:
+            self.download_progress_text.value = "✓ " + message
+            self._show_snackbar("FFmpeg 安装成功！", ft.Colors.GREEN)
+            
+            await asyncio.sleep(1)
+            
+            if self.on_installed:
+                self.on_installed()
+        else:
+            self.download_progress_text.value = "✗ " + message
+            self.auto_install_button.disabled = False
+            self._show_snackbar(f"安装失败: {message}", ft.Colors.RED)
+            
+            try:
+                self._page.update()
+            except Exception:
+                pass
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。
@@ -232,6 +249,6 @@ class FFmpegInstallView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
 

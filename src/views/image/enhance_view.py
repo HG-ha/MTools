@@ -5,7 +5,6 @@
 """
 
 import gc
-import threading
 import webbrowser
 from pathlib import Path
 from typing import Callable, List, Optional, Dict
@@ -542,12 +541,12 @@ class ImageEnhanceView(ft.Container):
         self._update_file_list()
         
         # 延迟检查模型状态
-        threading.Thread(target=self._check_model_status_async, daemon=True).start()
+        self._page.run_task(self._check_model_status_async)
     
-    def _check_model_status_async(self) -> None:
+    async def _check_model_status_async(self) -> None:
         """异步检查模型状态。"""
-        import time
-        time.sleep(0.05)
+        import asyncio
+        await asyncio.sleep(0.3)
         self._check_model_status()
     
     def _check_model_status(self) -> None:
@@ -561,7 +560,7 @@ class ImageEnhanceView(ft.Container):
         if model_exists and data_exists:
             if auto_load:
                 self._update_model_status("loading", "正在加载模型...")
-                threading.Thread(target=self._load_model_async, daemon=True).start()
+                self._page.run_task(self._load_model_async)
             else:
                 self._update_model_status("unloaded", "模型已下载，未加载")
         else:
@@ -573,123 +572,12 @@ class ImageEnhanceView(ft.Container):
             else:
                 self._update_model_status("need_download", "需要下载数据文件")
     
-    def _load_model_async(self) -> None:
+    async def _load_model_async(self) -> None:
         """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
         try:
-            use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
-            gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-            gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
-            enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
-            
-            # 获取ONNX性能优化参数
-            cpu_threads = self.config_service.get_config_value("onnx_cpu_threads", 0)
-            execution_mode = self.config_service.get_config_value("onnx_execution_mode", "sequential")
-            enable_model_cache = self.config_service.get_config_value("onnx_enable_model_cache", False)
-            
-            self.enhancer = ImageEnhancer(
-                self.model_path,
-                data_path=self.data_path,
-                use_gpu=use_gpu,
-                gpu_device_id=gpu_device_id,
-                gpu_memory_limit=gpu_memory_limit,
-                enable_memory_arena=enable_memory_arena,
-                scale=self.current_model.scale,
-                cpu_threads=cpu_threads,
-                execution_mode=execution_mode,
-                enable_model_cache=enable_model_cache
-            )
-            self._on_model_loaded(True, None)
-        except Exception as e:
-            self._on_model_loaded(False, str(e))
-    
-    def _start_download_model(self, e: ft.ControlEvent = None) -> None:
-        """开始下载模型文件。"""
-        if self.is_model_loading:
-            return
-        
-        self.is_model_loading = True
-        
-        # 确定需要下载的文件
-        files_to_download = []
-        if not self.model_path.exists():
-            files_to_download.append(("模型文件", self.current_model.url, self.model_path))
-        if self.data_path and not self.data_path.exists():
-            files_to_download.append(("数据文件", self.current_model.data_url, self.data_path))
-        
-        if not files_to_download:
-            self._show_snackbar("模型文件已存在", ft.Colors.ORANGE)
-            self.is_model_loading = False
-            return
-        
-        total_files = len(files_to_download)
-        self._update_model_status("downloading", f"正在下载 {total_files} 个文件...")
-        
-        self.progress_bar.visible = True
-        self.progress_bar.value = 0
-        self.progress_text.visible = True
-        self.progress_text.value = "准备下载..."
-        try:
-            self.progress_bar.update()
-            self.progress_text.update()
-        except:
-            pass
-        
-        def download_task():
-            try:
-                self._ensure_model_dir()
-                import httpx
-                
-                for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
-                    self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
-                    try:
-                        self.progress_text.update()
-                    except:
-                        pass
-                    
-                    with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
-                        response.raise_for_status()
-                        
-                        total_size = int(response.headers.get('content-length', 0))
-                        downloaded = 0
-                        
-                        with open(save_path, 'wb') as f:
-                            for chunk in response.iter_bytes(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    if total_size > 0:
-                                        file_progress = downloaded / total_size
-                                        overall_progress = (file_idx + file_progress) / total_files
-                                        percent = overall_progress * 100
-                                        
-                                        downloaded_mb = downloaded / (1024 * 1024)
-                                        total_mb = total_size / (1024 * 1024)
-                                        
-                                        self.progress_bar.value = overall_progress
-                                        self.progress_text.value = (
-                                            f"下载 {file_name}: {downloaded_mb:.1f}MB / {total_mb:.1f}MB "
-                                            f"({file_idx + 1}/{total_files}) - 总进度: {percent:.1f}%"
-                                        )
-                                        self.model_status_text.value = f"正在下载... {percent:.1f}%"
-                                        
-                                        try:
-                                            self.progress_bar.update()
-                                            self.progress_text.update()
-                                            self.model_status_text.update()
-                                        except:
-                                            pass
-                
-                # 下载完成
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                try:
-                    self.progress_bar.update()
-                    self.progress_text.update()
-                except:
-                    pass
-                
-                # 加载模型
+            def _do_load():
                 use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
                 gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
                 gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
@@ -712,18 +600,156 @@ class ImageEnhanceView(ft.Container):
                     execution_mode=execution_mode,
                     enable_model_cache=enable_model_cache
                 )
-                self._on_model_loaded(True, None)
-            except Exception as e:
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                try:
-                    self.progress_bar.update()
-                    self.progress_text.update()
-                except:
-                    pass
-                self._on_download_failed(str(e))
+            await asyncio.to_thread(_do_load)
+            self._on_model_loaded(True, None)
+        except Exception as e:
+            self._on_model_loaded(False, str(e))
+    
+    def _start_download_model(self, e: ft.ControlEvent = None) -> None:
+        """开始下载模型文件。"""
+        if self.is_model_loading:
+            return
         
-        threading.Thread(target=download_task, daemon=True).start()
+        self.is_model_loading = True
+        
+        # 确定需要下载的文件
+        self._files_to_download = []
+        if not self.model_path.exists():
+            self._files_to_download.append(("模型文件", self.current_model.url, self.model_path))
+        if self.data_path and not self.data_path.exists():
+            self._files_to_download.append(("数据文件", self.current_model.data_url, self.data_path))
+        
+        if not self._files_to_download:
+            self._show_snackbar("模型文件已存在", ft.Colors.ORANGE)
+            self.is_model_loading = False
+            return
+        
+        total_files = len(self._files_to_download)
+        self._update_model_status("downloading", f"正在下载 {total_files} 个文件...")
+        
+        self.progress_bar.visible = True
+        self.progress_bar.value = 0
+        self.progress_text.visible = True
+        self.progress_text.value = "准备下载..."
+        try:
+            self._page.update()
+        except Exception:
+            pass
+        
+        self._page.run_task(self._download_model_task)
+    
+    async def _download_model_task(self) -> None:
+        """异步下载模型文件并加载。"""
+        import asyncio
+        
+        files_to_download = self._files_to_download
+        total_files = len(files_to_download)
+        
+        self._download_finished = False
+        self._pending_progress = None
+        
+        async def _poll_progress():
+            while not self._download_finished:
+                if self._pending_progress:
+                    vals = self._pending_progress
+                    self._pending_progress = None
+                    self.progress_bar.value = vals[0]
+                    self.progress_text.value = vals[1]
+                    self.model_status_text.value = vals[2]
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+        
+        def _do_download():
+            self._ensure_model_dir()
+            import httpx
+            
+            for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
+                self._pending_progress = (
+                    file_idx / total_files,
+                    f"正在下载 {file_name} ({file_idx + 1}/{total_files})...",
+                    f"正在下载 {file_name}..."
+                )
+                
+                with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
+                    response.raise_for_status()
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(save_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                
+                                if total_size > 0:
+                                    file_progress = downloaded / total_size
+                                    overall_progress = (file_idx + file_progress) / total_files
+                                    percent = overall_progress * 100
+                                    
+                                    downloaded_mb = downloaded / (1024 * 1024)
+                                    total_mb = total_size / (1024 * 1024)
+                                    
+                                    self._pending_progress = (
+                                        overall_progress,
+                                        f"下载 {file_name}: {downloaded_mb:.1f}MB / {total_mb:.1f}MB "
+                                        f"({file_idx + 1}/{total_files}) - 总进度: {percent:.1f}%",
+                                        f"正在下载... {percent:.1f}%"
+                                    )
+        
+        poll_task = asyncio.create_task(_poll_progress())
+        try:
+            await asyncio.to_thread(_do_download)
+            self._download_finished = True
+            await poll_task
+            
+            # 下载完成后加载模型
+            self._update_model_status("loading", "正在加载模型...")
+            
+            def _do_load_model():
+                use_gpu = self.config_service.get_config_value("gpu_acceleration", True)
+                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
+                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
+                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
+                
+                # 获取ONNX性能优化参数
+                cpu_threads = self.config_service.get_config_value("onnx_cpu_threads", 0)
+                execution_mode = self.config_service.get_config_value("onnx_execution_mode", "sequential")
+                enable_model_cache = self.config_service.get_config_value("onnx_enable_model_cache", False)
+                
+                self.enhancer = ImageEnhancer(
+                    self.model_path,
+                    data_path=self.data_path,
+                    use_gpu=use_gpu,
+                    gpu_device_id=gpu_device_id,
+                    gpu_memory_limit=gpu_memory_limit,
+                    enable_memory_arena=enable_memory_arena,
+                    scale=self.current_model.scale,
+                    cpu_threads=cpu_threads,
+                    execution_mode=execution_mode,
+                    enable_model_cache=enable_model_cache
+                )
+            
+            await asyncio.to_thread(_do_load_model)
+            
+            # Handle success: hide progress, call _on_model_loaded
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self._on_model_loaded(True, None)
+        except Exception as e:
+            self._download_finished = True
+            try:
+                await poll_task
+            except Exception:
+                pass
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self._on_download_failed(str(e))
+        finally:
+            self.is_model_loading = False
     
     def _on_model_loaded(self, success: bool, error: Optional[str]) -> None:
         """模型加载完成回调。"""
@@ -798,13 +824,8 @@ class ImageEnhanceView(ft.Container):
         self.model_status_text.value = message
         
         try:
-            self.model_status_icon.update()
-            self.model_status_text.update()
-            self.download_model_button.update()
-            self.load_model_button.update()
-            self.unload_model_button.update()
-            self.delete_model_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _show_manual_download_dialog(self, error: str) -> None:
@@ -962,7 +983,7 @@ class ImageEnhanceView(ft.Container):
         if auto_load and self.model_path.exists() and not self.enhancer:
             if not self.data_path or self.data_path.exists():
                 self._update_model_status("loading", "正在加载模型...")
-                threading.Thread(target=self._load_model_async, daemon=True).start()
+                self._page.run_task(self._load_model_async)
     
     def _on_scale_change(self, e: ft.ControlEvent) -> None:
         """放大倍率滑块变化事件。"""
@@ -1002,7 +1023,7 @@ class ImageEnhanceView(ft.Container):
         
         if model_exists and data_exists and not self.enhancer:
             self._update_model_status("loading", "正在加载模型...")
-            threading.Thread(target=self._load_model_async, daemon=True).start()
+            self._page.run_task(self._load_model_async)
         elif self.enhancer:
             self._show_snackbar("模型已加载", ft.Colors.ORANGE)
         else:
@@ -1278,19 +1299,55 @@ class ImageEnhanceView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
-        # 后台线程处理
-        def process_task():
-            total_files = len(self.selected_files)
+        # 保存参数供异步任务使用
+        self._process_output_dir = output_dir
+        self._process_output_mode = self.output_mode_radio.value
+        self._process_denoise = int(self.denoise_slider.value)
+        self._process_sharpen = int(self.sharpen_slider.value)
+        self._process_quality = int(self.quality_slider.value)
+        self._process_files = list(self.selected_files)
+        
+        self._page.run_task(self._process_images_task)
+    
+    async def _process_images_task(self) -> None:
+        """异步处理图像增强任务。"""
+        import asyncio
+        
+        output_dir = self._process_output_dir
+        output_mode = self._process_output_mode
+        denoise_strength = self._process_denoise
+        sharpen_strength = self._process_sharpen
+        quality = self._process_quality
+        files = self._process_files
+        
+        self._process_finished = False
+        self._pending_progress = None
+        
+        async def _poll_progress():
+            while not self._process_finished:
+                if self._pending_progress:
+                    vals = self._pending_progress
+                    self._pending_progress = None
+                    self.progress_bar.value = vals[0]
+                    self.progress_text.value = vals[1]
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+        
+        def _do_process():
+            total_files = len(files)
             success_count = 0
             oom_error_count = 0  # 记录显存不足错误次数
             
-            for i, file_path in enumerate(self.selected_files):
+            for i, file_path in enumerate(files):
                 try:
                     progress = i / total_files
-                    self._update_progress(progress, f"正在增强: {file_path.name} ({i+1}/{total_files})")
+                    self._pending_progress = (progress, f"正在增强: {file_path.name} ({i+1}/{total_files})")
                     
                     # 读取图片
                     from PIL import Image
@@ -1303,9 +1360,6 @@ class ImageEnhanceView(ft.Container):
                     result = self.enhancer.enhance_image(image)
                     
                     # 应用后处理（如果启用）
-                    denoise_strength = int(self.denoise_slider.value)
-                    sharpen_strength = int(self.sharpen_slider.value)
-                    
                     if denoise_strength > 0 or sharpen_strength > 0:
                         # 转换为numpy数组进行处理
                         result_np = np.array(result)
@@ -1324,7 +1378,7 @@ class ImageEnhanceView(ft.Container):
                         result = Image.fromarray(result_np)
                     
                     # 生成输出文件名
-                    if self.output_mode_radio.value == "new":
+                    if output_mode == "new":
                         output_filename = f"{file_path.stem}_enhanced{file_path.suffix}"
                         output_path = file_path.parent / output_filename
                     else:
@@ -1334,9 +1388,6 @@ class ImageEnhanceView(ft.Container):
                     # 根据全局设置决定是否添加序号
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
-                    # 获取输出质量
-                    quality = int(self.quality_slider.value)
                     
                     # 保存结果
                     if output_path.suffix.lower() in ['.jpg', '.jpeg']:
@@ -1359,24 +1410,31 @@ class ImageEnhanceView(ft.Container):
                         "available memory", "out of memory", "显存不足"
                     ]):
                         oom_error_count += 1
-                        self._update_progress(
+                        self._pending_progress = (
                             i / total_files,
                             f"⚠️ GPU 显存不足: {file_path.name}"
                         )
             
-            # 处理完成
-            self._on_process_complete(success_count, total_files, output_dir, oom_error_count)
+            return success_count, total_files, oom_error_count
         
-        threading.Thread(target=process_task, daemon=True).start()
-    
-    def _update_progress(self, value: float, text: str) -> None:
-        """更新进度显示。"""
-        self.progress_bar.value = value
-        self.progress_text.value = text
+        poll_task = asyncio.create_task(_poll_progress())
         try:
-            self._page.update()
-        except:
-            pass
+            success_count, total_files, oom_error_count = await asyncio.to_thread(_do_process)
+            self._process_finished = True
+            await poll_task
+            self._on_process_complete(success_count, total_files, output_dir, oom_error_count)
+        except Exception as e:
+            self._process_finished = True
+            await poll_task
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            button = self.process_button.content
+            button.disabled = False
+            try:
+                self._page.update()
+            except Exception:
+                pass
+            self._show_snackbar(f"处理失败: {e}", ft.Colors.RED)
     
     def _on_process_complete(self, success_count: int, total: int, output_dir: Path, oom_error_count: int = 0) -> None:
         """处理完成回调。
@@ -1394,7 +1452,7 @@ class ImageEnhanceView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
         # 如果有显存不足错误，优先显示警告
@@ -1425,7 +1483,7 @@ class ImageEnhanceView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:

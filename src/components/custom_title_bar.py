@@ -553,6 +553,10 @@ class CustomTitleBar(ft.Container):
             sys.exit(0)
             return
         
+        # 设置关闭标记，防止后台任务继续操作 page
+        if hasattr(page, '_main_view') and hasattr(page._main_view, '_is_closing'):
+            page._main_view._is_closing = True
+        
         # 在关闭前保存窗口位置、大小和最大化状态
         if self.config_service:
             # 保存最大化状态
@@ -595,7 +599,12 @@ class CustomTitleBar(ft.Container):
                     pass
         
         # 关闭窗口 (异步方法，使用 run_task)
-        page.run_task(page.window.close)
+        async def _do_close():
+            try:
+                await page.window.close()
+            except RuntimeError:
+                pass  # Session closed
+        page.run_task(_do_close)
     
     async def _load_weather_data(self):
         """加载天气数据"""

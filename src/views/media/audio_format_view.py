@@ -528,7 +528,7 @@ class AudioFormatView(ft.Container):
         
         try:
             self.file_list_view.update()
-        except:
+        except Exception:
             pass
     
     def _on_remove_file(self, index: int) -> None:
@@ -642,33 +642,52 @@ class AudioFormatView(ft.Container):
         self.progress_container.visible = True
         self.progress_bar.value = 0
         self.progress_text.value = "准备转换..."
+        self._page.update()
         
-        try:
-            self._page.update()
-        except:
-            pass
-        
-        # 在后台线程处理
-        def process_task():
+        self._page.run_task(lambda: self._process_task(
+            output_dir, output_format, bitrate, sample_rate, channels
+        ))
+
+    async def _process_task(self, output_dir, output_format, bitrate, sample_rate, channels) -> None:
+        """异步处理音频转换任务。"""
+        import asyncio
+
+        self._task_finished = False
+        self._pending_progress = None
+
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    self.progress_bar.value = bar_val
+                    self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+
+        def _do_work():
             total_files = len(self.selected_files)
             success_count = 0
-            
+
             for i, file_path in enumerate(self.selected_files):
                 try:
                     # 更新进度
                     progress = i / total_files
-                    self._update_progress(progress, f"正在转换: {file_path.name} ({i+1}/{total_files})")
-                    
+                    self._pending_progress = (
+                        progress,
+                        f"正在转换: {file_path.name} ({i+1}/{total_files})",
+                    )
+
                     # 生成输出文件名
                     if output_dir:
                         output_path = output_dir / f"{file_path.stem}.{output_format}"
                     else:
                         output_path = file_path.parent / f"{file_path.stem}_converted.{output_format}"
-                    
+
                     # 根据全局设置决定是否添加序号
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
-                    
+
                     # 转换音频
                     success, message = self.audio_service.convert_audio(
                         file_path,
@@ -678,53 +697,31 @@ class AudioFormatView(ft.Container):
                         sample_rate=sample_rate,
                         channels=channels
                     )
-                    
+
                     if success:
                         success_count += 1
                     else:
                         logger.error(f"转换失败 {file_path.name}: {message}")
-                
+
                 except Exception as ex:
                     logger.error(f"处理失败 {file_path.name}: {ex}")
-            
-            # 处理完成
-            self._on_process_complete(success_count, total_files, output_dir)
-        
-        threading.Thread(target=process_task, daemon=True).start()
-    
-    def _update_progress(self, value: float, text: str) -> None:
-        """更新进度显示。
-        
-        Args:
-            value: 进度值 (0-1)
-            text: 进度文本
-        """
-        self.progress_bar.value = value
-        self.progress_text.value = text
+
+            return success_count, total_files
+
+        poll = asyncio.create_task(_poll())
         try:
-            self._page.update()
-        except:
-            pass
-    
-    def _on_process_complete(self, success_count: int, total: int, output_dir: Optional[Path]) -> None:
-        """处理完成回调。
-        
-        Args:
-            success_count: 成功处理的数量
-            total: 总数量
-            output_dir: 输出目录
-        """
+            success_count, total_files = await asyncio.to_thread(_do_work)
+        finally:
+            self._task_finished = True
+            await poll
+
         # 更新进度和按钮状态
         self.progress_bar.value = 1.0
-        self.progress_text.value = f"转换完成! 成功: {success_count}/{total}"
+        self.progress_text.value = f"转换完成! 成功: {success_count}/{total_files}"
         button = self.process_button.content
         button.disabled = False
-        
-        try:
-            self._page.update()
-        except:
-            pass
-        
+        self._page.update()
+
         # 显示成功消息
         if output_dir:
             self._show_snackbar(
@@ -753,7 +750,7 @@ class AudioFormatView(ft.Container):
         snackbar.open = True
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def add_files(self, files: list) -> None:

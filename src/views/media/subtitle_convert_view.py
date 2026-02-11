@@ -498,68 +498,98 @@ class SubtitleConvertView(ft.Container):
         self.progress_text.value = "准备转换..."
         self._page.update()
         
-        # 在后台线程中处理
-        threading.Thread(target=self._convert_thread, daemon=True).start()
+        self._page.run_task(self._async_convert)
     
-    def _convert_thread(self) -> None:
-        """转换处理线程。"""
-        total = len(self.selected_files)
-        success_count = 0
-        fail_count = 0
+    async def _async_convert(self) -> None:
+        """异步转换处理。"""
+        import asyncio
         
-        for i, file_path in enumerate(self.selected_files):
-            try:
-                self.progress_text.value = f"正在转换 ({i+1}/{total}): {file_path.name}"
-                self.progress_bar.value = i / total
-                self._page.update()
-                
-                # 解析源文件
-                segments, source_format, metadata = parse_subtitle_file(str(file_path))
-                
-                if not segments:
-                    logger.warning(f"字幕文件为空: {file_path}")
+        self._task_finished = False
+        self._pending_progress = None
+        
+        # 在主线程读取 UI 值
+        output_mode = self.output_mode_radio.value
+        output_dir_value = self.custom_output_dir.value
+        output_format = self.output_format
+        files = list(self.selected_files)
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    if bar_val is not None:
+                        self.progress_bar.value = bar_val
+                    if text_val is not None:
+                        self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+        
+        def _do_convert():
+            total = len(files)
+            success_count = 0
+            fail_count = 0
+            
+            for i, file_path in enumerate(files):
+                try:
+                    self._pending_progress = (i / total, f"正在转换 ({i+1}/{total}): {file_path.name}")
+                    
+                    # 解析源文件
+                    segments, source_format, metadata = parse_subtitle_file(str(file_path))
+                    
+                    if not segments:
+                        logger.warning(f"字幕文件为空: {file_path}")
+                        fail_count += 1
+                        continue
+                    
+                    # 确定输出路径
+                    if output_mode == "custom":
+                        out_dir = Path(output_dir_value)
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                    else:
+                        out_dir = file_path.parent
+                    
+                    output_name = file_path.stem + '.' + output_format
+                    out_path = get_unique_path(out_dir / output_name)
+                    
+                    # 转换格式
+                    if output_format == 'srt':
+                        content = segments_to_srt(segments)
+                    elif output_format == 'vtt':
+                        content = segments_to_vtt(segments)
+                    elif output_format == 'lrc':
+                        title = metadata.get('ti', file_path.stem)
+                        artist = metadata.get('ar', '')
+                        album = metadata.get('al', '')
+                        content = segments_to_lrc(segments, title=title, artist=artist, album=album)
+                    elif output_format == 'ass':
+                        content = segments_to_ass(segments)
+                    elif output_format == 'txt':
+                        content = segments_to_txt(segments)
+                    else:
+                        logger.error(f"不支持的输出格式: {output_format}")
+                        fail_count += 1
+                        continue
+                    
+                    # 保存文件
+                    with open(out_path, 'w', encoding='utf-8-sig') as f:
+                        f.write(content)
+                    
+                    logger.info(f"转换成功: {file_path.name} -> {out_path.name}")
+                    success_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"转换失败 {file_path.name}: {e}")
                     fail_count += 1
-                    continue
-                
-                # 确定输出路径
-                if self.output_mode_radio.value == "custom":
-                    output_dir = Path(self.custom_output_dir.value)
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                else:
-                    output_dir = file_path.parent
-                
-                output_name = file_path.stem + '.' + self.output_format
-                output_path = get_unique_path(output_dir / output_name)
-                
-                # 转换格式
-                if self.output_format == 'srt':
-                    content = segments_to_srt(segments)
-                elif self.output_format == 'vtt':
-                    content = segments_to_vtt(segments)
-                elif self.output_format == 'lrc':
-                    title = metadata.get('ti', file_path.stem)
-                    artist = metadata.get('ar', '')
-                    album = metadata.get('al', '')
-                    content = segments_to_lrc(segments, title=title, artist=artist, album=album)
-                elif self.output_format == 'ass':
-                    content = segments_to_ass(segments)
-                elif self.output_format == 'txt':
-                    content = segments_to_txt(segments)
-                else:
-                    logger.error(f"不支持的输出格式: {self.output_format}")
-                    fail_count += 1
-                    continue
-                
-                # 保存文件
-                with open(output_path, 'w', encoding='utf-8-sig') as f:
-                    f.write(content)
-                
-                logger.info(f"转换成功: {file_path.name} -> {output_path.name}")
-                success_count += 1
-                
-            except Exception as e:
-                logger.error(f"转换失败 {file_path.name}: {e}")
-                fail_count += 1
+            
+            return success_count, fail_count
+        
+        poll = asyncio.create_task(_poll())
+        try:
+            success_count, fail_count = await asyncio.to_thread(_do_convert)
+        finally:
+            self._task_finished = True
+            await poll
         
         # 完成
         self.progress_bar.value = 1.0

@@ -4,7 +4,6 @@
 提供人声/伴奏分离功能的用户界面。
 """
 
-import threading
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -608,15 +607,14 @@ class VocalExtractionView(ft.Container):
                 )
             self.process_button.content.disabled = False
         
-        self.file_list_view.update()
-        self.process_button.update()
+        self._page.update()
     
     def _create_file_item(self, file_path: Path) -> ft.Container:
         """创建文件列表项。"""
         try:
             file_size = file_path.stat().st_size
             size_text = format_file_size(file_size)
-        except:
+        except Exception:
             size_text = "未知大小"
         
         return ft.Container(
@@ -683,150 +681,202 @@ class VocalExtractionView(ft.Container):
         
         self._page.update()
         
-        # 在后台线程中处理
-        thread = threading.Thread(target=self._process_files, daemon=True)
-        thread.start()
+        # 在异步任务中处理
+        self._page.run_task(self._process_files_async)
     
     def _on_cancel_click(self, e: ft.ControlEvent) -> None:
         """取消按钮点击事件。"""
         self.is_processing = False
         self._reset_ui()
     
-    def _process_files(self) -> None:
-        """处理文件（在后台线程中运行）。"""
-        try:
-            # 根据用户选择确定输出目录
-            if self.output_mode_radio.value == "custom":
-                output_dir = Path(self.output_dir_field.value)
-                output_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                # 保存到源文件目录，每个文件单独处理
-                output_dir = None  # 在循环中为每个文件设置
-            
-            # 加载模型
-            model_key = self.model_dropdown.value
-            model_info = VOCAL_SEPARATION_MODELS[model_key]
-            model_path = self.vocal_service.model_dir / model_info.filename
-            
-            # 检查模型是否已下载
-            if not model_path.exists():
-                self._show_snackbar("请先下载模型!", ft.Colors.ERROR)
-                self._reset_ui()
-                return
-            
-            need_load = (
-                not self.model_loaded
-                or self.vocal_service.current_model != model_info.filename
-            )
+    async def _process_files_async(self) -> None:
+        """异步处理文件，使用 asyncio.to_thread 和进度轮询。"""
+        import asyncio
 
-            if need_load:
-                self._update_progress("正在加载模型...", 0.0)
-                try:
-                    self.vocal_service.load_model(
-                        model_path,
-                        invert_output=model_info.invert_output
-                    )
-                    device_info = self.vocal_service.get_device_info()
-                    message = f"{model_info.display_name} 已加载 ({device_info})"
-                    self._update_model_status("ready", message)
-                except Exception as e:
-                    self._show_snackbar(f"模型加载失败: {e}", ft.Colors.ERROR)
-                    self._reset_ui()
+        # 在事件循环中捕获所有 UI 状态
+        output_mode = self.output_mode_radio.value
+        output_dir_value = self.output_dir_field.value
+        format_value = self.output_format_dropdown.value
+        sample_rate_value = self.sample_rate_dropdown.value
+        mp3_bitrate = self.mp3_bitrate_dropdown.value
+        ogg_quality_value = self.ogg_quality_dropdown.value
+        ogg_quality = ogg_quality_value if ogg_quality_value == "original" else int(ogg_quality_value)
+        model_key = self.model_dropdown.value
+        output_vocals = self.output_vocals_checkbox.value
+        output_instrumental = self.output_instrumental_checkbox.value
+        files_to_process = list(self.selected_files)
+
+        self._process_finished = False
+        self._pending_process_progress = None
+        self._pending_current_file = None
+        self._pending_model_status = None
+        self._pending_process_snackbar = None
+
+        async def _poll_progress():
+            while not self._process_finished:
+                changed = False
+                if self._pending_process_progress is not None:
+                    msg, prog = self._pending_process_progress
+                    self._pending_process_progress = None
+                    self.progress_text.value = msg
+                    self.progress_bar.value = prog
+                    changed = True
+                if self._pending_current_file is not None:
+                    self.current_file_text.value = self._pending_current_file
+                    self._pending_current_file = None
+                    changed = True
+                if self._pending_model_status is not None:
+                    status, message = self._pending_model_status
+                    self._pending_model_status = None
+                    self._update_model_status(status, message)
+                if self._pending_process_snackbar is not None:
+                    msg, color = self._pending_process_snackbar
+                    self._pending_process_snackbar = None
+                    self._show_snackbar(msg, color)
+                elif changed:
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+
+        def _do_process():
+            try:
+                # 根据用户选择确定输出目录
+                if output_mode == "custom":
+                    output_dir = Path(output_dir_value)
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    output_dir = None
+
+                # 加载模型
+                model_info = VOCAL_SEPARATION_MODELS[model_key]
+                model_path = self.vocal_service.model_dir / model_info.filename
+
+                if not model_path.exists():
+                    self._pending_process_snackbar = ("请先下载模型!", ft.Colors.ERROR)
                     return
-            else:
-                self._update_progress("模型已加载，开始处理...", 0.0)
-            
-            # 处理每个文件
-            total_files = len(self.selected_files)
-            for i, file_path in enumerate(self.selected_files):
-                if not self.is_processing:
-                    break
-                
-                self.current_file_text.value = f"正在处理: {file_path.name} ({i+1}/{total_files})"
-                self.current_file_text.update()
-                
-                try:
-                    # 如果是保存到源文件目录，使用文件所在目录
-                    if self.output_mode_radio.value == "source":
-                        current_output_dir = file_path.parent
-                    else:
-                        current_output_dir = output_dir
-                    
-                    def progress_callback(message: str, progress: float):
-                        if self.is_processing:
-                            overall_progress = (i + progress) / total_files
-                            self._update_progress(message, overall_progress)
-                    
-                    # 获取输出设置
-                    format_value = self.output_format_dropdown.value
-                    # 如果选择跟随原文件，则使用原始文件的扩展名
-                    if format_value == "original":
-                        original_ext = file_path.suffix.lower().lstrip('.')
-                        # 映射常见格式
-                        format_map = {
-                            'mp3': 'mp3',
-                            'wav': 'wav',
-                            'flac': 'flac',
-                            'ogg': 'ogg',
-                            'm4a': 'mp3',  # m4a转为mp3
-                            'wma': 'wav',  # wma转为wav
-                        }
-                        output_format = format_map.get(original_ext, 'wav')
-                    else:
-                        output_format = format_value
-                    
-                    sample_rate_value = self.sample_rate_dropdown.value
-                    output_sample_rate = None if sample_rate_value == "original" else int(sample_rate_value)
-                    
-                    # 获取比特率/质量设置（保持字符串格式，让服务层处理）
-                    mp3_bitrate = self.mp3_bitrate_dropdown.value
-                    ogg_quality_value = self.ogg_quality_dropdown.value
-                    # 如果不是"original"，转换为整数
-                    ogg_quality = ogg_quality_value if ogg_quality_value == "original" else int(ogg_quality_value)
-                    
-                    vocals_path, instrumental_path = self.vocal_service.separate(
-                        file_path,
-                        current_output_dir,
-                        progress_callback,
-                        output_format=output_format,
-                        output_sample_rate=output_sample_rate,
-                        mp3_bitrate=mp3_bitrate,
-                        ogg_quality=ogg_quality
-                    )
-                    
-                    # 验证输出文件是否存在
-                    if not vocals_path.exists() and not instrumental_path.exists():
-                        raise RuntimeError("输出文件未成功创建")
-                    
-                    # 根据用户选择删除不需要的输出
-                    if not self.output_vocals_checkbox.value and vocals_path.exists():
-                        vocals_path.unlink()
-                    if not self.output_instrumental_checkbox.value and instrumental_path.exists():
-                        instrumental_path.unlink()
-                    
-                except Exception as e:
-                    import traceback
-                    error_detail = traceback.format_exc()
-                    logger.error(f"处理文件失败: {file_path.name}")
-                    logger.error(error_detail)
-                    self._show_snackbar(f"处理 {file_path.name} 失败: {e}", ft.Colors.ERROR)
-                    continue
-            
-            if self.is_processing:
-                self._update_progress("处理完成!", 1.0)
-                self._show_snackbar(f"成功处理 {total_files} 个文件", ft.Colors.GREEN)
-            
-        except Exception as e:
-            self._show_snackbar(f"处理失败: {e}", ft.Colors.ERROR)
+
+                need_load = (
+                    not self.model_loaded
+                    or self.vocal_service.current_model != model_info.filename
+                )
+
+                if need_load:
+                    self._pending_process_progress = ("正在加载模型...", 0.0)
+                    try:
+                        self.vocal_service.load_model(
+                            model_path,
+                            invert_output=model_info.invert_output
+                        )
+                        device_info = self.vocal_service.get_device_info()
+                        message = f"{model_info.display_name} 已加载 ({device_info})"
+                        self._pending_model_status = ("ready", message)
+                    except Exception as e:
+                        self._pending_process_snackbar = (f"模型加载失败: {e}", ft.Colors.ERROR)
+                        return
+                else:
+                    self._pending_process_progress = ("模型已加载，开始处理...", 0.0)
+
+                # 处理每个文件
+                total_files = len(files_to_process)
+                for i, file_path in enumerate(files_to_process):
+                    if not self.is_processing:
+                        break
+
+                    self._pending_current_file = f"正在处理: {file_path.name} ({i+1}/{total_files})"
+
+                    try:
+                        if output_mode == "source":
+                            current_output_dir = file_path.parent
+                        else:
+                            current_output_dir = output_dir
+
+                        def progress_callback(message: str, progress: float, _i=i):
+                            if self.is_processing:
+                                overall_progress = (_i + progress) / total_files
+                                self._pending_process_progress = (message, overall_progress)
+
+                        # 确定输出格式
+                        if format_value == "original":
+                            original_ext = file_path.suffix.lower().lstrip('.')
+                            format_map = {
+                                'mp3': 'mp3',
+                                'wav': 'wav',
+                                'flac': 'flac',
+                                'ogg': 'ogg',
+                                'm4a': 'mp3',
+                                'wma': 'wav',
+                            }
+                            output_format = format_map.get(original_ext, 'wav')
+                        else:
+                            output_format = format_value
+
+                        output_sample_rate = None if sample_rate_value == "original" else int(sample_rate_value)
+
+                        vocals_path, instrumental_path = self.vocal_service.separate(
+                            file_path,
+                            current_output_dir,
+                            progress_callback,
+                            output_format=output_format,
+                            output_sample_rate=output_sample_rate,
+                            mp3_bitrate=mp3_bitrate,
+                            ogg_quality=ogg_quality
+                        )
+
+                        # 验证输出文件是否存在
+                        if not vocals_path.exists() and not instrumental_path.exists():
+                            raise RuntimeError("输出文件未成功创建")
+
+                        # 根据用户选择删除不需要的输出
+                        if not output_vocals and vocals_path.exists():
+                            vocals_path.unlink()
+                        if not output_instrumental and instrumental_path.exists():
+                            instrumental_path.unlink()
+
+                    except Exception as e:
+                        import traceback
+                        error_detail = traceback.format_exc()
+                        logger.error(f"处理文件失败: {file_path.name}")
+                        logger.error(error_detail)
+                        self._pending_process_snackbar = (f"处理 {file_path.name} 失败: {e}", ft.Colors.ERROR)
+                        continue
+
+            except Exception as e:
+                self._pending_process_snackbar = (f"处理失败: {e}", ft.Colors.ERROR)
+
+        poll_task = asyncio.create_task(_poll_progress())
+        try:
+            await asyncio.to_thread(_do_process)
         finally:
-            self._reset_ui()
+            self._process_finished = True
+            await poll_task
+
+        # 在事件循环中刷新剩余的待更新状态
+        if self._pending_model_status is not None:
+            status, message = self._pending_model_status
+            self._pending_model_status = None
+            self._update_model_status(status, message)
+        if self._pending_process_snackbar is not None:
+            msg, color = self._pending_process_snackbar
+            self._pending_process_snackbar = None
+            self._show_snackbar(msg, color)
+
+        # 处理完成
+        if self.is_processing:
+            self._update_progress("处理完成!", 1.0)
+            self._show_snackbar(f"成功处理 {len(files_to_process)} 个文件", ft.Colors.GREEN)
+
+        self._reset_ui()
     
     def _update_progress(self, message: str, progress: float) -> None:
         """更新进度显示。"""
         self.progress_text.value = message
         self.progress_bar.value = progress
-        self.progress_text.update()
-        self.progress_bar.update()
+        try:
+            self._page.update()
+        except Exception:
+            pass
     
     def _reset_ui(self) -> None:
         """重置UI状态。"""
@@ -890,24 +940,35 @@ class VocalExtractionView(ft.Container):
 
         self.model_loading = True
         self._update_model_status("loading", "自动加载模型...")
+        self._page.run_task(self._load_model_async, model_key, False)
 
-        def load_thread():
-            try:
-                self.vocal_service.load_model(
-                    model_path,
-                    invert_output=model_info.invert_output
-                )
-                device_info = self.vocal_service.get_device_info()
-                message = f"{model_info.display_name} 已加载 ({device_info})"
-                self._update_model_status("ready", message)
-            except Exception as exc:
-                self._update_model_status("error", f"自动加载失败: {exc}")
-                self._show_snackbar(f"自动加载模型失败: {exc}", ft.Colors.ERROR)
-            finally:
-                self.model_loading = False
+    async def _load_model_async(self, model_key: str, show_success_snackbar: bool = False) -> None:
+        """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
 
-        thread = threading.Thread(target=load_thread, daemon=True)
-        thread.start()
+        model_info = VOCAL_SEPARATION_MODELS[model_key]
+        model_path = self.vocal_service.model_dir / model_info.filename
+
+        def _do_load():
+            self.vocal_service.load_model(
+                model_path,
+                invert_output=model_info.invert_output
+            )
+            return self.vocal_service.get_device_info()
+
+        try:
+            device_info = await asyncio.to_thread(_do_load)
+            message = f"{model_info.display_name} 已加载 ({device_info})"
+            self._update_model_status("ready", message)
+            if show_success_snackbar:
+                self._show_snackbar(f"模型加载完成，使用: {device_info}", ft.Colors.GREEN)
+        except Exception as exc:
+            prefix = "自动加载" if not show_success_snackbar else "加载"
+            self._update_model_status("error", f"{prefix}失败: {exc}")
+            self._show_snackbar(f"{prefix}模型失败: {exc}", ft.Colors.ERROR)
+        finally:
+            self.model_loading = False
 
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载复选框变化事件。"""
@@ -964,82 +1025,91 @@ class VocalExtractionView(ft.Container):
         self.model_status_text.value = message
         self.model_loaded = (status == "ready")
         try:
-            self.model_status_icon.update()
-            self.model_status_text.update()
-            self.download_model_button.update()
-            self.load_model_button.update()
-            self.unload_model_button.update()
-            self.delete_model_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _on_download_model(self, e: ft.ControlEvent) -> None:
         """下载模型按钮点击事件。"""
-        model_key = self.model_dropdown.value
-        model_info = VOCAL_SEPARATION_MODELS[model_key]
-        
         # 禁用按钮和模型选择
         self.download_model_button.disabled = True
         self.download_model_button.text = "下载中..."
-        self.download_model_button.update()
         self.model_dropdown.disabled = True
-        self.model_dropdown.update()
-        
+
         # 显示进度条
         self.progress_bar.visible = True
         self.progress_bar.value = 0
         self.progress_text.visible = True
         self.progress_text.value = "正在连接服务器..."
-        self.progress_bar.update()
-        self.progress_text.update()
-        
-        def download_thread():
-            try:
-                # 下载回调
-                def progress_callback(progress: float, message: str):
+        self._page.update()
+
+        self._page.run_task(self._download_model_async, self.model_dropdown.value)
+
+    async def _download_model_async(self, model_key: str) -> None:
+        """异步下载模型，使用轮询更新进度。"""
+        import asyncio
+
+        model_info = VOCAL_SEPARATION_MODELS[model_key]
+        self._download_finished = False
+        self._pending_download_progress = None
+
+        async def _poll_progress():
+            while not self._download_finished:
+                if self._pending_download_progress is not None:
+                    progress, message = self._pending_download_progress
+                    self._pending_download_progress = None
                     self.progress_bar.value = progress
                     self.progress_text.value = message
-                    self.progress_bar.update()
-                    self.progress_text.update()
-                
-                # 下载模型
-                model_path = self.vocal_service.download_model(
-                    model_key,
-                    model_info,
-                    progress_callback
-                )
-                
-                # 更新模型状态
-                self._init_model_status()
-                if self.auto_load_model:
-                    self._try_auto_load_model()
-                self._show_snackbar("模型下载成功!", ft.Colors.GREEN)
-                
-                # 隐藏进度条
-                import time
-                time.sleep(1)
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                self.progress_bar.update()
-                self.progress_text.update()
-                
-            except Exception as ex:
-                self._show_snackbar(f"模型下载失败: {ex}", ft.Colors.ERROR)
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                self.progress_bar.update()
-                self.progress_text.update()
-            
-            finally:
-                # 恢复按钮和下拉框状态
-                self.download_model_button.disabled = False
-                self.download_model_button.text = "下载模型"
-                self.download_model_button.update()
-                self.model_dropdown.disabled = False
-                self.model_dropdown.update()
-        
-        thread = threading.Thread(target=download_thread, daemon=True)
-        thread.start()
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+
+        def _do_download():
+            def progress_callback(progress: float, message: str):
+                self._pending_download_progress = (progress, message)
+
+            self.vocal_service.download_model(
+                model_key,
+                model_info,
+                progress_callback
+            )
+
+        poll_task = asyncio.create_task(_poll_progress())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as ex:
+            self._download_finished = True
+            await poll_task
+            self._show_snackbar(f"模型下载失败: {ex}", ft.Colors.ERROR)
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self.download_model_button.disabled = False
+            self.download_model_button.text = "下载模型"
+            self.model_dropdown.disabled = False
+            self._page.update()
+            return
+
+        self._download_finished = True
+        await poll_task
+
+        # 下载成功 - 更新UI（在事件循环中）
+        self._init_model_status()
+        self._show_snackbar("模型下载成功!", ft.Colors.GREEN)
+
+        # 短暂延迟后隐藏进度条
+        await asyncio.sleep(1)
+        self.progress_bar.visible = False
+        self.progress_text.visible = False
+        self.download_model_button.disabled = False
+        self.download_model_button.text = "下载模型"
+        self.model_dropdown.disabled = False
+        self._page.update()
+
+        # 自动加载模型
+        if self.auto_load_model:
+            self._try_auto_load_model()
 
     def _on_load_model_click(self, e: ft.ControlEvent) -> None:
         """加载模型按钮点击事件。"""
@@ -1056,24 +1126,7 @@ class VocalExtractionView(ft.Container):
 
         self.model_loading = True
         self._update_model_status("loading", "正在加载模型...")
-
-        def load_thread():
-            try:
-                self.vocal_service.load_model(
-                    model_path,
-                    invert_output=model_info.invert_output
-                )
-                device_info = self.vocal_service.get_device_info()
-                message = f"{model_info.display_name} 已加载 ({device_info})"
-                self._update_model_status("ready", message)
-                self._show_snackbar(f"模型加载完成，使用: {device_info}", ft.Colors.GREEN)
-            except Exception as exc:
-                self._update_model_status("error", f"加载失败: {exc}")
-                self._show_snackbar(f"模型加载失败: {exc}", ft.Colors.ERROR)
-            finally:
-                self.model_loading = False
-
-        threading.Thread(target=load_thread, daemon=True).start()
+        self._page.run_task(self._load_model_async, model_key, True)
 
     def _on_unload_model_click(self, e: ft.ControlEvent) -> None:
         """卸载模型按钮点击事件。"""
@@ -1132,8 +1185,7 @@ class VocalExtractionView(ft.Container):
         self.output_dir_field.disabled = not is_custom
         self.browse_output_button.disabled = not is_custom
         
-        self.output_dir_field.update()
-        self.browse_output_button.update()
+        self._page.update()
     
     def _on_format_change(self, e: ft.ControlEvent) -> None:
         """输出格式变化事件。"""
@@ -1148,15 +1200,14 @@ class VocalExtractionView(ft.Container):
             self.mp3_bitrate_dropdown.visible = (format_value == "mp3")
             self.ogg_quality_dropdown.visible = (format_value == "ogg")
         
-        self.mp3_bitrate_dropdown.update()
-        self.ogg_quality_dropdown.update()
+        self._page.update()
     
     async def _on_browse_output(self) -> None:
         """浏览输出目录按钮点击事件。"""
         folder_path = await ft.FilePicker().get_directory_path(dialog_title="选择输出目录")
         if folder_path:
             self.output_dir_field.value = folder_path
-            self.output_dir_field.update()
+            self._page.update()
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。"""

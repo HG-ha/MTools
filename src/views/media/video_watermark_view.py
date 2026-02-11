@@ -4,6 +4,7 @@
 提供视频添加水印功能。
 """
 
+import asyncio
 from pathlib import Path
 from typing import Callable, List, Optional
 import threading
@@ -1169,11 +1170,11 @@ class VideoWatermarkView(ft.Container):
                 self._show_message("请选择水印图片", ft.Colors.ERROR)
                 return
         
-        # 在后台线程中处理
-        threading.Thread(target=self._process_videos, daemon=True).start()
+        # 异步处理
+        self._page.run_task(self._process_videos_async)
     
-    def _process_videos(self) -> None:
-        """处理视频（后台线程）。"""
+    async def _process_videos_async(self) -> None:
+        """处理视频（异步）。"""
         self.is_processing = True
         
         # 显示进度
@@ -1221,8 +1222,10 @@ class VideoWatermarkView(ft.Container):
                     add_sequence = self.config_service.get_config_value("output_add_sequence", False)
                     output_path = get_unique_path(output_path, add_sequence=add_sequence)
                     
-                    # 处理视频
-                    success, message = self._process_single_video(file_path, output_path)
+                    # 处理视频（在线程中执行CPU/IO密集操作）
+                    success, message = await asyncio.to_thread(
+                        self._process_single_video, file_path, output_path
+                    )
                     
                     if success:
                         success_count += 1
@@ -1238,8 +1241,7 @@ class VideoWatermarkView(ft.Container):
             self.progress_bar.value = 1.0
             self._page.update()
             
-            import time
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             
             self.progress_text.visible = False
             self.progress_bar.visible = False

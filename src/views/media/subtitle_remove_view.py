@@ -4,7 +4,6 @@
 提供视频字幕/水印移除功能的用户界面。
 """
 
-import threading
 import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -1311,114 +1310,151 @@ class SubtitleRemoveView(ft.Container):
         self.progress_text.value = "准备下载..."
         self._page.update()
         
-        def download_task():
-            try:
-                import httpx
-                
-                for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
-                    self.progress_text.value = f"正在下载 {file_name} ({file_idx + 1}/{total_files})..."
-                    self._page.update()
-                    
-                    logger.info(f"开始下载: {file_name} from {url}")
-                    
-                    with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
-                        response.raise_for_status()
-                        
-                        total_size = int(response.headers.get('content-length', 0))
-                        downloaded = 0
-                        
-                        with open(save_path, 'wb') as f:
-                            for chunk in response.iter_bytes(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    if total_size > 0:
-                                        file_progress = downloaded / total_size
-                                        overall_progress = (file_idx + file_progress) / total_files
-                                        percent = overall_progress * 100
-                                        
-                                        downloaded_mb = downloaded / (1024 * 1024)
-                                        total_mb = total_size / (1024 * 1024)
-                                        
-                                        self.progress_bar.value = overall_progress
-                                        self.progress_text.value = (
-                                            f"下载 {file_name}: {downloaded_mb:.1f}MB / {total_mb:.1f}MB "
-                                            f"({file_idx + 1}/{total_files}) - 总进度: {percent:.1f}%"
-                                        )
-                                        self.model_status_text.value = f"正在下载... {percent:.1f}%"
-                                        
-                                        try:
-                                            self.progress_bar.update()
-                                            self.progress_text.update()
-                                            self.model_status_text.update()
-                                        except:
-                                            pass
-                    
-                    logger.info(f"下载完成: {file_name}")
-                
-                # 下载完成
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                self.progress_bar.value = 0
-                self.progress_text.value = ""
-                logger.info("所有模型文件下载完成")
-                
-                # 更新状态
-                self._check_model_status()
-                
-                # 自动加载模型
-                logger.info("开始自动加载模型...")
-                self._load_model()
-                
-            except Exception as e:
-                logger.error(f"下载模型失败: {e}", exc_info=True)
-                self.model_status_icon.name = ft.Icons.ERROR
-                self.model_status_icon.color = ft.Colors.ERROR
-                self.model_status_text.value = f"下载失败: {str(e)}"
-                self.model_status_text.color = ft.Colors.ERROR
-                self.progress_bar.visible = False
-                self.progress_text.visible = False
-                self.model_download_btn.disabled = False
-                self._page.update()
+        self._download_files_to_download = files_to_download
+        self._download_total_files = total_files
+        self._page.run_task(self._async_download_model)
+    
+    async def _async_download_model(self) -> None:
+        """异步下载模型。"""
+        import asyncio
         
-        threading.Thread(target=download_task, daemon=True).start()
+        files_to_download = self._download_files_to_download
+        total_files = self._download_total_files
+        
+        self._task_finished = False
+        self._pending_progress = None
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val, status_val = self._pending_progress
+                    if bar_val is not None:
+                        self.progress_bar.value = bar_val
+                    if text_val is not None:
+                        self.progress_text.value = text_val
+                    if status_val is not None:
+                        self.model_status_text.value = status_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+        
+        def _do_download():
+            import httpx
+            
+            for file_idx, (file_name, url, save_path) in enumerate(files_to_download):
+                self._pending_progress = (
+                    None,
+                    f"正在下载 {file_name} ({file_idx + 1}/{total_files})...",
+                    None,
+                )
+                
+                logger.info(f"开始下载: {file_name} from {url}")
+                
+                with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
+                    response.raise_for_status()
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(save_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                
+                                if total_size > 0:
+                                    file_progress = downloaded / total_size
+                                    overall_progress = (file_idx + file_progress) / total_files
+                                    percent = overall_progress * 100
+                                    
+                                    downloaded_mb = downloaded / (1024 * 1024)
+                                    total_mb = total_size / (1024 * 1024)
+                                    
+                                    self._pending_progress = (
+                                        overall_progress,
+                                        f"下载 {file_name}: {downloaded_mb:.1f}MB / {total_mb:.1f}MB "
+                                        f"({file_idx + 1}/{total_files}) - 总进度: {percent:.1f}%",
+                                        f"正在下载... {percent:.1f}%",
+                                    )
+                
+                logger.info(f"下载完成: {file_name}")
+        
+        poll = asyncio.create_task(_poll())
+        try:
+            await asyncio.to_thread(_do_download)
+        except Exception as e:
+            logger.error(f"下载模型失败: {e}", exc_info=True)
+            self.model_status_icon.name = ft.Icons.ERROR
+            self.model_status_icon.color = ft.Colors.ERROR
+            self.model_status_text.value = f"下载失败: {str(e)}"
+            self.model_status_text.color = ft.Colors.ERROR
+            self.progress_bar.visible = False
+            self.progress_text.visible = False
+            self.model_download_btn.disabled = False
+            self._page.update()
+            return
+        finally:
+            self._task_finished = True
+            await poll
+        
+        # 下载完成
+        self.progress_bar.visible = False
+        self.progress_text.visible = False
+        self.progress_bar.value = 0
+        self.progress_text.value = ""
+        logger.info("所有模型文件下载完成")
+        
+        # 更新状态
+        self._check_model_status()
+        
+        # 自动加载模型
+        logger.info("开始自动加载模型...")
+        await self._async_load_model()
     
     def _load_model(self) -> None:
         """加载模型。"""
-        def load_task():
-            try:
-                model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
-                
-                # 更新状态
-                self.model_status_text.value = "正在加载模型..."
-                self.model_load_btn.disabled = True
-                self._page.update()
-                
-                # 加载模型
-                encoder_path = self.model_dir / model_info.encoder_filename
-                infer_path = self.model_dir / model_info.infer_filename
-                decoder_path = self.model_dir / model_info.decoder_filename
-                
+        self._page.run_task(self._async_load_model)
+    
+    async def _async_load_model(self) -> None:
+        """异步加载模型。"""
+        import asyncio
+        await asyncio.sleep(0.3)
+        try:
+            model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
+            
+            # 更新状态
+            self.model_status_text.value = "正在加载模型..."
+            self.model_load_btn.disabled = True
+            self._page.update()
+            
+            # 在后台线程加载模型
+            encoder_path = self.model_dir / model_info.encoder_filename
+            infer_path = self.model_dir / model_info.infer_filename
+            decoder_path = self.model_dir / model_info.decoder_filename
+            
+            neighbor_stride = model_info.neighbor_stride
+            ref_length = model_info.ref_length
+            
+            def _do_load():
                 self.subtitle_service.load_model(
                     str(encoder_path),
                     str(infer_path),
                     str(decoder_path),
-                    neighbor_stride=model_info.neighbor_stride,
-                    ref_length=model_info.ref_length
+                    neighbor_stride=neighbor_stride,
+                    ref_length=ref_length
                 )
-                
-                # 更新状态
-                self._check_model_status()
-                
-            except Exception as e:
-                logger.error(f"加载模型失败: {e}")
-                self.model_status_text.value = f"加载失败: {str(e)}"
-                self.model_status_text.color = ft.Colors.ERROR
-                self.model_load_btn.disabled = False
-                self._page.update()
-        
-        threading.Thread(target=load_task, daemon=True).start()
+
+            await asyncio.to_thread(_do_load)
+            
+            # 更新状态
+            self._check_model_status()
+            
+        except Exception as e:
+            logger.error(f"加载模型失败: {e}")
+            self.model_status_text.value = f"加载失败: {str(e)}"
+            self.model_status_text.color = ft.Colors.ERROR
+            self.model_load_btn.disabled = False
+            self._page.update()
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载模型复选框变化事件。
@@ -1464,8 +1500,33 @@ class SubtitleRemoveView(ft.Container):
     
     def _delete_model(self) -> None:
         """删除模型文件。"""
-        def delete_task():
-            try:
+        # 确认对话框
+        def confirm_delete(e):
+            dlg.open = False
+            self._page.update()
+            self._page.run_task(self._async_delete_model)
+        
+        def cancel_delete(e):
+            dlg.open = False
+            self._page.update()
+        
+        dlg = ft.AlertDialog(
+            title=ft.Text("确认删除"),
+            content=ft.Text("确定要删除模型文件吗？此操作无法撤销。"),
+            actions=[
+                ft.TextButton("取消", on_click=cancel_delete),
+                ft.TextButton("删除", on_click=confirm_delete),
+            ],
+        )
+        self._page.overlay.append(dlg)
+        dlg.open = True
+        self._page.update()
+    
+    async def _async_delete_model(self) -> None:
+        """异步删除模型文件。"""
+        import asyncio
+        try:
+            def _do_delete():
                 model_info = SUBTITLE_REMOVE_MODELS[self.current_model_key]
                 
                 encoder_path = self.model_dir / model_info.encoder_filename
@@ -1492,37 +1553,15 @@ class SubtitleRemoveView(ft.Container):
                     logger.info(f"已删除模型文件: {', '.join(deleted)}")
                 else:
                     logger.warning("没有找到要删除的模型文件")
-                
-                # 更新状态
-                self._check_model_status()
-                
-            except Exception as e:
-                logger.error(f"删除模型失败: {e}")
-                self.model_status_text.value = f"删除失败: {str(e)}"
-                self.model_status_text.color = ft.Colors.ERROR
-                self._page.update()
-        
-        # 确认对话框
-        def confirm_delete(e):
-            dlg.open = False
+            
+            await asyncio.to_thread(_do_delete)
+            self._check_model_status()
+            
+        except Exception as e:
+            logger.error(f"删除模型失败: {e}")
+            self.model_status_text.value = f"删除失败: {str(e)}"
+            self.model_status_text.color = ft.Colors.ERROR
             self._page.update()
-            threading.Thread(target=delete_task, daemon=True).start()
-        
-        def cancel_delete(e):
-            dlg.open = False
-            self._page.update()
-        
-        dlg = ft.AlertDialog(
-            title=ft.Text("确认删除"),
-            content=ft.Text("确定要删除模型文件吗？此操作无法撤销。"),
-            actions=[
-                ft.TextButton("取消", on_click=cancel_delete),
-                ft.TextButton("删除", on_click=confirm_delete),
-            ],
-        )
-        self._page.overlay.append(dlg)
-        dlg.open = True
-        self._page.update()
     
     def _on_output_mode_change(self) -> None:
         """输出模式变更。"""
@@ -1704,8 +1743,7 @@ class SubtitleRemoveView(ft.Container):
                 # 更新进度
                 if frame_idx % 30 == 0:  # 每30帧更新一次
                     progress = (idx + frame_idx / total_frames) / total
-                    self.progress_bar.value = progress
-                    self._page.update()
+                    self._pending_progress = (progress, None)
             
             cap.release()
             out.release()
@@ -1738,19 +1776,43 @@ class SubtitleRemoveView(ft.Container):
         self.progress_text.visible = True
         self._page.update()
         
-        def process_task():
+        self._process_output_dir = output_dir
+        self._page.run_task(self._async_process)
+    
+    async def _async_process(self) -> None:
+        """异步处理视频。"""
+        import asyncio
+        
+        self._task_finished = False
+        self._pending_progress = None
+        self._process_error = False
+        output_dir = self._process_output_dir
+        process_mode = self.process_mode
+        files = list(self.selected_files)
+        
+        async def _poll():
+            while not self._task_finished:
+                if self._pending_progress is not None:
+                    bar_val, text_val = self._pending_progress
+                    if bar_val is not None:
+                        self.progress_bar.value = bar_val
+                    if text_val is not None:
+                        self.progress_text.value = text_val
+                    self._page.update()
+                    self._pending_progress = None
+                await asyncio.sleep(0.3)
+        
+        def _do_process():
             import ffmpeg
             temp_audio_file = None
             temp_video_file = None
             
             try:
-                total = len(self.selected_files)
+                total = len(files)
                 
-                for idx, file_path in enumerate(self.selected_files):
+                for idx, file_path in enumerate(files):
                     # 更新进度
-                    self.progress_text.value = f"处理中: {file_path.name} ({idx + 1}/{total})"
-                    self.progress_bar.value = idx / total
-                    self._page.update()
+                    self._pending_progress = (idx / total, f"处理中: {file_path.name} ({idx + 1}/{total})")
                     
                     # 获取视频信息
                     video_info = self.ffmpeg_service.safe_probe(str(file_path))
@@ -1801,7 +1863,7 @@ class SubtitleRemoveView(ft.Container):
                     # 步骤3：处理视频
                     temp_video_file = Path(tempfile.gettempdir()) / f"temp_video_{file_path.stem}.mp4"
                     
-                    if self.process_mode == "mask":
+                    if process_mode == "mask":
                         # 遮挡模式：不使用AI模型
                         success = self._process_video_mask_mode(
                             file_path=file_path,
@@ -1817,8 +1879,7 @@ class SubtitleRemoveView(ft.Container):
                         
                         def update_progress(current, total_f):
                             progress = (idx + current / total_f) / total
-                            self.progress_bar.value = progress
-                            self._page.update()
+                            self._pending_progress = (progress, None)
                         
                         success = self.subtitle_service.process_video_streaming(
                             video_path=str(file_path),
@@ -1900,31 +1961,38 @@ class SubtitleRemoveView(ft.Container):
                         temp_video_file.unlink()
                 
                 # 完成
-                self.progress_text.value = "处理完成！"
-                self.progress_bar.value = 1.0
+                self._pending_progress = (1.0, "处理完成！")
                 
             except Exception as e:
                 logger.error(f"处理失败: {e}", exc_info=True)
-                self.progress_text.value = f"处理失败: {str(e)}"
-                self.progress_text.color = ft.Colors.ERROR
+                self._pending_progress = (None, f"处理失败: {str(e)}")
+                self._process_error = True
             finally:
                 # 确保清理临时文件
                 if temp_audio_file and Path(temp_audio_file).exists():
                     try:
                         Path(temp_audio_file).unlink()
-                    except:
+                    except Exception:
                         pass
                 if temp_video_file and Path(temp_video_file).exists():
                     try:
                         Path(temp_video_file).unlink()
-                    except:
+                    except Exception:
                         pass
-                
-                self.is_processing = False
-                self.process_btn.content.disabled = False
-                self._page.update()
         
-        threading.Thread(target=process_task, daemon=True).start()
+        poll = asyncio.create_task(_poll())
+        try:
+            await asyncio.to_thread(_do_process)
+        finally:
+            self._task_finished = True
+            await poll
+        
+        if self._process_error:
+            self.progress_text.color = ft.Colors.ERROR
+        
+        self.is_processing = False
+        self.process_btn.content.disabled = False
+        self._page.update()
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
