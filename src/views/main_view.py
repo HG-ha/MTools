@@ -10,11 +10,7 @@ from typing import Optional
 
 import flet as ft
 
-try:
-    import flet_dropzone as ftd  # type: ignore[import-untyped]
-    _DROPZONE_AVAILABLE = True
-except ImportError:
-    _DROPZONE_AVAILABLE = False
+import flet_dropzone as ftd  # type: ignore[import-untyped]
 
 from components import CustomTitleBar, ToolInfo, ToolSearchDialog
 from constants import APP_VERSION, BUILD_CUDA_VARIANT, DOWNLOAD_URL_GITHUB, DOWNLOAD_URL_CHINA
@@ -288,15 +284,12 @@ class MainView(ft.Column):
         self._page.on_keyboard_event = self._on_keyboard
         
         # 用 flet-dropzone 包裹内容区域以支持文件拖放（需要 flet build）
-        if _DROPZONE_AVAILABLE:
-            self.dropzone_wrapper = ftd.Dropzone(
-                content=self.content_container,
-                on_dropped=self._on_files_dropped,
-                expand=True,
-            )
-            content_area = self.dropzone_wrapper
-        else:
-            content_area = self.content_container
+        self.dropzone_wrapper = ftd.Dropzone(
+            content=self.content_container,
+            on_dropped=self._on_files_dropped,
+            expand=True,
+        )
+        content_area = self.dropzone_wrapper
         
         # 主内容区域（导航栏 + 内容）
         main_content: ft.Row = ft.Row(

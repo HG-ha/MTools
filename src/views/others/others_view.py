@@ -7,6 +7,7 @@
 from typing import Optional
 
 import flet as ft
+import flet_dropzone as ftd  # type: ignore[import-untyped]
 
 from components import FeatureCard
 from constants import (
@@ -119,9 +120,9 @@ class OthersView(ft.Container):
         snackbar.open = True
         self._page.update()
     
-    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id) -> FeatureCard:
-        """创建带置顶功能的卡片。"""
-        return FeatureCard(
+    def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id):
+        """创建带置顶功能的卡片，外层包裹 Dropzone 支持拖放。"""
+        card = FeatureCard(
             icon=icon,
             title=title,
             description=description,
@@ -131,6 +132,29 @@ class OthersView(ft.Container):
             is_pinned=self.config_service.is_tool_pinned(tool_id),
             on_pin_change=self._on_pin_change,
         )
+        return ftd.Dropzone(
+            content=card,
+            on_dropped=lambda e, oc=on_click: self._on_card_drop(e, oc),
+        )
+
+    def _on_card_drop(self, e, on_click) -> None:
+        """处理卡片上的文件拖放：打开工具并导入文件。"""
+        from pathlib import Path
+
+        files = [Path(f) for f in e.files]
+        if not files:
+            return
+        # 1. 打开工具
+        on_click(None)
+
+        # 2. 延迟导入文件（等待工具 UI 加载）
+        async def import_files():
+            import asyncio
+            await asyncio.sleep(0.3)
+            if self.current_sub_view and hasattr(self.current_sub_view, 'add_files'):
+                self.current_sub_view.add_files(files)
+
+        self._page.run_task(import_files)
     
     def _build_ui(self) -> None:
         """构建用户界面。"""

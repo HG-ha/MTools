@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional, List
 
 import flet as ft
+import flet_dropzone as ftd  # type: ignore[import-untyped]
 
 from components import FeatureCard
 from constants import (
@@ -167,8 +168,12 @@ class RecommendationsView(ft.Container):
                 is_pinned=is_pinned,
                 on_pin_change=self._on_pin_change,
             )
+            wrapped = ftd.Dropzone(
+                content=card,
+                on_dropped=lambda e, tid=tool_id: self._on_card_drop(e, tid),
+            )
             
-            cards.append(card)
+            cards.append(wrapped)
         
         return cards
     
@@ -199,6 +204,15 @@ class RecommendationsView(ft.Container):
         }
         return gradient_map.get(category, ("#e0e0e0", "#f5f5f5"))
     
+    def _on_card_drop(self, e, tool_id: str) -> None:
+        """处理卡片上的文件拖放：通过 _pending_drop_files 机制传递文件并跳转工具。"""
+        files = [Path(f) for f in e.files]
+        if not files or not self.on_tool_click_handler:
+            return
+        self._saved_page._pending_drop_files = files
+        self._saved_page._pending_tool_id = tool_id
+        self.on_tool_click_handler(tool_id)
+
     def _on_tool_click(self, tool_id: str) -> None:
         """工具点击事件。"""
         if self.on_tool_click_handler:
