@@ -837,10 +837,16 @@ class ScreenRecordView(ft.Container):
                 encoder_options.insert(0, ft.dropdown.Option("h264_qsv", "H.264 (QSV) - Intel ⚡"))
             if "hevc_qsv" in gpu_encoders:
                 encoder_options.insert(1, ft.dropdown.Option("hevc_qsv", "H.265 (QSV) - Intel ⚡"))
+            if "h264_videotoolbox" in gpu_encoders:
+                encoder_options.insert(0, ft.dropdown.Option("h264_videotoolbox", "H.264 (VideoToolbox) - Apple ⚡"))
+            if "hevc_videotoolbox" in gpu_encoders:
+                encoder_options.insert(1, ft.dropdown.Option("hevc_videotoolbox", "H.265 (VideoToolbox) - Apple ⚡"))
         
         # 默认选择 GPU 编码器（如果可用）
         default_encoder = "libx264"
-        if "h264_nvenc" in gpu_encoders:
+        if "h264_videotoolbox" in gpu_encoders:
+            default_encoder = "h264_videotoolbox"
+        elif "h264_nvenc" in gpu_encoders:
             default_encoder = "h264_nvenc"
         elif "h264_amf" in gpu_encoders:
             default_encoder = "h264_amf"
@@ -883,6 +889,11 @@ class ScreenRecordView(ft.Container):
                 ft.dropdown.Option("slow", "慢"),
             ]
             default_preset = "medium"
+        elif default_encoder.endswith("_videotoolbox"):
+            preset_options = [
+                ft.dropdown.Option("default", "默认"),
+            ]
+            default_preset = "default"
         else:
             preset_options = [
                 ft.dropdown.Option("ultrafast", "最快 (质量最低)"),
@@ -1313,6 +1324,12 @@ class ScreenRecordView(ft.Container):
                 ft.dropdown.Option("slow", "慢"),
             ]
             self.preset_dropdown.value = "medium"
+        elif encoder.endswith("_videotoolbox"):
+            # Apple VideoToolbox 没有预设概念，隐藏预设选项
+            self.preset_dropdown.options = [
+                ft.dropdown.Option("default", "默认"),
+            ]
+            self.preset_dropdown.value = "default"
         else:
             # CPU 编码器预设
             self.preset_dropdown.options = [
@@ -1449,7 +1466,20 @@ class ScreenRecordView(ft.Container):
                 f'1:{audio_device}',
                 format='avfoundation',
                 framerate=fps,
+                capture_cursor=1,
             )
+            
+            # avfoundation 不支持直接指定区域，需要 crop 滤镜
+            if self.selected_region and self.selected_region_type in ("window", "custom"):
+                rx, ry, rw, rh = self.selected_region
+                rw = max(64, (rw // 2) * 2)
+                rh = max(64, (rh // 2) * 2)
+                video_stream = video_stream.filter("crop", rw, rh, rx, ry)
+                mode_name = "窗口" if self.selected_region_type == "window" else "自定义区域"
+                logger.info(f"macOS {mode_name} crop: x={rx}, y={ry}, {rw}x{rh}")
+            
+            # 确保输出尺寸为偶数
+            video_stream = video_stream.filter("scale", "trunc(iw/2)*2", "trunc(ih/2)*2")
             streams.append(video_stream)
                 
         else:
@@ -1500,6 +1530,9 @@ class ScreenRecordView(ft.Container):
         elif encoder.endswith("_qsv"):
             output_kwargs['preset'] = preset
             output_kwargs['global_quality'] = quality
+        elif encoder.endswith("_videotoolbox"):
+            # Apple VideoToolbox - 质量范围 1-100（越大越好）
+            output_kwargs['q:v'] = quality
         else:
             output_kwargs['preset'] = preset
             output_kwargs['crf'] = quality
@@ -1672,7 +1705,7 @@ class ScreenRecordView(ft.Container):
             # 启动异步计时器
             self._page.run_task(self._timer_loop_async)
             
-            self._show_message(f"录制已开始 (按 {self._get_hotkey_display()} 停止)", ft.Colors.GREEN)
+            self._show_message("录制已开始，点击停止按钮结束录制", ft.Colors.GREEN)
             
         except Exception as ex:
             logger.error(f"启动录制失败: {ex}", exc_info=True)

@@ -555,6 +555,61 @@ def _select_win32(hint_main: str, hint_sub: str, return_window_title: bool) -> R
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  macOS 主线程调度辅助（子进程方案）
+# ═══════════════════════════════════════════════════════════════════
+
+def _dispatch_to_main_thread(_func, hint_main, hint_sub, return_window_title):
+    """在独立子进程中运行屏幕选择器。
+
+    macOS AppKit 要求 NSWindow 等 UI 操作在主线程执行，
+    而 Flet 的 Python 主线程运行 asyncio 事件循环，无法直接使用。
+    子进程拥有独立的主线程，可以自由运行 AppKit 事件循环。
+    """
+    import json
+    import subprocess
+
+    _RESULT_MARKER = "__SELECTOR_RESULT__:"
+
+    src_dir = str(__import__("pathlib").Path(__file__).resolve().parent.parent)
+    script = (
+        f"import sys; sys.path.insert(0, {src_dir!r})\n"
+        f"from utils.screen_selector import _select_macos\n"
+        f"import json\n"
+        f"r = _select_macos({hint_main!r}, {hint_sub!r}, {return_window_title!r})\n"
+        f"print('{_RESULT_MARKER}' + (json.dumps(list(r)) if r else 'null'))\n"
+    )
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if proc.returncode != 0:
+            stderr = proc.stderr.strip()
+            logger.error(f"屏幕选择器子进程错误 (rc={proc.returncode}): {stderr[-300:]}")
+            return None
+
+        # 从 stdout 中查找带标记的结果行（忽略 logger 等其他输出）
+        for line in proc.stdout.splitlines():
+            if line.startswith(_RESULT_MARKER):
+                payload = line[len(_RESULT_MARKER):]
+                if not payload or payload == "null":
+                    return None
+                return tuple(json.loads(payload))
+
+        logger.error("屏幕选择器子进程未输出结果")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.error("屏幕选择器子进程超时")
+        return None
+    except Exception as ex:
+        logger.error(f"屏幕选择器子进程异常: {ex}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  macOS 实现（PyObjC）
 # ═══════════════════════════════════════════════════════════════════
 
@@ -589,6 +644,12 @@ def _select_macos(hint_main: str, hint_sub: str, return_window_title: bool) -> R
     except ImportError:
         logger.warning("PyObjC 未安装，无法使用屏幕区域选择")
         return None
+
+    from Foundation import NSThread
+
+    # ── 主线程调度（AppKit 要求所有 UI 操作在主线程执行） ──
+    if not NSThread.isMainThread():
+        return _dispatch_to_main_thread(_select_macos, hint_main, hint_sub, return_window_title)
 
     # ── 权限检查 ──
     try:
@@ -890,11 +951,16 @@ def _select_macos(hint_main: str, hint_sub: str, return_window_title: bool) -> R
         @objc.python_method
         def _finish(self):
             self.window().orderOut_(None)
-            NSApp.stop_(None)
-            dummy = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                15, NSMakeRect(0, 0, 0, 0).origin, 0, 0, 0, None, 0, 0, 0,
-            )
-            NSApp.postEvent_atStart_(dummy, True)
+            if NSApp.modalWindow() is not None:
+                # 内嵌模式（flet build）：结束模态会话
+                NSApp.stopModal()
+            else:
+                # 独立 / 子进程模式：停止 app.run()
+                NSApp.stop_(None)
+                dummy = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    15, NSMakeRect(0, 0, 0, 0).origin, 0, 0, 0, None, 0, 0, 0,
+                )
+                NSApp.postEvent_atStart_(dummy, True)
 
     # ── 主逻辑 ──
     cg_image = CGWindowListCreateImage(
@@ -951,7 +1017,13 @@ def _select_macos(hint_main: str, hint_sub: str, return_window_title: bool) -> R
     window.makeKeyAndOrderFront_(None)
     window.makeFirstResponder_(view)
     app.activateIgnoringOtherApps_(True)
-    app.run()
+
+    if app.isRunning():
+        # Flet 内嵌模式：NSApp 已在运行，用模态会话
+        NSApp.runModalForWindow_(window)
+    else:
+        # 独立 / 子进程模式：启动 app 事件循环
+        app.run()
 
     result = view.result
     window.orderOut_(None)

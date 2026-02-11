@@ -1017,6 +1017,12 @@ class FFmpegService:
                 listed_encoders.append("h264_qsv")
             if "hevc_qsv" in output:
                 listed_encoders.append("hevc_qsv")
+            
+            # 检测 macOS VideoToolbox 编码器
+            if "h264_videotoolbox" in output:
+                listed_encoders.append("h264_videotoolbox")
+            if "hevc_videotoolbox" in output:
+                listed_encoders.append("hevc_videotoolbox")
 
             # 关键：仅“列出”不代表可用（NVENC 很常见：encoders 有但驱动/硬件不可用，启动会直接失败）
             available_encoders = [e for e in listed_encoders if self.is_encoder_usable(e)]
@@ -1041,7 +1047,8 @@ class FFmpegService:
             return False
 
         # CPU 编码器默认认为可用（不在这里验证）
-        if not (encoder.endswith("_nvenc") or encoder.endswith("_amf") or encoder.endswith("_qsv")):
+        hw_suffixes = ("_nvenc", "_amf", "_qsv", "_videotoolbox")
+        if not any(encoder.endswith(s) for s in hw_suffixes):
             return True
 
         if encoder in self._encoder_usable_cache:

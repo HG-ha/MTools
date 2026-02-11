@@ -440,14 +440,15 @@ class SettingsView(ft.Container):
     }
     
     def _get_hotkey_display(self, config: dict) -> str:
-        """获取快捷键显示文本。"""
+        """获取快捷键显示文本（macOS 使用符号）。"""
+        is_mac = sys.platform == 'darwin'
         parts = []
         if config.get("ctrl"):
-            parts.append("Ctrl")
+            parts.append("⌃" if is_mac else "Ctrl")
         if config.get("alt"):
-            parts.append("Alt")
+            parts.append("⌥" if is_mac else "Alt")
         if config.get("shift"):
-            parts.append("Shift")
+            parts.append("⇧" if is_mac else "Shift")
         parts.append(config.get("key", ""))
         return "+".join(parts) if parts else "未设置"
     
@@ -460,10 +461,17 @@ class SettingsView(ft.Container):
             weight=ft.FontWeight.W_600,
         )
         
-        # 检查平台支持
-        is_windows = sys.platform == 'win32'
+        # 检查平台支持（Windows + macOS）
+        is_hotkey_supported = sys.platform in ('win32', 'darwin')
+        is_mac = sys.platform == 'darwin'
+        # 兼容旧变量名：整个方法中大量使用 is_windows
+        is_windows = is_hotkey_supported
+        # macOS 修饰键标签
+        _ctrl_label = "⌃ Control" if is_mac else "Ctrl"
+        _alt_label = "⌥ Option" if is_mac else "Alt"
+        _shift_label = "⇧ Shift" if is_mac else "Shift"
         platform_hint = ""
-        if not is_windows:
+        if not is_hotkey_supported:
             platform_hint = "（当前系统不支持全局快捷键）"
         
         section_desc = ft.Text(
@@ -494,13 +502,13 @@ class SettingsView(ft.Container):
         )
         
         # OCR 快捷键配置
-        self.ocr_ctrl_cb = ft.Checkbox(label="Ctrl", value=ocr_hotkey.get("ctrl", True), 
+        self.ocr_ctrl_cb = ft.Checkbox(label=_ctrl_label, value=ocr_hotkey.get("ctrl", True), 
                                         on_change=lambda e: self._on_hotkey_change("ocr"), 
                                         disabled=not is_windows or not ocr_hotkey_enabled)
-        self.ocr_alt_cb = ft.Checkbox(label="Alt", value=ocr_hotkey.get("alt", False),
+        self.ocr_alt_cb = ft.Checkbox(label=_alt_label, value=ocr_hotkey.get("alt", False),
                                        on_change=lambda e: self._on_hotkey_change("ocr"), 
                                        disabled=not is_windows or not ocr_hotkey_enabled)
-        self.ocr_shift_cb = ft.Checkbox(label="Shift", value=ocr_hotkey.get("shift", True),
+        self.ocr_shift_cb = ft.Checkbox(label=_shift_label, value=ocr_hotkey.get("shift", True),
                                          on_change=lambda e: self._on_hotkey_change("ocr"), 
                                          disabled=not is_windows or not ocr_hotkey_enabled)
         self.ocr_key_dropdown = ft.Dropdown(
@@ -578,13 +586,13 @@ class SettingsView(ft.Container):
         )
         
         # 录屏快捷键配置
-        self.record_ctrl_cb = ft.Checkbox(label="Ctrl", value=screen_record_hotkey.get("ctrl", True),
+        self.record_ctrl_cb = ft.Checkbox(label=_ctrl_label, value=screen_record_hotkey.get("ctrl", True),
                                            on_change=lambda e: self._on_hotkey_change("screen_record"), 
                                            disabled=not is_windows or not screen_record_hotkey_enabled)
-        self.record_alt_cb = ft.Checkbox(label="Alt", value=screen_record_hotkey.get("alt", False),
+        self.record_alt_cb = ft.Checkbox(label=_alt_label, value=screen_record_hotkey.get("alt", False),
                                           on_change=lambda e: self._on_hotkey_change("screen_record"), 
                                           disabled=not is_windows or not screen_record_hotkey_enabled)
-        self.record_shift_cb = ft.Checkbox(label="Shift", value=screen_record_hotkey.get("shift", True),
+        self.record_shift_cb = ft.Checkbox(label=_shift_label, value=screen_record_hotkey.get("shift", True),
                                             on_change=lambda e: self._on_hotkey_change("screen_record"), 
                                             disabled=not is_windows or not screen_record_hotkey_enabled)
         self.record_key_dropdown = ft.Dropdown(
@@ -648,14 +656,14 @@ class SettingsView(ft.Container):
         hint_row = ft.Row(
             controls=[
                 ft.Icon(
-                    ft.Icons.INFO_OUTLINE if is_windows else ft.Icons.WARNING_AMBER,
+                    ft.Icons.INFO_OUTLINE if is_hotkey_supported else ft.Icons.WARNING_AMBER,
                     size=14,
-                    color=ft.Colors.ON_SURFACE_VARIANT if is_windows else ft.Colors.ORANGE,
+                    color=ft.Colors.ON_SURFACE_VARIANT if is_hotkey_supported else ft.Colors.ORANGE,
                 ),
                 ft.Text(
-                    "快捷键在全局生效，可在任意应用中使用。" if is_windows else "全局快捷键功能仅支持 Windows 系统。",
+                    "快捷键在全局生效，可在任意应用中使用。" if is_hotkey_supported else "全局快捷键功能仅支持 Windows / macOS 系统。",
                     size=11,
-                    color=ft.Colors.ON_SURFACE_VARIANT if is_windows else ft.Colors.ORANGE,
+                    color=ft.Colors.ON_SURFACE_VARIANT if is_hotkey_supported else ft.Colors.ORANGE,
                 ),
             ],
             spacing=6,

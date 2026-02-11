@@ -13,29 +13,27 @@ from typing import Callable, Dict, Optional
 
 from utils import logger
 
+# 跨平台图像处理模块
+try:
+    from PIL import Image, ImageGrab
+except ImportError:
+    Image = None
+    ImageGrab = None
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
+
 # Windows 专用模块（条件导入）
 if sys.platform == 'win32':
     import ctypes
     from ctypes import wintypes, POINTER
-    try:
-        from PIL import Image, ImageGrab
-    except ImportError:
-        Image = None
-        ImageGrab = None
-    try:
-        import cv2
-        import numpy as np
-    except ImportError:
-        cv2 = None
-        np = None
 else:
     ctypes = None
     wintypes = None
     POINTER = None
-    Image = None
-    ImageGrab = None
-    cv2 = None
-    np = None
 
 
 class GlobalHotkeyService:
@@ -126,25 +124,82 @@ class GlobalHotkeyService:
         thread.start()
     
     def _get_hotkey_display(self, config: dict) -> str:
-        """获取快捷键显示文本。"""
+        """获取快捷键显示文本（macOS 使用符号）。"""
+        is_mac = sys.platform == 'darwin'
         parts = []
         if config.get("ctrl"):
-            parts.append("Ctrl")
+            parts.append("⌃" if is_mac else "Ctrl")
         if config.get("alt"):
-            parts.append("Alt")
+            parts.append("⌥" if is_mac else "Alt")
         if config.get("shift"):
-            parts.append("Shift")
+            parts.append("⇧" if is_mac else "Shift")
         parts.append(config.get("key", ""))
         return "+".join(parts) if parts else "未设置"
     
+    # ── macOS 辅助功能权限检查 ──────────────────────────────────
+    @staticmethod
+    def _check_accessibility_permission() -> bool:
+        """检查并请求 macOS 辅助功能权限（pynput 全局热键必需）。
+        
+        Returns:
+            True 表示已获得权限，False 表示未授权
+        """
+        try:
+            import objc
+            from ApplicationServices import AXIsProcessTrustedWithOptions
+            from CoreFoundation import (
+                kCFBooleanTrue,
+                CFStringCreateWithCString,
+                kCFStringEncodingUTF8,
+                CFDictionaryCreate,
+                kCFTypeDictionaryKeyCallBacks,
+                kCFTypeDictionaryValueCallBacks,
+            )
+            
+            # kAXTrustedCheckOptionPrompt = "AXTrustedCheckOptionPrompt"
+            key = CFStringCreateWithCString(
+                None, b"AXTrustedCheckOptionPrompt", kCFStringEncodingUTF8
+            )
+            value = kCFBooleanTrue
+            options = CFDictionaryCreate(
+                None,
+                [key], [value], 1,
+                kCFTypeDictionaryKeyCallBacks,
+                kCFTypeDictionaryValueCallBacks,
+            )
+            trusted = AXIsProcessTrustedWithOptions(options)
+            return bool(trusted)
+        except Exception as ex:
+            logger.warning(f"检查辅助功能权限失败: {ex}")
+            return False
+    
+    # ── macOS pynput 热键配置转换 ─────────────────────────────────
+    @staticmethod
+    def _build_pynput_hotkey_str(config: dict) -> str:
+        """将热键配置字典转换为 pynput HotKey 字符串。
+        
+        例如 {"ctrl": True, "shift": True, "key": "Q"} -> "<ctrl>+<shift>+q"
+        """
+        parts = []
+        if config.get("ctrl"):
+            parts.append("<ctrl>")  # macOS 使用 Control 键，避免与 Cmd 系统快捷键冲突
+        if config.get("alt"):
+            parts.append("<alt>")
+        if config.get("shift"):
+            parts.append("<shift>")
+        key = config.get("key", "").lower()
+        if key:
+            parts.append(key)
+        return "+".join(parts)
+
     def start(self) -> bool:
         """启动全局热键监听。
         
         Returns:
             是否成功启动
         """
-        if sys.platform != 'win32':
-            logger.info("全局热键仅支持 Windows 系统")
+        if sys.platform not in ('win32', 'darwin'):
+            logger.info("全局热键仅支持 Windows / macOS 系统")
             return False
         
         # 检查是否有任何功能启用
@@ -174,6 +229,14 @@ class GlobalHotkeyService:
         
         self._hotkey_stop_event = threading.Event()
         
+        if sys.platform == 'darwin':
+            return self._start_macos(ocr_enabled, record_enabled, ocr_config, record_config)
+        else:
+            return self._start_win32(ocr_enabled, record_enabled, ocr_config, record_config)
+    
+    # ── Windows 热键启动（原有逻辑） ─────────────────────────────
+    def _start_win32(self, ocr_enabled, record_enabled, ocr_config, record_config) -> bool:
+        """Windows 平台热键启动。"""
         def hotkey_loop():
             user32 = ctypes.windll.user32
             kernel32 = ctypes.windll.kernel32
@@ -263,6 +326,56 @@ class GlobalHotkeyService:
         self._hotkey_thread.start()
         return True
     
+    # ── macOS 热键启动（pynput） ──────────────────────────────────
+    def _start_macos(self, ocr_enabled, record_enabled, ocr_config, record_config) -> bool:
+        """macOS 平台使用 pynput 监听全局热键。"""
+        # 1. 检查辅助功能权限
+        if not self._check_accessibility_permission():
+            logger.warning("macOS 辅助功能权限未授予，全局热键不可用。"
+                           "请在 系统设置 > 隐私与安全性 > 辅助功能 中授权本应用，然后重启。")
+            self._show_notification(
+                "需要辅助功能权限才能使用全局热键，请在系统设置中授权后重启应用"
+            )
+            return False
+        
+        try:
+            from pynput import keyboard
+        except ImportError:
+            logger.error("pynput 未安装，macOS 全局热键不可用")
+            return False
+        
+        # 2. 构建 hotkey 映射 {pynput_str: handler}
+        hotkeys = {}
+        
+        if ocr_enabled:
+            ocr_hk_str = self._build_pynput_hotkey_str(ocr_config)
+            if ocr_hk_str:
+                hotkeys[ocr_hk_str] = lambda: self._handle_hotkey(self.HOTKEY_OCR)
+                logger.info(f"全局热键已注册: OCR 截图识别 ({ocr_hk_str})")
+        
+        if record_enabled:
+            rec_hk_str = self._build_pynput_hotkey_str(record_config)
+            if rec_hk_str:
+                hotkeys[rec_hk_str] = lambda: self._handle_hotkey(self.HOTKEY_SCREEN_RECORD)
+                logger.info(f"全局热键已注册: 屏幕录制 ({rec_hk_str})")
+        
+        if not hotkeys:
+            logger.warning("没有可注册的 macOS 热键")
+            return False
+        
+        # 3. 启动 pynput GlobalHotKeys 监听
+        listener = keyboard.GlobalHotKeys(hotkeys)
+        listener.daemon = True
+        listener.start()
+        
+        # 保存引用以便 stop() 中清理
+        self._pynput_listener = listener
+        # 复用 _hotkey_thread 字段，方便 is_alive() 判断
+        self._hotkey_thread = listener
+        
+        logger.info("macOS 全局热键监听已启动 (pynput)")
+        return True
+    
     def stop(self) -> None:
         """停止全局热键监听。"""
         # 取消 OCR 卸载定时器
@@ -284,19 +397,29 @@ class GlobalHotkeyService:
         if not self._hotkey_thread:
             return
         
-        try:
-            if self._hotkey_stop_event:
-                self._hotkey_stop_event.set()
-        except Exception:
-            pass
-        
-        try:
-            user32 = ctypes.windll.user32
-            WM_QUIT = 0x0012
-            if self._hotkey_thread_id:
-                user32.PostThreadMessageW(int(self._hotkey_thread_id), WM_QUIT, 0, 0)
-        except Exception:
-            pass
+        # macOS: 停止 pynput 监听
+        if sys.platform == 'darwin':
+            if hasattr(self, '_pynput_listener') and self._pynput_listener:
+                try:
+                    self._pynput_listener.stop()
+                except Exception:
+                    pass
+                self._pynput_listener = None
+        else:
+            # Windows: 发送 WM_QUIT 消息
+            try:
+                if self._hotkey_stop_event:
+                    self._hotkey_stop_event.set()
+            except Exception:
+                pass
+            
+            try:
+                user32 = ctypes.windll.user32
+                WM_QUIT = 0x0012
+                if self._hotkey_thread_id:
+                    user32.PostThreadMessageW(int(self._hotkey_thread_id), WM_QUIT, 0, 0)
+            except Exception:
+                pass
         
         self._hotkey_thread = None
         self._hotkey_stop_event = None
@@ -372,7 +495,17 @@ class GlobalHotkeyService:
                     return
                 
                 # 截取选中区域（all_screens=True 支持多屏幕）
-                selected = ImageGrab.grab(bbox=(x, y, x + w, y + h), all_screens=True)
+                # macOS: ImageGrab 使用 screencapture，期望点坐标而非像素坐标
+                if sys.platform == 'darwin':
+                    try:
+                        from AppKit import NSScreen
+                        scale = NSScreen.mainScreen().backingScaleFactor()
+                    except Exception:
+                        scale = 1.0
+                    grab_bbox = (int(x / scale), int(y / scale), int((x + w) / scale), int((y + h) / scale))
+                else:
+                    grab_bbox = (x, y, x + w, y + h)
+                selected = ImageGrab.grab(bbox=grab_bbox, all_screens=True)
                 img_array = np.array(selected)
                 img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
                 
@@ -584,9 +717,12 @@ class GlobalHotkeyService:
                     return
                 
                 # 生成输出文件名
+                if sys.platform == 'darwin':
+                    default_output = str(Path.home() / "Movies" / "MTools" / "录屏")
+                else:
+                    default_output = str(Path.home() / "Videos" / "MTools" / "录屏")
                 output_dir = Path(self.config_service.get_config_value(
-                    "screen_record_output_dir",
-                    str(Path.home() / "Videos" / "MTools" / "录屏")
+                    "screen_record_output_dir", default_output
                 ))
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
@@ -602,10 +738,15 @@ class GlobalHotkeyService:
                 
                 gpu_encoders = ffmpeg_service.detect_gpu_encoders()
                 if gpu_encoders:
-                    for gpu_enc in ["h264_nvenc", "h264_amf", "h264_qsv"]:
+                    preferred = ["h264_videotoolbox"] if sys.platform == 'darwin' else [
+                        "h264_nvenc", "h264_amf", "h264_qsv"
+                    ]
+                    for gpu_enc in preferred:
                         if gpu_enc in gpu_encoders:
                             encoder = gpu_enc
-                            if gpu_enc == "h264_nvenc":
+                            if gpu_enc == "h264_videotoolbox":
+                                encoder_opts = {"q:v": 65}  # VT 质量 0-100
+                            elif gpu_enc == "h264_nvenc":
                                 encoder_opts = {"preset": "p4", "cq": 23}
                             elif gpu_enc == "h264_amf":
                                 encoder_opts = {"quality": "speed", "rc": "cqp", "qp": 23}
@@ -615,17 +756,28 @@ class GlobalHotkeyService:
                 
                 logger.info(f"屏幕录制使用编码器: {encoder}")
                 
-                # 构建 FFmpeg 流
-                input_kwargs = {
-                    "f": "gdigrab",
-                    "framerate": 30,
-                    "offset_x": x,
-                    "offset_y": y,
-                    "s": f"{w}x{h}",  # 使用 -s 替代 video_size
-                }
+                # ── 构建 FFmpeg 流（平台差异） ─────────────────────
+                if sys.platform == 'darwin':
+                    # macOS: avfoundation 捕获整个屏幕，再用 crop 裁剪
+                    stream = ffmpeg.input(
+                        "1:none",
+                        format="avfoundation",
+                        framerate=30,
+                        capture_cursor=1,
+                    )
+                    stream = stream.filter("crop", w, h, x, y)
+                else:
+                    # Windows: gdigrab 支持直接指定区域
+                    input_kwargs = {
+                        "f": "gdigrab",
+                        "framerate": 30,
+                        "offset_x": x,
+                        "offset_y": y,
+                        "s": f"{w}x{h}",
+                    }
+                    stream = ffmpeg.input("desktop", **input_kwargs)
                 
-                stream = ffmpeg.input("desktop", **input_kwargs)
-                # 添加 scale 滤镜确保输出尺寸为偶数（编码器要求）
+                # 统一：确保输出尺寸为偶数（编码器要求）
                 stream = stream.filter("scale", "trunc(iw/2)*2", "trunc(ih/2)*2")
                 stream = ffmpeg.output(
                     stream,
@@ -772,7 +924,7 @@ class GlobalHotkeyService:
         thread.start()
     
     def _copy_to_clipboard(self, text: str) -> bool:
-        """使用 Windows 原生 API 复制文本到剪切板。
+        """复制文本到剪切板（跨平台）。
         
         Args:
             text: 要复制的文本
@@ -780,8 +932,11 @@ class GlobalHotkeyService:
         Returns:
             是否成功
         """
+        if sys.platform == 'darwin':
+            return self._copy_to_clipboard_macos(text)
+        
         if sys.platform != 'win32':
-            logger.warning("剪切板功能仅支持 Windows")
+            logger.warning("剪切板功能仅支持 Windows / macOS")
             return False
         
         if not text:
@@ -863,6 +1018,29 @@ class GlobalHotkeyService:
                 
         except Exception as ex:
             logger.warning(f"复制到剪切板失败: {ex}", exc_info=True)
+            return False
+    
+    def _copy_to_clipboard_macos(self, text: str) -> bool:
+        """macOS: 使用 pbcopy 复制文本到剪切板。"""
+        if not text:
+            logger.warning("剪切板复制：文本为空")
+            return False
+        try:
+            import subprocess
+            proc = subprocess.Popen(
+                ["pbcopy"],
+                stdin=subprocess.PIPE,
+                env={"LANG": "en_US.UTF-8"},
+            )
+            proc.communicate(text.encode("utf-8"))
+            if proc.returncode == 0:
+                logger.info(f"剪切板复制成功 (pbcopy): {len(text)} 字符")
+                return True
+            else:
+                logger.warning(f"pbcopy 返回码: {proc.returncode}")
+                return False
+        except Exception as ex:
+            logger.warning(f"macOS 剪切板复制失败: {ex}", exc_info=True)
             return False
     
     def _show_notification(self, message: str) -> None:
