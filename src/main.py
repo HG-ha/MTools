@@ -73,13 +73,13 @@ def main(page: ft.Page) -> None:
         page.window.left = saved_left
         page.window.top = saved_top
     
+    # 隐藏系统标题栏，使用自定义标题栏（必须在设置最大化之前）
+    page.window.title_bar_hidden = True
+    page.window.title_bar_buttons_hidden = True
+    
     # 最后应用最大化状态（如果上次是最大化）
     if saved_maximized:
         page.window.maximized = True
-    
-    # 隐藏系统标题栏，使用自定义标题栏
-    page.window.title_bar_hidden = True
-    page.window.title_bar_buttons_hidden = True
     
     # 设置浅色主题 - 使用用户选择的主题色或默认色
     page.theme = ft.Theme(

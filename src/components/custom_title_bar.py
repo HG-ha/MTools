@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import flet as ft
+import flet.canvas as cv
 from PIL import Image, ImageDraw
 from pystray import Icon, Menu, MenuItem
 
@@ -111,9 +112,155 @@ class CustomTitleBar(ft.Container):
         """
         return self._page
     
+    # ── macOS 交通灯按钮辅助 ──────────────────────────────────────
+    # macOS 交通灯符号统一使用半透明黑色，与原生一致
+    _MAC_SYM_COLOR = ft.Colors.with_opacity(0.6, ft.Colors.BLACK)
+
+    @staticmethod
+    def _mac_close_shapes() -> list:
+        """关闭按钮符号：× 两条交叉线。"""
+        p = ft.Paint(
+            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.5,
+            style=ft.PaintingStyle.STROKE,
+            stroke_cap=ft.StrokeCap.ROUND, anti_alias=True,
+        )
+        return [
+            cv.Line(3, 3, 9, 9, paint=p),
+            cv.Line(9, 3, 3, 9, paint=p),
+        ]
+
+    @staticmethod
+    def _mac_minimize_shapes() -> list:
+        """最小化按钮符号：— 一条水平线。"""
+        p = ft.Paint(
+            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.6,
+            style=ft.PaintingStyle.STROKE,
+            stroke_cap=ft.StrokeCap.ROUND, anti_alias=True,
+        )
+        return [cv.Line(2.5, 6, 9.5, 6, paint=p)]
+
+    @staticmethod
+    def _mac_fullscreen_enter_shapes() -> list:
+        """进入全屏符号：两个对角三角形朝外（指向角落）。"""
+        p = ft.Paint(
+            color=CustomTitleBar._MAC_SYM_COLOR,
+            style=ft.PaintingStyle.FILL, anti_alias=True,
+        )
+        return [
+            # 左上角三角（朝左上）
+            cv.Path(elements=[
+                cv.Path.MoveTo(2, 2),
+                cv.Path.LineTo(2, 7.5),
+                cv.Path.LineTo(7.5, 2),
+                cv.Path.Close(),
+            ], paint=p),
+            # 右下角三角（朝右下）
+            cv.Path(elements=[
+                cv.Path.MoveTo(10, 10),
+                cv.Path.LineTo(10, 4.5),
+                cv.Path.LineTo(4.5, 10),
+                cv.Path.Close(),
+            ], paint=p),
+        ]
+
+    @staticmethod
+    def _mac_fullscreen_exit_shapes() -> list:
+        """退出全屏符号：两个三角形在右上/左下角，朝内指向中心。"""
+        p = ft.Paint(
+            color=CustomTitleBar._MAC_SYM_COLOR,
+            style=ft.PaintingStyle.FILL, anti_alias=True,
+        )
+        return [
+            # 右上角三角（指向左下 / 中心方向）
+            cv.Path(elements=[
+                cv.Path.MoveTo(10, 2),
+                cv.Path.LineTo(4.5, 2),
+                cv.Path.LineTo(10, 7.5),
+                cv.Path.Close(),
+            ], paint=p),
+            # 左下角三角（指向右上 / 中心方向）
+            cv.Path(elements=[
+                cv.Path.MoveTo(2, 10),
+                cv.Path.LineTo(7.5, 10),
+                cv.Path.LineTo(2, 4.5),
+                cv.Path.Close(),
+            ], paint=p),
+        ]
+
+    def _build_mac_traffic_lights(self) -> ft.GestureDetector:
+        """构建 macOS 交通灯按钮组（悬停整组时同时显示所有符号）。
+
+        使用 Canvas 矢量绘制符号（非文字），GestureDetector 检测鼠标悬停。
+        """
+        _SIZE = 12
+
+        # (背景色, 符号构建方法, tooltip, 点击回调)
+        _BTNS = [
+            ("#FF5F57", self._mac_close_shapes, "关闭", self._close_window),
+            ("#FEBC2E", self._mac_minimize_shapes, "最小化", self._minimize_window),
+            ("#28C840", self._mac_fullscreen_enter_shapes, "全屏", self._toggle_fullscreen),
+        ]
+
+        canvases: list[cv.Canvas] = []
+        dots: list[ft.Container] = []
+
+        for bg, shape_fn, tip, handler in _BTNS:
+            symbol_canvas = cv.Canvas(
+                shapes=shape_fn(),
+                width=_SIZE, height=_SIZE,
+                visible=False,
+            )
+            canvases.append(symbol_canvas)
+
+            dot = ft.Container(
+                content=symbol_canvas,
+                width=_SIZE, height=_SIZE,
+                bgcolor=bg,
+                border_radius=_SIZE // 2,
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                tooltip=tip,
+                on_click=handler,
+            )
+            dots.append(dot)
+
+        self.fullscreen_button = dots[2]
+        self._mac_canvases = canvases
+
+        def _on_enter(e):
+            for c in canvases:
+                c.visible = True
+            try:
+                self._page.update()
+            except Exception:
+                pass
+
+        def _on_exit(e):
+            for c in canvases:
+                c.visible = False
+            try:
+                self._page.update()
+            except Exception:
+                pass
+
+        return ft.GestureDetector(
+            content=ft.Container(
+                content=ft.Row(
+                    controls=dots,
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.START,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.padding.symmetric(horizontal=6, vertical=4),
+            ),
+            on_enter=_on_enter,
+            on_exit=_on_exit,
+        )
+
     def _build_title_bar(self) -> None:
-        """构建标题栏UI。"""
-        # 左侧：应用图标 + 标题（可拖动，支持双击最大化）
+        """构建标题栏UI（macOS / Windows 自适应布局）。"""
+        is_mac = sys.platform == "darwin"
+
+        # ── 拖拽区域：应用图标 + 标题 ──
         drag_area: ft.WindowDragArea = ft.WindowDragArea(
             content=ft.GestureDetector(
                 content=ft.Row(
@@ -139,9 +286,7 @@ class CustomTitleBar(ft.Container):
             expand=True,
         )
         
-        # 右侧：天气 + 主题切换 + 窗口控制按钮
-        
-        # 天气显示组件
+        # ── 天气 + 主题切换（两端通用，始终在右侧） ──
         self.weather_icon: ft.Icon = ft.Icon(
             icon=ft.Icons.WB_CLOUDY,
             size=18,
@@ -165,11 +310,11 @@ class CustomTitleBar(ft.Container):
             ),
             padding=ft.padding.symmetric(horizontal=8),
             tooltip="天气信息",
-            visible=self.show_weather,  # 根据配置决定是否显示
+            visible=self.show_weather,
             opacity=1.0,
             scale=1.0,
-            animate_opacity=200,  # 200ms 淡入淡出动画
-            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),  # 缩放动画
+            animate_opacity=200,
+            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
         )
         
         self.theme_icon: ft.IconButton = ft.IconButton(
@@ -183,71 +328,75 @@ class CustomTitleBar(ft.Container):
             ),
         )
         
-        minimize_button: ft.IconButton = ft.IconButton(
-            icon=ft.Icons.HORIZONTAL_RULE,
-            icon_color=ft.Colors.WHITE,
-            icon_size=18,
-            tooltip="最小化",
-            on_click=self._minimize_window,
-            style=ft.ButtonStyle(
-                padding=10,
-            ),
-        )
+        # ── 窗口控制按钮（平台差异） ──
+        if is_mac:
+            # macOS 交通灯：关闭(红) → 最小化(黄) → 最大化(绿)，在左侧
+            left_controls = self._build_mac_traffic_lights()
+
+            right_section = ft.Row(
+                controls=[self.weather_container, self.theme_icon],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.END,
+            )
+
+            title_bar_content = ft.Row(
+                controls=[left_controls, drag_area, right_section],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        else:
+            # Windows：最小化 / 最大化 / 关闭 在右侧
+            minimize_button = ft.IconButton(
+                icon=ft.Icons.HORIZONTAL_RULE,
+                icon_color=ft.Colors.WHITE,
+                icon_size=18,
+                tooltip="最小化",
+                on_click=self._minimize_window,
+                style=ft.ButtonStyle(padding=10),
+            )
+            self.maximize_button = ft.IconButton(
+                icon=ft.Icons.CROP_SQUARE,
+                icon_color=ft.Colors.WHITE,
+                icon_size=18,
+                tooltip="最大化",
+                on_click=self._toggle_maximize,
+                style=ft.ButtonStyle(padding=10),
+            )
+            close_button = ft.IconButton(
+                icon=ft.Icons.CLOSE,
+                icon_color=ft.Colors.WHITE,
+                icon_size=18,
+                tooltip="关闭",
+                on_click=self._close_window,
+                style=ft.ButtonStyle(padding=10),
+                hover_color=ft.Colors.with_opacity(0.2, ft.Colors.RED),
+            )
+
+            right_section = ft.Row(
+                controls=[
+                    self.weather_container,
+                    self.theme_icon,
+                    minimize_button,
+                    self.maximize_button,
+                    close_button,
+                ],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.END,
+            )
+
+            title_bar_content = ft.Row(
+                controls=[drag_area, right_section],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            )
         
-        self.maximize_button: ft.IconButton = ft.IconButton(
-            icon=ft.Icons.CROP_SQUARE,
-            icon_color=ft.Colors.WHITE,
-            icon_size=18,
-            tooltip="最大化",
-            on_click=self._toggle_maximize,
-            style=ft.ButtonStyle(
-                padding=10,
-            ),
-        )
-        
-        close_button: ft.IconButton = ft.IconButton(
-            icon=ft.Icons.CLOSE,
-            icon_color=ft.Colors.WHITE,
-            icon_size=18,
-            tooltip="关闭",
-            on_click=self._close_window,
-            style=ft.ButtonStyle(
-                padding=10,
-            ),
-            hover_color=ft.Colors.with_opacity(0.2, ft.Colors.RED),
-        )
-        
-        right_section: ft.Row = ft.Row(
-            controls=[
-                self.weather_container,
-                self.theme_icon,
-                minimize_button,
-                self.maximize_button,
-                close_button,
-            ],
-            spacing=0,
-            alignment=ft.MainAxisAlignment.END,
-        )
-        
-        # 组装标题栏
-        title_bar_content: ft.Row = ft.Row(
-            controls=[
-                drag_area,
-                right_section,
-            ],
-            spacing=0,
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        )
-        
-        # 配置容器属性
+        # ── 配置容器属性 ──
         self.content = title_bar_content
-        self.height = 42  # 减小标题栏高度
+        self.height = 42
         self.padding = ft.padding.symmetric(horizontal=PADDING_MEDIUM)
-        # 使用用户设置的主题色创建半透明渐变
         self.gradient = self._create_gradient()
-        # 添加半透明背景色,避免完全不透明
-        self.bgcolor = ft.Colors.with_opacity(0.95, self.theme_color)  # 95% 不透明度
-        # 移除渐变,改用纯色半透明背景
+        self.bgcolor = ft.Colors.with_opacity(0.95, self.theme_color)
         self.gradient = None
         
         # 初始化主题图标
@@ -345,15 +494,37 @@ class CustomTitleBar(ft.Container):
         if self.config_service:
             self.config_service.set_config_value("window_maximized", self._page.window.maximized)
     
-    def _update_maximize_button(self) -> None:
-        """根据窗口当前状态更新最大化/还原按钮图标。"""
+    def _toggle_fullscreen(self, e: ft.ControlEvent = None) -> None:
+        """切换全屏模式（macOS 绿色交通灯按钮）。
+
+        Args:
+            e: 控件事件对象（可选）
+        """
+        self._page.window.full_screen = not self._page.window.full_screen
+        self._page.update()
+
+        is_fs = self._page.window.full_screen
         try:
-            if self._page.window.maximized:
-                self.maximize_button.icon = ft.Icons.FILTER_NONE
-                self.maximize_button.tooltip = "还原"
-            else:
-                self.maximize_button.icon = ft.Icons.CROP_SQUARE
-                self.maximize_button.tooltip = "最大化"
+            # 更新 tooltip
+            self.fullscreen_button.tooltip = "退出全屏" if is_fs else "全屏"
+            # 切换 Canvas 符号：全屏 → 收缩三角形，非全屏 → 展开三角形
+            fs_canvas = self._mac_canvases[2]  # 第三个 Canvas 是全屏按钮
+            fs_canvas.shapes = (
+                self._mac_fullscreen_exit_shapes() if is_fs
+                else self._mac_fullscreen_enter_shapes()
+            )
+            self._page.update()
+        except Exception:
+            pass
+
+    def _update_maximize_button(self) -> None:
+        """根据窗口当前状态更新最大化/还原按钮图标（仅 Windows）。"""
+        try:
+            if not hasattr(self, 'maximize_button'):
+                return  # macOS 上无最大化按钮
+            is_max = self._page.window.maximized
+            self.maximize_button.icon = ft.Icons.FILTER_NONE if is_max else ft.Icons.CROP_SQUARE
+            self.maximize_button.tooltip = "还原" if is_max else "最大化"
             self.maximize_button.update()
         except Exception:
             pass  # 忽略更新错误
