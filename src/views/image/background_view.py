@@ -97,12 +97,9 @@ class ImageBackgroundView(ft.Container):
         # 待处理的拖放文件（UI构建完成前收到的文件）
         self._pending_files: List[Path] = []
         
-        # 先创建一个简单的加载界面，真正的UI延迟构建
-        self._build_loading_ui()
-        
-        # 延迟构建完整UI，避免阻塞初始化
-        import threading
-        threading.Thread(target=self._build_ui_async, daemon=True).start()
+        # 直接构建UI（只创建控件对象，不涉及耗时操作）
+        self._build_ui()
+        self._ui_built = True
     
     def _get_model_path(self) -> Path:
         """获取当前选择的模型文件路径。
@@ -124,45 +121,6 @@ class ImageBackgroundView(ft.Container):
         """确保模型目录存在。"""
         model_dir = self.model_path.parent
         model_dir.mkdir(parents=True, exist_ok=True)
-    
-    def _build_loading_ui(self) -> None:
-        """构建简单的加载界面（骨架屏）。"""
-        # 创建一个简单的加载提示
-        loading_content = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.ProgressRing(),
-                    ft.Text("正在加载背景移除功能...", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=PADDING_LARGE,
-            ),
-            expand=True,
-            alignment=ft.Alignment.CENTER,
-        )
-        
-        self.content = loading_content
-    
-    def _build_ui_async(self) -> None:
-        """异步构建完整UI。"""
-        import time
-        # 短暂延迟，确保加载界面先显示
-        time.sleep(0.05)
-        
-        # 构建完整UI
-        self._build_ui()
-        self._ui_built = True
-        
-        # 更新界面
-        try:
-            self.update()
-        except:
-            pass
-        
-        # 处理UI构建前收到的待处理文件
-        if self._pending_files and hasattr(self, 'file_list_view'):
-            self._process_pending_files()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""

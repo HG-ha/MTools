@@ -196,7 +196,7 @@ class ImagePuzzleMergeView(ft.Container):
             value="10",
             width=100,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             on_change=self._on_option_change,
         )
         

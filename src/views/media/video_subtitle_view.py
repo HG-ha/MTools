@@ -271,7 +271,7 @@ class VideoSubtitleView(ft.Container):
             width=420,
             options=model_options,
             value=self.current_model_key,
-            on_change=self._on_model_change,
+            on_select=self._on_model_change,
         )
         
         # 模型状态
@@ -450,7 +450,7 @@ class VideoSubtitleView(ft.Container):
             value=self.current_vocal_model_key,
             label="降噪模型",
             hint_text="选择人声分离模型",
-            on_change=self._on_vocal_model_change,
+            on_select=self._on_vocal_model_change,
             width=300,
             dense=True,
             text_size=12,
@@ -770,7 +770,7 @@ class VideoSubtitleView(ft.Container):
             value="20",
             width=70,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
         )
         
         # 最大宽度（自动换行）
@@ -779,7 +779,7 @@ class VideoSubtitleView(ft.Container):
             value="80",
             width=90,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="%",
+            suffix="%",
             tooltip="超过此宽度自动换行",
         )
         
@@ -853,7 +853,7 @@ class VideoSubtitleView(ft.Container):
             ],
             value=self.translate_engine,
             disabled=True,
-            on_change=self._on_translate_engine_change,
+            on_select=self._on_translate_engine_change,
             tooltip="Bing 免费无需配置；心流 AI 需要配置 API Key",
         )
         
@@ -875,7 +875,7 @@ class VideoSubtitleView(ft.Container):
             options=language_options,
             value=self.target_language,
             disabled=True,  # 默认禁用，勾选启用翻译后才可用
-            on_change=self._on_target_lang_change,
+            on_select=self._on_target_lang_change,
         )
         
         # 翻译模式选项
@@ -898,7 +898,7 @@ class VideoSubtitleView(ft.Container):
             value=str(self.bilingual_line_spacing),
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             disabled=True,
             on_change=self._on_bilingual_spacing_change,
             tooltip="双语字幕两行之间的距离（像素）",
@@ -970,7 +970,7 @@ class VideoSubtitleView(ft.Container):
             ],
             value=self.config_service.get_config_value("video_subtitle_format", "srt"),
             disabled=True,
-            on_change=self._on_subtitle_format_change,
+            on_select=self._on_subtitle_format_change,
         )
         
         self.only_subtitle_checkbox = ft.Checkbox(
@@ -1120,7 +1120,7 @@ class VideoSubtitleView(ft.Container):
                 ),
                 height=118,
                 alignment=ft.Alignment.CENTER,
-                on_click=lambda _: self._on_select_files(),
+                on_click=lambda _: self._page.run_task(self._on_select_files),
                 ink=True,
             )
         )
@@ -2173,7 +2173,7 @@ class VideoSubtitleView(ft.Container):
                 ft.dropdown.Option(key="light", text="细体"),
             ],
             value=settings["font_weight"],
-            on_change=on_setting_change,
+            on_select=on_setting_change,
         )
         
         outline_width_dropdown = ft.Dropdown(
@@ -2187,7 +2187,7 @@ class VideoSubtitleView(ft.Container):
                 ft.dropdown.Option(key="4", text="超粗 (4px)"),
             ],
             value=settings["outline_width"],
-            on_change=on_setting_change,
+            on_select=on_setting_change,
         )
         
         position_dropdown = ft.Dropdown(
@@ -2199,7 +2199,7 @@ class VideoSubtitleView(ft.Container):
                 ft.dropdown.Option(key="center", text="居中"),
             ],
             value=settings["position"],
-            on_change=on_setting_change,
+            on_select=on_setting_change,
         )
         
         margin_field = ft.TextField(
@@ -2207,7 +2207,7 @@ class VideoSubtitleView(ft.Container):
             value=settings["margin"],
             width=70,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             on_change=on_setting_change,
         )
         
@@ -2216,7 +2216,7 @@ class VideoSubtitleView(ft.Container):
             value=settings["max_width"],
             width=90,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="%",
+            suffix="%",
             on_change=on_setting_change,
         )
         

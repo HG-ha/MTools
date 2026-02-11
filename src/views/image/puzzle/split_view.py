@@ -307,7 +307,7 @@ class ImagePuzzleSplitView(ft.Container):
             value="5",
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             on_change=self._on_option_change,
         )
         
@@ -316,7 +316,7 @@ class ImagePuzzleSplitView(ft.Container):
             value="0",
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             on_change=self._on_option_change,
         )
         
@@ -325,7 +325,7 @@ class ImagePuzzleSplitView(ft.Container):
             value="0",
             width=80,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="px",
+            suffix="px",
             on_change=self._on_option_change,
         )
         
@@ -391,7 +391,7 @@ class ImagePuzzleSplitView(ft.Container):
             value="100",
             width=100,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="%",
+            suffix="%",
             on_change=self._on_option_change,
         )
         
@@ -400,7 +400,7 @@ class ImagePuzzleSplitView(ft.Container):
             value="100",
             width=100,
             keyboard_type=ft.KeyboardType.NUMBER,
-            suffix_text="%",
+            suffix="%",
             on_change=self._on_option_change,
         )
         

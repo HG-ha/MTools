@@ -99,11 +99,9 @@ class VideoEnhanceView(ft.Container):
         # 待处理的拖放文件（UI构建完成前收到的文件）
         self._pending_files: List[Path] = []
         
-        # 先创建加载界面
-        self._build_loading_ui()
-        
-        # 延迟构建完整UI
-        threading.Thread(target=self._build_ui_async, daemon=True).start()
+        # 直接构建UI
+        self._build_ui()
+        self._ui_built = True
     
     def _get_model_path(self) -> Path:
         """获取当前选择的模型文件路径。
@@ -131,38 +129,6 @@ class VideoEnhanceView(ft.Container):
         """确保模型目录存在。"""
         model_dir = self.model_path.parent
         model_dir.mkdir(parents=True, exist_ok=True)
-    
-    def _build_loading_ui(self) -> None:
-        """构建简单的加载界面。"""
-        loading_content = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.ProgressRing(),
-                    ft.Text("正在加载视频增强功能...", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=PADDING_LARGE,
-            ),
-            expand=True,
-            alignment=ft.Alignment.CENTER,
-        )
-        self.content = loading_content
-    
-    def _build_ui_async(self) -> None:
-        """异步构建完整UI。"""
-        import time
-        time.sleep(0.05)
-        self._build_ui()
-        self._ui_built = True
-        try:
-            self.update()
-        except:
-            pass
-        
-        # 处理UI构建前收到的待处理文件
-        if self._pending_files and hasattr(self, 'file_list_view'):
-            self._process_pending_files()
     
     def _build_ui(self) -> None:
         """构建用户界面。"""

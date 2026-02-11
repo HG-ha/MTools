@@ -113,40 +113,9 @@ class IDPhotoView(ft.Container):
         # 待处理的拖放文件（UI构建完成前收到的文件）
         self._pending_files: List[Path] = []
         
-        self._build_loading_ui()
-        threading.Thread(target=self._build_ui_async, daemon=True).start()
-    
-    def _build_loading_ui(self) -> None:
-        """构建加载界面。"""
-        self.content = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.ProgressRing(),
-                    ft.Text("正在加载AI证件照功能...", size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=PADDING_LARGE,
-            ),
-            expand=True,
-            alignment=ft.Alignment.CENTER,
-        )
-    
-    def _build_ui_async(self) -> None:
-        import time
-        time.sleep(0.05)
+        # 直接构建UI
         self._build_ui()
         self._ui_built = True
-        try:
-            self.update()
-        except:
-            pass
-        
-        # 处理UI构建前收到的待处理文件
-        if self._pending_files and hasattr(self, 'file_list_view'):
-            self._process_pending_files()
-        
-        threading.Thread(target=self._check_model_status_async, daemon=True).start()
     
     def _get_model_path(self, model_type: str, model_key: str = None) -> Path:
         """获取模型文件路径。"""
@@ -361,7 +330,7 @@ class IDPhotoView(ft.Container):
             on_change=self._on_bg_color_change,
         )
         
-        self.custom_color_input = ft.TextField(label="HEX颜色", value="438edb", prefix_text="#", width=120, dense=True, text_size=12, visible=False)
+        self.custom_color_input = ft.TextField(label="HEX颜色", value="438edb", prefix="#", width=120, dense=True, text_size=12, visible=False)
         
         self.render_mode_dropdown = ft.Dropdown(
             label="渲染模式",
@@ -430,7 +399,7 @@ class IDPhotoView(ft.Container):
             width=70,
             dense=True,
             text_size=12,
-            suffix_text="KB",
+            suffix="KB",
         )
         
         output_subsection = ft.Container(

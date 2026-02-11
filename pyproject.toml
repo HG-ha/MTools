@@ -36,6 +36,7 @@ dependencies = [
   "psutil==6.1.1", # 系统和进程工具（用于自动更新）
   "pywin32>=311 ; sys_platform == 'win32'", # Windows 专用
   "wmi>=1.5.1 ; sys_platform == 'win32'",
+  "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'", # macOS 拖放支持
   "flet-cli>=0.80.5",
 ]
 

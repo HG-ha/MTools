@@ -1716,7 +1716,7 @@ class MarkdownViewerView(ft.Container):
         filename_input = ft.TextField(
             label="文件名",
             hint_text="例如: readme.md",
-            suffix_text=".md",
+            suffix=".md",
             autofocus=True,
             on_submit=lambda e: create_file(e),
         )

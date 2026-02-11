@@ -64,9 +64,9 @@ def is_linux() -> bool:
 def supports_file_drop() -> bool:
     """检查当前系统是否支持文件拖放功能。
     
-    目前只支持 Windows 10/11。
+    支持 Windows 10/11 和 macOS。
     """
-    return is_windows_10_or_later()
+    return is_windows_10_or_later() or is_macos()
 
 
 def get_gpu_devices() -> List[Dict[str, str]]:

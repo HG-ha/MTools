@@ -101,25 +101,35 @@ class MainView(ft.Column):
         if auto_check_update:
             self._check_update_on_startup()
         
-        # 初始化全局拖放支持（Windows）
+        # 初始化全局拖放支持（Windows / macOS）
         self._init_drop_handler()
     
     def _init_drop_handler(self) -> None:
-        """初始化全局文件拖放支持（仅 Windows 10/11）。"""
+        """初始化全局文件拖放支持（Windows 10/11 和 macOS）。"""
+        import sys
         from utils import supports_file_drop
         
         if not supports_file_drop():
             return
         
-        from utils import WindowsDropHandler
-        
-        self._drop_handler = WindowsDropHandler(
-            page=self._page,
-            on_drop=self._on_global_files_dropped,
-            auto_enable=True,
-            enable_delay=0.1,  # 初始延迟，重试机制会确保可靠性
-            include_position=True  # 获取鼠标位置
-        )
+        if sys.platform == "win32":
+            from utils import WindowsDropHandler
+            self._drop_handler = WindowsDropHandler(
+                page=self._page,
+                on_drop=self._on_global_files_dropped,
+                auto_enable=True,
+                enable_delay=0.1,
+                include_position=True,
+            )
+        elif sys.platform == "darwin":
+            from utils import MacOSDropHandler
+            self._drop_handler = MacOSDropHandler(
+                page=self._page,
+                on_drop=self._on_global_files_dropped,
+                auto_enable=True,
+                enable_delay=2.0,  # macOS 需要等待窗口完全初始化
+                include_position=True,
+            )
     
     def _on_global_files_dropped(self, info) -> None:
         """处理全局文件拖放 - 根据鼠标位置分发到对应视图。"""
