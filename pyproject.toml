@@ -10,7 +10,7 @@ authors = [
 ]
 # Don't hard-code the version, to avoid flet compilation issues.
 dependencies = [
-  "flet[all]==0.80.0",
+  "flet[all]==0.80.5",
   "ffmpeg-python==0.2.0",
   "Pillow==12.0.0",
   "chardet==5.2.0",
@@ -60,8 +60,8 @@ path = "src"
 
 [dependency-groups]
 dev = [
-    "flet[all]==0.80.0",
-    "flet-desktop==0.80.0",
+    "flet[all]==0.80.5",
+    "flet-desktop==0.80.5",
     "nuitka>=2.5.0",
 ]
 
@@ -69,4 +69,4 @@ dev = [
 package-mode = false
 
 [tool.poetry.group.dev.dependencies]
-flet = {extras = ["all"], version = "0.80.0"}
+flet = {extras = ["all"], version = "0.80.5"}
