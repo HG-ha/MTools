@@ -10,6 +10,12 @@ from typing import Optional
 
 import flet as ft
 
+try:
+    import flet_dropzone as ftd  # type: ignore[import-untyped]
+    _DROPZONE_AVAILABLE = True
+except ImportError:
+    _DROPZONE_AVAILABLE = False
+
 from components import CustomTitleBar, ToolInfo, ToolSearchDialog
 from constants import APP_VERSION, BUILD_CUDA_VARIANT, DOWNLOAD_URL_GITHUB, DOWNLOAD_URL_CHINA
 from services import ConfigService, EncodingService, ImageService, FFmpegService, UpdateService, UpdateStatus
@@ -101,45 +107,21 @@ class MainView(ft.Column):
         if auto_check_update:
             self._check_update_on_startup()
         
-        # 初始化全局拖放支持（Windows / macOS）
-        self._init_drop_handler()
-    
-    def _init_drop_handler(self) -> None:
-        """初始化全局文件拖放支持（Windows 10/11 和 macOS）。"""
-        import sys
-        from utils import supports_file_drop
-        
-        if not supports_file_drop():
-            return
-        
-        if sys.platform == "win32":
-            from utils import WindowsDropHandler
-            self._drop_handler = WindowsDropHandler(
-                page=self._page,
-                on_drop=self._on_global_files_dropped,
-                auto_enable=True,
-                enable_delay=0.1,
-                include_position=True,
-            )
-        elif sys.platform == "darwin":
-            from utils import MacOSDropHandler
-            self._drop_handler = MacOSDropHandler(
-                page=self._page,
-                on_drop=self._on_global_files_dropped,
-                auto_enable=True,
-                enable_delay=2.0,  # macOS 需要等待窗口完全初始化
-                include_position=True,
-            )
-    
-    def _on_global_files_dropped(self, info) -> None:
-        """处理全局文件拖放 - 根据鼠标位置分发到对应视图。"""
+    def _on_files_dropped(self, e) -> None:
+        """处理 flet-dropzone 拖放事件 - 分发文件到当前视图。"""
         from pathlib import Path
+        from utils import logger
         
-        if not info.files:
+        logger.info(f"Dropzone: on_dropped 触发, event={e}")
+        logger.info(f"Dropzone: e.files={getattr(e, 'files', 'N/A')}, e.data={getattr(e, 'data', 'N/A')}")
+        
+        files_list = getattr(e, 'files', None) or []
+        if not files_list:
+            logger.warning("Dropzone: 没有收到文件")
             return
         
-        files = [Path(f) for f in info.files]
-        drop_x, drop_y = info.x, info.y
+        files = [Path(f) for f in files_list]
+        logger.info(f"Dropzone: 收到 {len(files)} 个文件: {files}")
         
         def dispatch():
             # 获取当前显示的视图
@@ -156,11 +138,6 @@ class MainView(ft.Column):
                 if hasattr(sub_view, 'add_files'):
                     sub_view.add_files(files)
                     return
-            
-            # 3. 如果当前视图支持根据位置处理拖放（分类界面）
-            if hasattr(current_view, 'handle_dropped_files_at'):
-                current_view.handle_dropped_files_at(files, drop_x, drop_y)
-                return
             
             # 备用：显示提示
             self._show_drop_hint("当前页面不支持文件拖放")
@@ -310,11 +287,22 @@ class MainView(ft.Column):
         # 注册键盘快捷键
         self._page.on_keyboard_event = self._on_keyboard
         
+        # 用 flet-dropzone 包裹内容区域以支持文件拖放（需要 flet build）
+        if _DROPZONE_AVAILABLE:
+            self.dropzone_wrapper = ftd.Dropzone(
+                content=self.content_container,
+                on_dropped=self._on_files_dropped,
+                expand=True,
+            )
+            content_area = self.dropzone_wrapper
+        else:
+            content_area = self.content_container
+        
         # 主内容区域（导航栏 + 内容）
         main_content: ft.Row = ft.Row(
             controls=[
                 self.navigation_container,
-                self.content_container,
+                content_area,
             ],
             spacing=0,
             expand=True,

@@ -72,15 +72,7 @@ from .platform_utils import (
     is_admin,
     request_admin_restart,
 )
-# 拖放处理器 - 根据平台选择实现
-import sys as _sys
-if _sys.platform == "win32":
-    from .windows_drop import WindowsDropHandler, DropInfo
-elif _sys.platform == "darwin":
-    from .macos_drop import MacOSDropHandler, DropInfo
-# DropInfo 在两个模块中定义一致，始终可用
-if _sys.platform not in ("win32", "darwin"):
-    from .windows_drop import DropInfo  # 仅导入数据类
+# 拖放功能由 flet-dropzone 原生提供，无需平台特定实现
 
 __all__ = [
     "ensure_dir",
@@ -140,6 +132,5 @@ __all__ = [
     "get_available_compute_devices",
     "is_admin",
     "request_admin_restart",
-    "DropInfo",
 ]
 

@@ -273,6 +273,18 @@ wheels = [
 ]
 
 [[package]]
+name = "flet-dropzone"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/2a/f7a0752e389f0b79ef3ab3f738f03c054a18d672ae889cd30b717a7601b9/flet_dropzone-0.3.1.tar.gz", hash = "sha256:cce78c811802196ae6f595c59b55cf7b49f815dda44139f33fc23f3da4576d47", size = 8218, upload-time = "2026-01-26T22:58:42.448Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/19/eb7830dd6af93c9ce0771fe71c996ba9c9373c425228c7f090aafa594444/flet_dropzone-0.3.1-py3-none-any.whl", hash = "sha256:c5048725e4aceac97e63b45b450864d89bd67a549f8a9990e0a03e8726ed2f2c", size = 9631, upload-time = "2026-01-26T22:58:43.912Z" },
+]
+
+[[package]]
 name = "flet-web"
 version = "0.80.5"
 source = { registry = "https://pypi.org/simple" }
@@ -460,8 +472,9 @@ dependencies = [
     { name = "croniter" },
     { name = "dnspython" },
     { name = "ffmpeg-python" },
-    { name = "flet" },
+    { name = "flet", extra = ["all"] },
     { name = "flet-cli" },
+    { name = "flet-dropzone" },
     { name = "httpx", extra = ["socks"] },
     { name = "numpy" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -471,7 +484,6 @@ dependencies = [
     { name = "psutil" },
     { name = "pyclipper" },
     { name = "pycryptodome" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
     { name = "pystray" },
     { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "pyyaml" },
@@ -498,8 +510,9 @@ requires-dist = [
     { name = "croniter", specifier = "==5.0.1" },
     { name = "dnspython", specifier = "==2.8.0" },
     { name = "ffmpeg-python", specifier = "==0.2.0" },
-    { name = "flet", specifier = "==0.80.0" },
+    { name = "flet", extras = ["all"], specifier = "==0.80.0" },
     { name = "flet-cli", specifier = ">=0.80.5" },
+    { name = "flet-dropzone", specifier = ">=0.0.3" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
     { name = "numpy", specifier = "==1.26.4" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'", specifier = "==1.22.0" },
@@ -509,7 +522,6 @@ requires-dist = [
     { name = "psutil", specifier = "==6.1.1" },
     { name = "pyclipper", specifier = "==1.4.0" },
     { name = "pycryptodome", specifier = "==3.21.0" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
     { name = "pystray", specifier = "==0.19.5" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=311" },
     { name = "pyyaml", specifier = "==6.0.2" },
