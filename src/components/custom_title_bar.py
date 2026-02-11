@@ -140,49 +140,25 @@ class CustomTitleBar(ft.Container):
         return [cv.Line(2.5, 6, 9.5, 6, paint=p)]
 
     @staticmethod
-    def _mac_fullscreen_enter_shapes() -> list:
-        """进入全屏符号：两个对角三角形朝外（指向角落）。"""
+    def _mac_maximize_shapes() -> list:
+        """最大化/全屏按钮符号：两个对角三角形。"""
         p = ft.Paint(
             color=CustomTitleBar._MAC_SYM_COLOR,
             style=ft.PaintingStyle.FILL, anti_alias=True,
         )
         return [
-            # 左上角三角（朝左上）
+            # 左上角三角
             cv.Path(elements=[
                 cv.Path.MoveTo(2, 2),
                 cv.Path.LineTo(2, 7.5),
                 cv.Path.LineTo(7.5, 2),
                 cv.Path.Close(),
             ], paint=p),
-            # 右下角三角（朝右下）
+            # 右下角三角
             cv.Path(elements=[
                 cv.Path.MoveTo(10, 10),
                 cv.Path.LineTo(10, 4.5),
                 cv.Path.LineTo(4.5, 10),
-                cv.Path.Close(),
-            ], paint=p),
-        ]
-
-    @staticmethod
-    def _mac_fullscreen_exit_shapes() -> list:
-        """退出全屏符号：两个三角形在右上/左下角，朝内指向中心。"""
-        p = ft.Paint(
-            color=CustomTitleBar._MAC_SYM_COLOR,
-            style=ft.PaintingStyle.FILL, anti_alias=True,
-        )
-        return [
-            # 右上角三角（指向左下 / 中心方向）
-            cv.Path(elements=[
-                cv.Path.MoveTo(10, 2),
-                cv.Path.LineTo(4.5, 2),
-                cv.Path.LineTo(10, 7.5),
-                cv.Path.Close(),
-            ], paint=p),
-            # 左下角三角（指向右上 / 中心方向）
-            cv.Path(elements=[
-                cv.Path.MoveTo(2, 10),
-                cv.Path.LineTo(7.5, 10),
-                cv.Path.LineTo(2, 4.5),
                 cv.Path.Close(),
             ], paint=p),
         ]
@@ -198,7 +174,7 @@ class CustomTitleBar(ft.Container):
         _BTNS = [
             ("#FF5F57", self._mac_close_shapes, "关闭", self._close_window),
             ("#FEBC2E", self._mac_minimize_shapes, "最小化", self._minimize_window),
-            ("#28C840", self._mac_fullscreen_enter_shapes, "全屏", self._toggle_fullscreen),
+            ("#28C840", self._mac_maximize_shapes, "全屏", self._toggle_fullscreen),
         ]
 
         canvases: list[cv.Canvas] = []
@@ -502,18 +478,10 @@ class CustomTitleBar(ft.Container):
         """
         self._page.window.full_screen = not self._page.window.full_screen
         self._page.update()
-
-        is_fs = self._page.window.full_screen
+        # 更新 tooltip
         try:
-            # 更新 tooltip
-            self.fullscreen_button.tooltip = "退出全屏" if is_fs else "全屏"
-            # 切换 Canvas 符号：全屏 → 收缩三角形，非全屏 → 展开三角形
-            fs_canvas = self._mac_canvases[2]  # 第三个 Canvas 是全屏按钮
-            fs_canvas.shapes = (
-                self._mac_fullscreen_exit_shapes() if is_fs
-                else self._mac_fullscreen_enter_shapes()
-            )
-            self._page.update()
+            self.fullscreen_button.tooltip = "退出全屏" if self._page.window.full_screen else "全屏"
+            self.fullscreen_button.update()
         except Exception:
             pass
 
