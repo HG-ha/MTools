@@ -562,6 +562,8 @@ class ICPService:
         Returns:
             是否加载成功
         """
+        import asyncio
+
         try:
             if not detector_path.exists():
                 logger.error(f"检测模型文件不存在: {detector_path}")
@@ -570,9 +572,12 @@ class ICPService:
                 logger.error(f"相似度模型文件不存在: {siamese_path}")
                 return False
             
-            # 加载模型，传递config_service以使用GPU设置
-            self.detector = YOLODetector(detector_path, self.config_service)
-            self.siamese = Siamese(siamese_path, self.config_service)
+            # 模型初始化是 CPU 密集型操作，放到线程池中避免阻塞 UI 事件循环
+            def _do_load():
+                self.detector = YOLODetector(detector_path, self.config_service)
+                self.siamese = Siamese(siamese_path, self.config_service)
+
+            await asyncio.to_thread(_do_load)
             logger.info(f"成功加载ICP模型: {detector_path.name}, {siamese_path.name}")
             
             # 记录使用的设备信息

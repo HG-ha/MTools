@@ -120,9 +120,7 @@ class ICPQueryView(ft.Container):
     
     def did_mount(self) -> None:
         """组件挂载时调用 - 检查模型状态。"""
-        # 异步检查模型状态，而不是直接加载
-        import threading
-        threading.Thread(target=self._check_model_status_async, daemon=True).start()
+        self._page.run_task(self._check_model_status_async)
     
     def _on_auto_load_changed(self, e) -> None:
         """自动加载开关变化事件。"""
@@ -142,10 +140,7 @@ class ICPQueryView(ft.Container):
         def confirm_delete(e):
             dialog.open = False
             self._page.update()
-            
-            # 在后台线程中删除
-            import threading
-            threading.Thread(target=self._delete_model_async, daemon=True).start()
+            self._page.run_task(self._delete_model_async)
         
         def cancel_delete(e):
             dialog.open = False
@@ -165,19 +160,21 @@ class ICPQueryView(ft.Container):
         dialog.open = True
         self._page.update()
     
-    def _delete_model_async(self) -> None:
+    async def _delete_model_async(self) -> None:
         """异步删除模型。"""
+        import asyncio
+
         try:
             import shutil
 
             # 卸载模型（使用标准化的unload_model方法）
-            self.icp_service.unload_model()
+            await asyncio.to_thread(self.icp_service.unload_model)
             self.models_loaded = False
 
             # 删除模型目录
             models_dir = self.icp_service.models_dir
             if models_dir.exists():
-                shutil.rmtree(models_dir)
+                await asyncio.to_thread(shutil.rmtree, models_dir)
                 logger.info(f"已删除模型目录: {models_dir}")
                 self._update_model_status("need_download", "模型已删除，点击下载")
                 self._show_snack("模型删除成功")
@@ -467,24 +464,22 @@ class ICPQueryView(ft.Container):
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
     
-    def _check_model_status_async(self) -> None:
+    async def _check_model_status_async(self) -> None:
         """异步检查模型状态，避免阻塞界面初始化。"""
-        import time
-        time.sleep(0.05)  # 短暂延迟，确保界面已经显示
-        
-        self._check_model_status()
-    
-    def _check_model_status(self) -> None:
-        """检查模型状态。"""
-        # 检查模型文件是否存在
-        if self.icp_service.check_models_exist():
+        import asyncio
+        await asyncio.sleep(0.05)  # 短暂延迟，确保界面已经显示
+
+        # 在线程池中检查模型文件是否存在（避免 IO 阻塞事件循环）
+        exists = await asyncio.to_thread(self.icp_service.check_models_exist)
+
+        if exists:
             # 模型存在，显示"加载模型"按钮
             self._update_model_status("unloaded", "模型已下载，点击加载")
-            
+
             # 如果开启了自动加载，则自动加载模型
             if self.config_service.get_config_value("icp_auto_load_model", False):
                 logger.info("自动加载ICP模型...")
-                self._page.run_task(self._load_models_only)
+                await self._load_models_only()
         else:
             # 模型不存在，显示"下载模型"按钮
             self._update_model_status("need_download", "需要下载模型才能使用")
@@ -550,14 +545,8 @@ class ICPQueryView(ft.Container):
         self.model_status_text.value = message
 
         try:
-            self.model_status_icon.update()
-            self.model_status_text.update()
-            self.download_model_button.update()
-            self.load_model_button.update()
-            self.unload_model_button.update()
-            self.delete_model_button.update()
-            self.query_button.update()
-        except:
+            self._page.update()
+        except Exception:
             pass
     
     def _start_download_model(self, e=None) -> None:
@@ -567,26 +556,43 @@ class ICPQueryView(ft.Container):
         
         self.is_model_loading = True
         self._update_model_status("downloading", "正在下载模型...")
-        
-        # 在后台线程中下载
-        import threading
-        threading.Thread(target=self._download_model_async, daemon=True).start()
+        self._page.run_task(self._download_model_async)
     
-    def _download_model_async(self) -> None:
+    async def _download_model_async(self) -> None:
         """异步下载模型。"""
+        import asyncio
+
         try:
             def progress_callback(progress: float, message: str):
-                """下载进度回调。"""
-                self.model_status_text.value = message
-                try:
-                    self.model_status_text.update()
-                except:
-                    pass
+                """下载进度回调（从线程池内调用，只修改数据不刷新 UI）。"""
+                self._pending_progress_message = message
                 logger.info(f"下载进度: {progress*100:.1f}% - {message}")
-            
-            # 同步下载
-            success, msg = self.icp_service.download_models(progress_callback)
-            
+
+            # 启动一个定时器协程，定期把进度刷新到 UI
+            self._pending_progress_message = None
+            self._download_finished = False
+
+            async def _poll_progress():
+                while not self._download_finished:
+                    if self._pending_progress_message is not None:
+                        self.model_status_text.value = self._pending_progress_message
+                        self._pending_progress_message = None
+                        try:
+                            self._page.update()
+                        except Exception:
+                            pass
+                    await asyncio.sleep(0.3)
+
+            poll_task = asyncio.create_task(_poll_progress())
+
+            # 在线程池中执行同步下载
+            success, msg = await asyncio.to_thread(
+                self.icp_service.download_models, progress_callback
+            )
+
+            self._download_finished = True
+            await poll_task  # 等待轮询结束
+
             if success:
                 logger.info(f"模型下载成功: {msg}")
                 self._update_model_status("unloaded", "模型已下载，点击加载")
@@ -596,6 +602,7 @@ class ICPQueryView(ft.Container):
                 self._update_model_status("need_download", "下载失败，请重试")
                 self._show_snack(f"模型下载失败: {msg}", error=True)
         except Exception as e:
+            self._download_finished = True
             logger.error(f"下载模型时出错: {e}")
             self._update_model_status("need_download", "下载失败，请重试")
             self._show_snack(f"下载失败: {e}", error=True)
