@@ -171,7 +171,7 @@ jobs:
 
       - name: Build with Flet
         run: |
-          flet build ${{ matrix.flet_platform }} --verbose --no-rich-output --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
+          flet build ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
 
       # ========== 打包产物 ==========
 
