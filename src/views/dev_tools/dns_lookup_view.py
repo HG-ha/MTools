@@ -7,8 +7,14 @@
 import asyncio
 import socket
 from typing import Callable, Optional, List, Dict, Any
-import dns.resolver
-import dns.reversename
+try:
+    import dns.resolver as dns_resolver
+    import dns.reversename as dns_reversename
+    DNS_IMPORT_ERROR = ""
+except Exception as ex:  # pragma: no cover - 平台/打包差异导致
+    dns_resolver = None
+    dns_reversename = None
+    DNS_IMPORT_ERROR = str(ex)
 
 import flet as ft
 
@@ -407,9 +413,11 @@ class DnsLookupView(ft.Container):
             self.divider_ref.current.bgcolor = ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)
             self.divider_ref.current.update()
 
-    def _get_resolver(self, dns_server_ip: str) -> dns.resolver.Resolver:
+    def _get_resolver(self, dns_server_ip: str):
         """获取DNS解析器。"""
-        resolver = dns.resolver.Resolver()
+        if dns_resolver is None:
+            raise RuntimeError(f"DNS 模块不可用: {DNS_IMPORT_ERROR}")
+        resolver = dns_resolver.Resolver()
         
         # 设置DNS服务器
         if dns_server_ip and dns_server_ip.strip():
@@ -424,7 +432,7 @@ class DnsLookupView(ft.Container):
         
         return resolver
 
-    async def _query_dns(self, target: str, record_type: str, resolver: dns.resolver.Resolver) -> Dict[str, Any]:
+    async def _query_dns(self, target: str, record_type: str, resolver) -> Dict[str, Any]:
         """执行单个DNS查询。"""
         result = {
             "success": False,
@@ -440,7 +448,7 @@ class DnsLookupView(ft.Container):
             
             if record_type == "REVERSE":
                 try:
-                    query_target = str(dns.reversename.from_address(target))
+                    query_target = str(dns_reversename.from_address(target))
                     query_type = "PTR"
                 except Exception:
                     result["error"] = "无效的IP地址"
@@ -480,13 +488,13 @@ class DnsLookupView(ft.Container):
                 else:
                     result["records"].append(str(rdata))
                     
-        except dns.resolver.NXDOMAIN:
+        except dns_resolver.NXDOMAIN:
             result["error"] = "域名不存在"
-        except dns.resolver.NoAnswer:
+        except dns_resolver.NoAnswer:
             result["error"] = "无记录"
-        except dns.resolver.Timeout:
+        except dns_resolver.Timeout:
             result["error"] = "查询超时"
-        except dns.resolver.NoNameservers:
+        except dns_resolver.NoNameservers:
             result["error"] = "DNS服务器无响应"
         except Exception as e:
             result["error"] = str(e)
@@ -495,6 +503,10 @@ class DnsLookupView(ft.Container):
 
     async def _on_query(self):
         """执行查询任务。"""
+        if dns_resolver is None:
+            self._show_snack(f"DNS 功能不可用: {DNS_IMPORT_ERROR}", error=True)
+            return
+
         input_val = self.input_text.current.value
         if not input_val or not input_val.strip():
             self._show_snack("请输入查询内容", error=True)

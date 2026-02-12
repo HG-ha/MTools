@@ -182,6 +182,70 @@ jobs:
       - name: Build with Flet
         run: |
           flet build ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
+      
+      - name: Bundle pywin32 runtime files (Windows)
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import site
+          import shutil
+          import sys
+          from pathlib import Path
+          
+          build_root = Path("build/windows")
+          if not build_root.exists():
+              raise SystemExit("build/windows not found")
+          
+          site_packages_targets = [p for p in build_root.rglob("site-packages") if (p / "pythoncom.py").exists()]
+          if not site_packages_targets:
+              raise SystemExit("No target site-packages with pythoncom.py found in build output")
+          
+          target_sp = site_packages_targets[0]
+          print(f"Target site-packages: {target_sp}")
+          
+          candidate_dirs = []
+          for p in site.getsitepackages() + [site.getusersitepackages()]:
+              pywin32_dir = Path(p) / "pywin32_system32"
+              if pywin32_dir.exists():
+                  candidate_dirs.append(pywin32_dir)
+          
+          if not candidate_dirs:
+              raise SystemExit("pywin32_system32 not found in runner Python environment")
+          
+          copied = []
+          for src_dir in candidate_dirs:
+              for pattern in ("pywintypes*.dll", "pythoncom*.dll"):
+                  for src in src_dir.glob(pattern):
+                      dst = target_sp / src.name
+                      shutil.copy2(src, dst)
+                      copied.append(dst.name)
+          
+          if not copied:
+              raise SystemExit("No pywin32 runtime DLLs copied")
+          
+          print("Copied pywin32 runtime files:")
+          for name in sorted(set(copied)):
+              print(f" - {name}")
+      
+      - name: Normalize executable name casing (Windows)
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          from pathlib import Path
+          
+          build_root = Path("build/windows")
+          candidates = list(build_root.rglob("mtools.exe"))
+          if not candidates:
+              print("No mtools.exe found, skip")
+              raise SystemExit(0)
+          
+          for src in candidates:
+              dst = src.with_name("MTools.exe")
+              # Windows 文件系统通常大小写不敏感，需要中间名
+              tmp = src.with_name("mtools_tmp.exe")
+              src.rename(tmp)
+              tmp.rename(dst)
+              print(f"Renamed: {src} -> {dst}")
 
       # ========== 打包产物 ==========
 
