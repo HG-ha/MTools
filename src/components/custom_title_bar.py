@@ -113,75 +113,105 @@ class CustomTitleBar(ft.Container):
         return self._page
     
     # ── macOS 交通灯按钮辅助 ──────────────────────────────────────
-    # macOS 交通灯符号统一使用半透明黑色，与原生一致
-    _MAC_SYM_COLOR = ft.Colors.with_opacity(0.6, ft.Colors.BLACK)
+    # 原生 macOS 交通灯参数
+    _MAC_DOT_SIZE = 12  # 圆点直径
+    _MAC_DOT_SPACING = 8  # 圆点间距（中心距 ≈ 20px）
+    # 符号颜色：原生使用半透明深色，悬停时可见
+    _MAC_SYM_COLOR = ft.Colors.with_opacity(0.5, "#4C0F10")  # 偏暖的深色，更接近原生
+
+    # 原生颜色配置：(正常背景, 深色边框, 悬停加深背景)
+    _MAC_COLORS = {
+        "close":    ("#FF5F57", "#E0443E", "#FF3B30"),
+        "minimize": ("#FFBD2E", "#DEA123", "#FF9500"),
+        "maximize": ("#28C840", "#1AAB29", "#00C853"),
+    }
+    # 失焦状态颜色
+    _MAC_INACTIVE_BG = "#DCDCDC"
+    _MAC_INACTIVE_BORDER = "#C8C8C8"
 
     @staticmethod
     def _mac_close_shapes() -> list:
-        """关闭按钮符号：× 两条交叉线。"""
+        """关闭按钮符号：× 两条交叉线（居中于 12×12 画布）。"""
+        s = CustomTitleBar._MAC_DOT_SIZE
         p = ft.Paint(
-            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.5,
+            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.2,
             style=ft.PaintingStyle.STROKE,
             stroke_cap=ft.StrokeCap.ROUND, anti_alias=True,
         )
+        # 在 12×12 中绘制，留 3.5px 边距
+        inset = 3.5
         return [
-            cv.Line(3, 3, 9, 9, paint=p),
-            cv.Line(9, 3, 3, 9, paint=p),
+            cv.Line(inset, inset, s - inset, s - inset, paint=p),
+            cv.Line(s - inset, inset, inset, s - inset, paint=p),
         ]
 
     @staticmethod
     def _mac_minimize_shapes() -> list:
-        """最小化按钮符号：— 一条水平线。"""
+        """最小化按钮符号：— 一条水平线（居中于 12×12 画布）。"""
+        s = CustomTitleBar._MAC_DOT_SIZE
         p = ft.Paint(
-            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.6,
+            color=CustomTitleBar._MAC_SYM_COLOR, stroke_width=1.4,
             style=ft.PaintingStyle.STROKE,
             stroke_cap=ft.StrokeCap.ROUND, anti_alias=True,
         )
-        return [cv.Line(2.5, 6, 9.5, 6, paint=p)]
+        mid_y = s / 2
+        inset = 3.0
+        return [cv.Line(inset, mid_y, s - inset, mid_y, paint=p)]
 
     @staticmethod
     def _mac_maximize_shapes() -> list:
-        """最大化/全屏按钮符号：两个对角三角形。"""
+        """最大化/全屏按钮符号：两个对角三角形（居中于 12×12 画布）。"""
+        s = CustomTitleBar._MAC_DOT_SIZE
         p = ft.Paint(
             color=CustomTitleBar._MAC_SYM_COLOR,
             style=ft.PaintingStyle.FILL, anti_alias=True,
         )
+        # 略微收缩以在圆内居中
+        inset = 3.0
+        far = s - inset
         return [
             # 左上角三角
             cv.Path(elements=[
-                cv.Path.MoveTo(2, 2),
-                cv.Path.LineTo(2, 7.5),
-                cv.Path.LineTo(7.5, 2),
+                cv.Path.MoveTo(inset, inset),
+                cv.Path.LineTo(inset, far - 1),
+                cv.Path.LineTo(far - 1, inset),
                 cv.Path.Close(),
             ], paint=p),
             # 右下角三角
             cv.Path(elements=[
-                cv.Path.MoveTo(10, 10),
-                cv.Path.LineTo(10, 4.5),
-                cv.Path.LineTo(4.5, 10),
+                cv.Path.MoveTo(far, far),
+                cv.Path.LineTo(far, inset + 1),
+                cv.Path.LineTo(inset + 1, far),
                 cv.Path.Close(),
             ], paint=p),
         ]
 
     def _build_mac_traffic_lights(self) -> ft.GestureDetector:
-        """构建 macOS 交通灯按钮组（悬停整组时同时显示所有符号）。
+        """构建 macOS 交通灯按钮组。
 
-        使用 Canvas 矢量绘制符号（非文字），GestureDetector 检测鼠标悬停。
+        模拟原生行为：
+        - 正常状态：彩色圆点 + 微妙深色边框
+        - 窗口失焦：统一灰色空心圆
+        - 悬停整组：显示所有符号
+        - 悬停单个：该按钮颜色加深
+        - 无 Material 水波纹和 tooltip
         """
-        _SIZE = 12
-        _HIT_SIZE = 18
+        _SIZE = self._MAC_DOT_SIZE
 
-        # (背景色, 符号构建方法, tooltip, 点击回调)
+        # (颜色 key, 符号构建方法, 点击回调)
         _BTNS = [
-            ("#FF5F57", self._mac_close_shapes, "关闭", self._close_window),
-            ("#FEBC2E", self._mac_minimize_shapes, "最小化", self._minimize_window),
-            ("#28C840", self._mac_maximize_shapes, "全屏", self._toggle_fullscreen),
+            ("close", self._mac_close_shapes, self._close_window),
+            ("minimize", self._mac_minimize_shapes, self._minimize_window),
+            ("maximize", self._mac_maximize_shapes, self._toggle_fullscreen),
         ]
 
         canvases: list[cv.Canvas] = []
-        dots: list[ft.Container] = []
+        dot_containers: list[ft.Container] = []
+        click_targets: list[ft.Container] = []
 
-        for bg, shape_fn, tip, handler in _BTNS:
+        for color_key, shape_fn, handler in _BTNS:
+            bg, border_color, _hover_bg = self._MAC_COLORS[color_key]
+
             symbol_canvas = cv.Canvas(
                 shapes=shape_fn(),
                 width=_SIZE, height=_SIZE,
@@ -189,30 +219,52 @@ class CustomTitleBar(ft.Container):
             )
             canvases.append(symbol_canvas)
 
+            # 圆点容器：带边框实现原生立体感
             dot = ft.Container(
                 content=symbol_canvas,
                 width=_SIZE, height=_SIZE,
                 bgcolor=bg,
-                border_radius=_SIZE // 2,
+                border_radius=_SIZE / 2,
+                border=ft.border.all(0.5, border_color),
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
             )
+            dot_containers.append(dot)
+
+            # 点击区域：略大于圆点便于点击，无水波纹、无 tooltip
             click_target = ft.Container(
                 content=dot,
-                width=_HIT_SIZE,
-                height=_HIT_SIZE,
+                width=_SIZE + 4,
+                height=_SIZE + 4,
                 alignment=ft.Alignment.CENTER,
                 bgcolor=ft.Colors.TRANSPARENT,
-                border_radius=_HIT_SIZE // 2,
-                tooltip=tip,
+                border_radius=(_SIZE + 4) / 2,
                 on_click=handler,
-                ink=True,
+                ink=False,
             )
-            dots.append(click_target)
+            click_targets.append(click_target)
 
-        self.fullscreen_button = dots[2]
+        self.fullscreen_button = click_targets[2]
         self._mac_canvases = canvases
+        self._mac_dot_containers = dot_containers
+        self._mac_is_hovered = False
+        self._mac_is_focused = True  # 假设初始为聚焦状态
+
+        def _apply_focus_state():
+            """根据聚焦/失焦状态更新圆点外观。"""
+            for i, (color_key, _, _) in enumerate(_BTNS):
+                dot = dot_containers[i]
+                if self._mac_is_focused:
+                    bg, border_color, _ = self._MAC_COLORS[color_key]
+                    dot.bgcolor = bg
+                    dot.border = ft.border.all(0.5, border_color)
+                else:
+                    # 失焦：灰色空心圆
+                    dot.bgcolor = self._MAC_INACTIVE_BG
+                    dot.border = ft.border.all(0.5, self._MAC_INACTIVE_BORDER)
 
         def _on_enter(e):
+            """鼠标进入整组区域：显示所有符号。"""
+            self._mac_is_hovered = True
             for c in canvases:
                 c.visible = True
             try:
@@ -221,26 +273,93 @@ class CustomTitleBar(ft.Container):
                 pass
 
         def _on_exit(e):
+            """鼠标离开整组区域：隐藏所有符号，恢复正常颜色。"""
+            self._mac_is_hovered = False
             for c in canvases:
                 c.visible = False
+            # 恢复所有按钮为正常颜色
+            for i, (color_key, _, _) in enumerate(_BTNS):
+                if self._mac_is_focused:
+                    bg, border_color, _ = self._MAC_COLORS[color_key]
+                    dot_containers[i].bgcolor = bg
+                    dot_containers[i].border = ft.border.all(0.5, border_color)
             try:
                 self._page.update()
             except Exception:
                 pass
 
+        def _make_dot_enter(idx: int, color_key: str):
+            """创建单个按钮的鼠标进入处理器：加深该按钮颜色。"""
+            def _handler(e):
+                if self._mac_is_focused:
+                    _, _, hover_bg = self._MAC_COLORS[color_key]
+                    dot_containers[idx].bgcolor = hover_bg
+                    dot_containers[idx].border = ft.border.all(0.5, hover_bg)
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+            return _handler
+
+        def _make_dot_exit(idx: int, color_key: str):
+            """创建单个按钮的鼠标离开处理器：恢复正常颜色。"""
+            def _handler(e):
+                if self._mac_is_focused:
+                    bg, border_color, _ = self._MAC_COLORS[color_key]
+                    dot_containers[idx].bgcolor = bg
+                    dot_containers[idx].border = ft.border.all(0.5, border_color)
+                    try:
+                        self._page.update()
+                    except Exception:
+                        pass
+            return _handler
+
+        # 为每个点击目标添加悬停检测
+        hover_detectors: list[ft.GestureDetector] = []
+        for i, (color_key, _, _) in enumerate(_BTNS):
+            detector = ft.GestureDetector(
+                content=click_targets[i],
+                on_enter=_make_dot_enter(i, color_key),
+                on_exit=_make_dot_exit(i, color_key),
+            )
+            hover_detectors.append(detector)
+
+        # 保存 _apply_focus_state 以便外部调用
+        self._mac_apply_focus_state = _apply_focus_state
+
         return ft.GestureDetector(
             content=ft.Container(
                 content=ft.Row(
-                    controls=dots,
-                    spacing=8,
+                    controls=hover_detectors,
+                    spacing=self._MAC_DOT_SPACING,
                     alignment=ft.MainAxisAlignment.START,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.padding.symmetric(horizontal=8, vertical=6),
+                padding=ft.padding.only(left=7, right=10, top=0, bottom=0),
             ),
             on_enter=_on_enter,
             on_exit=_on_exit,
         )
+
+    def set_window_focused(self, focused: bool) -> None:
+        """设置窗口聚焦状态，更新交通灯外观。
+
+        Args:
+            focused: 窗口是否处于聚焦状态
+        """
+        if sys.platform != "darwin":
+            return
+        self._mac_is_focused = focused
+        if hasattr(self, "_mac_apply_focus_state"):
+            self._mac_apply_focus_state()
+            # 失焦时隐藏符号
+            if not focused and hasattr(self, "_mac_canvases"):
+                for c in self._mac_canvases:
+                    c.visible = False
+            try:
+                self._page.update()
+            except Exception:
+                pass
 
     def _build_title_bar(self) -> None:
         """构建标题栏UI（macOS / Windows 自适应布局）。"""

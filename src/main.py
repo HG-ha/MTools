@@ -198,6 +198,13 @@ def main(page: ft.Page) -> None:
                 if page.window.width is not None and page.window.height is not None:
                     config_service.set_config_value("window_width", page.window.width)
                     config_service.set_config_value("window_height", page.window.height)
+        # 窗口聚焦/失焦时更新 macOS 交通灯外观
+        elif e.data in ("focus", "blur"):
+            try:
+                if hasattr(main_view, 'title_bar') and main_view.title_bar:
+                    main_view.title_bar.set_window_focused(e.data == "focus")
+            except Exception:
+                pass
     
     page.on_window_event = on_window_event
     
