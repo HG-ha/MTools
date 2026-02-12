@@ -116,9 +116,7 @@ class OthersView(ft.Container):
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""
         snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id):
         """创建带置顶功能的卡片，外层包裹 Dropzone 支持拖放。"""
@@ -490,9 +488,7 @@ class OthersView(ft.Container):
             content=ft.Text(message),
             duration=3000,
         )
-        self._saved_page.overlay.append(snackbar)
-        snackbar.open = True
-        self._saved_page.update()
+        self._saved_page.open(snackbar)
     
     def restore_state(self) -> bool:
         """恢复视图状态。

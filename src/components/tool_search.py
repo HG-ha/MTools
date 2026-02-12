@@ -441,8 +441,7 @@ class ToolSearchDialog(ft.AlertDialog):
         self._record_tool_usage(tool.name)
         
         # 关闭对话框
-        self.open = False
-        self._page.update()
+        self._page.close(self)
         
         # 执行工具回调
         if tool.on_click:
@@ -482,8 +481,7 @@ class ToolSearchDialog(ft.AlertDialog):
     
     def _on_close(self, e: ft.ControlEvent) -> None:
         """关闭按钮点击事件。"""
-        self.open = False
-        self._page.update()
+        self._page.close(self)
 
 
 class ToolRegistry:

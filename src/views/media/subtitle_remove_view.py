@@ -522,8 +522,7 @@ class SubtitleRemoveView(ft.Container):
             self.config_service.set_config_value("video_subtitle_mask_color", color)
             # 更新颜色预览
             self.mask_color_btn.content.controls[0].bgcolor = color
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 预设颜色
         colors = [
@@ -563,14 +562,11 @@ class SubtitleRemoveView(ft.Container):
             ],
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭对话框。"""
-        dialog.open = False
-        self._page.update()
+        self._page.close(dialog)
     
     async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
         """选择文件。"""
@@ -1047,8 +1043,7 @@ class SubtitleRemoveView(ft.Container):
             self._page.update()
         
         def close_dialog(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         def on_confirm(e):
             if regions_list:
@@ -1056,8 +1051,7 @@ class SubtitleRemoveView(ft.Container):
             elif str(file_path) in self.file_regions:
                 del self.file_regions[str(file_path)]
             
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._update_file_list()
             logger.info(f"已保存 {file_path.name} 的 {len(regions_list)} 个区域")
         
@@ -1080,8 +1074,7 @@ class SubtitleRemoveView(ft.Container):
                     self.file_regions[str(other_file)] = [r.copy() for r in regions_list]
                     applied_count += 1
             
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._update_file_list()
             self._show_snackbar(f"已将区域设置应用到所有 {applied_count + 1} 个文件")
             logger.info(f"已将 {len(regions_list)} 个区域应用到 {applied_count + 1} 个文件")
@@ -1187,15 +1180,12 @@ class SubtitleRemoveView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示 snackbar 提示。"""
-        self._page.snack_bar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
-        self._page.snack_bar.open = True
-        self._page.update()
+        snackbar = ft.SnackBar(content=ft.Text(message), bgcolor=color)
+        self._page.open(snackbar)
     
     def _clear_files(self) -> None:
         """清空文件列表。"""
@@ -1502,13 +1492,11 @@ class SubtitleRemoveView(ft.Container):
         """删除模型文件。"""
         # 确认对话框
         def confirm_delete(e):
-            dlg.open = False
-            self._page.update()
+            self._page.close(dlg)
             self._page.run_task(self._async_delete_model)
         
         def cancel_delete(e):
-            dlg.open = False
-            self._page.update()
+            self._page.close(dlg)
         
         dlg = ft.AlertDialog(
             title=ft.Text("确认删除"),
@@ -1518,9 +1506,7 @@ class SubtitleRemoveView(ft.Container):
                 ft.TextButton("删除", on_click=confirm_delete),
             ],
         )
-        self._page.overlay.append(dlg)
-        dlg.open = True
-        self._page.update()
+        self._page.open(dlg)
     
     async def _async_delete_model(self) -> None:
         """异步删除模型文件。"""
@@ -2018,13 +2004,10 @@ class SubtitleRemoveView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("字幕去除不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
-        self._page.update()
+            self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。

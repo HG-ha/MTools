@@ -912,21 +912,19 @@ class VideoConvertView(ft.Container):
     
     def _show_error(self, message: str) -> None:
         """显示错误消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.ERROR,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _show_success(self, message: str) -> None:
         """显示成功消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.GREEN,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

@@ -964,13 +964,11 @@ class OCRView(ft.Container):
             title=ft.Text("确认删除"),
             content=ft.Text(f"确定要删除模型 {self.current_model.display_name} 吗？\n删除后需要重新下载才能使用。"),
             actions=[
-                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self._page.update()),
-                ft.TextButton("删除", on_click=lambda _: (setattr(dialog, 'open', False), confirm_delete(True), self._page.update())),
+                ft.TextButton("取消", on_click=lambda _: self._page.close(dialog)),
+                ft.TextButton("删除", on_click=lambda _: (self._page.close(dialog), confirm_delete(True), self._page.update())),
             ],
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_recognize(self, e: ft.ControlEvent) -> None:
         """开始识别。"""
@@ -1469,12 +1467,7 @@ class OCRView(ft.Container):
             content=ft.Text(message),
             bgcolor=color,
         )
-        self._page.overlay.append(snack_bar)
-        snack_bar.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(snack_bar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

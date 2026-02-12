@@ -460,9 +460,7 @@ class TranslateView(ft.Container):
             bgcolor=ft.Colors.ERROR if is_error else None,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _safe_update(self) -> None:
         """安全更新页面。"""

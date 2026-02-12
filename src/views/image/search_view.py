@@ -660,9 +660,7 @@ class ImageSearchView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _handle_back(self, e: ft.ControlEvent = None):
         """处理返回按钮点击"""
@@ -683,8 +681,7 @@ class ImageSearchView(ft.Container):
     def _show_error(self, message: str):
         """显示错误消息"""
         def close_dialog(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
         dialog = ft.AlertDialog(
             title=ft.Text("错误"),
@@ -694,9 +691,7 @@ class ImageSearchView(ft.Container):
             ],
         )
         
-        self._page.dialog = dialog
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""

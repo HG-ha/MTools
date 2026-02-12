@@ -832,8 +832,7 @@ class CustomTitleBar(ft.Container):
                 if self.config_service:
                     self.config_service.set_config_value("weather_city", city)
                 # 关闭对话框
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
                 # 重新加载天气
                 self._page.run_task(self._load_weather_data)
             else:
@@ -844,14 +843,12 @@ class CustomTitleBar(ft.Container):
             # 清除城市设置，使用自动定位
             if self.config_service:
                 self.config_service.set_config_value("weather_city", "")
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             # 重新加载天气
             self._page.run_task(self._load_weather_data)
         
         def close_dialog(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 创建对话框
         dialog = ft.AlertDialog(
@@ -879,9 +876,7 @@ class CustomTitleBar(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.dialog = dialog
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def set_weather_visibility(self, visible: bool) -> None:
         """设置天气显示状态

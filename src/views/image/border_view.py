@@ -917,8 +917,7 @@ class ImageBorderView(ft.Container):
                 self.color_hex_field.update()
                 self.color_preview.update()
             
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 创建对话框
         dialog = ft.AlertDialog(
@@ -992,9 +991,7 @@ class ImageBorderView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _update_color_preview_in_dialog(
         self,
@@ -1386,9 +1383,7 @@ class ImageBorderView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

@@ -1543,9 +1543,7 @@ class VideoSubtitleView(ft.Container):
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
             )
             
-            self._page.overlay.append(preview_dialog)
-            preview_dialog.open = True
-            self._page.update()
+            self._page.open(preview_dialog)
             
         except Exception as ex:
             logger.error(f"预览字幕效果失败: {ex}", exc_info=True)
@@ -1553,8 +1551,7 @@ class VideoSubtitleView(ft.Container):
     
     def _close_preview_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭预览对话框。"""
-        dialog.open = False
-        self._page.update()
+        self._page.close(dialog)
     
     def _get_video_settings(self, file_path: Path) -> Dict[str, Any]:
         """获取视频的字幕设置（如果有自定义设置则使用，否则使用全局设置）。"""
@@ -2221,11 +2218,7 @@ class VideoSubtitleView(ft.Container):
         
         def cleanup_and_close():
             """清理资源并关闭对话框。"""
-            # 从 overlay 中移除 font picker
-            if dialog_font_picker in self._page.overlay:
-                self._page.overlay.remove(dialog_font_picker)
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         def save_settings(e):
             """保存设置。"""
@@ -2333,9 +2326,7 @@ class VideoSubtitleView(ft.Container):
             shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
         
         # 初始渲染预览
         render_preview()
@@ -2972,9 +2963,7 @@ class VideoSubtitleView(ft.Container):
             content_padding=0,
         )
         
-        self._page.overlay.append(self.font_selector_dialog)
-        self.font_selector_dialog.open = True
-        self._page.update()
+        self._page.open(self.font_selector_dialog)
         
         # 加载第一页
         self._update_font_page()
@@ -2982,8 +2971,7 @@ class VideoSubtitleView(ft.Container):
     def _close_font_selector_dialog(self) -> None:
         """关闭字体选择对话框。"""
         if hasattr(self, 'font_selector_dialog'):
-            self.font_selector_dialog.open = False
-            self._page.update()
+            self._page.close(self.font_selector_dialog)
     
     def _filter_font_list(self, e: ft.ControlEvent) -> None:
         """筛选字体列表。"""
@@ -3134,13 +3122,11 @@ class VideoSubtitleView(ft.Container):
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._do_delete_model()
         
         def cancel_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -3152,9 +3138,7 @@ class VideoSubtitleView(ft.Container):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _do_delete_model(self) -> None:
         """执行删除模型操作。"""
@@ -4131,9 +4115,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     
     def _show_snackbar(self, message: str) -> None:
         """显示提示消息。"""
-        self._page.snack_bar = ft.SnackBar(content=ft.Text(message))
-        self._page.snack_bar.open = True
-        self._page.update()
+        snackbar = ft.SnackBar(content=ft.Text(message))
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -4161,9 +4144,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             self._show_snackbar(f"已添加 {added_count} 个文件")
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("视频字幕不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
-        self._page.update()
+            self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

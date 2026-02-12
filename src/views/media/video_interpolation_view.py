@@ -842,8 +842,7 @@ class VideoInterpolationView(ft.Container):
     def _on_unload_model(self, e: ft.ControlEvent) -> None:
         """卸载模型按钮点击事件。"""
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             if self.interpolator:
                 self.interpolator.unload_model()
@@ -856,8 +855,7 @@ class VideoInterpolationView(ft.Container):
                 self._show_snackbar("模型未加载", ft.Colors.ORANGE)
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         estimated_memory = int(self.current_model.size_mb * 1.2)
         
@@ -881,9 +879,7 @@ class VideoInterpolationView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
         """自动加载模型复选框变化事件。"""
@@ -898,8 +894,7 @@ class VideoInterpolationView(ft.Container):
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 如果模型已加载，先卸载
             if self.interpolator:
@@ -920,8 +915,7 @@ class VideoInterpolationView(ft.Container):
                 self._show_snackbar(f"删除模型失败: {ex}", ft.Colors.RED)
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -952,9 +946,7 @@ class VideoInterpolationView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     async def _on_select_files(self) -> None:
         """选择文件按钮点击事件。"""
@@ -1287,15 +1279,13 @@ class VideoInterpolationView(ft.Container):
         if self.is_processing:
             # 显示确认对话框
             def confirm_exit(confirm_e: ft.ControlEvent) -> None:
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
                 self.cleanup()
                 if self.on_back:
                     self.on_back()
             
             def cancel_exit(cancel_e: ft.ControlEvent) -> None:
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
             
             dialog = ft.AlertDialog(
                 title=ft.Text("确认退出"),
@@ -1306,9 +1296,7 @@ class VideoInterpolationView(ft.Container):
                 ],
             )
             
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
+            self._page.open(dialog)
         else:
             if self.on_back:
                 self.on_back()
@@ -1983,9 +1971,7 @@ class VideoInterpolationView(ft.Container):
                 bgcolor=color,
                 duration=3000,
             )
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
-            self._page.update()
+            self._page.open(snackbar)
         except Exception:
             pass
     

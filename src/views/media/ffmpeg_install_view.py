@@ -245,10 +245,5 @@ class FFmpegInstallView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except Exception:
-            pass
+        self._page.open(snackbar)
 

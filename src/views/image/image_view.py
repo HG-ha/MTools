@@ -127,13 +127,6 @@ class ImageView(ft.Container):
         if hasattr(self._page, '_main_view') and self._page._main_view.recommendations_view:
             self._page._main_view.recommendations_view.refresh()
     
-    def _show_snackbar(self, message: str) -> None:
-        """显示提示消息。"""
-        snackbar = ft.SnackBar(content=ft.Text(message), duration=2000)
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
-    
     def _create_card(self, icon, title, description, gradient_colors, on_click, tool_id):
         """创建带置顶功能的卡片，外层包裹 Dropzone 支持拖放。"""
         card = FeatureCard(
@@ -518,9 +511,7 @@ class ImageView(ft.Container):
             content=ft.Text(message),
             duration=3000,
         )
-        self._saved_page.overlay.append(snackbar)
-        snackbar.open = True
-        self._saved_page.update()
+        self._saved_page.open(snackbar)
     
     def _open_compress_dialog(self, e: ft.ControlEvent) -> None:
         """切换到图片压缩工具界面。

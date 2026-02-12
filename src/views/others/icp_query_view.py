@@ -138,13 +138,11 @@ class ICPQueryView(ft.Container):
     def _on_delete_model_click(self, e=None) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._page.run_task(self._delete_model_async)
         
         def cancel_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -156,9 +154,7 @@ class ICPQueryView(ft.Container):
             ],
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     async def _delete_model_async(self) -> None:
         """异步删除模型。"""
@@ -1007,9 +1003,7 @@ class ICPQueryView(ft.Container):
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
 
     def cleanup(self) -> None:
         """清理视图资源。

@@ -1926,14 +1926,12 @@ class ScreenRecordView(ft.Container):
     
     def _show_message(self, message: str, color: str = ft.Colors.PRIMARY) -> None:
         """显示消息提示。"""
-        snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
             duration=3000,
         )
-        self._page.snack_bar = snack_bar
-        snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

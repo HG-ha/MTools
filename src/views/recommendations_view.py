@@ -321,6 +321,4 @@ class RecommendationsView(ft.Container):
             content=ft.Text(message),
             duration=3000,
         )
-        self._saved_page.overlay.append(snackbar)
-        snackbar.open = True
-        self._saved_page.update()
+        self._saved_page.open(snackbar)

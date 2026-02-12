@@ -248,9 +248,7 @@ class FeatureCard(ft.Container):
         local_y = e.local_y if hasattr(e, 'local_y') else 0
         
         def close_menu(ev):
-            if menu_container in self.page.overlay:
-                self.page.overlay.remove(menu_container)
-                self.page.update()
+            self.page.close(menu_container)
         
         def on_menu_click(ev):
             close_menu(ev)
@@ -306,8 +304,7 @@ class FeatureCard(ft.Container):
             expand=True,
         )
         
-        self.page.overlay.append(menu_container)
-        self.page.update()
+        self.page.open(menu_container)
     
     def _menu_item_hover(self, e: ft.HoverEvent, item: ft.Container) -> None:
         """菜单项悬停效果。"""

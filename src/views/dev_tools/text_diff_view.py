@@ -792,12 +792,11 @@ class TextDiffView(ft.Container):
 
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.ERROR if error else ft.Colors.PRIMARY,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
 
     def _on_back_click(self):
         """返回按钮点击。"""

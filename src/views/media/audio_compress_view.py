@@ -609,9 +609,7 @@ class AudioCompressView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _compress_audio(
         self,
@@ -715,12 +713,7 @@ class AudioCompressView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except Exception:
-            pass
+        self._page.open(snackbar)
     
     def _show_error(self, message: str) -> None:
         """显示错误消息。"""
@@ -729,9 +722,7 @@ class AudioCompressView(ft.Container):
             bgcolor=ft.Colors.ERROR,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _on_back_click(self, e: ft.ControlEvent = None) -> None:
         """返回按钮点击事件处理。"""
@@ -762,12 +753,10 @@ class AudioCompressView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("音频压缩不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         self._page.update()
     
     def cleanup(self) -> None:

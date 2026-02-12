@@ -328,9 +328,7 @@ class ImageToBase64View(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""

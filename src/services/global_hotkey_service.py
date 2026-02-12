@@ -1050,18 +1050,8 @@ class GlobalHotkeyService:
                 def show():
                     try:
                         import flet as ft
-                        # 清理旧的 snackbar（防止累积）
-                        old_snacks = [c for c in self._page.overlay if isinstance(c, ft.SnackBar)]
-                        for s in old_snacks:
-                            try:
-                                self._page.overlay.remove(s)
-                            except Exception:
-                                pass
-                        
                         snack = ft.SnackBar(content=ft.Text(message), duration=3000)
-                        self._page.overlay.append(snack)
-                        snack.open = True
-                        self._page.update()
+                        self._page.open(snack)
                     except Exception as e:
                         logger.debug(f"显示通知失败: {e}")
                 

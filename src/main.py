@@ -249,9 +249,7 @@ def _check_update_on_startup(page: ft.Page, config_service: ConfigService) -> No
                         on_action=lambda _: _show_startup_update_dialog(page, config_service, update_info),
                         duration=3000,  # 3秒
                     )
-                    page.overlay.append(snackbar)
-                    snackbar.open = True
-                    page.update()
+                    page.open(snackbar)
                 
                 page.run_task(show_update_snackbar)
                 
@@ -406,20 +404,16 @@ def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, up
     
     def on_skip(_):
         config_service.set_config_value("skipped_version", update_info.latest_version)
-        dialog.open = False
-        page.update()
+        page.close(dialog)
     
     def on_later(_):
-        dialog.open = False
-        page.update()
-    
+        page.close(dialog)
+
     auto_update_btn.on_click = on_auto_update
     skip_btn.on_click = on_skip
     later_btn.on_click = on_later
     
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    page.open(dialog)
 
 
 def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> None:
@@ -516,8 +510,7 @@ def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> Non
                     if not success:
                         config_service.set_config_value("last_shortcut_prompt_time", time.time())
                     
-                    dialog.open = False
-                    page.update()
+                    page.close(dialog)
                     
                     # 显示结果提示
                     snackbar = ft.SnackBar(
@@ -533,29 +526,23 @@ def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> Non
                         ),
                         duration=3000,
                     )
-                    page.overlay.append(snackbar)
-                    snackbar.open = True
-                    page.update()
+                    page.open(snackbar)
                 
                 def on_later(_):
                     # 更新提示时间，24小时后再提示
                     config_service.set_config_value("last_shortcut_prompt_time", time.time())
-                    dialog.open = False
-                    page.update()
+                    page.close(dialog)
                 
                 def on_never(_):
                     # 设置为永不提示（使用一个很大的时间戳）
                     config_service.set_config_value("never_show_shortcut_prompt", True)
-                    dialog.open = False
-                    page.update()
+                    page.close(dialog)
                 
                 create_btn.on_click = on_create
                 later_btn.on_click = on_later
                 never_btn.on_click = on_never
                 
-                page.overlay.append(dialog)
-                dialog.open = True
-                page.update()
+                page.open(dialog)
             
             # 直接调用显示对话框（已经在后台线程中）
             show_shortcut_dialog()

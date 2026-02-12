@@ -2196,7 +2196,8 @@ class SettingsView(ft.Container):
             divisions=47,  # (24576-512)/512 ≈ 47，每512MB一个刻度
             value=gpu_memory_limit,
             label=None,
-            on_change=self._on_gpu_memory_change,
+            on_change=self._on_gpu_memory_dragging,
+            on_change_end=self._on_gpu_memory_change,
         )
 
         # GPU 内存限制说明（DirectML 不支持内存限制）
@@ -2441,15 +2442,28 @@ class SettingsView(ft.Container):
         else:
             self._show_snackbar("GPU加速设置更新失败", ft.Colors.RED)
     
-    def _on_gpu_memory_change(self, e: ft.ControlEvent) -> None:
-        """GPU内存限制改变事件处理。
+    def _on_gpu_memory_dragging(self, e: ft.ControlEvent) -> None:
+        """GPU内存限制拖动中事件处理（实时更新文本显示）。
         
         Args:
             e: 控件事件对象
         """
         memory_limit = int(e.control.value)
+        self.gpu_memory_value_text.value = f"{memory_limit} MB"
+        try:
+            self.gpu_memory_value_text.update()
+        except Exception:
+            pass
+
+    def _on_gpu_memory_change(self, e: ft.ControlEvent) -> None:
+        """GPU内存限制拖动结束事件处理（保存配置并提示）。
+        
+        Args:
+            e: 控件事件对象
+        """
+        memory_limit = int(e.control.value)
+        self.gpu_memory_value_text.value = f"{memory_limit} MB"
         if self.config_service.set_config_value("gpu_memory_limit", memory_limit):
-            self.gpu_memory_value_text.value = f"{memory_limit} MB"
             self._show_snackbar(f"GPU内存限制已设置为 {memory_limit} MB，需重新加载模型生效", ft.Colors.GREEN)
         else:
             self._show_snackbar("GPU内存限制设置更新失败", ft.Colors.RED)
@@ -2983,10 +2997,9 @@ class SettingsView(ft.Container):
                 color_value = color_input.value.strip()
                 if color_value:
                     self._apply_custom_color(color_value)
-            self.color_picker_dialog.open = False
             page = getattr(self, '_saved_page', self._page)
             if page:
-                page.update()
+                page.close(self.color_picker_dialog)
         
         self.color_picker_dialog = ft.AlertDialog(
             modal=True,
@@ -3001,9 +3014,7 @@ class SettingsView(ft.Container):
         
         page = getattr(self, '_saved_page', self._page)
         if page:
-            page.overlay.append(self.color_picker_dialog)
-            self.color_picker_dialog.open = True
-            page.update()
+            page.open(self.color_picker_dialog)
     
     def _update_color_preview_in_dialog(
         self,
@@ -3712,9 +3723,7 @@ class SettingsView(ft.Container):
         
         page = getattr(self, '_saved_page', self._page)
         if page:
-            page.overlay.append(dialog)
-            dialog.open = True
-            page.update()
+            page.open(dialog)
     
     def _start_auto_update(
         self, 
@@ -3848,10 +3857,9 @@ class SettingsView(ft.Container):
         Args:
             dialog: 要关闭的对话框
         """
-        dialog.open = False
         page = getattr(self, '_saved_page', self._page)
         if page:
-            page.update()
+            page.close(dialog)
     
     def _on_auto_check_update_change(self, e: ft.ControlEvent) -> None:
         """自动检测更新开关状态变化事件。
@@ -3972,19 +3980,17 @@ class SettingsView(ft.Container):
         """
         def on_migrate(e):
             """选择迁移数据"""
-            dialog.open = False
             page = getattr(self, '_saved_page', self._page)
             if page:
-                page.update()
+                page.close(dialog)
             # 显示迁移进度对话框
             self._show_migrate_progress_dialog(old_dir, new_dir)
         
         def on_no_migrate(e):
             """不迁移数据"""
-            dialog.open = False
             page = getattr(self, '_saved_page', self._page)
             if page:
-                page.update()
+                page.close(dialog)
             # 直接更改目录
             if self.config_service.set_data_dir(str(new_dir), is_custom=True):
                 self.data_dir_text.value = str(new_dir)
@@ -4004,8 +4010,7 @@ class SettingsView(ft.Container):
         
         def on_cancel(e):
             """取消操作"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 恢复单选按钮状态（因为用户取消了操作）
             current_dir = self.config_service.get_data_dir()
@@ -4076,9 +4081,7 @@ class SettingsView(ft.Container):
         
         page = getattr(self, '_saved_page', self._page)
         if page:
-            page.overlay.append(dialog)
-            dialog.open = True
-            page.update()
+            page.open(dialog)
     
     def _show_migrate_progress_dialog(self, old_dir: Path, new_dir: Path) -> None:
         """显示数据迁移进度对话框。
@@ -4109,9 +4112,7 @@ class SettingsView(ft.Container):
         
         page = getattr(self, '_saved_page', self._page)
         if page:
-            page.overlay.append(dialog)
-            dialog.open = True
-            page.update()
+            page.open(dialog)
         
         # 在异步任务中执行迁移
         async def migrate_task():
@@ -4142,11 +4143,10 @@ class SettingsView(ft.Container):
             )
             
             # 关闭进度对话框
-            dialog.open = False
             try:
                 _page = getattr(self, '_saved_page', self._page)
                 if _page:
-                    _page.update()
+                    _page.close(dialog)
             except Exception:
                 pass
             
@@ -4187,8 +4187,7 @@ class SettingsView(ft.Container):
         """
         def on_delete(e):
             """删除旧数据"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 在异步任务中执行删除
             async def delete_task():
@@ -4229,8 +4228,7 @@ class SettingsView(ft.Container):
         
         def on_keep(e):
             """保留旧数据"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._show_snackbar("已保留旧数据", ft.Colors.BLUE)
         
         dialog = ft.AlertDialog(
@@ -4302,9 +4300,7 @@ class SettingsView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_open_dir_click(self, e: ft.ControlEvent) -> None:
         """打开目录按钮点击事件处理。
@@ -4536,9 +4532,7 @@ class SettingsView(ft.Container):
         )
         
         # 显示对话框
-        self._page.overlay.append(self.font_selector_dialog)
-        self.font_selector_dialog.open = True
-        self._page.update()
+        self._page.open(self.font_selector_dialog)
         
         # 初始加载第一页数据
         self._update_font_page()
@@ -4657,8 +4651,7 @@ class SettingsView(ft.Container):
     def _close_font_selector_dialog(self) -> None:
         """关闭字体选择对话框。"""
         if hasattr(self, 'font_selector_dialog'):
-            self.font_selector_dialog.open = False
-            self._page.update()
+            self._page.close(self.font_selector_dialog)
     
     async def _pick_font_file(self) -> None:
         """打开文件选择器选择字体文件。"""
@@ -4836,11 +4829,9 @@ class SettingsView(ft.Container):
             page = getattr(self, '_saved_page', None) or getattr(self, 'page', None)
             if not page:
                 return
-            # 将 snackbar 添加到 overlay 并刷新页面
+            # 显示 snackbar
             try:
-                page.overlay.append(snackbar)
-                snackbar.open = True
-                page.update()
+                page.open(snackbar)
             except Exception:
                 # 如果 overlay 不可用或在后台线程中引发错误，则尝试安全地设置一个简单替代：
                 # 将消息打印到控制台（避免抛出未捕获异常）

@@ -1035,12 +1035,11 @@ class VideoVocalSeparationView(ft.Container):
     
     def _show_snackbar(self, message: str, bgcolor: str) -> None:
         """显示提示消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=bgcolor,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _on_model_change(self, e: ft.ControlEvent) -> None:
         """模型选择变化事件。"""
@@ -1337,22 +1336,19 @@ class VideoVocalSeparationView(ft.Container):
             title=ft.Text("确认删除"),
             content=ft.Text(f"确定要删除模型 {model_info.display_name} 吗？"),
             actions=[
-                ft.TextButton("取消", on_click=lambda _: setattr(dialog, 'open', False) or self._page.update()),
+                ft.TextButton("取消", on_click=lambda _: self._page.close(dialog)),
                 ft.TextButton(
                     "删除",
                     on_click=lambda _: (
                         on_confirm(True),
-                        setattr(dialog, 'open', False),
-                        self._page.update()
+                        self._page.close(dialog)
                     )
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
         """输出模式变化事件。"""
@@ -1400,12 +1396,10 @@ class VideoVocalSeparationView(ft.Container):
         if added_count > 0:
             self._update_file_list()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("视频人声分离不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         self._page.update()
     
     def cleanup(self) -> None:

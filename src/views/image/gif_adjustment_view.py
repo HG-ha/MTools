@@ -1617,12 +1617,7 @@ class GifAdjustmentView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except Exception:
-            pass
+        self._page.open(snackbar)
     
     def _show_ffmpeg_install_view(self) -> None:
         """显示 FFmpeg 安装视图。"""

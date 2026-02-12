@@ -1464,13 +1464,11 @@ class AudioToTextView(ft.Container):
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._do_delete_model()
         
         def cancel_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 显示确认对话框
         dialog = ft.AlertDialog(
@@ -1490,9 +1488,7 @@ class AudioToTextView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _do_delete_model(self) -> None:
         """执行删除模型操作。"""
@@ -2410,12 +2406,7 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(dialog)
     
     def _show_success(self, title: str, message: str) -> None:
         """显示成功对话框。"""
@@ -2426,12 +2417,7 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(dialog)
     
     def _show_info(self, title: str, message: str) -> None:
         """显示信息对话框。"""
@@ -2442,12 +2428,7 @@ class AudioToTextView(ft.Container):
                 ft.TextButton("确定", on_click=lambda e: self._close_dialog(dialog)),
             ],
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(dialog)
     
     def _show_cuda_warning(self) -> None:
         """显示 CUDA 使用警告。"""
@@ -2500,20 +2481,11 @@ class AudioToTextView(ft.Container):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self._page.overlay.append(warning_dialog)
-        warning_dialog.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(warning_dialog)
     
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭对话框。"""
-        dialog.open = False
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.close(dialog)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -2540,12 +2512,10 @@ class AudioToTextView(ft.Container):
             self._update_file_list()
             self._update_process_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         elif skipped_count > 0:
             snackbar = ft.SnackBar(content=ft.Text("语音转文字不支持该格式"), bgcolor=ft.Colors.ORANGE)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         self._page.update()
     
     def cleanup(self) -> None:

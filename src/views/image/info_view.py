@@ -1253,9 +1253,7 @@ class ImageInfoView(ft.Container):
                 title=ft.Text("正在导出视频..."),
                 content=ft.ProgressRing(),
             )
-            self._page.overlay.append(progress_dialog)
-            progress_dialog.open = True
-            self._page.update()
+            self._page.open(progress_dialog)
             
             try:
                 # 提取视频
@@ -1265,9 +1263,7 @@ class ImageInfoView(ft.Container):
                 )
                 
                 # 关闭进度对话框
-                progress_dialog.open = False
-                self._page.overlay.remove(progress_dialog)
-                self._page.update()
+                self._page.close(progress_dialog)
                 
                 if success:
                     self._show_message(message, ft.Colors.GREEN)
@@ -1289,12 +1285,10 @@ class ImageInfoView(ft.Container):
                         except:
                             pass
                         
-                        confirm_dialog.open = False
-                        self._page.update()
+                        self._page.close(confirm_dialog)
                     
                     def close_dialog(e):
-                        confirm_dialog.open = False
-                        self._page.update()
+                        self._page.close(confirm_dialog)
                     
                     confirm_dialog = ft.AlertDialog(
                         title=ft.Text("导出成功"),
@@ -1304,19 +1298,16 @@ class ImageInfoView(ft.Container):
                             ft.TextButton("关闭", on_click=close_dialog),
                         ],
                     )
-                    self._page.overlay.append(confirm_dialog)
-                    confirm_dialog.open = True
-                    self._page.update()
+                    self._page.open(confirm_dialog)
                 else:
                     self._show_message(message, ft.Colors.RED)
             
             except Exception as ex:
                 # 确保关闭进度对话框
-                if progress_dialog.open:
-                    progress_dialog.open = False
-                    self._page.overlay.remove(progress_dialog)
-                    self._page.update()
-                
+                try:
+                    self._page.close(progress_dialog)
+                except Exception:
+                    pass
                 self._show_message(f"导出失败: {str(ex)}", ft.Colors.RED)
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
@@ -1340,9 +1331,7 @@ class ImageInfoView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件（只取第一个支持的文件）。"""
@@ -1371,9 +1360,7 @@ class ImageInfoView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

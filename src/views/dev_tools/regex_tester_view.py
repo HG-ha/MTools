@@ -480,12 +480,11 @@ class RegexTesterView(ft.Container):
     
     def _show_snack(self, message: str, error: bool = False):
         """显示提示消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

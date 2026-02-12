@@ -913,8 +913,7 @@ class VideoEnhanceView(ft.Container):
         if self.is_processing:
             # 显示确认对话框
             def confirm_exit(confirm_e: ft.ControlEvent) -> None:
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
                 
                 # 清理资源并取消任务
                 self.cleanup()
@@ -924,8 +923,7 @@ class VideoEnhanceView(ft.Container):
                     self.on_back()
             
             def cancel_exit(cancel_e: ft.ControlEvent) -> None:
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
             
             dialog = ft.AlertDialog(
                 modal=True,
@@ -945,9 +943,7 @@ class VideoEnhanceView(ft.Container):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
+            self._page.open(dialog)
         else:
             # 没有任务在运行，直接返回
             if self.on_back:
@@ -961,15 +957,13 @@ class VideoEnhanceView(ft.Container):
         
         if self.enhancer:
             def confirm_switch(confirm_e: ft.ControlEvent) -> None:
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
                 self._switch_model(new_model_key)
             
             def cancel_switch(cancel_e: ft.ControlEvent) -> None:
-                dialog.open = False
+                self._page.close(dialog)
                 self.model_selector.value = self.current_model_key
                 self.model_selector.update()
-                self._page.update()
             
             dialog = ft.AlertDialog(
                 modal=True,
@@ -982,9 +976,7 @@ class VideoEnhanceView(ft.Container):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
+            self._page.open(dialog)
         else:
             self._switch_model(new_model_key)
     
@@ -1069,8 +1061,7 @@ class VideoEnhanceView(ft.Container):
     def _on_unload_model(self, e: ft.ControlEvent) -> None:
         """卸载模型按钮点击事件。"""
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             if self.enhancer:
                 self.enhancer = None
@@ -1082,8 +1073,7 @@ class VideoEnhanceView(ft.Container):
                 self._show_snackbar("模型未加载", ft.Colors.ORANGE)
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         estimated_memory = int(self.current_model.size_mb * 1.2)
         
@@ -1101,15 +1091,12 @@ class VideoEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。"""
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             if self.enhancer:
                 self.enhancer = None
@@ -1134,8 +1121,7 @@ class VideoEnhanceView(ft.Container):
                 self._show_snackbar(f"删除模型失败: {ex}", ft.Colors.RED)
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -1157,9 +1143,7 @@ class VideoEnhanceView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。"""
@@ -2271,9 +2255,7 @@ class VideoEnhanceView(ft.Container):
                 bgcolor=color,
                 duration=3000,
             )
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
-            self._page.update()
+            self._page.open(snackbar)
         except Exception as e:
             logger.debug(f"显示snackbar失败（可能视图已销毁）: {e}")
     

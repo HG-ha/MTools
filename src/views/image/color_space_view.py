@@ -519,12 +519,11 @@ class ColorSpaceView(ft.Container):
     
     def _show_snackbar(self, message: str, bgcolor: str = None) -> None:
         """显示提示消息。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=bgcolor,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _on_threshold_change(self, e: ft.ControlEvent) -> None:
         """处理二值化阈值变化。"""
@@ -591,12 +590,11 @@ class ColorSpaceView(ft.Container):
             self._page.update()
             
             # 显示完成提示
-            self._page.snack_bar = ft.SnackBar(
+            snackbar = ft.SnackBar(
                 content=ft.Text(f"颜色空间转换完成！成功: {success_count}, 失败: {error_count}"),
                 bgcolor=ft.Colors.GREEN if error_count == 0 else ft.Colors.ORANGE,
             )
-            self._page.snack_bar.open = True
-            self._page.update()
+            self._page.open(snackbar)
         
         # 使用线程池执行
         executor = ThreadPoolExecutor(max_workers=1)

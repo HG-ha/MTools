@@ -776,14 +776,12 @@ class QRCodeGeneratorView(ft.Container):
             message: 消息内容
             color: 消息颜色
         """
-        snackbar: ft.SnackBar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

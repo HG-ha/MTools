@@ -737,8 +737,7 @@ class ImageBackgroundView(ft.Container):
             error: 错误信息
         """
         def close_dialog(e: ft.ControlEvent) -> None:
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         def open_url_and_close(e: ft.ControlEvent) -> None:
             webbrowser.open(self.current_model.url)
@@ -779,9 +778,7 @@ class ImageBackgroundView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_back_click(self, e: ft.ControlEvent) -> None:
         """返回按钮点击事件。
@@ -806,13 +803,12 @@ class ImageBackgroundView(ft.Container):
         if self.bg_remover:
             def confirm_switch(confirm_e: ft.ControlEvent) -> None:
                 """确认切换模型。"""
-                dialog.open = False
-                self._page.update()
+                self._page.close(dialog)
                 self._switch_model(new_model_key)
             
             def cancel_switch(cancel_e: ft.ControlEvent) -> None:
                 """取消切换，恢复原选择。"""
-                dialog.open = False
+                self._page.close(dialog)
                 self.model_selector.value = self.current_model_key
                 self.model_selector.update()
                 self._page.update()
@@ -836,9 +832,7 @@ class ImageBackgroundView(ft.Container):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
+            self._page.open(dialog)
         else:
             # 没有加载模型，直接切换
             self._switch_model(new_model_key)
@@ -912,8 +906,7 @@ class ImageBackgroundView(ft.Container):
         """
         def confirm_unload(confirm_e: ft.ControlEvent) -> None:
             """确认卸载。"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 卸载模型（释放内存）
             if self.bg_remover:
@@ -929,8 +922,7 @@ class ImageBackgroundView(ft.Container):
         
         def cancel_unload(cancel_e: ft.ControlEvent) -> None:
             """取消卸载。"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 显示确认对话框
         # 计算内存占用（模型文件大小的近似值，实际内存可能略大）
@@ -960,9 +952,7 @@ class ImageBackgroundView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
         """删除模型按钮点击事件。
@@ -972,8 +962,7 @@ class ImageBackgroundView(ft.Container):
         """
         def confirm_delete(confirm_e: ft.ControlEvent) -> None:
             """确认删除。"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 如果模型已加载，先卸载
             if self.bg_remover:
@@ -996,8 +985,7 @@ class ImageBackgroundView(ft.Container):
         
         def cancel_delete(cancel_e: ft.ControlEvent) -> None:
             """取消删除。"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 显示确认对话框
         dialog = ft.AlertDialog(
@@ -1029,9 +1017,7 @@ class ImageBackgroundView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     async def _on_select_files(self, e: ft.ControlEvent) -> None:
         """选择文件按钮点击事件。
@@ -1519,12 +1505,7 @@ class ImageBackgroundView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

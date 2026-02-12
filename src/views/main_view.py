@@ -149,12 +149,11 @@ class MainView(ft.Column):
     
     def _show_drop_hint(self, message: str) -> None:
         """显示拖放提示。"""
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             duration=2000,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -771,9 +770,7 @@ class MainView(ft.Column):
             tools.append(tool_info)
         
         search_dialog = ToolSearchDialog(self._page, tools, self.config_service)
-        self._page.overlay.append(search_dialog)
-        search_dialog.open = True
-        self._page.update()
+        self._page.open(search_dialog)
     
     def _on_keyboard(self, e: ft.KeyboardEvent) -> None:
         """键盘事件处理。"""
@@ -1065,14 +1062,12 @@ class MainView(ft.Column):
                         ),
                         ft.TextButton(
                             "取消",
-                            on_click=lambda _: (setattr(admin_dialog, 'open', False), self._page.update()),
+                            on_click=lambda _: self._page.close(admin_dialog),
                         ),
                     ],
                     actions_alignment=ft.MainAxisAlignment.END,
                 )
-                self._page.overlay.append(admin_dialog)
-                admin_dialog.open = True
-                self._page.update()
+                self._page.open(admin_dialog)
                 return
             
             auto_update_btn.disabled = True
@@ -1152,8 +1147,7 @@ class MainView(ft.Column):
         
         def on_manual_download(e):
             """手动下载 - 显示下载选项"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             
             # 显示下载选项对话框
             download_dialog = ft.AlertDialog(
@@ -1179,34 +1173,27 @@ class MainView(ft.Column):
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             
-            self._page.overlay.append(download_dialog)
-            download_dialog.open = True
-            self._page.update()
+            self._page.open(download_dialog)
         
         def on_skip(e):
             """跳过此版本"""
             self.config_service.set_config_value("skipped_version", update_info.latest_version)
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         def on_later(e):
             """稍后提醒"""
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         auto_update_btn.on_click = on_auto_update
         manual_download_btn.on_click = on_manual_download
         skip_btn.on_click = on_skip
         later_btn.on_click = on_later
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _open_china_download(self, update_info, dialog):
         """打开国内镜像下载"""
-        dialog.open = False
-        self._page.update()
+        self._page.close(dialog)
         
         version = update_info.latest_version
         if not version.startswith('v'):
@@ -1216,14 +1203,12 @@ class MainView(ft.Column):
     
     def _open_github_download(self, dialog):
         """打开GitHub下载"""
-        dialog.open = False
-        self._page.update()
+        self._page.close(dialog)
         webbrowser.open(DOWNLOAD_URL_GITHUB)
     
     def _close_download_dialog(self, dialog):
         """关闭下载对话框"""
-        dialog.open = False
-        self._page.update()
+        self._page.close(dialog)
     
     def apply_background(self, image_path: Optional[str], fit_mode: Optional[str]) -> None:
         """应用背景图片到主界面。

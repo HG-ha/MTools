@@ -699,8 +699,7 @@ class JsonTreeNode(ft.Container):
             
             # 创建小型弹出菜单
             def close_menu():
-                dialog.open = False
-                page.update()
+                page.close(dialog)
             
             def copy_and_close(text):
                 self._copy_to_clipboard(page, text)
@@ -770,12 +769,10 @@ class JsonTreeNode(ft.Container):
             await ft.Clipboard().set(text)
             
             # 显示提示
-            snack_bar = ft.SnackBar(
+            snackbar = ft.SnackBar(
                 content=ft.Text(f"已复制: {text[:50]}..." if len(str(text)) > 50 else str(text))
             )
-            page.snack_bar = snack_bar
-            snack_bar.open = True
-            page.update()
+            page.open(snackbar)
         except Exception as ex:
             logger.error(f"复制失败: {ex}")
 
@@ -798,8 +795,7 @@ class JsonTreeNode(ft.Container):
             if page is None:
                 return
             if hasattr(page, 'dialog') and page.dialog is not None:
-                page.dialog.open = False
-                page.update()
+                page.close(page.dialog)
         except Exception as ex:
             logger.error(f"关闭对话框失败: {ex}")
 
@@ -1769,9 +1765,7 @@ class JsonViewerView(ft.Container):
             content=ft.Text(message),
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def cleanup(self) -> None:
         """清理视图资源，释放内存。"""

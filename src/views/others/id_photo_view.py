@@ -734,8 +734,7 @@ class IDPhotoView(ft.Container):
         
         # 创建预览对话框
         def close_dialog(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 保存临时预览图
         if self.config_service:
@@ -806,9 +805,7 @@ class IDPhotoView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     # ==================== 模型管理 ====================
     
@@ -1088,12 +1085,10 @@ class IDPhotoView(ft.Container):
             model_name = model_info.display_name
         
         def close_dialog(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         def confirm_delete(e):
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
             self._do_delete_model(model_type)
         
         dialog = ft.AlertDialog(
@@ -1107,9 +1102,7 @@ class IDPhotoView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _do_delete_model(self, model_type: str) -> None:
         """执行删除模型。"""
@@ -1411,12 +1404,7 @@ class IDPhotoView(ft.Container):
     def _show_snackbar(self, message: str, color: str = None) -> None:
         """显示提示消息。"""
         snackbar = ft.SnackBar(content=ft.Text(message), bgcolor=color, duration=3000)
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except Exception:
-            pass
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
@@ -1445,8 +1433,7 @@ class IDPhotoView(ft.Container):
             self._update_file_list()
             self._update_generate_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         self._page.update()
     
     def _process_pending_files(self) -> None:
@@ -1477,8 +1464,7 @@ class IDPhotoView(ft.Container):
             self._update_file_list()
             self._update_generate_button()
             snackbar = ft.SnackBar(content=ft.Text(f"已添加 {added_count} 个文件"), bgcolor=ft.Colors.GREEN)
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
+            self._page.open(snackbar)
         try:
             self._page.update()
         except Exception:

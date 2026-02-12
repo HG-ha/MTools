@@ -1403,17 +1403,12 @@ class ImagePuzzleMergeView(ft.Container):
     
     def _show_snackbar(self, message: str, color: str) -> None:
         """显示提示消息。"""
-        snackbar: ft.SnackBar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except Exception:
-            pass
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""

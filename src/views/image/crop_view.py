@@ -1155,9 +1155,7 @@ class ImageCropView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
 
     async def _on_canvas_click(self, e: ft.ControlEvent) -> None:
         """点击裁剪区域，如果未选择图片则打开选择文件对话框。"""
@@ -1774,9 +1772,7 @@ class ImageCropView(ft.Container):
                 bgcolor=ft.Colors.GREEN,
                 duration=2000,
             )
-            self._page.overlay.append(snackbar)
-            snackbar.open = True
-            self._page.update()
+            self._page.open(snackbar)
         except Exception as ex:
             logger.error(f"保存失败: {ex}")
             self._show_snackbar(f"保存失败: {str(ex)}", ft.Colors.RED)
@@ -2188,12 +2184,7 @@ class ImageCropView(ft.Container):
             bgcolor=color,
             duration=3000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        try:
-            self._page.update()
-        except:
-            pass
+        self._page.open(snackbar)
 
     def _on_window_resize(self, e: ft.ControlEvent) -> None:
         """窗口大小变化时的处理。"""

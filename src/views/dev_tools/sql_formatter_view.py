@@ -408,12 +408,11 @@ WHERE u.status = 1
         self._page.open(dialog)
     
     def _show_snack(self, message: str, error: bool = False):
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=ft.Colors.RED_400 if error else ft.Colors.GREEN_400,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件，加载第一个 SQL 文件内容。

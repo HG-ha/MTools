@@ -375,12 +375,11 @@ class Base64ToImageView(ft.Container):
             message: 消息内容
             color: 消息颜色
         """
-        self._page.snack_bar = ft.SnackBar(
+        snackbar = ft.SnackBar(
             content=ft.Text(message),
             bgcolor=color,
         )
-        self._page.snack_bar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件，读取文件内容作为 Base64 输入。

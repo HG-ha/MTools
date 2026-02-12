@@ -644,8 +644,7 @@ class ImageRotateView(ft.Container):
                 self._update_fill_color_display()
                 # 更新预览
                 self._update_preview()
-            dialog.open = False
-            self._page.update()
+            self._page.close(dialog)
         
         # 创建对话框
         dialog = ft.AlertDialog(
@@ -726,9 +725,7 @@ class ImageRotateView(ft.Container):
             actions_alignment=ft.MainAxisAlignment.END,
         )
         
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self._page.open(dialog)
     
     def _update_color_preview_in_dialog(
         self,
@@ -1148,9 +1145,7 @@ class ImageRotateView(ft.Container):
             bgcolor=color,
             duration=2000,
         )
-        self._page.overlay.append(snackbar)
-        snackbar.open = True
-        self._page.update()
+        self._page.open(snackbar)
     
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
