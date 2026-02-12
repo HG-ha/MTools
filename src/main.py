@@ -133,10 +133,12 @@ def main(page: ft.Page) -> None:
     
     # 导航到初始路由（根据配置决定显示推荐页还是图片处理页）
     show_recommendations = config_service.get_config_value("show_recommendations_page", True)
-    if show_recommendations:
-        page.go("/")  # 推荐页
-    else:
-        page.go("/image")  # 图片处理页
+    initial_route = "/" if show_recommendations else "/image"
+    
+    async def push_initial_route():
+        await page.push_route(initial_route)
+    
+    page.run_task(push_initial_route)
     
     # 应用窗口透明度（在首次路由后应用）
     if hasattr(main_view, '_pending_opacity'):

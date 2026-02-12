@@ -397,10 +397,14 @@ class MainView(ft.Column):
         """安全的路由跳转，关闭过程中不再操作 page。"""
         if self._is_closing:
             return
-        try:
-            self._page.go(route)
-        except RuntimeError:
-            pass  # Session closed
+        
+        async def _push():
+            try:
+                await self._page.push_route(route)
+            except RuntimeError:
+                pass  # Session closed
+        
+        self._page.run_task(_push)
     
     def _show_route_loading(self, title: str) -> None:
         """显示路由级加载占位，降低切换时的卡顿感。"""
