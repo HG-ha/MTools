@@ -169,6 +169,7 @@ class CustomTitleBar(ft.Container):
         使用 Canvas 矢量绘制符号（非文字），GestureDetector 检测鼠标悬停。
         """
         _SIZE = 12
+        _HIT_SIZE = 18
 
         # (背景色, 符号构建方法, tooltip, 点击回调)
         _BTNS = [
@@ -194,10 +195,19 @@ class CustomTitleBar(ft.Container):
                 bgcolor=bg,
                 border_radius=_SIZE // 2,
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            )
+            click_target = ft.Container(
+                content=dot,
+                width=_HIT_SIZE,
+                height=_HIT_SIZE,
+                alignment=ft.Alignment.CENTER,
+                bgcolor=ft.Colors.TRANSPARENT,
+                border_radius=_HIT_SIZE // 2,
                 tooltip=tip,
                 on_click=handler,
+                ink=True,
             )
-            dots.append(dot)
+            dots.append(click_target)
 
         self.fullscreen_button = dots[2]
         self._mac_canvases = canvases
@@ -226,7 +236,7 @@ class CustomTitleBar(ft.Container):
                     alignment=ft.MainAxisAlignment.START,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.padding.symmetric(horizontal=6, vertical=4),
+                padding=ft.padding.symmetric(horizontal=8, vertical=6),
             ),
             on_enter=_on_enter,
             on_exit=_on_exit,
@@ -692,9 +702,21 @@ class CustomTitleBar(ft.Container):
             sys.exit(0)
             return
         
+        # 防止重复触发关闭流程
+        if getattr(self, "_closing_started", False):
+            return
+        self._closing_started = True
+        
         # 设置关闭标记，防止后台任务继续操作 page
         if hasattr(page, '_main_view') and hasattr(page._main_view, '_is_closing'):
             page._main_view._is_closing = True
+        
+        # 停止全局热键监听，避免进程退出被后台监听线程拖慢
+        try:
+            if hasattr(page, "_main_view") and hasattr(page._main_view, "global_hotkey_service"):
+                page._main_view.global_hotkey_service.stop()
+        except Exception:
+            pass
         
         # 在关闭前保存窗口位置、大小和最大化状态
         if self.config_service:
@@ -715,30 +737,15 @@ class CustomTitleBar(ft.Container):
             self.tray_icon.stop()
             self.tray_icon = None
         
-        # 关闭天气服务
-        if self.weather_service:
-            import asyncio
-            try:
-                # 获取当前事件循环
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果循环正在运行，创建任务
-                    asyncio.create_task(self.weather_service.close())
-                else:
-                    # 如果循环未运行，直接运行协程
-                    loop.run_until_complete(self.weather_service.close())
-            except Exception as ex:
-                # 如果上述方法都失败，尝试创建新的事件循环
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self.weather_service.close())
-                    loop.close()
-                except:
-                    pass
-        
-        # 关闭窗口 (异步方法，使用 run_task)
+        # 关闭窗口 (异步方法，避免同步阻塞退出)
         async def _do_close():
+            import asyncio
+            # 天气服务关闭设置超时，避免网络清理阻塞退出
+            if self.weather_service:
+                try:
+                    await asyncio.wait_for(self.weather_service.close(), timeout=0.6)
+                except Exception:
+                    pass
             try:
                 await page.window.close()
             except RuntimeError:

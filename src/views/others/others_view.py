@@ -246,7 +246,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import WindowsUpdateView
+        from views.others.windows_update_view import WindowsUpdateView
         
         if not self.parent_container:
             self._show_message("无法打开视图")
@@ -277,7 +277,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import ImageToUrlView
+        from views.others.image_to_url_view import ImageToUrlView
         
         if not self.parent_container:
             self._show_message("无法打开视图")
@@ -308,7 +308,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import FileToUrlView
+        from views.others.file_to_url_view import FileToUrlView
         
         if not self.parent_container:
             self._show_message("无法打开视图")
@@ -339,7 +339,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import ICPQueryView
+        from views.others.icp_query_view import ICPQueryView
         
         if not self.parent_container:
             self._show_message("无法打开视图")
@@ -371,7 +371,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import IDPhotoView
+        from views.others.id_photo_view import IDPhotoView
         
         if not self.parent_container:
             self._show_message("无法打开视图")
@@ -403,7 +403,7 @@ class OthersView(ft.Container):
         # 隐藏搜索按钮
         self._hide_search_button()
         
-        from views.others import TranslateView
+        from views.others.translate_view import TranslateView
         
         if not self.parent_container:
             self._show_message("无法打开视图")

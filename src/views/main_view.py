@@ -6,7 +6,7 @@
 
 import threading
 import webbrowser
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import flet as ft
 
@@ -36,12 +36,13 @@ def get_full_version_string() -> str:
         return f"{version} (CUDA Full)"
     else:
         return version
-from views.media import MediaView
-from views.dev_tools import DevToolsView
-from views.others import OthersView
-from views.image import ImageView
-from views.settings_view import SettingsView
-from views.recommendations_view import RecommendationsView
+if TYPE_CHECKING:
+    from views.media.media_view import MediaView
+    from views.dev_tools.dev_tools_view import DevToolsView
+    from views.others.others_view import OthersView
+    from views.image.image_view import ImageView
+    from views.settings_view import SettingsView
+    from views.recommendations_view import RecommendationsView
 
 
 class MainView(ft.Column):
@@ -78,12 +79,12 @@ class MainView(ft.Column):
         self.content_container: Optional[ft.Container] = None
         
         # 创建各功能视图
-        self.recommendations_view: Optional[RecommendationsView] = None  # 推荐视图
-        self.image_view: Optional[ImageView] = None
-        self.dev_tools_view: Optional[DevToolsView] = None
-        self.media_view: Optional[MediaView] = None  # 统一的媒体处理视图
-        self.others_view: Optional[OthersView] = None
-        self.settings_view: Optional[SettingsView] = None  # 懒加载，首次打开时创建
+        self.recommendations_view: Optional["RecommendationsView"] = None  # 推荐视图
+        self.image_view: Optional["ImageView"] = None
+        self.dev_tools_view: Optional["DevToolsView"] = None
+        self.media_view: Optional["MediaView"] = None  # 统一的媒体处理视图
+        self.others_view: Optional["OthersView"] = None
+        self.settings_view: Optional["SettingsView"] = None  # 懒加载，首次打开时创建
         
         # 创建UI组件
         self._build_ui()
@@ -100,6 +101,9 @@ class MainView(ft.Column):
         # 保存背景图片配置，延迟到页面加载后应用
         self._pending_bg_image = self.config_service.get_config_value("background_image", None)
         self._pending_bg_fit = self.config_service.get_config_value("background_image_fit", "cover")
+        
+        # 路由打开任务序号：用于取消过期的异步打开请求
+        self._route_open_ticket: int = 0
         
         # 启动时自动检测更新（如果配置允许）
         auto_check_update = self.config_service.get_config_value("auto_check_update", True)
@@ -260,6 +264,8 @@ class MainView(ft.Column):
         register_all_tools()
         
         # 创建推荐视图（首页需要立即创建）
+        from views.recommendations_view import RecommendationsView
+
         self.recommendations_view = RecommendationsView(
             self._page,
             self.config_service,
@@ -275,6 +281,8 @@ class MainView(ft.Column):
             self.content_container.content = self.recommendations_view
         else:
             # 按需创建图片视图
+            from views.image.image_view import ImageView
+
             self.image_view = ImageView(
                 self._page, 
                 self.config_service, 
@@ -292,7 +300,19 @@ class MainView(ft.Column):
             on_dropped=self._on_files_dropped,
             expand=True,
         )
-        content_area = self.dropzone_wrapper
+        # 设置页常驻层：切换设置时仅显隐，减少大组件树反复替换造成的卡顿
+        self.settings_layer = ft.Container(
+            visible=False,
+            expand=True,
+        )
+        self.content_stack = ft.Stack(
+            controls=[
+                self.dropzone_wrapper,
+                self.settings_layer,
+            ],
+            expand=True,
+        )
+        content_area = self.content_stack
         
         # 主内容区域（导航栏 + 内容）
         main_content: ft.Row = ft.Row(
@@ -323,9 +343,11 @@ class MainView(ft.Column):
         # 我们将在初始化完成后添加
         self._page.floating_action_button = self.fab_search
     
-    def _get_or_create_image_view(self) -> ImageView:
+    def _get_or_create_image_view(self) -> "ImageView":
         """获取或创建图片视图（懒加载）。"""
         if self.image_view is None:
+            from views.image.image_view import ImageView
+
             self.image_view = ImageView(
                 self._page, 
                 self.config_service, 
@@ -334,9 +356,11 @@ class MainView(ft.Column):
             )
         return self.image_view
     
-    def _get_or_create_media_view(self) -> MediaView:
+    def _get_or_create_media_view(self) -> "MediaView":
         """获取或创建媒体视图（懒加载）。"""
         if self.media_view is None:
+            from views.media.media_view import MediaView
+
             self.media_view = MediaView(
                 self._page, 
                 self.config_service, 
@@ -344,9 +368,11 @@ class MainView(ft.Column):
             )
         return self.media_view
     
-    def _get_or_create_dev_tools_view(self) -> DevToolsView:
+    def _get_or_create_dev_tools_view(self) -> "DevToolsView":
         """获取或创建开发工具视图（懒加载）。"""
         if self.dev_tools_view is None:
+            from views.dev_tools.dev_tools_view import DevToolsView
+
             self.dev_tools_view = DevToolsView(
                 self._page, 
                 self.config_service, 
@@ -355,9 +381,11 @@ class MainView(ft.Column):
             )
         return self.dev_tools_view
     
-    def _get_or_create_others_view(self) -> OthersView:
+    def _get_or_create_others_view(self) -> "OthersView":
         """获取或创建其他工具视图（懒加载）。"""
         if self.others_view is None:
+            from views.others.others_view import OthersView
+
             self.others_view = OthersView(
                 self._page, 
                 self.config_service, 
@@ -373,6 +401,65 @@ class MainView(ft.Column):
             self._page.go(route)
         except RuntimeError:
             pass  # Session closed
+    
+    def _show_route_loading(self, title: str) -> None:
+        """显示路由级加载占位，降低切换时的卡顿感。"""
+        self._hide_settings_layer()
+        self.content_container.content = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.ProgressRing(width=28, height=28, stroke_width=3),
+                    ft.Text(title),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12,
+            ),
+            expand=True,
+            alignment=ft.Alignment.CENTER,
+        )
+        self._page.update()
+    
+    def _schedule_route_open(self, route: str, ticket: int, loading_title: str, open_fn) -> None:
+        """异步执行工具打开，允许路由快速切换时取消过期请求。"""
+        self._show_route_loading(loading_title)
+        
+        async def open_later():
+            import asyncio
+            await asyncio.sleep(0.03)  # 先让 loading 帧渲染出来
+            if self._is_closing:
+                return
+            if ticket != self._route_open_ticket:
+                return
+            if self._page.route != route:
+                return
+            open_fn()
+        
+        self._page.run_task(open_later)
+    
+    def _open_settings_view(self) -> None:
+        """打开设置页面。"""
+        if self.settings_view is None:
+            from views.settings_view import SettingsView
+            self.settings_view = SettingsView(self._page, self.config_service)
+        self._show_settings_layer()
+        self._page.update()
+    
+    def _show_settings_layer(self) -> None:
+        """显示设置常驻层。"""
+        if self.settings_view is None:
+            return
+        # 延迟挂载：仅在进入设置页时把大组件树挂回页面
+        self.settings_layer.content = self.settings_view
+        self.settings_layer.visible = True
+        self.dropzone_wrapper.visible = False
+    
+    def _hide_settings_layer(self) -> None:
+        """隐藏设置常驻层并显示主内容层。"""
+        self.settings_layer.visible = False
+        # 卸载设置层内容，避免后续任意 page.update 都遍历巨大设置组件树
+        self.settings_layer.content = None
+        self.dropzone_wrapper.visible = True
     
     def handle_route_change(self, route: str) -> None:
         """处理路由变更。
@@ -394,8 +481,14 @@ class MainView(ft.Column):
             return
         self._last_route = route
         
+        # 新路由到来，递增任务序号，取消之前未执行的打开任务
+        self._route_open_ticket += 1
+        current_ticket = self._route_open_ticket
+        
         # 解析路由
         parts = route.strip("/").split("/") if route.strip("/") else []
+        if not parts or parts[0] != "settings":
+            self._hide_settings_layer()
         
         # 根据路由路径确定要显示的内容和导航栏选中项
         if not parts or parts[0] == "":
@@ -403,7 +496,7 @@ class MainView(ft.Column):
             if self.show_recommendations:
                 self.content_container.content = self.recommendations_view
                 self.navigation_rail.selected_index = 0
-                self.show_search_button()
+                self.show_search_button(update=False)
                 # 刷新推荐列表
                 if hasattr(self.recommendations_view, 'refresh'):
                     self.recommendations_view.refresh()
@@ -425,17 +518,22 @@ class MainView(ft.Column):
                 if hasattr(view, 'current_sub_view') and view.current_sub_view:
                     # 有之前打开的工具，恢复它
                     self.content_container.content = view.current_sub_view
-                    self.hide_search_button()
+                    self.hide_search_button(update=False)
                 else:
                     # 没有之前打开的工具，显示主视图
                     self.content_container.content = view
-                    self.show_search_button()
+                    self.show_search_button(update=False)
             else:
                 # 有子路径，如 "/image/compress"
                 tool_name = "/".join(parts[1:])
                 if hasattr(view, 'open_tool'):
-                    view.open_tool(tool_name)
-                self.hide_search_button()
+                    self._schedule_route_open(
+                        route=route,
+                        ticket=current_ticket,
+                        loading_title=f"正在打开图片工具: {tool_name}",
+                        open_fn=lambda: view.open_tool(tool_name),
+                    )
+                self.hide_search_button(update=False)
         
         elif parts[0] == "media":
             # 媒体处理路由
@@ -449,17 +547,22 @@ class MainView(ft.Column):
                 if hasattr(view, 'current_sub_view') and view.current_sub_view:
                     # 有之前打开的工具，恢复它
                     self.content_container.content = view.current_sub_view
-                    self.hide_search_button()
+                    self.hide_search_button(update=False)
                 else:
                     # 没有之前打开的工具，显示主视图
                     self.content_container.content = view
-                    self.show_search_button()
+                    self.show_search_button(update=False)
             else:
                 # 有子路径，如 "/media/video_compress"
                 sub_view_name = parts[1]
                 if hasattr(view, '_open_view'):
-                    view._open_view(sub_view_name)
-                self.hide_search_button()
+                    self._schedule_route_open(
+                        route=route,
+                        ticket=current_ticket,
+                        loading_title=f"正在打开媒体工具: {sub_view_name}",
+                        open_fn=lambda: view._open_view(sub_view_name),
+                    )
+                self.hide_search_button(update=False)
         
         elif parts[0] == "dev":
             # 开发工具路由
@@ -473,17 +576,22 @@ class MainView(ft.Column):
                 if hasattr(view, 'current_sub_view') and view.current_sub_view:
                     # 有之前打开的工具，恢复它
                     self.content_container.content = view.current_sub_view
-                    self.hide_search_button()
+                    self.hide_search_button(update=False)
                 else:
                     # 没有之前打开的工具，显示主视图
                     self.content_container.content = view
-                    self.show_search_button()
+                    self.show_search_button(update=False)
             else:
                 # 有子路径，如 "/dev/json_viewer"
                 tool_name = "/".join(parts[1:])
                 if hasattr(view, 'open_tool'):
-                    view.open_tool(tool_name)
-                self.hide_search_button()
+                    self._schedule_route_open(
+                        route=route,
+                        ticket=current_ticket,
+                        loading_title=f"正在打开开发工具: {tool_name}",
+                        open_fn=lambda: view.open_tool(tool_name),
+                    )
+                self.hide_search_button(update=False)
         
         elif parts[0] == "others":
             # 其他工具路由
@@ -497,25 +605,36 @@ class MainView(ft.Column):
                 if hasattr(view, 'current_sub_view') and view.current_sub_view:
                     # 有之前打开的工具，恢复它
                     self.content_container.content = view.current_sub_view
-                    self.hide_search_button()
+                    self.hide_search_button(update=False)
                 else:
                     # 没有之前打开的工具，显示主视图
                     self.content_container.content = view
-                    self.show_search_button()
+                    self.show_search_button(update=False)
             else:
                 # 有子路径，如 "/others/weather"
                 tool_name = "/".join(parts[1:])
                 if hasattr(view, 'open_tool'):
-                    view.open_tool(tool_name)
-                self.hide_search_button()
+                    self._schedule_route_open(
+                        route=route,
+                        ticket=current_ticket,
+                        loading_title=f"正在打开其他工具: {tool_name}",
+                        open_fn=lambda: view.open_tool(tool_name),
+                    )
+                self.hide_search_button(update=False)
         
         elif parts[0] == "settings":
             # 设置页面路由（懒加载）
-            if self.settings_view is None:
-                self.settings_view = SettingsView(page, self.config_service)
             self.navigation_rail.selected_index = None
-            self.content_container.content = self.settings_view
-            self.hide_search_button()
+            self.hide_search_button(update=False)
+            if self.settings_view is None:
+                self._schedule_route_open(
+                    route=route,
+                    ticket=current_ticket,
+                    loading_title="正在打开设置...",
+                    open_fn=self._open_settings_view,
+                )
+            else:
+                self._show_settings_layer()
         
         else:
             # 未知路由，重定向到首页
@@ -658,17 +777,19 @@ class MainView(ft.Column):
         if e.key == "K" and e.ctrl and not e.shift and not e.alt:
             self._open_search()
     
-    def show_search_button(self) -> None:
+    def show_search_button(self, update: bool = True) -> None:
         """显示搜索按钮。"""
         if self.fab_search and self._page:
             self._page.floating_action_button = self.fab_search
-            self._page.update()
+            if update:
+                self._page.update()
     
-    def hide_search_button(self) -> None:
+    def hide_search_button(self, update: bool = True) -> None:
         """隐藏搜索按钮。"""
         if self._page:
             self._page.floating_action_button = None
-            self._page.update()
+            if update:
+                self._page.update()
     
     def navigate_to_screen_record(self) -> None:
         """导航到屏幕录制工具（供全局热键调用，使用路由）。"""

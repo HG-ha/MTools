@@ -90,6 +90,14 @@ class SettingsView(ft.Container):
         # 创建UI组件
         self._build_ui()
         
+        # 延迟构建重区块（GPU/字体），避免进入设置页时主线程长时间阻塞
+        self._schedule_deferred_sections_build()
+        
+        # 对可选重区块做低优先级自动加载（避免首屏卡顿）
+        self._optional_sections_loaded = set()
+        self._optional_sections_building = set()
+        self._schedule_optional_sections_auto_load()
+        
         # 恢复自动切换状态（如果之前已启用）
         self._restore_auto_switch_state()
         
@@ -100,6 +108,19 @@ class SettingsView(ft.Container):
         """初始化文件选择器（Flet 1.0 不再需要预先创建）。"""
         # Flet 1.0 使用 await ft.FilePicker().pick_files() 方式，不再需要预先创建
         pass
+    
+    def _safe_page_update(self) -> None:
+        """安全更新页面，避免会话关闭时抛出异常。"""
+        page = getattr(self, "_saved_page", self._page)
+        if not page:
+            return
+        # 设置页未显示时不触发全局刷新，避免拖慢其他界面交互
+        if getattr(page, "route", "") != "/settings":
+            return
+        try:
+            page.update()
+        except RuntimeError:
+            pass
     
     def _restore_custom_font(self) -> None:
         """恢复自定义字体（在初始化时调用）。"""
@@ -185,65 +206,80 @@ class SettingsView(ft.Container):
             weight=ft.FontWeight.BOLD,
         )
         
-        # 快捷功能设置部分（放在顶部）
-        hotkey_section: ft.Container = self._build_hotkey_section()
+        # 所有设置区块统一使用占位，分批异步构建，减少进入设置页卡顿
+        self.hotkey_section_container: ft.Container = self._build_deferred_section_placeholder("快捷功能设置加载中...")
+        self.data_dir_section_container: ft.Container = self._build_deferred_section_placeholder("数据目录设置加载中...")
+        self.output_settings_section_container: ft.Container = self._build_deferred_section_placeholder("输出设置加载中...")
+        self.theme_mode_section_container: ft.Container = self._build_deferred_section_placeholder("主题模式设置加载中...")
+        self.theme_color_section_container: ft.Container = self._build_deferred_section_placeholder("主题色设置加载中...")
+        self.appearance_section_container: ft.Container = self._build_deferred_section_placeholder("外观设置加载中...")
+        self.interface_section_container: ft.Container = self._build_deferred_section_placeholder("界面设置加载中...")
+        self.gpu_acceleration_section_container: ft.Container = self._build_deferred_section_placeholder("GPU 加速设置加载中...")
+        self.performance_section_container: ft.Container = self._build_deferred_section_placeholder(
+            "性能优化设置将自动延迟加载",
+            with_load_button=True,
+            on_load_click=lambda _: self._load_single_deferred_section(
+                self.performance_section_container, self._build_performance_optimization_section, section_key="performance"
+            ),
+        )
+        self.font_section_container: ft.Container = self._build_deferred_section_placeholder(
+            "字体设置将自动延迟加载",
+            with_load_button=True,
+            on_load_click=lambda _: self._load_single_deferred_section(
+                self.font_section_container, self._build_font_section, section_key="font"
+            ),
+        )
+        self.about_section_container: ft.Container = self._build_deferred_section_placeholder(
+            "关于信息将自动延迟加载",
+            with_load_button=True,
+            on_load_click=lambda _: self._load_single_deferred_section(
+                self.about_section_container, self._build_about_section, section_key="about"
+            ),
+        )
         
-        # 数据目录设置部分
-        data_dir_section: ft.Container = self._build_data_dir_section()
-        
-        # 输出文件设置部分
-        output_settings_section: ft.Container = self._build_output_settings_section()
-        
-        # 主题模式设置部分
-        theme_mode_section: ft.Container = self._build_theme_mode_section()
-        
-        # 主题色设置部分
-        theme_color_section: ft.Container = self._build_theme_color_section()
-        
-        # 外观设置部分（透明度和背景图片）
-        appearance_section: ft.Container = self._build_appearance_section()
-        
-        # 界面设置部分
-        interface_section: ft.Container = self._build_interface_section()
-        
-        # GPU加速设置部分
-        gpu_acceleration_section: ft.Container = self._build_gpu_acceleration_section()
-        
-        # 性能优化设置部分
-        performance_section: ft.Container = self._build_performance_optimization_section()
-        
-        # 字体设置部分
-        font_section: ft.Container = self._build_font_section()
-        
-        # 关于部分
-        about_section: ft.Container = self._build_about_section()
+        # 区块构建顺序（越靠前越先可用）
+        self._deferred_section_plan = [
+            (self.hotkey_section_container, self._build_hotkey_section),
+            (self.data_dir_section_container, self._build_data_dir_section),
+            (self.output_settings_section_container, self._build_output_settings_section),
+            (self.theme_mode_section_container, self._build_theme_mode_section),
+            (self.theme_color_section_container, self._build_theme_color_section),
+            (self.appearance_section_container, self._build_appearance_section),
+            (self.interface_section_container, self._build_interface_section),
+            (self.gpu_acceleration_section_container, self._build_gpu_acceleration_section),
+        ]
+        self._optional_section_plan = [
+            ("about", self.about_section_container, self._build_about_section),
+            ("performance", self.performance_section_container, self._build_performance_optimization_section),
+            ("font", self.font_section_container, self._build_font_section),
+        ]
         
         # 组装视图
         self.content = ft.Column(
             controls=[
                 title,
                 ft.Container(height=PADDING_LARGE),
-                hotkey_section,
+                self.hotkey_section_container,
                 ft.Container(height=PADDING_LARGE),
-                data_dir_section,
+                self.data_dir_section_container,
                 ft.Container(height=PADDING_LARGE),
-                output_settings_section,
+                self.output_settings_section_container,
                 ft.Container(height=PADDING_LARGE),
-                theme_mode_section,
+                self.theme_mode_section_container,
                 ft.Container(height=PADDING_LARGE),
-                theme_color_section,
+                self.theme_color_section_container,
                 ft.Container(height=PADDING_LARGE),
-                appearance_section,
+                self.appearance_section_container,
                 ft.Container(height=PADDING_LARGE),
-                interface_section,
+                self.interface_section_container,
                 ft.Container(height=PADDING_LARGE),
-                gpu_acceleration_section,
+                self.gpu_acceleration_section_container,
                 ft.Container(height=PADDING_LARGE),
-                performance_section,
+                self.performance_section_container,
                 ft.Container(height=PADDING_LARGE),
-                font_section,
+                self.font_section_container,
                 ft.Container(height=PADDING_LARGE),
-                about_section,
+                self.about_section_container,
             ],
             spacing=0,
             scroll=ft.ScrollMode.HIDDEN,  # 隐藏滚动条
@@ -252,6 +288,116 @@ class SettingsView(ft.Container):
             expand=True,
             width=float('inf'),  # 占满可用宽度
         )
+    
+    def _build_deferred_section_placeholder(self, text: str, with_load_button: bool = False, on_load_click=None) -> ft.Container:
+        """构建延迟区块占位。"""
+        controls = [
+            ft.ProgressRing(width=18, height=18, stroke_width=2),
+            ft.Text(text, size=13, color=ft.Colors.ON_SURFACE_VARIANT),
+        ]
+        if with_load_button and on_load_click is not None:
+            controls.append(
+                ft.TextButton(
+                    "立即加载",
+                    icon=ft.Icons.PLAY_ARROW,
+                    on_click=on_load_click,
+                )
+            )
+
+        return ft.Container(
+            content=ft.Row(
+                controls=controls,
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+            padding=PADDING_MEDIUM,
+        )
+    
+    def _schedule_deferred_sections_build(self) -> None:
+        """异步构建重区块，先让页面可交互。"""
+        async def _build_later():
+            import asyncio
+            await asyncio.sleep(0.05)  # 先渲染首帧
+            
+            if not self._page:
+                return
+            if self._page.route != "/settings":
+                return
+            
+            # 分阶段构建，避免一次性长阻塞；切走设置页即停止
+            for placeholder, builder in self._deferred_section_plan:
+                if not self._page or self._page.route != "/settings":
+                    return
+                try:
+                    self._apply_section_to_placeholder(placeholder, builder())
+                except Exception as ex:
+                    logger.error(f"构建设置分区失败: {getattr(builder, '__name__', 'unknown')}, error={ex}")
+                    self._set_section_load_failed(placeholder, "该分区加载失败")
+                self._safe_page_update()
+                await asyncio.sleep(0.008)
+        
+        self._page.run_task(_build_later)
+    
+    def _apply_section_to_placeholder(self, target: ft.Container, section: ft.Container) -> None:
+        """把实际分区样式与内容应用到占位容器。"""
+        target.content = section.content
+        target.bgcolor = section.bgcolor
+        target.border = section.border
+        target.border_radius = section.border_radius
+        target.padding = section.padding
+        target.margin = section.margin
+        target.alignment = section.alignment
+    
+    def _set_section_load_failed(self, target: ft.Container, text: str) -> None:
+        """设置分区加载失败占位。"""
+        target.content = ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=18),
+                ft.Text(text, size=13, color=ft.Colors.ERROR),
+            ],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        target.border = ft.border.all(1, ft.Colors.ERROR_CONTAINER)
+        target.padding = PADDING_MEDIUM
+    
+    def _load_single_deferred_section(self, placeholder: ft.Container, builder, section_key: str = "") -> None:
+        """按需加载单个延迟分区。"""
+        if section_key:
+            if section_key in self._optional_sections_loaded or section_key in self._optional_sections_building:
+                return
+            self._optional_sections_building.add(section_key)
+        try:
+            self._apply_section_to_placeholder(placeholder, builder())
+            if section_key:
+                self._optional_sections_loaded.add(section_key)
+            self._safe_page_update()
+        except Exception as ex:
+            logger.error(f"按需构建设置分区失败: {getattr(builder, '__name__', 'unknown')}, error={ex}")
+            self._set_section_load_failed(placeholder, "加载失败，请稍后重试")
+            self._safe_page_update()
+        finally:
+            if section_key:
+                self._optional_sections_building.discard(section_key)
+    
+    def _schedule_optional_sections_auto_load(self) -> None:
+        """低优先级自动加载可选重区块。"""
+        base_delay = 0.9
+        step_delay = 0.45
+        
+        for idx, (section_key, placeholder, builder) in enumerate(self._optional_section_plan):
+            delay = base_delay + idx * step_delay
+            
+            async def _load_one(_key=section_key, _placeholder=placeholder, _builder=builder, _delay=delay):
+                import asyncio
+                await asyncio.sleep(_delay)
+                if not self._page or self._page.route != "/settings":
+                    return
+                self._load_single_deferred_section(_placeholder, _builder, section_key=_key)
+            
+            self._page.run_task(_load_one)
     
     def _build_theme_mode_section(self) -> ft.Container:
         """构建主题模式设置部分。
