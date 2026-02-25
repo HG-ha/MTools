@@ -4,6 +4,7 @@
 提供可视化的图片裁剪功能，支持拖动裁剪框。
 """
 
+import io
 import logging
 import os
 import subprocess
@@ -222,7 +223,7 @@ class ImageCropView(ft.Container):
                         weight=ft.FontWeight.W_500,
                     ),
                     ft.Text(
-                        "支持 JPG · PNG · GIF · BMP · WebP",
+                        "支持 JPG · PNG · GIF · BMP · WebP · Ctrl+V 粘贴",
                         size=12,
                         color=ft.Colors.ON_SURFACE_VARIANT,
                     ),
@@ -2115,11 +2116,20 @@ class ImageCropView(ft.Container):
             logger.error(f"加载帧失败: {ex}")
 
     def _on_keyboard(self, e: ft.KeyboardEvent) -> None:
-        """键盘事件处理（支持 WASD 精调裁剪框位置）。
+        """键盘事件处理（支持 WASD 精调裁剪框位置，Ctrl+V 粘贴图片）。
 
         Args:
             e: 键盘事件对象
         """
+        import asyncio
+
+        key = e.key.lower() if hasattr(e.key, "lower") else str(e.key)
+
+        # Ctrl+V：从剪贴板粘贴图片
+        if key == "v" and e.ctrl:
+            asyncio.ensure_future(self._paste_image_from_clipboard())
+            return
+
         # 必须有图片加载才能处理键盘事件
         if not self.original_image:
             return
@@ -2129,7 +2139,6 @@ class ImageCropView(ft.Container):
 
         # 判断按键并移动（步长由用户指定，默认1px）
         moved = False
-        key = e.key.lower() if hasattr(e.key, "lower") else str(e.key)
         step = self.fine_tune_step
 
         # W：向上移动
@@ -2162,8 +2171,82 @@ class ImageCropView(ft.Container):
             # 使用延迟更新预览，避免快速按键时出现空白
             self._schedule_preview_update()
 
+    async def _paste_image_from_clipboard(self) -> None:
+        """从剪贴板读取图片并加载到画布（Ctrl+V）。"""
+        try:
+            image_bytes = await ft.Clipboard().get_image()
+            if image_bytes is None:
+                self._show_message("剪贴板中没有图片", ft.Colors.ORANGE)
+                return
+            await self._load_image_from_bytes(image_bytes, source_name="clipboard")
+        except Exception as ex:
+            logger.error(f"从剪贴板粘贴图片失败: {ex}")
+            self._show_message(f"粘贴失败: {ex}", ft.Colors.RED)
+
+    async def _load_image_from_bytes(
+        self, image_bytes: bytes, source_name: str = "pasted"
+    ) -> None:
+        """将图片字节数据加载到画布。
+
+        Args:
+            image_bytes: 图片字节数据（PNG/JPEG 等）
+            source_name: 来源名称，用于生成临时文件名
+        """
+        try:
+            # 解析图片
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            pil_image.load()  # 确保完整读入内存
+
+            # 保存为临时文件（flet Image 控件需要文件路径）
+            temp_path = (
+                self.config_service.get_temp_dir() / f"{source_name}_image.png"
+            )
+            pil_image.save(temp_path, format="PNG")
+
+            # 清除旧的 GIF 状态
+            self.is_animated_gif = False
+            self.gif_frame_selector.visible = False
+            self.gif_export_options.visible = False
+
+            # 更新状态
+            self.selected_file = temp_path
+            self.original_image = pil_image
+
+            img_w, img_h = pil_image.width, pil_image.height
+
+            # 更新画布尺寸
+            self._update_max_canvas_constraints()
+            self.canvas_width, self.canvas_height = self._calculate_canvas_size(
+                img_w, img_h
+            )
+            self._apply_canvas_dimensions()
+
+            # 显示图片
+            self.original_image_widget.src = str(temp_path)
+            self.original_image_widget.visible = True
+            self.empty_state_widget.visible = False
+            self.canvas_clickable.tooltip = "拖动蓝框移动位置，拖动四个角调整大小"
+
+            # 初始化裁剪框（居中，1/2大小）
+            self.crop_width = min(img_w // 2, 400)
+            self.crop_height = min(img_h // 2, 400)
+            self.crop_x = (img_w - self.crop_width) // 2
+            self.crop_y = (img_h - self.crop_height) // 2
+
+            self._update_crop_box_position()
+            self._update_preview()
+
+            self.save_button.disabled = False
+            self._show_message(
+                f"已从剪贴板加载图片 ({img_w} × {img_h})", ft.Colors.GREEN
+            )
+            self._page.update()
+
+        except Exception as ex:
+            logger.error(f"加载图片字节数据失败: {ex}")
+            self._show_message(f"加载失败: {ex}", ft.Colors.RED)
+
     def _on_fine_tune_step_change(self, e: ft.ControlEvent) -> None:
-        """精调步长输入框变化事件。"""
         try:
             value = int(self.fine_tune_input.value)
             if value >= 1 and value <= 100:

@@ -505,8 +505,7 @@ dependencies = [
     { name = "croniter" },
     { name = "dnspython" },
     { name = "ffmpeg-python" },
-    { name = "flet", extra = ["all"] },
-    { name = "flet-cli" },
+    { name = "flet" },
     { name = "flet-dropzone" },
     { name = "httpx", extra = ["socks"] },
     { name = "numpy" },
@@ -536,6 +535,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "flet", extra = ["all"] },
+    { name = "flet-cli" },
     { name = "flet-desktop" },
     { name = "nuitka" },
 ]
@@ -546,8 +546,7 @@ requires-dist = [
     { name = "croniter", specifier = "==5.0.1" },
     { name = "dnspython", specifier = "==2.8.0" },
     { name = "ffmpeg-python", specifier = "==0.2.0" },
-    { name = "flet", extras = ["all"], specifier = "==0.81.0" },
-    { name = "flet-cli", specifier = "==0.81.0" },
+    { name = "flet", specifier = "==0.81.0" },
     { name = "flet-dropzone", specifier = "==0.3.1" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
     { name = "numpy", specifier = "==1.26.4" },
@@ -577,6 +576,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "flet", extras = ["all"], specifier = "==0.81.0" },
+    { name = "flet-cli", specifier = "==0.81.0" },
     { name = "flet-desktop", specifier = "==0.81.0" },
     { name = "nuitka", specifier = ">=2.5.0" },
 ]

@@ -10,7 +10,7 @@ authors = [
 ]
 # Don't hard-code the version, to avoid flet compilation issues.
 dependencies = [
-  "flet[all]==0.81.0",
+  "flet==0.81.0",
   "ffmpeg-python==0.2.0",
   "Pillow==12.0.0",
   "chardet==5.2.0",
@@ -40,7 +40,6 @@ dependencies = [
   "pyobjc-framework-Quartz==12.1 ; sys_platform == 'darwin'",
   "pynput>=1.7.7 ; sys_platform == 'darwin'",  # macOS 全局热键
   "flet-dropzone==0.3.1",  # 原生拖放支持（需要 flet build）
-  "flet-cli==0.81.0",
 ]
 
 [tool.flet]
@@ -65,6 +64,7 @@ path = "src"
 dev = [
     "flet[all]==0.81.0",
     "flet-desktop==0.81.0",
+    "flet-cli==0.81.0",
     "nuitka>=2.5.0",
 ]
 
