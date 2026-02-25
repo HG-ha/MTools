@@ -1276,7 +1276,7 @@ class VideoEnhanceView(ft.Container):
         
         try:
             self.file_list_view.update()
-        except:
+        except Exception:
             pass
     
     def _on_remove_file(self, index: int) -> None:
@@ -1310,7 +1310,7 @@ class VideoEnhanceView(ft.Container):
             button = self.process_button.content
             button.disabled = not (self.selected_files and self.enhancer)
             self.process_button.update()
-        except:
+        except Exception:
             pass
     
     def _on_cancel(self, e: ft.ControlEvent) -> None:
@@ -1323,7 +1323,7 @@ class VideoEnhanceView(ft.Container):
         try:
             self.cancel_button.update()
             self.progress_text.update()
-        except:
+        except Exception:
             pass
         
         self._show_snackbar("正在取消处理，立即停止并清理资源...", ft.Colors.ORANGE)
@@ -1517,7 +1517,7 @@ class VideoEnhanceView(ft.Container):
                 if estimated_peak_mb > available_memory_mb * 0.5:
                     logger.warning(f"⚠️  高内存占用警告: 估算峰值 {estimated_peak_mb:.0f}MB / 可用 {available_memory_mb:.0f}MB")
                     logger.warning("建议：关闭其他程序或降低视频分辨率")
-            except:
+            except Exception:
                 pass
             
             logger.info("=" * 80)
@@ -1819,7 +1819,7 @@ class VideoEnhanceView(ft.Container):
                                     enhanced_frame_queue.put(None)
                                     return
                                 frame_buffer.append(frame)
-                            except:
+                            except Exception:
                                 break  # 队列空，立即处理
                         
                         # 立即处理收集到的帧（即使不满batch_size）
@@ -1871,7 +1871,7 @@ class VideoEnhanceView(ft.Container):
                     # 🔥 从队列获取增强后的帧（非阻塞检查）
                     try:
                         enhanced_array = enhanced_frame_queue.get(timeout=0.1)
-                    except:
+                    except Exception:
                         continue  # 队列空，继续等待
                     
                     # EOF信号
@@ -1898,7 +1898,7 @@ class VideoEnhanceView(ft.Container):
                             encoder_stderr = encoder_process.stderr.read().decode('utf-8', errors='ignore')
                             if encoder_stderr:
                                 logger.error(f"编码器错误信息: {encoder_stderr}")
-                        except:
+                        except Exception:
                             pass
                         stop_event.set()
                         return False
@@ -1922,7 +1922,7 @@ class VideoEnhanceView(ft.Container):
                                 process = psutil.Process()
                                 memory_mb = process.memory_info().rss / (1024 * 1024)
                                 logger.info(f"内存占用: {memory_mb:.1f} MB (已处理 {frame_idx} 帧)")
-                            except:
+                            except Exception:
                                 pass
                     
                     # 更新进度
@@ -1976,11 +1976,11 @@ class VideoEnhanceView(ft.Container):
                     # 如果还没退出，强制杀死
                     try:
                         decoder_process.kill()
-                    except:
+                    except Exception:
                         pass
                     try:
                         encoder_process.kill()
-                    except:
+                    except Exception:
                         pass
                 except Exception as e:
                     logger.warning(f"终止进程时出错: {e}")
@@ -2002,7 +2002,7 @@ class VideoEnhanceView(ft.Container):
             # 关闭编码器输入（触发编码器完成）
             try:
                 encoder_process.stdin.close()
-            except:
+            except Exception:
                 pass
             
             # 等待解码器完成
@@ -2040,9 +2040,9 @@ class VideoEnhanceView(ft.Container):
                     decoder_process.terminate()
                     try:
                         decoder_process.kill()
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 pass
             
             try:
@@ -2050,9 +2050,9 @@ class VideoEnhanceView(ft.Container):
                     encoder_process.terminate()
                     try:
                         encoder_process.kill()
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 pass
             
             return False
@@ -2062,14 +2062,14 @@ class VideoEnhanceView(ft.Container):
                 if 'decoder_process' in locals() and decoder_process.poll() is None:
                     logger.warning("清理残留的解码器进程...")
                     decoder_process.kill()
-            except:
+            except Exception:
                 pass
             
             try:
                 if 'encoder_process' in locals() and encoder_process.poll() is None:
                     logger.warning("清理残留的编码器进程...")
                     encoder_process.kill()
-            except:
+            except Exception:
                 pass
             
             # 清理临时音频文件
@@ -2227,7 +2227,7 @@ class VideoEnhanceView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
         
         if self.should_cancel:
@@ -2321,7 +2321,7 @@ class VideoEnhanceView(ft.Container):
             self._show_snackbar(f"已添加 {added_count} 个文件", ft.Colors.GREEN)
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def cleanup(self) -> None:

@@ -1104,9 +1104,9 @@ class ImagePuzzleMergeView(ft.Container):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
         
         # 直接使用文件路径显示
@@ -1162,9 +1162,9 @@ class ImagePuzzleMergeView(ft.Container):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
         
         # 直接使用文件路径显示

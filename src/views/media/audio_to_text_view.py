@@ -1101,7 +1101,7 @@ class AudioToTextView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _try_auto_load_model(self) -> None:
@@ -1180,7 +1180,7 @@ class AudioToTextView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_model_change(self, e: ft.ControlEvent) -> None:
@@ -1458,7 +1458,7 @@ class AudioToTextView(ft.Container):
             self._update_process_button()
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     def _on_delete_model(self, e: ft.ControlEvent) -> None:
@@ -1536,7 +1536,7 @@ class AudioToTextView(ft.Container):
                 if model_dir.exists() and not any(model_dir.iterdir()):
                     model_dir.rmdir()
                     logger.info(f"模型目录已删除: {model_dir.name}")
-            except:
+            except Exception:
                 pass
             
             # 更新状态
@@ -1555,7 +1555,7 @@ class AudioToTextView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_auto_load_change(self, e: ft.ControlEvent) -> None:
@@ -1675,7 +1675,7 @@ class AudioToTextView(ft.Container):
                     self.vad_status_text.value = message
                     try:
                         self._page.update()
-                    except:
+                    except Exception:
                         pass
                 
                 self.vad_service.download_model(
@@ -1747,7 +1747,7 @@ class AudioToTextView(ft.Container):
                     self.vocal_status_text.value = message
                     try:
                         self._page.update()
-                    except:
+                    except Exception:
                         pass
                 
                 self.vocal_service.download_model(
@@ -1858,7 +1858,7 @@ class AudioToTextView(ft.Container):
                 self.punctuation_status_text.value = "下载模型文件..."
                 try:
                     self._page.update()
-                except:
+                except Exception:
                     pass
                 
                 response = requests.get(punctuation_model_info.model_url, stream=True, timeout=120)
@@ -1877,14 +1877,14 @@ class AudioToTextView(ft.Container):
                                 self.punctuation_status_text.value = f"下载模型... {progress:.0f}%"
                                 try:
                                     self._page.update()
-                                except:
+                                except Exception:
                                     pass
                 
                 # 下载 tokens 文件
                 self.punctuation_status_text.value = "下载 tokens 文件..."
                 try:
                     self._page.update()
-                except:
+                except Exception:
                     pass
                 
                 response = requests.get(punctuation_model_info.tokens_url, timeout=60)
@@ -1973,7 +1973,7 @@ class AudioToTextView(ft.Container):
         self.subtitle_length_text.value = f"每段最大 {self.subtitle_max_length} 字"
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_subtitle_keep_punct_change(self, e: ft.ControlEvent) -> None:
@@ -1989,7 +1989,7 @@ class AudioToTextView(ft.Container):
         self.browse_output_button.disabled = not is_custom
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
@@ -1999,7 +1999,7 @@ class AudioToTextView(ft.Container):
             self.custom_output_dir.value = result
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
@@ -2040,7 +2040,7 @@ class AudioToTextView(ft.Container):
         self._update_process_button()
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _check_has_audio_stream(self, file_path: Path) -> bool:
@@ -2138,7 +2138,7 @@ class AudioToTextView(ft.Container):
         self.file_list_view.controls = file_items
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _remove_file(self, file_path: Path) -> None:
@@ -2154,7 +2154,7 @@ class AudioToTextView(ft.Container):
         button.disabled = not (self.selected_files and self.model_loaded and not self.is_processing)
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_process(self, e: ft.ControlEvent) -> None:

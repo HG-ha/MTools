@@ -417,7 +417,7 @@ class SubtitleConvertView(ft.Container):
                 try:
                     size = file_path.stat().st_size
                     size_str = format_file_size(size)
-                except:
+                except Exception:
                     size_str = "未知"
                 
                 item = ft.Container(

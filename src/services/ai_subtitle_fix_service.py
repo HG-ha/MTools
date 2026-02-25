@@ -218,7 +218,7 @@ class AISubtitleFixService:
                         try:
                             fixed = self.fix_text(text, language)
                             fixed_texts.append(fixed)
-                        except:
+                        except Exception:
                             fixed_texts.append(text)
                 
                 for j, seg in enumerate(batch):
@@ -534,7 +534,7 @@ class AISubtitleFixService:
                         try:
                             translated = self.translate_text(text, target_lang, source_lang)
                             translated_texts.append(translated)
-                        except:
+                        except Exception:
                             translated_texts.append(text)
                 
                 for j, seg in enumerate(batch):

@@ -794,7 +794,7 @@ class ImageCropView(ft.Container):
         self._update_theme_colors()
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
 
     def _update_max_canvas_constraints(self) -> None:
@@ -1281,7 +1281,7 @@ class ImageCropView(ft.Container):
             try:
                 self._page.update()
                 self._last_update_time = current_time
-            except:
+            except Exception:
                 pass
 
     def _update_crop_box_position_data(self) -> None:
@@ -1385,7 +1385,7 @@ class ImageCropView(ft.Container):
         if not skip_update:
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
 
     def _update_rulers(self) -> None:
@@ -1629,7 +1629,7 @@ class ImageCropView(ft.Container):
         if self._preview_update_timer is not None:
             try:
                 self._preview_update_timer.cancel()
-            except:
+            except Exception:
                 pass
 
         # 设置新的定时器,200ms后更新预览
@@ -1676,7 +1676,7 @@ class ImageCropView(ft.Container):
 
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
 
             # UI更新完成后再删除旧文件
@@ -1685,7 +1685,7 @@ class ImageCropView(ft.Container):
                     old_path = Path(old_preview_path)
                     if old_path.exists() and old_path != preview_path:
                         old_path.unlink()
-                except:
+                except Exception:
                     pass
 
         except Exception as ex:

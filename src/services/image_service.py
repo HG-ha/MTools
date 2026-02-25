@@ -1151,7 +1151,7 @@ class ImageService:
                             }
                             info['average_brightness'] = round(float(np.mean(rgb_array)), 2)
                             info['std_deviation'] = round(float(np.std(rgb_array)), 2)
-                except:
+                except Exception:
                     pass
                 
                 # 动画信息（GIF）
@@ -1201,7 +1201,7 @@ class ImageService:
                                         info['gps_latitude'] = lat
                                         info['gps_longitude'] = lon
                                         info['gps_coordinates'] = f"{lat:.6f}, {lon:.6f}"
-                                except:
+                                except Exception:
                                     pass
                             
                             # 提取主要拍摄参数
@@ -1219,7 +1219,7 @@ class ImageService:
                                         camera_data['曝光时间'] = f"{value[0]}/{value[1]}s"
                                     else:
                                         camera_data['曝光时间'] = f"{value}s"
-                                except:
+                                except Exception:
                                     camera_data['曝光时间'] = str(value)
                             elif tag == 'FNumber':
                                 try:
@@ -1227,7 +1227,7 @@ class ImageService:
                                         camera_data['光圈'] = f"f/{value[0]/value[1]:.1f}"
                                     else:
                                         camera_data['光圈'] = f"f/{value:.1f}"
-                                except:
+                                except Exception:
                                     camera_data['光圈'] = str(value)
                             elif tag == 'ISOSpeedRatings':
                                 camera_data['ISO'] = value
@@ -1237,9 +1237,9 @@ class ImageService:
                                         camera_data['焦距'] = f"{value[0]/value[1]:.1f}mm"
                                     else:
                                         camera_data['焦距'] = f"{value:.1f}mm"
-                                except:
+                                except Exception:
                                     camera_data['焦距'] = str(value)
-                except:
+                except Exception:
                     pass
                 
                 info['exif'] = exif_data
@@ -1317,7 +1317,7 @@ class ImageService:
             ascii_chars = ''.join(chr(b) for b in data if 32 <= b < 127)
             if ascii_chars:
                 return ascii_chars.strip()
-        except:
+        except Exception:
             pass
         
         # 最后的选择：返回十六进制表示
@@ -1373,7 +1373,7 @@ class ImageService:
                 decimal = -decimal
             
             return decimal
-        except:
+        except Exception:
             return 0.0
     
     def _detect_live_photo(self, image_path: Path, file_data: bytes) -> Optional[dict]:
@@ -1443,7 +1443,7 @@ class ImageService:
                                 xmp_data = xmp_data_raw.decode('utf-8', errors='ignore')
                             else:
                                 xmp_data = xmp_data_raw
-                except:
+                except Exception:
                     pass
             
             # 如果找到 XMP 数据，检查是否包含 MotionPhoto 标记
@@ -1523,7 +1523,7 @@ class ImageService:
                                         'platform': 'Android',
                                         'detection_method': 'EXIF MakerNote'
                                     }
-            except:
+            except Exception:
                 pass
             
             return None
@@ -1592,7 +1592,7 @@ class ImageService:
                                 if 'iOS' in value or 'iPhone' in value:
                                     # 可能是 iPhone 拍摄的照片，检查其他标记
                                     pass
-                except:
+                except Exception:
                     pass
                 
                 # 检查文件元数据中的 QuickTime 标识

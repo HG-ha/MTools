@@ -241,7 +241,7 @@ class ImageInfoView(ft.Container):
             self._update_summary_section_theme()
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
 
     def _init_empty_state(self) -> None:
@@ -717,7 +717,7 @@ class ImageInfoView(ft.Container):
                                 value = f"{value[0]}/{value[1]}"
                             else:
                                 value = str(value[0])
-                        except:
+                        except Exception:
                             value = str(value)
                     else:
                         value = str(value)
@@ -1193,7 +1193,7 @@ class ImageInfoView(ft.Container):
                                 value = f"{value[0]}/{value[1]}"
                             else:
                                 value = str(value[0])
-                        except:
+                        except Exception:
                             value = str(value)
                     else:
                         value = str(value)
@@ -1282,7 +1282,7 @@ class ImageInfoView(ft.Container):
                                 subprocess.run(['open', '-R', str(output_path)])
                             else:  # Linux
                                 subprocess.run(['xdg-open', str(folder_path)])
-                        except:
+                        except Exception:
                             pass
                         
                         self._page.close(confirm_dialog)

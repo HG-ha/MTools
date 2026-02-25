@@ -336,7 +336,7 @@ class ImageToUrlView(ft.Container):
                                 from datetime import datetime
                                 expires_dt = datetime.fromisoformat(upload_result['expiresAt'].replace('Z', '+00:00'))
                                 expires_text = f" | 过期: {expires_dt.strftime('%Y-%m-%d %H:%M')}"
-                            except:
+                            except Exception:
                                 pass
                         
                         file_info_column.controls.append(

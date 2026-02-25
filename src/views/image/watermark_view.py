@@ -1193,19 +1193,19 @@ class ImageWatermarkView(ft.Container):
             for font_file in font_map[font_choice]:
                 try:
                     return ImageFont.truetype(font_file, font_size)
-                except:
+                except Exception:
                     continue
         
         # 如果选择的字体加载失败，尝试微软雅黑
         try:
             return ImageFont.truetype("msyh.ttc", font_size)
-        except:
+        except Exception:
             pass
         
         # 最后尝试 Arial
         try:
             return ImageFont.truetype("arial.ttf", font_size)
-        except:
+        except Exception:
             pass
         
         # 都失败了，返回默认字体
@@ -1300,7 +1300,7 @@ class ImageWatermarkView(ft.Container):
                 try:
                     file_size = file_path.stat().st_size
                     size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
-                except:
+                except Exception:
                     size_str = "未知"
                 
                 self.file_list_view.controls.append(
@@ -1382,7 +1382,7 @@ class ImageWatermarkView(ft.Container):
         self.browse_output_button.disabled = not is_custom
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
@@ -1392,7 +1392,7 @@ class ImageWatermarkView(ft.Container):
             self.custom_output_dir.value = folder_path
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     def _on_preview(self, e: Optional[ft.ControlEvent]) -> None:

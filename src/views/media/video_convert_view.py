@@ -555,7 +555,7 @@ class VideoConvertView(ft.Container):
         
         try:
             self.file_list_view.update()
-        except:
+        except Exception:
             pass
     
     def _update_convert_button(self) -> None:
@@ -563,7 +563,7 @@ class VideoConvertView(ft.Container):
         self.convert_button.content.disabled = not self.selected_files
         try:
             self.convert_button.update()
-        except:
+        except Exception:
             pass
     
     def _on_output_mode_change(self, e: ft.ControlEvent) -> None:
@@ -574,7 +574,7 @@ class VideoConvertView(ft.Container):
         try:
             self.custom_output_dir.update()
             self.browse_output_button.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
@@ -585,7 +585,7 @@ class VideoConvertView(ft.Container):
             self.output_custom_path = Path(result)
             try:
                 self.custom_output_dir.update()
-            except:
+            except Exception:
                 pass
     
     def _start_convert(self, e: ft.ControlEvent) -> None:

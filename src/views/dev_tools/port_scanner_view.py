@@ -387,7 +387,7 @@ class PortScannerView(ft.Container):
         if not service_name:
             try:
                 service_name = socket.getservbyport(port)
-            except:
+            except Exception:
                 service_name = "未知服务"
         
         result_lines.append(f"服务: {service_name}\n")
@@ -457,7 +457,7 @@ class PortScannerView(ft.Container):
             if not service_name:
                 try:
                     service_name = socket.getservbyport(port)
-                except:
+                except Exception:
                     service_name = "未知"
             
             if is_open:
@@ -606,7 +606,7 @@ class PortScannerView(ft.Container):
                 if not service_name:
                     try:
                         service_name = socket.getservbyport(port)
-                    except:
+                    except Exception:
                         service_name = "未知"
                 
                 open_ports.append((port, service_name, response_time))

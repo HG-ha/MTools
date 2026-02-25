@@ -318,7 +318,7 @@ class ImageRemoveExifView(ft.Container):
                     if isinstance(value, bytes):
                         try:
                             value_str = value.decode('utf-8', errors='ignore')
-                        except:
+                        except Exception:
                             value_str = str(value)
                     else:
                         value_str = str(value)

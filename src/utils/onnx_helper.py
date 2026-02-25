@@ -78,7 +78,7 @@ def _get_cuda_device_count() -> int:
             lines = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
             _cached_cuda_device_count = len(lines)
             return _cached_cuda_device_count
-    except:
+    except Exception:
         pass
     
     # 未检测到 NVIDIA GPU

@@ -321,7 +321,7 @@ class YOLODetector:
             bottom = top + height
             try:
                 box_mid_xy = [(left + width / 2) + 2,(top + height / 2)]
-            except:
+            except Exception:
                 box_mid_xy = [left + width / 2,top + height / 2]
             img = source[top:bottom, left:right]
             try:
@@ -590,7 +590,7 @@ class ICPService:
                 }
                 device_info = device_map.get(provider, provider)
                 logger.info(f"ICP模型运行设备: {device_info}")
-            except:
+            except Exception:
                 pass
             
             return True
@@ -727,7 +727,7 @@ class ICPService:
                 try:
                     error_data = response.json()
                     logger.error(f"错误响应: {error_data}")
-                except:
+                except Exception:
                     logger.error(f"错误响应文本: {response.text[:500]}")
                 return None
                     
@@ -849,7 +849,7 @@ class ICPService:
                 try:
                     error_data = response.json()
                     logger.error(f"  响应JSON: {error_data}")
-                except:
+                except Exception:
                     error_text = response.text[:500] if hasattr(response, 'text') else "无法读取响应文本"
                     logger.error(f"  响应文本(前500字符): {error_text}")
                 return None
@@ -1011,7 +1011,7 @@ class ICPService:
                 try:
                     error_data = response.json()
                     logger.error(f"  错误响应: {error_data}")
-                except:
+                except Exception:
                     logger.error(f"  响应文本: {response.text[:500]}")
                 return False, ""
                     
@@ -1117,7 +1117,7 @@ class ICPService:
                     try:
                         error_data = response.json()
                         logger.error(f"  错误响应: {error_data}")
-                    except:
+                    except Exception:
                         logger.error(f"  响应文本: {response.text[:500]}")
                     await asyncio.sleep(1)
                     continue
@@ -1283,5 +1283,5 @@ class ICPService:
                     loop.create_task(self.session.aclose())
                 else:
                     loop.run_until_complete(self.session.aclose())
-            except:
+            except Exception:
                 pass
