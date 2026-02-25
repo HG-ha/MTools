@@ -756,7 +756,7 @@ class OCRView(ft.Container):
             self._show_snackbar("至少需要选择一种输出格式", ft.Colors.ORANGE)
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
         
         # 保存配置
@@ -778,7 +778,7 @@ class OCRView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     async def _on_browse_output(self, e: ft.ControlEvent) -> None:
@@ -789,7 +789,7 @@ class OCRView(ft.Container):
             self.custom_output_dir.value = result
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
     
     def _on_download_model(self, e: ft.ControlEvent) -> None:
@@ -1380,10 +1380,10 @@ class OCRView(ft.Container):
                         font_size = max(int(box_height * 0.8), 12)
                         # Windows 中文字体
                         pil_font = ImageFont.truetype("msyh.ttc", font_size)  # 微软雅黑
-                    except:
+                    except Exception:
                         try:
                             pil_font = ImageFont.truetype("simhei.ttf", font_size)  # 黑体
-                        except:
+                        except Exception:
                             pil_font = ImageFont.load_default()
                     
                     # 绘制文字

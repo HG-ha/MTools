@@ -662,7 +662,7 @@ class JsonTreeNode(ft.Container):
                 if hasattr(current, 'page') and current.page is not None:
                     return current.page
                 current = getattr(current, 'parent', None)
-        except:
+        except Exception:
             pass
             
         return None
@@ -694,7 +694,7 @@ class JsonTreeNode(ft.Container):
             if hasattr(page, 'dialog') and page.dialog:
                 try:
                     page.close(page.dialog)
-                except:
+                except Exception:
                     pass
             
             # 创建小型弹出菜单

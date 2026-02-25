@@ -139,7 +139,7 @@ class TranslateService:
                 
                 try:
                     data = resp.json()
-                except:
+                except Exception:
                     logger.error(f"翻译响应解析失败: {resp.text}")
                     return {
                         "code": 500,

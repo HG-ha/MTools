@@ -1224,7 +1224,7 @@ class ImageEnhanceView(ft.Container):
         
         try:
             self.file_list_view.update()
-        except:
+        except Exception:
             pass
     
     def _on_remove_file(self, index: int) -> None:
@@ -1539,7 +1539,7 @@ class ImageEnhanceView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def cleanup(self) -> None:

@@ -908,7 +908,7 @@ class ImageRotateView(ft.Container):
                 # 自定义角度旋转
                 try:
                     angle = float(self.custom_angle_field.value)
-                except:
+                except Exception:
                     angle = 0
                 
                 # 使用当前填充颜色
@@ -1011,7 +1011,7 @@ class ImageRotateView(ft.Container):
                                 # 自定义角度旋转
                                 try:
                                     angle = float(self.custom_angle_field.value)
-                                except:
+                                except Exception:
                                     angle = 0
                                 
                                 # 使用当前填充颜色
@@ -1044,7 +1044,7 @@ class ImageRotateView(ft.Container):
                             # 自定义角度旋转
                             try:
                                 angle = float(self.custom_angle_field.value)
-                            except:
+                            except Exception:
                                 angle = 0
                             
                             # 使用当前填充颜色

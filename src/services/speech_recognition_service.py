@@ -234,7 +234,7 @@ class SpeechRecognitionService:
                     if temp_path.exists():
                         try:
                             temp_path.unlink()
-                        except:
+                        except Exception:
                             pass
                     raise RuntimeError(f"下载{file_type}失败: {e}")
             
@@ -250,7 +250,7 @@ class SpeechRecognitionService:
                     try:
                         file_path.unlink()
                         logger.warning(f"已删除不完整的文件: {file_path.name}")
-                    except:
+                    except Exception:
                         pass
             raise RuntimeError(f"下载模型失败: {e}")
     
@@ -358,7 +358,7 @@ class SpeechRecognitionService:
                     try:
                         file_path.unlink()
                         logger.warning(f"已删除不完整的文件: {file_path.name}")
-                    except:
+                    except Exception:
                         pass
             raise RuntimeError(f"下载 SenseVoice 模型失败: {e}")
     

@@ -796,9 +796,9 @@ class ImagePuzzleSplitView(ft.Container):
                                     if old_file != temp_path:
                                         try:
                                             old_file.unlink()
-                                        except:
+                                        except Exception:
                                             pass
-                            except:
+                            except Exception:
                                 pass
                             
                             self.original_image_widget.src = str(temp_path)
@@ -1324,9 +1324,9 @@ class ImagePuzzleSplitView(ft.Container):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
         
         # 直接使用文件路径显示
@@ -1419,9 +1419,9 @@ class ImagePuzzleSplitView(ft.Container):
                 if old_file != preview_path:
                     try:
                         old_file.unlink()
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
         
         # 直接使用文件路径显示
@@ -2082,9 +2082,9 @@ class ImagePuzzleSplitView(ft.Container):
                         if old_file != temp_path:
                             try:
                                 old_file.unlink()
-                            except:
+                            except Exception:
                                 pass
-                except:
+                except Exception:
                     pass
                 
                 self.original_image_widget.src = str(temp_path)

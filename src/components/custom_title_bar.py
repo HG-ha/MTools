@@ -567,7 +567,7 @@ class CustomTitleBar(ft.Container):
         try:
             if self._page:
                 self.update()
-        except:
+        except Exception:
             pass
     
     def _minimize_window(self, e: ft.ControlEvent) -> None:

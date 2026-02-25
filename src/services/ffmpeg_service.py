@@ -1468,7 +1468,7 @@ class FFmpegService:
                 try:
                     probe = ffmpeg.probe(str(input_path), cmd=ffprobe_path)
                     duration = float(probe['format']['duration'])
-                except:
+                except Exception:
                     duration = 0.0
             else:
                 duration = 0.0
@@ -1623,7 +1623,7 @@ class FFmpegService:
             duration = 0.0
             try:
                 duration = self.get_video_duration(input_path)
-            except:
+            except Exception:
                 pass
             
             # 构建输入流

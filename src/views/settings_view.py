@@ -1733,7 +1733,7 @@ class SettingsView(ft.Container):
                         page = getattr(self, '_saved_page', self._page)
                         if page:
                             page.update()
-                    except:
+                    except Exception:
                         pass
     
     def _on_download_wallpaper(self, e: Optional[ft.ControlEvent] = None) -> None:
@@ -2504,7 +2504,7 @@ class SettingsView(ft.Container):
             self.cpu_threads_value_text.value = f"{threads if threads > 0 else '自动'}"
             try:
                 self._page.update()
-            except:
+            except Exception:
                 pass
             
             display_text = f"自动检测" if threads == 0 else f"{threads} 个线程"

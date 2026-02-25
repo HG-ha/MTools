@@ -1142,7 +1142,7 @@ class ImageBackgroundView(ft.Container):
         
         try:
             self.file_list_view.update()
-        except:
+        except Exception:
             pass
         
         # 更新 GIF 选项
@@ -1227,7 +1227,7 @@ class ImageBackgroundView(ft.Container):
             
             try:
                 self.gif_files_list.update()
-            except:
+            except Exception:
                 pass
         else:
             # 隐藏 GIF 选项
@@ -1235,7 +1235,7 @@ class ImageBackgroundView(ft.Container):
         
         try:
             self.gif_options.update()
-        except:
+        except Exception:
             pass
     
     def _on_gif_prev_frame(self, gif_file: Path, frame_count: int) -> None:
@@ -1451,7 +1451,7 @@ class ImageBackgroundView(ft.Container):
         try:
             # 一次性更新整个页面，而不是分别更新两个控件
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def _on_process_complete(self, success_count: int, total: int, output_dir: Path, oom_error_count: int = 0) -> None:
@@ -1472,7 +1472,7 @@ class ImageBackgroundView(ft.Container):
         try:
             # 一次性更新页面，提高响应速度
             self._page.update()
-        except:
+        except Exception:
             pass
         
         # 如果有显存不足错误，优先显示警告
@@ -1580,7 +1580,7 @@ class ImageBackgroundView(ft.Container):
         
         try:
             self._page.update()
-        except:
+        except Exception:
             pass
     
     def cleanup(self) -> None:

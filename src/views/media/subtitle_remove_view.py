@@ -843,7 +843,7 @@ class SubtitleRemoveView(ft.Container):
                     return int(parts[0]) * 60 + float(parts[1])
                 elif len(parts) == 1:
                     return float(parts[0])
-            except:
+            except Exception:
                 pass
             return 0.0
         

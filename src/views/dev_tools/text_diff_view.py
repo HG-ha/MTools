@@ -824,7 +824,7 @@ class TextDiffView(ft.Container):
             except UnicodeDecodeError:
                 try:
                     return path.read_text(encoding='gbk')
-                except:
+                except Exception:
                     return path.read_text(encoding='latin-1')
         
         # 加载第一个文件到左侧

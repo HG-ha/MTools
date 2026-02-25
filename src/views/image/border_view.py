@@ -667,7 +667,7 @@ class ImageBorderView(ft.Container):
         
         try:
             self.gif_info_banner.update()
-        except:
+        except Exception:
             pass
     
     def _remove_file(self, file_path: Path) -> None:

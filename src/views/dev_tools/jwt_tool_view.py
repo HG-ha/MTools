@@ -319,7 +319,7 @@ class JwtToolView(ft.Container):
                                 days = hours / 24
                                 formatted_lines.append(f"  ✓ 剩余 {days:.1f} 天")
                     formatted_lines.append("")
-                except:
+                except Exception:
                     pass
         
         return '\n'.join(formatted_lines)

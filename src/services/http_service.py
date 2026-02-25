@@ -278,7 +278,7 @@ class HttpService:
                     response_body = response.json()
                     body_text = json.dumps(response_body, ensure_ascii=False, indent=2)
                     content_type = "application/json"
-                except:
+                except Exception:
                     # 使用文本
                     body_text = response.text
                     content_type = response.headers.get("Content-Type", "text/plain")
@@ -310,7 +310,7 @@ class HttpService:
             for f in opened_files:
                 try:
                     f.close()
-                except:
+                except Exception:
                     pass
     
     def get_curl_command(
@@ -371,7 +371,7 @@ class HttpService:
                         if '=' in line:
                             key, value = line.split('=', 1)
                             parts.append(f'-F "{key.strip()}={value.strip()}"')
-                except:
+                except Exception:
                     pass
         
         # 处理普通请求体
@@ -385,7 +385,7 @@ class HttpService:
                     # 转义单引号
                     json_str = json_str.replace("'", "'\\''")
                     parts.append(f"-d '{json_str}'")
-                except:
+                except Exception:
                     parts.append(f"-d '{body}'")
             elif body_type == "form":
                 # Form 格式：转换为 -d "key=value" 或 --data-urlencode
@@ -395,7 +395,7 @@ class HttpService:
                             key, value = line.split('=', 1)
                             # 使用 --data-urlencode 自动处理编码
                             parts.append(f'--data-urlencode "{key.strip()}={value.strip()}"')
-                except:
+                except Exception:
                     parts.append(f"-d '{body}'")
             else:
                 # Raw 格式

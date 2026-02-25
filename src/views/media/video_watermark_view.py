@@ -774,7 +774,7 @@ class VideoWatermarkView(ft.Container):
                 try:
                     file_size = file_path.stat().st_size
                     size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
-                except:
+                except Exception:
                     size_str = "未知"
                 
                 self.file_list_view.controls.append(

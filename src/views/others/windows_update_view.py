@@ -435,7 +435,7 @@ class WindowsUpdateView(ft.Container):
             # 删除临时文件
             try:
                 Path(reg_file).unlink()
-            except:
+            except Exception:
                 pass
             
             # 检查是否执行成功
@@ -479,7 +479,7 @@ class WindowsUpdateView(ft.Container):
             # 删除临时文件
             try:
                 Path(reg_file).unlink()
-            except:
+            except Exception:
                 pass
             
             # 检查是否执行成功

@@ -263,7 +263,7 @@ class AutoUpdater:
                     parent_process = current_process.parent()
                     if parent_process and parent_process.name().lower() in ['flet.exe', 'pythonw.exe', 'python.exe']:
                         process_names.add(parent_process.name())
-                except:
+                except Exception:
                     pass
             except Exception as e:
                 if not _is_packaged_app():
