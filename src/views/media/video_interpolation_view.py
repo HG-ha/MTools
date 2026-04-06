@@ -82,7 +82,7 @@ class VideoInterpolationView(ft.Container):
         self.current_model: FrameInterpolationModelInfo = FRAME_INTERPOLATION_MODELS[self.current_model_key]
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -129,7 +129,7 @@ class VideoInterpolationView(ft.Container):
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
             # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -226,12 +226,12 @@ class VideoInterpolationView(ft.Container):
                         ],
                         spacing=4,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=220,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -346,7 +346,7 @@ class VideoInterpolationView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -422,7 +422,7 @@ class VideoInterpolationView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -511,7 +511,7 @@ class VideoInterpolationView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -571,7 +571,7 @@ class VideoInterpolationView(ft.Container):
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
-            margin=ft.margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
+            margin=ft.Margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
         )
         
         self.cancel_button = ft.OutlinedButton(
@@ -630,7 +630,7 @@ class VideoInterpolationView(ft.Container):
     def _on_ffmpeg_installed(self) -> None:
         """FFmpeg安装成功回调。"""
         # 重新构建UI
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -1067,7 +1067,7 @@ class VideoInterpolationView(ft.Container):
                                 ],
                                 spacing=PADDING_SMALL,
                             ),
-                            padding=ft.padding.symmetric(vertical=4, horizontal=4),
+                            padding=ft.Padding.symmetric(vertical=4, horizontal=4),
                             border_radius=BORDER_RADIUS_MEDIUM,
                             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
                         )
@@ -1101,7 +1101,7 @@ class VideoInterpolationView(ft.Container):
                                 ],
                                 spacing=PADDING_SMALL,
                             ),
-                            padding=ft.padding.symmetric(vertical=4, horizontal=4),
+                            padding=ft.Padding.symmetric(vertical=4, horizontal=4),
                         )
                     )
         

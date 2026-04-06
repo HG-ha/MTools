@@ -74,7 +74,7 @@ class AudioToTextView(ft.Container):
         self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -186,7 +186,7 @@ class AudioToTextView(ft.Container):
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
             # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -252,12 +252,12 @@ class AudioToTextView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=220,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -500,7 +500,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(bottom=4),
+            padding=ft.Padding.only(bottom=4),
         )
         
         # === AI 字幕修复设置 ===
@@ -613,7 +613,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         # 初始化 VAD 和人声分离状态
@@ -633,7 +633,7 @@ class AudioToTextView(ft.Container):
                             ],
                             spacing=4,
                         ),
-                        margin=ft.margin.only(bottom=PADDING_SMALL),
+                        margin=ft.Margin.only(bottom=PADDING_SMALL),
                     ),
                     self.model_dropdown,
                     self.model_info_text,
@@ -646,7 +646,7 @@ class AudioToTextView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -748,7 +748,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=4,
             ),
-            margin=ft.margin.only(top=4, left=4),
+            margin=ft.Margin.only(top=4, left=4),
         )
         
         # GPU加速设置
@@ -785,7 +785,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(left=28),  # 对齐 checkbox
+            padding=ft.Padding.only(left=28),  # 对齐 checkbox
         )
         
         # 输出设置 - 横向布局
@@ -827,7 +827,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=6,
             ),
-            margin=ft.margin.only(top=PADDING_SMALL),
+            margin=ft.Margin.only(top=PADDING_SMALL),
         )
         
         # === 字幕分段设置 ===
@@ -884,7 +884,7 @@ class AudioToTextView(ft.Container):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         # 输出路径选项
@@ -938,7 +938,7 @@ class AudioToTextView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -956,7 +956,7 @@ class AudioToTextView(ft.Container):
                 on_click=self._on_process,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -2121,7 +2121,7 @@ class AudioToTextView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_SMALL,
-                border=ft.border.all(1, border_color),
+                border=ft.Border.all(1, border_color),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             file_items.append(file_item)
@@ -2133,7 +2133,7 @@ class AudioToTextView(ft.Container):
                     ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
                     ft.Text(f"{no_audio_count} 个文件不包含音频流，将被跳过", size=12, color=ft.Colors.ORANGE),
                 ], spacing=8),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             )
             file_items.insert(0, warning)
         

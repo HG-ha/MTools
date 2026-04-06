@@ -144,7 +144,7 @@ class QRCodeGeneratorView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, top=8, bottom=8),
+                        margin=ft.Margin.only(left=4, top=8, bottom=8),
                     ),
                     ft.Text("快速模板：", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     template_buttons,
@@ -163,16 +163,16 @@ class QRCodeGeneratorView(ft.Container):
                             ],
                             spacing=4,
                         ),
-                        padding=ft.padding.all(8),
+                        padding=ft.Padding.all(8),
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
                         border_radius=8,
-                        margin=ft.margin.only(top=8),
+                        margin=ft.Margin.only(top=8),
                     ),
                 ],
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -220,7 +220,7 @@ class QRCodeGeneratorView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -298,7 +298,7 @@ class QRCodeGeneratorView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -315,7 +315,7 @@ class QRCodeGeneratorView(ft.Container):
                 ),
                 on_click=self._on_generate,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -351,7 +351,7 @@ class QRCodeGeneratorView(ft.Container):
                     ft.Container(
                         content=self.preview_image,
                         alignment=ft.Alignment.CENTER,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_LARGE,
                     ),
@@ -362,7 +362,7 @@ class QRCodeGeneratorView(ft.Container):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             visible=False,
         )
@@ -400,7 +400,7 @@ class QRCodeGeneratorView(ft.Container):
             spacing=0,
         )
         
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

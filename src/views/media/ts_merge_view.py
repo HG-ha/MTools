@@ -69,7 +69,7 @@ class TSMergeView(ft.Container):
         self.output_format: str = self.config_service.get_config_value("ts_merge_format", "mp4")
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -88,7 +88,7 @@ class TSMergeView(ft.Container):
         # 检查 FFmpeg 是否可用
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -119,7 +119,7 @@ class TSMergeView(ft.Container):
         self.file_list_container: ft.Container = ft.Container(
             content=self.file_list_view,
             height=200,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             on_click=self._on_file_list_click,
@@ -160,7 +160,7 @@ class TSMergeView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 self.file_list_container,
             ],
@@ -218,7 +218,7 @@ class TSMergeView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -285,7 +285,7 @@ class TSMergeView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -302,7 +302,7 @@ class TSMergeView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             visible=False,
         )
@@ -321,12 +321,12 @@ class TSMergeView(ft.Container):
                 on_click=self._on_process,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
             alignment=ft.Alignment.CENTER,
-            margin=ft.margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
+            margin=ft.Margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
         )
         
         # 主内容区域
@@ -457,7 +457,7 @@ class TSMergeView(ft.Container):
                     ],
                     spacing=8,
                 ),
-                padding=ft.padding.only(bottom=8),
+                padding=ft.Padding.only(bottom=8),
             )
             self.file_list_view.controls.append(stats)
             
@@ -500,7 +500,7 @@ class TSMergeView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
-                    padding=ft.padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
                 )

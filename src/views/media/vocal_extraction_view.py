@@ -60,7 +60,7 @@ class VocalExtractionView(ft.Container):
         self.is_processing: bool = False
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -87,7 +87,7 @@ class VocalExtractionView(ft.Container):
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
             # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -154,12 +154,12 @@ class VocalExtractionView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=220,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -272,7 +272,7 @@ class VocalExtractionView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -428,7 +428,7 @@ class VocalExtractionView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -476,7 +476,7 @@ class VocalExtractionView(ft.Container):
                 on_click=self._on_process_click,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -490,7 +490,7 @@ class VocalExtractionView(ft.Container):
             on_click=self._on_cancel_click,
             visible=False,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=12),
             ),
         )
         

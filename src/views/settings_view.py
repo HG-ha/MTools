@@ -72,7 +72,7 @@ class SettingsView(ft.Container):
         self.config_service: ConfigService = config_service
         self.expand: bool = True
         # 左右边距使用 PADDING_LARGE
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -290,7 +290,7 @@ class SettingsView(ft.Container):
                 spacing=10,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -340,7 +340,7 @@ class SettingsView(ft.Container):
             spacing=10,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        target.border = ft.border.all(1, ft.Colors.ERROR_CONTAINER)
+        target.border = ft.Border.all(1, ft.Colors.ERROR_CONTAINER)
         target.padding = PADDING_MEDIUM
     
     def _load_single_deferred_section(self, placeholder: ft.Container, builder, section_key: str = "") -> None:
@@ -412,7 +412,7 @@ class SettingsView(ft.Container):
                         width=120,
                         height=100,
                         border_radius=BORDER_RADIUS_MEDIUM,
-                        border=ft.border.all(2 if saved_theme_mode == "system" else 1, ft.Colors.PRIMARY if saved_theme_mode == "system" else ft.Colors.OUTLINE),
+                        border=ft.Border.all(2 if saved_theme_mode == "system" else 1, ft.Colors.PRIMARY if saved_theme_mode == "system" else ft.Colors.OUTLINE),
                         padding=PADDING_MEDIUM,
                         ink=True,
                         on_click=lambda e: self._on_theme_mode_container_click("system"),
@@ -430,7 +430,7 @@ class SettingsView(ft.Container):
                         width=120,
                         height=100,
                         border_radius=BORDER_RADIUS_MEDIUM,
-                        border=ft.border.all(2 if saved_theme_mode == "light" else 1, ft.Colors.PRIMARY if saved_theme_mode == "light" else ft.Colors.OUTLINE),
+                        border=ft.Border.all(2 if saved_theme_mode == "light" else 1, ft.Colors.PRIMARY if saved_theme_mode == "light" else ft.Colors.OUTLINE),
                         padding=PADDING_MEDIUM,
                         ink=True,
                         on_click=lambda e: self._on_theme_mode_container_click("light"),
@@ -448,7 +448,7 @@ class SettingsView(ft.Container):
                         width=120,
                         height=100,
                         border_radius=BORDER_RADIUS_MEDIUM,
-                        border=ft.border.all(2 if saved_theme_mode == "dark" else 1, ft.Colors.PRIMARY if saved_theme_mode == "dark" else ft.Colors.OUTLINE),
+                        border=ft.Border.all(2 if saved_theme_mode == "dark" else 1, ft.Colors.PRIMARY if saved_theme_mode == "dark" else ft.Colors.OUTLINE),
                         padding=PADDING_MEDIUM,
                         ink=True,
                         on_click=lambda e: self._on_theme_mode_container_click("dark"),
@@ -486,7 +486,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -515,7 +515,7 @@ class SettingsView(ft.Container):
             # 更新所有容器的边框样式
             for container in self.theme_mode_containers:
                 is_selected = container.data == mode
-                container.border = ft.border.all(
+                container.border = ft.Border.all(
                     2 if is_selected else 1,
                     ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
                 )
@@ -697,7 +697,7 @@ class SettingsView(ft.Container):
                 ],
                 spacing=8,
             ),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
             border_radius=8,
         )
@@ -771,7 +771,7 @@ class SettingsView(ft.Container):
                 ],
                 spacing=8,
             ),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
             border_radius=8,
         )
@@ -810,7 +810,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -1042,7 +1042,7 @@ class SettingsView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -1070,7 +1070,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -1124,7 +1124,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -1377,7 +1377,7 @@ class SettingsView(ft.Container):
                         spacing=PADDING_SMALL // 2,
                     ),
                     padding=PADDING_SMALL,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                 ),
                 # 自动切换设置
@@ -1421,7 +1421,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -1929,7 +1929,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -2151,7 +2151,7 @@ class SettingsView(ft.Container):
                     spacing=0,
                 ),
                 padding=PADDING_LARGE,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
 
@@ -2263,8 +2263,8 @@ class SettingsView(ft.Container):
 
         self.gpu_advanced_container = ft.Container(
             content=advanced_content,
-            padding=ft.padding.all(PADDING_MEDIUM),
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            padding=ft.Padding.all(PADDING_MEDIUM),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
         )
@@ -2303,7 +2303,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -2405,7 +2405,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -2611,7 +2611,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -2633,7 +2633,7 @@ class SettingsView(ft.Container):
             height=40,
             border_radius=20,
             bgcolor=color,
-            border=ft.border.all(3, ft.Colors.WHITE) if is_selected else ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(3, ft.Colors.WHITE) if is_selected else ft.Border.all(1, ft.Colors.OUTLINE),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=8,
@@ -2676,7 +2676,7 @@ class SettingsView(ft.Container):
             padding=PADDING_MEDIUM // 2,
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, color) if is_selected else None,
-            border=ft.border.all(
+            border=ft.Border.all(
                 2 if is_selected else 1,
                 color if is_selected else ft.Colors.OUTLINE
             ),
@@ -2725,7 +2725,7 @@ class SettingsView(ft.Container):
             height=110,
             padding=PADDING_MEDIUM // 2,
             border_radius=BORDER_RADIUS_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             data="custom",
             on_click=self._open_color_picker,
             ink=True,
@@ -2774,7 +2774,7 @@ class SettingsView(ft.Container):
             height=100,
             bgcolor=current_color_hex,
             border_radius=12,
-            border=ft.border.all(2, ft.Colors.OUTLINE),
+            border=ft.Border.all(2, ft.Colors.OUTLINE),
         )
         
         # RGB文本显示
@@ -2873,7 +2873,7 @@ class SettingsView(ft.Container):
                                 height=50,
                                 bgcolor=hex_color,
                                 border_radius=8,
-                                border=ft.border.all(2, ft.Colors.OUTLINE),
+                                border=ft.Border.all(2, ft.Colors.OUTLINE),
                                 ink=True,
                                 on_click=lambda e, c=hex_color, r=rgb[0], g=rgb[1], b=rgb[2]: self._apply_preset_color(
                                     c, r, g, b, r_slider, g_slider, b_slider, preview_box, rgb_text, color_input
@@ -3090,13 +3090,13 @@ class SettingsView(ft.Container):
             # 更新所有预定义颜色卡片为未选中状态
             for card in self.theme_color_cards:
                 if card.data != "custom":
-                    card.border = ft.border.all(1, ft.Colors.OUTLINE)
+                    card.border = ft.Border.all(1, ft.Colors.OUTLINE)
                     card.bgcolor = None
                     
                     if card.content and isinstance(card.content, ft.Column):
                         color_circle = card.content.controls[0]
                         if isinstance(color_circle, ft.Container):
-                            color_circle.border = ft.border.all(1, ft.Colors.OUTLINE)
+                            color_circle.border = ft.Border.all(1, ft.Colors.OUTLINE)
                             color_circle.shadow = None
                         
                         name_text = card.content.controls[2]
@@ -3149,7 +3149,7 @@ class SettingsView(ft.Container):
                 color = card.data
                 
                 # 更新边框和背景
-                card.border = ft.border.all(
+                card.border = ft.Border.all(
                     2 if is_selected else 1,
                     color if is_selected else ft.Colors.OUTLINE
                 )
@@ -3160,7 +3160,7 @@ class SettingsView(ft.Container):
                     # 更新颜色圆圈
                     color_circle = card.content.controls[0]
                     if isinstance(color_circle, ft.Container):
-                        color_circle.border = ft.border.all(3, ft.Colors.WHITE) if is_selected else ft.border.all(1, ft.Colors.OUTLINE)
+                        color_circle.border = ft.Border.all(3, ft.Colors.WHITE) if is_selected else ft.Border.all(1, ft.Colors.OUTLINE)
                         color_circle.shadow = ft.BoxShadow(
                             spread_radius=0,
                             blur_radius=8,
@@ -3275,7 +3275,7 @@ class SettingsView(ft.Container):
                 alignment=ft.MainAxisAlignment.START,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             ink=True,
             on_click=self._open_font_selector_dialog,
@@ -3336,7 +3336,7 @@ class SettingsView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
         )
@@ -3365,7 +3365,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -3516,7 +3516,7 @@ class SettingsView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
     
@@ -3683,7 +3683,7 @@ class SettingsView(ft.Container):
                         ),
                         padding=PADDING_SMALL,
                         bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=BORDER_RADIUS_MEDIUM,
                         height=300,
                     ),
@@ -4024,7 +4024,7 @@ class SettingsView(ft.Container):
                                 spacing=PADDING_SMALL // 2,
                             ),
                             padding=PADDING_MEDIUM,
-                            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                             border_radius=BORDER_RADIUS_MEDIUM,
                         ),
                         ft.Container(height=PADDING_MEDIUM),
@@ -4235,7 +4235,7 @@ class SettingsView(ft.Container):
                                 spacing=PADDING_SMALL // 2,
                             ),
                             padding=PADDING_MEDIUM,
-                            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                             border_radius=BORDER_RADIUS_MEDIUM,
                         ),
                         ft.Container(height=PADDING_MEDIUM),
@@ -4352,10 +4352,10 @@ class SettingsView(ft.Container):
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             ink=True,
             on_click=lambda e, fk=font_key, fd=font_display: self._apply_font_selection(fk, fd),
-            border=ft.border.all(1, ft.Colors.PRIMARY if is_selected else ft.Colors.TRANSPARENT),
+            border=ft.Border.all(1, ft.Colors.PRIMARY if is_selected else ft.Colors.TRANSPARENT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY) if is_selected else ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
         )
@@ -4389,7 +4389,7 @@ class SettingsView(ft.Container):
             icon=ft.Icons.UPLOAD_FILE,
             on_click=self._pick_font_file,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=16, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=0),
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
             ),
             height=40,
@@ -4447,7 +4447,7 @@ class SettingsView(ft.Container):
         font_list_container = ft.Container(
             content=self.font_list_column,
             expand=True,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=4,
             bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.ON_SURFACE),
@@ -4497,7 +4497,7 @@ class SettingsView(ft.Container):
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                         ),
-                        padding=ft.padding.only(top=PADDING_SMALL),
+                        padding=ft.Padding.only(top=PADDING_SMALL),
                     ),
                 ],
                 spacing=0,

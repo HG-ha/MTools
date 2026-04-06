@@ -124,13 +124,13 @@ class ImageRotateView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, top=8),
+                        margin=ft.Margin.only(left=4, top=8),
                     ),
                 ],
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -185,7 +185,7 @@ class ImageRotateView(ft.Container):
             height=40,
             bgcolor="#ffffff",
             border_radius=8,
-            border=ft.border.all(2, ft.Colors.OUTLINE),
+            border=ft.Border.all(2, ft.Colors.OUTLINE),
         )
         
         self.fill_color_field = ft.TextField(
@@ -248,7 +248,7 @@ class ImageRotateView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -316,7 +316,7 @@ class ImageRotateView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -366,7 +366,7 @@ class ImageRotateView(ft.Container):
                                         ft.Container(
                                             content=self.original_image,
                                             alignment=ft.Alignment.CENTER,
-                                            border=ft.border.all(1, ft.Colors.OUTLINE),
+                                            border=ft.Border.all(1, ft.Colors.OUTLINE),
                                             border_radius=8,
                                             padding=PADDING_MEDIUM,
                                             height=370,
@@ -392,7 +392,7 @@ class ImageRotateView(ft.Container):
                                         ft.Container(
                                             content=self.preview_image,
                                             alignment=ft.Alignment.CENTER,
-                                            border=ft.border.all(1, ft.Colors.OUTLINE),
+                                            border=ft.Border.all(1, ft.Colors.OUTLINE),
                                             border_radius=8,
                                             padding=PADDING_MEDIUM,
                                             height=370,
@@ -413,7 +413,7 @@ class ImageRotateView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             visible=False,
         )
@@ -433,7 +433,7 @@ class ImageRotateView(ft.Container):
                 ),
                 on_click=self._on_process,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -484,7 +484,7 @@ class ImageRotateView(ft.Container):
             spacing=0,
         )
         
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -596,7 +596,7 @@ class ImageRotateView(ft.Container):
             height=100,
             bgcolor=self._rgb_to_hex(self.current_fill_color[0], self.current_fill_color[1], self.current_fill_color[2]),
             border_radius=12,
-            border=ft.border.all(2, ft.Colors.OUTLINE),
+            border=ft.Border.all(2, ft.Colors.OUTLINE),
         )
         
         opacity_percent = int(self.current_fill_color[3] / 255 * 100)
@@ -618,7 +618,7 @@ class ImageRotateView(ft.Container):
                                 height=50,
                                 bgcolor=self._rgb_to_hex(*color),
                                 border_radius=8,
-                                border=ft.border.all(2, ft.Colors.OUTLINE),
+                                border=ft.Border.all(2, ft.Colors.OUTLINE),
                                 ink=True,
                                 on_click=lambda e, c=color: self._apply_preset_fill_color(
                                     c, r_slider, g_slider, b_slider, a_slider, preview_box, rgb_text

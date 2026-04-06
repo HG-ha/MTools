@@ -30,7 +30,7 @@ class RegexTesterView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -81,7 +81,7 @@ class RegexTesterView(ft.Container):
                         border=ft.InputBorder.NONE,
                         on_change=lambda _: self._on_test(),
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                 ),
@@ -138,7 +138,7 @@ class RegexTesterView(ft.Container):
                         border=ft.InputBorder.NONE,
                         on_change=lambda _: self._on_test(),
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     expand=True,
@@ -183,7 +183,7 @@ class RegexTesterView(ft.Container):
                         scroll=ft.ScrollMode.AUTO,
                         expand=True,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
@@ -359,7 +359,7 @@ class RegexTesterView(ft.Container):
                         ft.Container(
                             content=match_item,
                             padding=10,
-                            border=ft.border.all(1, ft.Colors.OUTLINE),
+                            border=ft.Border.all(1, ft.Colors.OUTLINE),
                             border_radius=4,
                         )
                     )

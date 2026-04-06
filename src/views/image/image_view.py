@@ -60,7 +60,7 @@ class ImageView(ft.Container):
         self.expand: bool = True
         self.clip_behavior: ft.ClipBehavior = ft.ClipBehavior.NONE  # 关键：不裁剪溢出内容
 
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

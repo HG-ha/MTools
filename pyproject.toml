@@ -42,7 +42,11 @@ dependencies = [
   "pynput>=1.7.7 ; sys_platform == 'darwin'", # macOS 全局热键
   "flet-dropzone==0.3.1", # 原生拖放支持（需要 flet build）
   "cryptography>=44.0.0", # 配置加密存储（flet.security 依赖）
+  "flet-gpt-markdown",
 ]
+
+[tool.uv.sources]
+flet-gpt-markdown = { path = "extensions/flet-gpt-markdown", editable = true }
 
 [tool.flet]
 # org name in reverse domain name notation, e.g. "com.mycompany".

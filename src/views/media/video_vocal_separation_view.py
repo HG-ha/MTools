@@ -63,7 +63,7 @@ class VideoVocalSeparationView(ft.Container):
         self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -92,7 +92,7 @@ class VideoVocalSeparationView(ft.Container):
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
             # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -159,12 +159,12 @@ class VideoVocalSeparationView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=220,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -280,7 +280,7 @@ class VideoVocalSeparationView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -392,7 +392,7 @@ class VideoVocalSeparationView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -440,7 +440,7 @@ class VideoVocalSeparationView(ft.Container):
                 on_click=self._on_process_click,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -454,7 +454,7 @@ class VideoVocalSeparationView(ft.Container):
             on_click=self._on_cancel_click,
             visible=False,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=12),
             ),
         )
         
@@ -602,7 +602,7 @@ class VideoVocalSeparationView(ft.Container):
                         ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
                         ft.Text(f"{no_audio_count} 个文件不包含音频流，将被跳过", size=12, color=ft.Colors.ORANGE),
                     ], spacing=8),
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 )
                 self.file_list_view.controls.insert(0, warning)
             
@@ -665,7 +665,7 @@ class VideoVocalSeparationView(ft.Container):
         )
         
         if border_color:
-            container.border = ft.border.all(1, border_color)
+            container.border = ft.Border.all(1, border_color)
         
         return container
     

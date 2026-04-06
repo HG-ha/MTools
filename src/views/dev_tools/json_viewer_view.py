@@ -545,7 +545,7 @@ class JsonTreeNode(ft.Container):
                                     ],
                                     spacing=5,
                                 ),
-                                padding=ft.padding.only(left=indent),
+                                padding=ft.Padding.only(left=indent),
                                 bgcolor=ft.Colors.TRANSPARENT,
                             ),
                             on_tap=self.toggle_expand,
@@ -592,7 +592,7 @@ class JsonTreeNode(ft.Container):
                                     ],
                                     spacing=5,
                                 ),
-                                padding=ft.padding.only(left=indent),
+                                padding=ft.Padding.only(left=indent),
                                 bgcolor=ft.Colors.TRANSPARENT,
                             ),
                             on_tap=self.toggle_expand,
@@ -632,7 +632,7 @@ class JsonTreeNode(ft.Container):
                         spacing=5,
                         vertical_alignment=ft.CrossAxisAlignment.START,
                     ),
-                    padding=ft.padding.only(left=indent, top=2, bottom=2),
+                    padding=ft.Padding.only(left=indent, top=2, bottom=2),
                     bgcolor=ft.Colors.TRANSPARENT,
                 ),
                 on_secondary_tap_up=self._on_right_click,
@@ -751,7 +751,7 @@ class JsonTreeNode(ft.Container):
                         ),
                     ], tight=True, spacing=0),
                     width=300,
-                    padding=ft.padding.symmetric(vertical=8),
+                    padding=ft.Padding.symmetric(vertical=8),
                 ),
             )
             
@@ -830,7 +830,7 @@ class JsonViewerView(ft.Container):
         self.on_back = on_back
         self.expand = True
         # 设置合适的内边距
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -1000,7 +1000,7 @@ class JsonViewerView(ft.Container):
                 color=ft.Colors.RED_400,
                 size=13,
             ),
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
+            padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
             visible=False,  # 默认隐藏容器
         )
         
@@ -1024,7 +1024,7 @@ class JsonViewerView(ft.Container):
                             expand=True,
                             border=ft.InputBorder.NONE,
                         ),
-                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border=ft.Border.all(1, ft.Colors.GREY_400),
                         border_radius=8,
                         padding=PADDING_SMALL,
                         expand=True,
@@ -1055,7 +1055,7 @@ class JsonViewerView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=40, bottom=6),
+                margin=ft.Margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,
@@ -1112,7 +1112,7 @@ class JsonViewerView(ft.Container):
                             scroll=ft.ScrollMode.AUTO,
                             expand=True,
                         ),
-                        border=ft.border.all(1, ft.Colors.GREY_400),
+                        border=ft.Border.all(1, ft.Colors.GREY_400),
                         border_radius=8,
                         padding=PADDING_MEDIUM,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
@@ -1141,7 +1141,7 @@ class JsonViewerView(ft.Container):
                 ft.Divider(),
                 ft.Container(
                     content=action_buttons,
-                    padding=ft.padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL),
+                    padding=ft.Padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL),
                 ),
                 error_section,
                 content_area,
@@ -1239,7 +1239,7 @@ class JsonViewerView(ft.Container):
                                 color=ft.Colors.GREY_400,
                             ),
                         ], spacing=2, tight=True),
-                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                         on_click=lambda _, p=path_value: copy_and_close(p),
                         ink=True,
                         border_radius=4,
@@ -1300,7 +1300,7 @@ class JsonViewerView(ft.Container):
                     scroll=ft.ScrollMode.AUTO if need_scroll else ft.ScrollMode.HIDDEN,  # 只在需要时启用滚动
                 ),
                 bgcolor=ft.Colors.SURFACE,
-                border=ft.border.all(1, ft.Colors.OUTLINE),
+                border=ft.Border.all(1, ft.Colors.OUTLINE),
                 border_radius=8,
                 padding=4,
                 shadow=ft.BoxShadow(
@@ -1343,7 +1343,7 @@ class JsonViewerView(ft.Container):
                     ft.Text("复制路径", size=13, expand=True),
                     ft.Icon(ft.Icons.ARROW_RIGHT, size=16, color=ft.Colors.GREY_500),
                 ], spacing=8),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 on_click=lambda _: copy_and_close(node.full_path),  # 点击直接复制简单格式
                 ink=True,
                 border_radius=4,
@@ -1355,7 +1355,7 @@ class JsonViewerView(ft.Container):
                     ft.Icon(ft.Icons.COPY, size=16, color=ft.Colors.ON_SURFACE),
                     ft.Text("复制键", size=13),
                 ], spacing=8),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 on_click=lambda _: copy_and_close(str(node.key)),
                 ink=True,
                 border_radius=4,
@@ -1367,7 +1367,7 @@ class JsonViewerView(ft.Container):
                     ft.Icon(ft.Icons.COPY, size=16, color=ft.Colors.ON_SURFACE),
                     ft.Text("复制值", size=13),
                 ], spacing=8),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 on_click=lambda _: copy_value_and_close(),
                 ink=True,
                 border_radius=4,
@@ -1379,7 +1379,7 @@ class JsonViewerView(ft.Container):
         menu_container = ft.Container(
             content=menu_items,
             bgcolor=ft.Colors.SURFACE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             padding=4,
             shadow=ft.BoxShadow(

@@ -207,7 +207,7 @@ class TextDiffView(ft.Container):
                 scroll=ft.ScrollMode.AUTO,
                 expand=True,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             padding=PADDING_SMALL,
             expand=True,
@@ -295,7 +295,7 @@ class TextDiffView(ft.Container):
                 expand=True,
                 on_change=lambda _, s=side: self._update_stats(s),
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=4,
             expand=True,
         )
@@ -496,8 +496,8 @@ class TextDiffView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             bgcolor=bg_color,
-            padding=ft.padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
-            border=ft.border.only(bottom=ft.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
+            padding=ft.Padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
+            border=ft.Border.only(bottom=ft.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
         )
 
     def _get_styled_spans(self, content: str, hint: str, diff_type: str) -> List[ft.TextSpan]:

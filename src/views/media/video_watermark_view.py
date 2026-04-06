@@ -119,13 +119,13 @@ class VideoWatermarkView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, top=4),
+                        margin=ft.Margin.only(left=4, top=4),
                     ),
                     ft.Container(height=PADDING_SMALL),
                     ft.Container(
                         content=self.file_list_view,
                         height=200,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_MEDIUM,
                         bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
@@ -134,7 +134,7 @@ class VideoWatermarkView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -228,7 +228,7 @@ class VideoWatermarkView(ft.Container):
                             ],
                             spacing=4,
                         ),
-                        margin=ft.margin.only(top=4),
+                        margin=ft.Margin.only(top=4),
                     ),
                 ],
                 spacing=PADDING_SMALL,
@@ -337,7 +337,7 @@ class VideoWatermarkView(ft.Container):
                             ],
                             spacing=4,
                         ),
-                        margin=ft.margin.only(top=4),
+                        margin=ft.Margin.only(top=4),
                     ),
                     ft.Container(height=PADDING_SMALL),
                     ft.Text("图片大小", size=12),
@@ -405,7 +405,7 @@ class VideoWatermarkView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -481,7 +481,7 @@ class VideoWatermarkView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -502,7 +502,7 @@ class VideoWatermarkView(ft.Container):
                 ),
                 on_click=self._on_process,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=8),
                 ),
             ),
@@ -537,7 +537,7 @@ class VideoWatermarkView(ft.Container):
             spacing=0,
         )
         
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -823,7 +823,7 @@ class VideoWatermarkView(ft.Container):
                             spacing=PADDING_SMALL,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                        padding=ft.padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
+                        padding=ft.Padding.symmetric(horizontal=PADDING_SMALL, vertical=4),
                         border_radius=4,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY) if idx % 2 == 0 else None,
                     )

@@ -71,7 +71,7 @@ class FileToUrlView(ft.Container):
         self.temp_duration: str = "24h"  # 默认24小时
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -144,7 +144,7 @@ class FileToUrlView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
-            border=ft.border.all(2, ft.Colors.BLUE_200),
+            border=ft.Border.all(2, ft.Colors.BLUE_200),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -182,7 +182,7 @@ class FileToUrlView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY)),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -221,7 +221,7 @@ class FileToUrlView(ft.Container):
                 ),
                 ft.Container(
                     content=self.file_list_view,
-                    border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
+                    border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                     height=300,  # 固定高度，内部可滚动
@@ -247,7 +247,7 @@ class FileToUrlView(ft.Container):
                 ),
                 on_click=self._on_upload,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -490,7 +490,7 @@ class FileToUrlView(ft.Container):
                         padding=PADDING_MEDIUM,
                         border_radius=BORDER_RADIUS_MEDIUM,
                         bgcolor=bg_color,
-                        border=ft.border.all(1, border_color),
+                        border=ft.Border.all(1, border_color),
                     )
                 )
         

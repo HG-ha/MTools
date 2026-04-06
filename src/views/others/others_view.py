@@ -42,7 +42,7 @@ class OthersView(ft.Container):
         self.config_service: ConfigService = config_service
         self.parent_container: Optional[ft.Container] = parent_container
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

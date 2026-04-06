@@ -39,7 +39,7 @@ class CronToolView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -157,7 +157,7 @@ class CronToolView(ft.Container):
                 ],
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=8,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
         )
@@ -188,7 +188,7 @@ class CronToolView(ft.Container):
                         text_style=ft.TextStyle(font_family="Consolas,Monospace"),
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),

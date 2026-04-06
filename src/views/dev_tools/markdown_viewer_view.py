@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Optional, Dict, List
 
 import flet as ft
+from flet_gpt_markdown import FletGptMarkdown
 
 from constants import PADDING_MEDIUM, PADDING_SMALL
 from utils.file_utils import pick_files, get_directory_path, save_file
@@ -32,7 +33,7 @@ class MarkdownViewerView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -58,7 +59,7 @@ class MarkdownViewerView(ft.Container):
         
         # 控件引用
         self.markdown_input = ft.Ref[ft.TextField]()
-        self.markdown_preview = ft.Ref[ft.Markdown]()
+        self.markdown_preview = ft.Ref[FletGptMarkdown]()
         self.html_output = ft.Ref[ft.TextField]()
         self.preview_container = ft.Ref[ft.Container]()
         self.status_line_text_ref = ft.Ref[ft.Text]()
@@ -258,8 +259,8 @@ class MarkdownViewerView(ft.Container):
                 spacing=2,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=6),
-            border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
+            border=ft.Border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
         )
         
         # 文件列表
@@ -286,7 +287,7 @@ class MarkdownViewerView(ft.Container):
                 expand=True,
             ),
             expand=True,
-            padding=ft.padding.only(top=4),
+            padding=ft.Padding.only(top=4),
         )
         
         sidebar = ft.Container(
@@ -301,7 +302,7 @@ class MarkdownViewerView(ft.Container):
             ),
             width=220,
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
-            border=ft.border.only(right=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
+            border=ft.Border.only(right=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
             visible=self._sidebar_visible,
         )
         
@@ -318,7 +319,7 @@ class MarkdownViewerView(ft.Container):
                             color=ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE),
                             italic=True,
                         ),
-                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                     ),
                 ],
                 spacing=0,
@@ -326,8 +327,8 @@ class MarkdownViewerView(ft.Container):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
-            border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
-            padding=ft.padding.only(left=4),
+            border=ft.Border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
+            padding=ft.Padding.only(left=4),
         )
         
         # ========== 编辑器工具栏 ==========
@@ -419,7 +420,7 @@ class MarkdownViewerView(ft.Container):
                         ),
                         bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.ON_SURFACE),
                         border_radius=8,
-                        padding=ft.padding.symmetric(horizontal=2, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=2, vertical=2),
                     ),
                     # 结构元素按钮组
                     ft.Container(
@@ -480,7 +481,7 @@ class MarkdownViewerView(ft.Container):
                         ),
                         bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.ON_SURFACE),
                         border_radius=8,
-                        padding=ft.padding.symmetric(horizontal=2, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=2, vertical=2),
                     ),
                     # 插入元素按钮组
                     ft.Container(
@@ -541,7 +542,7 @@ class MarkdownViewerView(ft.Container):
                         ),
                         bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.ON_SURFACE),
                         border_radius=8,
-                        padding=ft.padding.symmetric(horizontal=2, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=2, vertical=2),
                     ),
                     ft.VerticalDivider(width=8, thickness=1),
                     # 预览切换按钮
@@ -573,8 +574,8 @@ class MarkdownViewerView(ft.Container):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=6),
-            border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE))),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
+            border=ft.Border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE))),
         )
         
         # 编辑器主体（移除行号列，因为无法同步滚动）
@@ -583,6 +584,7 @@ class MarkdownViewerView(ft.Container):
                 ref=self.markdown_input,
                 multiline=True,
                 min_lines=20,
+                expand=True,
                 hint_text='# Hello Markdown\n\n在此输入 Markdown 内容...\n\n支持 GitHub Flavored Markdown 语法',
                 hint_style=ft.TextStyle(
                     color=ft.Colors.with_opacity(0.4, ft.Colors.ON_SURFACE),
@@ -598,7 +600,7 @@ class MarkdownViewerView(ft.Container):
                 cursor_width=2,
                 selection_color=ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY),
                 on_change=self._on_markdown_change,
-                content_padding=ft.padding.all(16),
+                content_padding=ft.Padding.all(16),
             ),
             expand=True,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
@@ -648,9 +650,9 @@ class MarkdownViewerView(ft.Container):
                 ],
                 spacing=0,
             ),
-            padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             bgcolor=ft.Colors.with_opacity(0.04, ft.Colors.ON_SURFACE),
-            border=ft.border.only(top=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
+            border=ft.Border.only(top=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))),
         )
         
         # 左侧：Markdown 编辑器（现代化设计）
@@ -667,7 +669,7 @@ class MarkdownViewerView(ft.Container):
                     spacing=0,
                     expand=True,
                 ),
-                border=ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
+                border=ft.Border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
                 border_radius=10,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                 bgcolor=ft.Colors.SURFACE,
@@ -700,7 +702,7 @@ class MarkdownViewerView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=6, bottom=6),
+                margin=ft.Margin.only(top=6, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,
@@ -742,7 +744,7 @@ class MarkdownViewerView(ft.Container):
                                         ],
                                         spacing=4,
                                     ),
-                                    padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
                                     border_radius=6,
                                     bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.SECONDARY),
                                     on_click=self._show_theme_menu,
@@ -754,7 +756,7 @@ class MarkdownViewerView(ft.Container):
                                     icon=ft.Icons.CODE,
                                     style=ft.ButtonStyle(
                                         shape=ft.RoundedRectangleBorder(radius=6),
-                                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                                     ),
                                     on_click=self._copy_html,
                                 ),
@@ -766,8 +768,8 @@ class MarkdownViewerView(ft.Container):
                 spacing=4,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=12, vertical=8),
-            border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE))),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            border=ft.Border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE))),
         )
         
         # 右侧：预览区（现代化设计）
@@ -783,19 +785,17 @@ class MarkdownViewerView(ft.Container):
                                 controls=[
                                     ft.Container(
                                         ref=self.preview_content_ref,
-                                        content=ft.Markdown(
+                                        content=FletGptMarkdown(
                                             ref=self.markdown_preview,
                                             value="# Hello Markdown\n\n在左侧输入 Markdown 内容，这里会实时显示预览。",
                                             selectable=True,
-                                            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
-                                            on_tap_link=lambda e: self._page.launch_url(e.data),
                                             expand=True,
                                         ),
                                         expand=True,
-                                        padding=ft.padding.all(20),
+                                        padding=ft.Padding.all(20),
                                         bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
                                         border_radius=8,
-                                        margin=ft.margin.all(8),
+                                        margin=ft.Margin.all(8),
                                     ),
                                 ],
                                 scroll=ft.ScrollMode.AUTO,
@@ -810,7 +810,7 @@ class MarkdownViewerView(ft.Container):
                     spacing=0,
                     expand=True,
                 ),
-                border=ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
+                border=ft.Border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
                 border_radius=10,
                 clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                 bgcolor=ft.Colors.SURFACE,
@@ -1028,7 +1028,7 @@ class MarkdownViewerView(ft.Container):
                 spacing=4,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             border_radius=4,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY) if is_current else None,
             on_click=lambda e, fp=file_path: self._open_file(fp),
@@ -1067,7 +1067,7 @@ class MarkdownViewerView(ft.Container):
                 spacing=6,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
             border_radius=4,
             on_click=lambda e, f=folder: self._toggle_folder(f),
             on_hover=lambda e: self._on_file_hover(e),
@@ -1080,7 +1080,7 @@ class MarkdownViewerView(ft.Container):
                 folder_content.append(
                     ft.Container(
                         content=self._create_file_item(file_path),
-                        padding=ft.padding.only(left=16),
+                        padding=ft.Padding.only(left=16),
                     )
                 )
         
@@ -1294,7 +1294,7 @@ class MarkdownViewerView(ft.Container):
                         color=ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE),
                         italic=True,
                     ),
-                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 ),
             ]
         else:
@@ -1331,7 +1331,7 @@ class MarkdownViewerView(ft.Container):
                         color=ft.Colors.ORANGE_400,
                     ),
                     visible=is_modified,
-                    margin=ft.margin.only(right=4),
+                    margin=ft.Margin.only(right=4),
                 )
                 
                 # 标签页内容
@@ -1366,10 +1366,10 @@ class MarkdownViewerView(ft.Container):
                 # 标签页容器
                 tab = ft.Container(
                     content=tab_content,
-                    padding=ft.padding.symmetric(horizontal=10, vertical=6),
-                    border_radius=ft.border_radius.only(top_left=6, top_right=6),
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+                    border_radius=ft.BorderRadius.only(top_left=6, top_right=6),
                     bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.PRIMARY) if is_current else ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
-                    border=ft.border.only(
+                    border=ft.Border.only(
                         bottom=ft.BorderSide(2, ft.Colors.PRIMARY) if is_current else ft.BorderSide(1, ft.Colors.TRANSPARENT)
                     ),
                     on_click=lambda e, fp=file_path: self._switch_to_tab(fp),
@@ -1823,7 +1823,7 @@ class MarkdownViewerView(ft.Container):
                                 weight=ft.FontWeight.W_600,
                                 color=ft.Colors.ERROR,
                             ),
-                            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ERROR),
                             border_radius=4,
                         ),
@@ -2050,7 +2050,7 @@ class MarkdownViewerView(ft.Container):
                         height=36,
                         border_radius=8,
                         bgcolor=theme["bg_color"] if isinstance(theme["bg_color"], str) else None,
-                        border=ft.border.all(2, ft.Colors.PRIMARY) if is_current else ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
+                        border=ft.Border.all(2, ft.Colors.PRIMARY) if is_current else ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
                         alignment=ft.Alignment.CENTER,
                     ),
                     title=ft.Text(

@@ -61,7 +61,7 @@ class TranslateView(ft.Container):
         self.is_translating: bool = False
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -138,7 +138,7 @@ class TranslateView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             visible=False,
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         # 语言选择
@@ -310,7 +310,7 @@ class TranslateView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
-                    padding=ft.padding.only(bottom=PADDING_SMALL),
+                    padding=ft.Padding.only(bottom=PADDING_SMALL),
                 ),
                 lang_row,
                 translate_area,

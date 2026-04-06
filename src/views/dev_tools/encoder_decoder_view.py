@@ -34,7 +34,7 @@ class EncoderDecoderView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -160,7 +160,7 @@ class EncoderDecoderView(ft.Container):
                         border=ft.InputBorder.NONE,
                         on_submit=lambda _: self._on_convert(None),
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     expand=True,
@@ -200,7 +200,7 @@ class EncoderDecoderView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
@@ -230,7 +230,7 @@ class EncoderDecoderView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=40, bottom=6),
+                margin=ft.Margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,

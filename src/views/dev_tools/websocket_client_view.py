@@ -40,7 +40,7 @@ class WebSocketClientView(ft.Container):
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -167,7 +167,7 @@ class WebSocketClientView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=50, bottom=6),
+                margin=ft.Margin.only(top=50, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,
@@ -254,7 +254,7 @@ class WebSocketClientView(ft.Container):
                     ft.ControlState.HOVERED: ft.Colors.GREEN_700,
                 },
                 shape=ft.RoundedRectangleBorder(radius=4),
-                padding=ft.padding.symmetric(horizontal=20), # 使用水平 padding，垂直方向自适应
+                padding=ft.Padding.symmetric(horizontal=20), # 使用水平 padding，垂直方向自适应
             ),
         )
         
@@ -280,7 +280,7 @@ class WebSocketClientView(ft.Container):
                 spacing=5,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(vertical=5),
+            padding=ft.Padding.symmetric(vertical=5),
         )
     
     def _on_ssl_change(self, e):
@@ -305,7 +305,7 @@ class WebSocketClientView(ft.Container):
                             text_size=13,
                             border=ft.InputBorder.NONE,
                         ),
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_SMALL,
                     ),
@@ -343,7 +343,7 @@ class WebSocketClientView(ft.Container):
                                     expand=True,
                                 ),
                                 padding=PADDING_SMALL,
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -379,8 +379,8 @@ class WebSocketClientView(ft.Container):
                                     ],
                                     spacing=0,
                                 ),
-                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                padding=ft.Padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -469,7 +469,7 @@ class WebSocketClientView(ft.Container):
                     ),
                     ft.Container(
                         content=message_history,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_SMALL,
                         expand=True,
@@ -539,7 +539,7 @@ class WebSocketClientView(ft.Container):
                     ft.ControlState.HOVERED: ft.Colors.RED_700,
                 },
                 shape=ft.RoundedRectangleBorder(radius=4),
-                padding=ft.padding.symmetric(horizontal=20),
+                padding=ft.Padding.symmetric(horizontal=20),
             )
             self.status_text.current.value = "● 已连接"
             self.status_text.current.color = ft.Colors.GREEN
@@ -588,7 +588,7 @@ class WebSocketClientView(ft.Container):
                 ft.ControlState.HOVERED: ft.Colors.GREEN_700,
             },
             shape=ft.RoundedRectangleBorder(radius=4),
-            padding=ft.padding.symmetric(horizontal=20),
+            padding=ft.Padding.symmetric(horizontal=20),
         )
         self.status_text.current.value = "● 未连接"
         self.status_text.current.color = ft.Colors.GREY
@@ -680,7 +680,7 @@ class WebSocketClientView(ft.Container):
                 ft.ControlState.HOVERED: ft.Colors.GREEN_700,
             },
             shape=ft.RoundedRectangleBorder(radius=4),
-            padding=ft.padding.symmetric(horizontal=20),
+            padding=ft.Padding.symmetric(horizontal=20),
         )
         self.status_text.current.value = "● 未连接"
         self.status_text.current.color = ft.Colors.GREY
@@ -705,7 +705,7 @@ class WebSocketClientView(ft.Container):
                 ],
                 spacing=5,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE_GREY),
             border_radius=4,
         )
@@ -738,10 +738,10 @@ class WebSocketClientView(ft.Container):
                 ],
                 spacing=2,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.GREEN),
             border_radius=4,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.GREEN)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.GREEN)),
         )
         
         self.message_history.current.controls.append(message_item)
@@ -772,10 +772,10 @@ class WebSocketClientView(ft.Container):
                 ],
                 spacing=2,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.BLUE),
             border_radius=4,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.BLUE)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.BLUE)),
         )
         
         self.message_history.current.controls.append(message_item)

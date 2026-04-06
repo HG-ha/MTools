@@ -43,7 +43,7 @@ class ImageSearchView(ft.Container):
         
         # 设置容器属性
         self.expand = True
-        self.padding = ft.padding.all(PADDING_MEDIUM)
+        self.padding = ft.Padding.all(PADDING_MEDIUM)
         
         # 状态变量
         self.current_image_path: Optional[str] = None
@@ -64,7 +64,7 @@ class ImageSearchView(ft.Container):
             width=120,
             height=120,
             fit=ft.BoxFit.COVER,
-            border_radius=ft.border_radius.all(8),
+            border_radius=ft.BorderRadius.all(8),
         )
         
         # 图片预览容器（控制显示/隐藏）
@@ -72,7 +72,7 @@ class ImageSearchView(ft.Container):
             content=self.image_preview,
             width=120,
             height=120,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=8,
             visible=False,
             alignment=ft.Alignment.CENTER,
@@ -122,7 +122,7 @@ class ImageSearchView(ft.Container):
             on_click=lambda e: self._page.run_task(self._perform_search),
             disabled=True,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+                padding=ft.Padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
             ),
         )
         
@@ -226,7 +226,7 @@ class ImageSearchView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                     border_radius=8,
                     padding=PADDING_MEDIUM,
                 ),
@@ -256,7 +256,7 @@ class ImageSearchView(ft.Container):
                             # 搜索结果
                             ft.Container(
                                 content=self.results_container,
-                                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                                 border_radius=8,
                                 padding=PADDING_MEDIUM,
                                 expand=True,
@@ -559,7 +559,7 @@ class ImageSearchView(ft.Container):
                             ),
                             width=100,
                             height=100,
-                            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                             border_radius=8,
                         ),
                         
@@ -601,7 +601,7 @@ class ImageSearchView(ft.Container):
                                                 ),
                                                 on_click=lambda e, url=pic_url: self._copy_to_clipboard(url, "图片URL"),
                                                 style=ft.ButtonStyle(
-                                                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                                                 ),
                                             ) if pic_url else ft.Container(),
                                             ft.Button(
@@ -614,7 +614,7 @@ class ImageSearchView(ft.Container):
                                                 ),
                                                 on_click=lambda e, url=page_url: self._open_url(url),
                                                 style=ft.ButtonStyle(
-                                                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                                                 ),
                                             ) if page_url else ft.Container(),
                                         ],
@@ -632,7 +632,7 @@ class ImageSearchView(ft.Container):
                     spacing=12,
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=8,
                 padding=PADDING_MEDIUM,
                 bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE) if index % 2 == 0 else None,

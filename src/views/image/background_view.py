@@ -81,7 +81,7 @@ class ImageBackgroundView(ft.Container):
         
         self.expand: bool = True
         # 右侧多留一些空间给滚动条
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -179,12 +179,12 @@ class ImageBackgroundView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     expand=True,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -348,14 +348,14 @@ class ImageBackgroundView(ft.Container):
                             size=12,
                             color=ft.Colors.ORANGE,
                         ),
-                        margin=ft.margin.only(left=4, bottom=PADDING_SMALL),
+                        margin=ft.Margin.only(left=4, bottom=PADDING_SMALL),
                     ),
                     self.gif_files_list,
                 ],
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.ORANGE),
+            border=ft.Border.all(1, ft.Colors.ORANGE),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ORANGE),
             visible=False,
@@ -382,7 +382,7 @@ class ImageBackgroundView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -432,7 +432,7 @@ class ImageBackgroundView(ft.Container):
                 on_click=self._on_process,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),

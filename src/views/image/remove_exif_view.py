@@ -142,7 +142,7 @@ class ImageRemoveExifView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -169,7 +169,7 @@ class ImageRemoveExifView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             visible=False,
         )
@@ -197,7 +197,7 @@ class ImageRemoveExifView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -214,7 +214,7 @@ class ImageRemoveExifView(ft.Container):
                 ),
                 on_click=self._on_process,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -264,7 +264,7 @@ class ImageRemoveExifView(ft.Container):
             spacing=0,
         )
         
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

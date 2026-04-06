@@ -53,7 +53,7 @@ class PortScannerView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -226,7 +226,7 @@ class PortScannerView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=8,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
         )
@@ -265,7 +265,7 @@ class PortScannerView(ft.Container):
                             cursor_color=ft.Colors.PRIMARY,
                         ),
                         expand=True,
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=8,
                         padding=PADDING_SMALL,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),

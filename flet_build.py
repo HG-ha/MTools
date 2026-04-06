@@ -128,6 +128,50 @@ def patch_icon_selection(build_dir: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Pre-build: 解析 pyproject.toml 中的路径变量
+# ---------------------------------------------------------------------------
+_LOCAL_EXTENSIONS = {
+    "flet-gpt-markdown": "extensions/flet-gpt-markdown",
+}
+
+
+def _resolve_pyproject_paths() -> str | None:
+    """
+    将 pyproject.toml 中的本地扩展包名替换为 pip 可识别的 file:/// 绝对路径。
+    uv 通过 [tool.uv.sources] 解析本地路径，但 flet build 通过 pip 安装依赖时需要绝对路径。
+    返回原始文件内容（用于构建后恢复），若无需替换则返回 None。
+    """
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+
+    original = text
+    changed = False
+    for pkg_name, rel_path in _LOCAL_EXTENSIONS.items():
+        abs_uri = (PROJECT_ROOT / rel_path).as_uri()
+        old = f'"{pkg_name}"'
+        new = f'"{pkg_name} @ {abs_uri}"'
+        if old in text:
+            text = text.replace(old, new)
+            print(f"  [pre-build] {pkg_name} → {abs_uri}")
+            changed = True
+
+    if not changed:
+        return None
+
+    pyproject.write_text(text, encoding="utf-8")
+    return original
+
+
+def _restore_pyproject(original: str | None):
+    """恢复 pyproject.toml 原始内容。"""
+    if original is None:
+        return
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    pyproject.write_text(original, encoding="utf-8")
+    print("  [post-build] pyproject.toml 已恢复")
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 def run_flet_build(args: list[str]) -> int:
@@ -141,7 +185,15 @@ def run_flet_build(args: list[str]) -> int:
     print(f"命令: flet build {' '.join(args)}")
     print()
 
-    # 第一次运行
+    original_pyproject = _resolve_pyproject_paths()
+    try:
+        return _do_build(cmd, args)
+    finally:
+        _restore_pyproject(original_pyproject)
+
+
+def _do_build(cmd: list[str], args: list[str]) -> int:
+    """执行构建流程（首次 + 修补重试）。"""
     result = subprocess.run(cmd, cwd=PROJECT_ROOT)
 
     if result.returncode == 0:

@@ -1,0 +1,7 @@
+site_name: FletGptMarkdown
+
+theme:
+  name: "material"
+
+plugins:
+  - mkdocstrings

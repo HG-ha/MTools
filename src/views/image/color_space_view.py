@@ -80,7 +80,7 @@ class ColorSpaceView(ft.Container):
         self.binary_threshold: int = 128  # 二值化阈值
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -138,7 +138,7 @@ class ColorSpaceView(ft.Container):
         self.file_list_container = ft.Container(
             content=self.file_list_view,
             height=300,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -160,7 +160,7 @@ class ColorSpaceView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, bottom=4),
+                        margin=ft.Margin.only(left=4, bottom=4),
                     ),
                     self.file_list_container,
                 ],
@@ -168,7 +168,7 @@ class ColorSpaceView(ft.Container):
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -219,7 +219,7 @@ class ColorSpaceView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             visible=False,  # 默认隐藏
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         color_space_area: ft.Container = ft.Container(
@@ -238,7 +238,7 @@ class ColorSpaceView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -285,7 +285,7 @@ class ColorSpaceView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -324,7 +324,7 @@ class ColorSpaceView(ft.Container):
             style=ft.ButtonStyle(
                 bgcolor=ft.Colors.PRIMARY,
                 color=ft.Colors.ON_PRIMARY,
-                padding=ft.padding.symmetric(horizontal=32, vertical=16),
+                padding=ft.Padding.symmetric(horizontal=32, vertical=16),
             ),
             on_click=self._on_convert,
             disabled=True,

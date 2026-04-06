@@ -98,7 +98,7 @@ class Base64ToImageView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -137,7 +137,7 @@ class Base64ToImageView(ft.Container):
                     ft.Container(
                         content=self.preview_image,
                         alignment=ft.Alignment.CENTER,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         padding=PADDING_LARGE,
                     ),
@@ -146,7 +146,7 @@ class Base64ToImageView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             visible=False,
         )
@@ -193,7 +193,7 @@ class Base64ToImageView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             visible=False,
         )
@@ -226,7 +226,7 @@ class Base64ToImageView(ft.Container):
             spacing=0,
         )
         
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

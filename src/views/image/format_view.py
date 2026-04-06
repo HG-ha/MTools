@@ -75,7 +75,7 @@ class ImageFormatView(ft.Container):
         
         self.expand: bool = True
         # 右侧多留一些空间给滚动条
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -142,12 +142,12 @@ class ImageFormatView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=300,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -205,14 +205,14 @@ class ImageFormatView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, top=4),
+                        margin=ft.Margin.only(left=4, top=4),
                     ),
                 ],
                 spacing=PADDING_MEDIUM // 2,
                 scroll=ft.ScrollMode.AUTO,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             expand=1,
             height=340,
@@ -267,12 +267,12 @@ class ImageFormatView(ft.Container):
                             size=12,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
-                        margin=ft.margin.only(left=4, bottom=PADDING_SMALL),
+                        margin=ft.Margin.only(left=4, bottom=PADDING_SMALL),
                     ),
                     ft.Container(
                         content=self.gif_files_list,
                         height=200,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=BORDER_RADIUS_MEDIUM,
                         padding=PADDING_MEDIUM,
                     ),
@@ -280,7 +280,7 @@ class ImageFormatView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.PRIMARY_CONTAINER),
+            border=ft.Border.all(1, ft.Colors.PRIMARY_CONTAINER),
             border_radius=BORDER_RADIUS_MEDIUM,
             visible=False,
         )
@@ -310,13 +310,13 @@ class ImageFormatView(ft.Container):
                             ],
                             spacing=8,
                         ),
-                        margin=ft.margin.only(left=4, top=PADDING_MEDIUM),
+                        margin=ft.Margin.only(left=4, top=PADDING_MEDIUM),
                     ),
                 ],
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             expand=1,
             height=340,
@@ -339,7 +339,7 @@ class ImageFormatView(ft.Container):
                 ),
                 on_click=self._on_convert,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -416,7 +416,7 @@ class ImageFormatView(ft.Container):
             height=65,
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.PRIMARY if is_selected else None,
-            border=ft.border.all(
+            border=ft.Border.all(
                 2 if is_selected else 1,
                 ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
             ),
@@ -449,7 +449,7 @@ class ImageFormatView(ft.Container):
             
             # 更新背景和边框
             card.bgcolor = ft.Colors.PRIMARY if is_selected else None
-            card.border = ft.border.all(
+            card.border = ft.Border.all(
                 2 if is_selected else 1,
                 ft.Colors.PRIMARY if is_selected else ft.Colors.OUTLINE
             )
@@ -620,7 +620,7 @@ class ImageFormatView(ft.Container):
                         padding=PADDING_MEDIUM,
                         border_radius=BORDER_RADIUS_MEDIUM,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE) if idx % 2 == 0 else None,
-                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)),
+                        border=ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)),
                     )
                 )
         

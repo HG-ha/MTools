@@ -31,7 +31,7 @@ class JwtToolView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -80,7 +80,7 @@ class JwtToolView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                 ),
@@ -126,7 +126,7 @@ class JwtToolView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
@@ -158,7 +158,7 @@ class JwtToolView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
@@ -190,7 +190,7 @@ class JwtToolView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),

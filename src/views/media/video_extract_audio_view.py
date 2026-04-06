@@ -63,7 +63,7 @@ class VideoExtractAudioView(ft.Container):
         self._audio_stream_cache: dict = {}
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -78,7 +78,7 @@ class VideoExtractAudioView(ft.Container):
         # 检查 FFmpeg 是否可用
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -135,7 +135,7 @@ class VideoExtractAudioView(ft.Container):
                 ft.Container(
                     content=self.file_list_view,
                     height=250,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                     bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
@@ -259,7 +259,7 @@ class VideoExtractAudioView(ft.Container):
                 spacing=0,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -317,7 +317,7 @@ class VideoExtractAudioView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -358,7 +358,7 @@ class VideoExtractAudioView(ft.Container):
                 on_click=lambda _: self._on_process(),
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -526,7 +526,7 @@ class VideoExtractAudioView(ft.Container):
                         spacing=PADDING_SMALL,
                     ),
                     padding=PADDING_SMALL,
-                    border=ft.border.all(1, ft.Colors.ORANGE if not has_audio else ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.ORANGE if not has_audio else ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                 )
                 
@@ -546,7 +546,7 @@ class VideoExtractAudioView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 )
                 self.file_list_view.controls.insert(0, warning_text)
             

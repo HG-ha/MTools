@@ -321,7 +321,7 @@ def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, up
                     ),
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
-                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     height=300,
                 ),

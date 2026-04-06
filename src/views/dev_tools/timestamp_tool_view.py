@@ -31,7 +31,7 @@ class TimestampToolView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -122,7 +122,7 @@ class TimestampToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
         )
@@ -172,7 +172,7 @@ class TimestampToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -211,7 +211,7 @@ class TimestampToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -277,7 +277,7 @@ class TimestampToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         

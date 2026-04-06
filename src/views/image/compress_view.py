@@ -65,7 +65,7 @@ class ImageCompressView(ft.Container):
         
         self.expand: bool = True
         # 右侧多留一些空间给滚动条
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,  # 右侧多留16px给滚动条
             top=PADDING_MEDIUM,
@@ -132,12 +132,12 @@ class ImageCompressView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=380,  # 文件列表高度
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -182,7 +182,7 @@ class ImageCompressView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             expand=1,  # 平分宽度
             height=280,  # 固定高度
@@ -242,7 +242,7 @@ class ImageCompressView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             expand=1,  # 平分宽度
             height=280,  # 固定高度
@@ -265,7 +265,7 @@ class ImageCompressView(ft.Container):
                 ),
                 on_click=self._on_compress,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -459,7 +459,7 @@ class ImageCompressView(ft.Container):
                         padding=PADDING_MEDIUM,
                         border_radius=BORDER_RADIUS_MEDIUM,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE) if idx % 2 == 0 else None,
-                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)),
+                        border=ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)),
                     )
                 )
         

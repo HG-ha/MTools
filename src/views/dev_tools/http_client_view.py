@@ -39,7 +39,7 @@ class HttpClientView(ft.Container):
         self.config_service = config_service
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -166,7 +166,7 @@ class HttpClientView(ft.Container):
                 ft.dropdown.Option("OPTIONS"),
             ],
             width=120,
-            border_radius=ft.border_radius.only(top_left=8, bottom_left=8),
+            border_radius=ft.BorderRadius.only(top_left=8, bottom_left=8),
             content_padding=10,
         )
         
@@ -187,7 +187,7 @@ class HttpClientView(ft.Container):
             icon=ft.Icons.SEND,
             on_click=self._on_send_request,
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=ft.border_radius.only(top_right=8, bottom_right=8)),
+                shape=ft.RoundedRectangleBorder(radius=ft.BorderRadius.only(top_right=8, bottom_right=8)),
                 color={
                     ft.ControlState.DEFAULT: ft.Colors.WHITE,
                 },
@@ -271,7 +271,7 @@ class HttpClientView(ft.Container):
                                     expand=True,
                                 ),
                                 padding=PADDING_SMALL,
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -286,7 +286,7 @@ class HttpClientView(ft.Container):
                                     expand=True,
                                 ),
                                 padding=PADDING_SMALL,
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -327,7 +327,7 @@ class HttpClientView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=80, bottom=6),
+                margin=ft.Margin.only(top=80, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,
@@ -444,7 +444,7 @@ class HttpClientView(ft.Container):
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                     border_radius=4,
                 )
             )
@@ -519,7 +519,7 @@ class HttpClientView(ft.Container):
                                     ],
                                     spacing=0,
                                 ),
-                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                padding=ft.Padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
                                 expand=True,
                             ),
                             ft.Container(
@@ -549,7 +549,7 @@ class HttpClientView(ft.Container):
                                                     ft.Text("配合 Form Tab 使用，Form 内容将作为字段发送", size=12, color=ft.Colors.GREY),
                                                 ],
                                             ),
-                                            padding=ft.padding.only(bottom=5),
+                                            padding=ft.Padding.only(bottom=5),
                                         ),
                                         ft.Column(
                                             ref=self.multipart_files_list,
@@ -570,7 +570,7 @@ class HttpClientView(ft.Container):
         
         return ft.Container(
             content=body_type_tabs,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             padding=0,
             expand=True,
@@ -583,7 +583,7 @@ class HttpClientView(ft.Container):
             return ft.Container(
                 content=ft.Text(text, color=ft.Colors.WHITE, size=12, weight=ft.FontWeight.BOLD),
                 bgcolor=color,
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 border_radius=4,
             )
         
@@ -653,8 +653,8 @@ class HttpClientView(ft.Container):
                                     ],
                                     spacing=0,
                                 ),
-                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                padding=ft.Padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -669,7 +669,7 @@ class HttpClientView(ft.Container):
                                     expand=True,
                                 ),
                                 padding=PADDING_SMALL,
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),
@@ -700,8 +700,8 @@ class HttpClientView(ft.Container):
                                     ],
                                     spacing=0,
                                 ),
-                                padding=ft.padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
-                                border=ft.border.all(1, ft.Colors.OUTLINE),
+                                padding=ft.Padding.only(left=PADDING_SMALL, right=PADDING_SMALL, bottom=PADDING_SMALL),
+                                border=ft.Border.all(1, ft.Colors.OUTLINE),
                                 border_radius=8,
                                 expand=True,
                             ),

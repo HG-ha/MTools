@@ -72,7 +72,7 @@ class ImageCropView(ft.Container):
         self.image_service: ImageService = image_service
         self.on_back: Optional[Callable[[], None]] = on_back
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -169,7 +169,7 @@ class ImageCropView(ft.Container):
             width=40,
             height=24,
             text_size=11,
-            content_padding=ft.padding.only(left=8, right=8, top=0, bottom=2),
+            content_padding=ft.Padding.only(left=8, right=8, top=0, bottom=2),
             border_color=ft.Colors.OUTLINE_VARIANT,
             on_change=self._on_fine_tune_step_change,
             tooltip="WASD键每次移动的像素数（1-100）",
@@ -196,7 +196,7 @@ class ImageCropView(ft.Container):
                 spacing=6,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=PADDING_SMALL, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=PADDING_SMALL, vertical=6),
             bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
             border_radius=BORDER_RADIUS_SMALL,
         )
@@ -235,7 +235,7 @@ class ImageCropView(ft.Container):
             ),
             alignment=ft.Alignment.CENTER,
             expand=True,
-            border=ft.border.all(2, ft.Colors.with_opacity(0.2, primary_color)),
+            border=ft.Border.all(2, ft.Colors.with_opacity(0.2, primary_color)),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
 
@@ -261,7 +261,7 @@ class ImageCropView(ft.Container):
         self.crop_box_container: ft.Container = ft.Container(
             content=ft.GestureDetector(
                 content=ft.Container(
-                    border=ft.border.all(3, ft.Colors.PRIMARY),
+                    border=ft.Border.all(3, ft.Colors.PRIMARY),
                     bgcolor="#40FFFFFF",  # 半透明白色
                 ),
                 on_pan_start=self._on_crop_pan_start,
@@ -409,7 +409,7 @@ class ImageCropView(ft.Container):
 
         self.canvas_container: ft.Container = ft.Container(
             content=self.canvas_with_rulers,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             alignment=ft.Alignment.CENTER,
             padding=PADDING_LARGE,  # 添加内边距让图片居中显示
@@ -466,7 +466,7 @@ class ImageCropView(ft.Container):
             on_submit=self._on_frame_input_submit,
             on_blur=self._on_frame_input_submit,
             dense=True,
-            content_padding=ft.padding.symmetric(horizontal=6, vertical=2),
+            content_padding=ft.Padding.symmetric(horizontal=6, vertical=2),
         )
 
         self.gif_total_frames_text: ft.Text = ft.Text("/ 1", size=12)
@@ -510,8 +510,8 @@ class ImageCropView(ft.Container):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=2,
             ),
-            padding=ft.padding.symmetric(horizontal=PADDING_SMALL, vertical=6),
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            padding=ft.Padding.symmetric(horizontal=PADDING_SMALL, vertical=6),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             visible=False,
         )
@@ -558,9 +558,9 @@ class ImageCropView(ft.Container):
         file_list_container = ft.Container(
             content=self.file_list_view,
             height=100,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_SMALL,
-            padding=ft.padding.symmetric(horizontal=6, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=6, vertical=4),
         )
 
         batch_card: ft.Container = ft.Container(
@@ -702,7 +702,7 @@ class ImageCropView(ft.Container):
                                 ),
                             ],
                         ),
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=BORDER_RADIUS_SMALL,
                         alignment=ft.Alignment.CENTER,
                         height=200,
@@ -722,7 +722,7 @@ class ImageCropView(ft.Container):
                 scroll=ft.ScrollMode.AUTO,
             ),
             width=300,
-            padding=ft.padding.only(left=PADDING_MEDIUM),
+            padding=ft.Padding.only(left=PADDING_MEDIUM),
         )
 
         # 主内容区域 - 左右布局
@@ -786,7 +786,7 @@ class ImageCropView(ft.Container):
         primary_color: str = self._get_theme_primary_color()
         # 更新空状态的边框色
         if hasattr(self, "empty_state_widget"):
-            self.empty_state_widget.border = ft.border.all(
+            self.empty_state_widget.border = ft.Border.all(
                 2, ft.Colors.with_opacity(0.2, primary_color)
             )
 
@@ -1016,7 +1016,7 @@ class ImageCropView(ft.Container):
                             spacing=4,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                        padding=ft.padding.symmetric(horizontal=6, vertical=4),
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=4),
                         border_radius=4,
                         bgcolor=ft.Colors.with_opacity(0.04, ft.Colors.ON_SURFACE)
                         if idx % 2 == 0

@@ -64,7 +64,7 @@ class ImageInfoView(ft.Container):
         self.current_info: dict = {}
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -144,7 +144,7 @@ class ImageInfoView(ft.Container):
         
         preview_container: ft.Container = ft.Container(
             content=preview_stack,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             alignment=ft.Alignment.CENTER,
@@ -172,7 +172,7 @@ class ImageInfoView(ft.Container):
 
         info_container: ft.Container = ft.Container(
             content=info_scroll,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             expand=True,
@@ -260,7 +260,7 @@ class ImageInfoView(ft.Container):
             ),
             alignment=ft.Alignment.CENTER,
             height=320,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             col={"sm": 12},
         )
@@ -341,7 +341,7 @@ class ImageInfoView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         basic_info_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -373,7 +373,7 @@ class ImageInfoView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         dimension_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -441,7 +441,7 @@ class ImageInfoView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         color_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -537,7 +537,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
                 bgcolor=ft.Colors.with_opacity(0.05, "#667EEA"),  # 实况图用特殊背景色
             )
@@ -556,7 +556,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             animation_section.col = {"sm": 12, "md": 6, "lg": 4}
@@ -599,7 +599,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             compression_section.col = {"sm": 12, "md": 6, "lg": 4}
@@ -621,7 +621,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             camera_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -642,7 +642,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             gps_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -668,7 +668,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             hash_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -685,7 +685,7 @@ class ImageInfoView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         time_section.col = {"sm": 12, "md": 6, "lg": 6}
@@ -754,7 +754,7 @@ class ImageInfoView(ft.Container):
                     spacing=PADDING_SMALL,
                 ),
                 padding=PADDING_MEDIUM,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=BORDER_RADIUS_MEDIUM,
             )
             exif_section.col = {"sm": 12}
@@ -796,7 +796,7 @@ class ImageInfoView(ft.Container):
                     spacing=4,
                     horizontal_alignment=ft.CrossAxisAlignment.START,
                 ),
-                padding=ft.padding.symmetric(horizontal=18, vertical=16),
+                padding=ft.Padding.symmetric(horizontal=18, vertical=16),
                 border_radius=BORDER_RADIUS_MEDIUM,
                 col={"sm": 6, "md": 3, "lg": 3},
             )
@@ -879,7 +879,7 @@ class ImageInfoView(ft.Container):
                 ft.Colors.with_opacity(0.35, primary_color),
             ],
         )
-        summary_section.border = ft.border.all(1, ft.Colors.with_opacity(0.4, primary_color))
+        summary_section.border = ft.Border.all(1, ft.Colors.with_opacity(0.4, primary_color))
         
         # 更新统计瓦片的渐变
         if hasattr(self, 'stat_tiles'):
@@ -963,7 +963,7 @@ class ImageInfoView(ft.Container):
                 spacing=PADDING_SMALL,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.padding.symmetric(vertical=4),
+            padding=ft.Padding.symmetric(vertical=4),
         )
     
     def _format_exif_tag(self, tag: str) -> str:

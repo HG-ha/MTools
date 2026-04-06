@@ -243,7 +243,7 @@ class ToolSearchDialog(ft.AlertDialog):
                             ],
                             spacing=PADDING_SMALL // 2,
                         ),
-                        padding=ft.padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL // 2),
+                        padding=ft.Padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL // 2),
                     )
                 )
                 
@@ -268,7 +268,7 @@ class ToolSearchDialog(ft.AlertDialog):
                             ],
                             spacing=PADDING_SMALL // 2,
                         ),
-                        padding=ft.padding.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL // 2),
+                        padding=ft.Padding.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL // 2),
                     )
                 )
                 
@@ -336,7 +336,7 @@ class ToolSearchDialog(ft.AlertDialog):
                         weight=ft.FontWeight.W_600,
                         color=ft.Colors.PRIMARY,
                     ),
-                    padding=ft.padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL // 2),
+                    padding=ft.Padding.only(top=PADDING_SMALL, bottom=PADDING_SMALL // 2),
                 )
             )
             
@@ -398,7 +398,7 @@ class ToolSearchDialog(ft.AlertDialog):
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             ink=True,
             on_click=lambda e, t=tool: self._on_tool_click(t),
@@ -428,8 +428,8 @@ class ToolSearchDialog(ft.AlertDialog):
                 ],
                 spacing=PADDING_MEDIUM,
             ),
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             ink=True,
             on_click=lambda e, q=query: self._on_history_click(q),

@@ -143,7 +143,7 @@ class VideoSubtitleView(ft.Container):
         )
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -168,7 +168,7 @@ class VideoSubtitleView(ft.Container):
         # 检查 FFmpeg 是否可用
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -228,12 +228,12 @@ class VideoSubtitleView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=150,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -358,7 +358,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=6,
             ),
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         recognition_area = ft.Container(
@@ -376,7 +376,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -508,7 +508,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(bottom=4),
+            padding=ft.Padding.only(bottom=4),
         )
         
         # === AI 字幕修复设置 ===
@@ -631,7 +631,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=4,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -669,7 +669,7 @@ class VideoSubtitleView(ft.Container):
                 alignment=ft.MainAxisAlignment.START,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             ink=True,
             on_click=self._open_font_selector_dialog,
@@ -686,7 +686,7 @@ class VideoSubtitleView(ft.Container):
                 color=ft.Colors.WHITE,
             ),
             bgcolor=ft.Colors.BLACK54,
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
+            padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -831,7 +831,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -921,7 +921,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -1009,7 +1009,7 @@ class VideoSubtitleView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -1041,7 +1041,7 @@ class VideoSubtitleView(ft.Container):
                 on_click=lambda _: self._start_processing(),
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -1061,7 +1061,7 @@ class VideoSubtitleView(ft.Container):
                 self.progress_bar,
                 ft.Container(
                     content=self.process_btn,
-                    padding=ft.padding.only(top=PADDING_MEDIUM),
+                    padding=ft.Padding.only(top=PADDING_MEDIUM),
                 ),
             ],
             spacing=PADDING_LARGE,
@@ -1229,7 +1229,7 @@ class VideoSubtitleView(ft.Container):
                         content=ft.Text("已设置", size=10, color=ft.Colors.PRIMARY),
                         bgcolor=ft.Colors.PRIMARY_CONTAINER,
                         border_radius=4,
-                        padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                         visible=has_custom_settings,
                     ),
                     ft.IconButton(
@@ -1263,7 +1263,7 @@ class VideoSubtitleView(ft.Container):
                     ft.Icon(ft.Icons.WARNING_AMBER, size=16, color=ft.Colors.ORANGE),
                     ft.Text(f"{no_audio_count} 个视频无音频流，无法识别语音生成字幕", size=12, color=ft.Colors.ORANGE),
                 ], spacing=8),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             )
             self.file_list_view.controls.insert(0, warning)
         
@@ -1931,7 +1931,7 @@ class VideoSubtitleView(ft.Container):
                             ft.Text(dn, size=12, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                             ft.Icon(ft.Icons.CHECK, size=14, color=ft.Colors.PRIMARY) if is_selected else ft.Container(width=14),
                         ]),
-                        padding=ft.padding.symmetric(horizontal=8, vertical=6),
+                        padding=ft.Padding.symmetric(horizontal=8, vertical=6),
                         ink=True,
                         on_click=lambda _, key=fk, name=dn, p=font_path: select_font(key, name, p),
                         bgcolor=ft.Colors.PRIMARY_CONTAINER if is_selected else None,
@@ -1949,7 +1949,7 @@ class VideoSubtitleView(ft.Container):
                             color=ft.Colors.ON_SURFACE_VARIANT,
                             text_align=ft.TextAlign.CENTER,
                         ),
-                        padding=ft.padding.symmetric(vertical=8),
+                        padding=ft.Padding.symmetric(vertical=8),
                         alignment=ft.Alignment.CENTER,
                     )
                 )
@@ -2012,7 +2012,7 @@ class VideoSubtitleView(ft.Container):
         font_list_container = ft.Container(
             content=font_list_column,
             height=120,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=4,
         )
@@ -2044,7 +2044,7 @@ class VideoSubtitleView(ft.Container):
             width=32, height=32,
             bgcolor=fc_hex,
             border_radius=4,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
         )
         
         # 描边颜色预览块
@@ -2052,7 +2052,7 @@ class VideoSubtitleView(ft.Container):
             width=32, height=32,
             bgcolor=oc_hex,
             border_radius=4,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
         )
         
         # 字体颜色滑动条
@@ -2119,12 +2119,12 @@ class VideoSubtitleView(ft.Container):
             update_outline_color()
         
         font_preset_row = ft.Row([
-            ft.Container(width=16, height=16, bgcolor=c, border_radius=2, border=ft.border.all(1, ft.Colors.OUTLINE), 
+            ft.Container(width=16, height=16, bgcolor=c, border_radius=2, border=ft.Border.all(1, ft.Colors.OUTLINE), 
                         ink=True, on_click=lambda _, hc=c: apply_preset_to_font(hc)) for c in preset_colors
         ], spacing=2)
         
         outline_preset_row = ft.Row([
-            ft.Container(width=16, height=16, bgcolor=c, border_radius=2, border=ft.border.all(1, ft.Colors.OUTLINE),
+            ft.Container(width=16, height=16, bgcolor=c, border_radius=2, border=ft.Border.all(1, ft.Colors.OUTLINE),
                         ink=True, on_click=lambda _, hc=c: apply_preset_to_outline(hc)) for c in preset_colors
         ], spacing=2)
         
@@ -2875,7 +2875,7 @@ class VideoSubtitleView(ft.Container):
             icon=ft.Icons.UPLOAD_FILE,
             on_click=lambda _: self._page.run_task(self._pick_font_file),
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=16, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=0),
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
             ),
         )
@@ -2890,7 +2890,7 @@ class VideoSubtitleView(ft.Container):
         font_list_container = ft.Container(
             content=self.font_list_column,
             height=280,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=4,
         )
@@ -2916,7 +2916,7 @@ class VideoSubtitleView(ft.Container):
                 color=ft.Colors.WHITE,
             ),
             bgcolor=ft.Colors.BLACK54,
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
+            padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -3030,7 +3030,7 @@ class VideoSubtitleView(ft.Container):
                         ),
                     ],
                 ),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                 border_radius=BORDER_RADIUS_MEDIUM,
                 bgcolor=ft.Colors.PRIMARY_CONTAINER if is_selected else None,
                 ink=True,

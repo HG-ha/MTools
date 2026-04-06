@@ -344,6 +344,24 @@ wheels = [
 ]
 
 [[package]]
+name = "flet-gpt-markdown"
+version = "0.1.0"
+source = { editable = "extensions/flet-gpt-markdown" }
+dependencies = [
+    { name = "flet" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "flet", specifier = ">=0.84.0" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extras = ["python"] },
+]
+
+[[package]]
 name = "flet-web"
 version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
@@ -522,6 +540,7 @@ dependencies = [
     { name = "ffmpeg-python" },
     { name = "flet" },
     { name = "flet-dropzone" },
+    { name = "flet-gpt-markdown" },
     { name = "httpx", extra = ["socks"] },
     { name = "numpy" },
     { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -564,9 +583,11 @@ requires-dist = [
     { name = "ffmpeg-python", specifier = "==0.2.0" },
     { name = "flet", specifier = "==0.84.0" },
     { name = "flet-dropzone", specifier = "==0.3.1" },
+    { name = "flet-gpt-markdown", editable = "extensions/flet-gpt-markdown" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
     { name = "numpy", specifier = "==1.26.4" },
-    { name = "onnxruntime", marker = "sys_platform == 'darwin' or sys_platform == 'linux'", specifier = "==1.24.4" },
+    { name = "onnxruntime", marker = "sys_platform == 'darwin'", specifier = ">=1.22.0" },
+    { name = "onnxruntime", marker = "sys_platform == 'linux'", specifier = "==1.24.4" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = "==1.24.4" },
     { name = "opencv-python-headless", specifier = "==4.11.0.86" },
     { name = "pillow", specifier = "==12.0.0" },

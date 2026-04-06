@@ -78,7 +78,7 @@ class ImagePuzzleSplitView(ft.Container):
         self._auto_preview_enabled: bool = False  # 是否启用自动预览（默认关闭以提升性能）
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -185,7 +185,7 @@ class ImagePuzzleSplitView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=ft.Stack(
@@ -201,7 +201,7 @@ class ImagePuzzleSplitView(ft.Container):
                         ],
                     ),
                     expand=True,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     bgcolor=ft.Colors.SURFACE,
                     on_click=self._on_select_file,
@@ -250,7 +250,7 @@ class ImagePuzzleSplitView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ORANGE),
             visible=False,
-            margin=ft.margin.only(bottom=PADDING_MEDIUM),
+            margin=ft.Margin.only(bottom=PADDING_MEDIUM),
         )
         
         self.gif_frame_selector: ft.Container = ft.Container(
@@ -281,7 +281,7 @@ class ImagePuzzleSplitView(ft.Container):
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ORANGE),
             visible=False,
-            margin=ft.margin.only(bottom=PADDING_MEDIUM),
+            margin=ft.Margin.only(bottom=PADDING_MEDIUM),
         )
         
         # 参数输入
@@ -464,7 +464,7 @@ class ImagePuzzleSplitView(ft.Container):
         preview_area: ft.Container = ft.Container(
             content=preview_content,
             expand=1,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.SURFACE,
             on_click=self._on_preview_click,
@@ -513,7 +513,7 @@ class ImagePuzzleSplitView(ft.Container):
             ),
             on_click=self._on_generate_preview,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+                padding=ft.Padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
             ),
         )
         
@@ -529,7 +529,7 @@ class ImagePuzzleSplitView(ft.Container):
             on_click=self._on_save_result,
             disabled=True,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+                padding=ft.Padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
             ),
         )
         

@@ -60,7 +60,7 @@ class WindowsUpdateView(ft.Container):
         self.on_back: Optional[callable] = on_back
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -171,7 +171,7 @@ class WindowsUpdateView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -208,7 +208,7 @@ class WindowsUpdateView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(2, ft.Colors.BLUE_200),
+            border=ft.Border.all(2, ft.Colors.BLUE_200),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
         )
@@ -240,7 +240,7 @@ class WindowsUpdateView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -257,7 +257,7 @@ class WindowsUpdateView(ft.Container):
                 ),
                 on_click=self._on_disable_update,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                     bgcolor=ft.Colors.ORANGE_700,
                     color=ft.Colors.WHITE,
@@ -278,7 +278,7 @@ class WindowsUpdateView(ft.Container):
                 ),
                 on_click=self._on_restore_update,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                     bgcolor=ft.Colors.GREEN_700,
                     color=ft.Colors.WHITE,

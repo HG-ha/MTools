@@ -57,7 +57,7 @@ class ICPQueryView(ft.Container):
         self._last_result_data: Optional[Dict[str, Any]] = None
 
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -139,7 +139,7 @@ class ICPQueryView(ft.Container):
             ),
             on_click=self._on_query_click,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
+                padding=ft.Padding.symmetric(horizontal=PADDING_LARGE, vertical=PADDING_MEDIUM),
             ),
         )
 
@@ -179,15 +179,15 @@ class ICPQueryView(ft.Container):
                             if col["align"] == ft.MainAxisAlignment.CENTER
                             else ft.Alignment.CENTER_LEFT
                         ),
-                        padding=ft.padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
+                        padding=ft.Padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
                     )
                     for col in self.columns_config
                 ],
                 spacing=0,
             ),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-            padding=ft.padding.symmetric(vertical=10),
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
+            padding=ft.Padding.symmetric(vertical=10),
+            border=ft.Border.only(bottom=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
         )
 
         self.result_list = ft.ListView(expand=True, spacing=0, padding=0)
@@ -197,7 +197,7 @@ class ICPQueryView(ft.Container):
                 controls=[header_row, self.result_list],
                 spacing=0, expand=True,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             expand=True,
@@ -230,7 +230,7 @@ class ICPQueryView(ft.Container):
         query_settings_container = ft.Container(
             content=query_input_area,
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
 
@@ -462,14 +462,14 @@ class ICPQueryView(ft.Container):
                             if col["align"] == ft.MainAxisAlignment.CENTER
                             else ft.Alignment.CENTER_LEFT
                         ),
-                        padding=ft.padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
+                        padding=ft.Padding.only(left=8) if col["align"] == ft.MainAxisAlignment.START else None,
                     )
                 )
 
             row_container = ft.Container(
                 content=ft.Row(controls=cells, spacing=0),
-                padding=ft.padding.symmetric(vertical=12, horizontal=4),
-                border=ft.border.only(bottom=ft.border.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
+                padding=ft.Padding.symmetric(vertical=12, horizontal=4),
+                border=ft.Border.only(bottom=ft.border.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
                 bgcolor=(
                     ft.Colors.SURFACE if idx % 2 == 0
                     else ft.Colors.with_opacity(0.3, ft.Colors.SURFACE_CONTAINER_HIGHEST)

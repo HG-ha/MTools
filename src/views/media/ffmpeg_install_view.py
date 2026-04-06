@@ -53,7 +53,7 @@ class FFmpegInstallView(ft.Container):
         
         self.expand: bool = True
         # 设置 padding，由视图自己管理间距
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

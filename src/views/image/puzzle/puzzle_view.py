@@ -55,7 +55,7 @@ class ImagePuzzleView(ft.Container):
         self.current_sub_view: Optional[ft.Container] = None
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

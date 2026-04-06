@@ -49,7 +49,7 @@ class RecommendationsView(ft.Container):
         self.on_tool_click_handler: Optional[callable] = on_tool_click
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

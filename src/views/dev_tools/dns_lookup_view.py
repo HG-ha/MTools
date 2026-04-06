@@ -71,7 +71,7 @@ class DnsLookupView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -195,7 +195,7 @@ class DnsLookupView(ft.Container):
                         icon=ft.Icons.PLAY_ARROW,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.padding.symmetric(horizontal=24, vertical=20),
+                            padding=ft.Padding.symmetric(horizontal=24, vertical=20),
                             bgcolor=ft.Colors.PRIMARY,
                             color=ft.Colors.ON_PRIMARY,
                         ),
@@ -206,19 +206,19 @@ class DnsLookupView(ft.Container):
                         icon=ft.Icons.CLEAR,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.padding.symmetric(horizontal=16, vertical=20),
+                            padding=ft.Padding.symmetric(horizontal=16, vertical=20),
                         ),
                         on_click=self._on_clear,
                     ),
                 ],
                 spacing=PADDING_MEDIUM,
             ),
-            padding=ft.padding.symmetric(vertical=10),
+            padding=ft.Padding.symmetric(vertical=10),
         )
         
         # 输入区域
         input_section = ft.Container(
-            padding=ft.padding.only(right=PADDING_SMALL),
+            padding=ft.Padding.only(right=PADDING_SMALL),
             content=ft.Column(
                 controls=[
                     ft.Row(
@@ -253,7 +253,7 @@ class DnsLookupView(ft.Container):
         
         # 输出区域
         output_section = ft.Container(
-            padding=ft.padding.only(left=PADDING_SMALL),
+            padding=ft.Padding.only(left=PADDING_SMALL),
             content=ft.Column(
                 controls=[
                     ft.Row(
@@ -313,7 +313,7 @@ class DnsLookupView(ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                 border_radius=6,
                 alignment=ft.Alignment.CENTER,
-                margin=ft.margin.only(top=40, bottom=6),
+                margin=ft.Margin.only(top=40, bottom=6),
             ),
             mouse_cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT,
             on_pan_start=self._on_divider_pan_start,

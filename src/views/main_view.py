@@ -221,7 +221,7 @@ class MainView(ft.Column):
                 on_click=self._open_settings,
             ),
             alignment=ft.Alignment.CENTER,
-            padding=ft.padding.symmetric(vertical=8),  # 减小垂直padding
+            padding=ft.Padding.symmetric(vertical=8),  # 减小垂直padding
             width=100,  # 与导航栏宽度一致
             bgcolor=ft.Colors.TRANSPARENT,  # 设为透明,与导航栏一致
         )

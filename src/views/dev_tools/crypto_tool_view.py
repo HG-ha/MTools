@@ -34,7 +34,7 @@ class CryptoToolView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -159,7 +159,7 @@ class CryptoToolView(ft.Container):
                         text_size=13,
                         border=ft.InputBorder.NONE,
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     expand=True,
@@ -193,7 +193,7 @@ class CryptoToolView(ft.Container):
                         border=ft.InputBorder.NONE,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
                     ),
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                     padding=PADDING_SMALL,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),

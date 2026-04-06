@@ -226,7 +226,7 @@ class CustomTitleBar(ft.Container):
                 width=_SIZE, height=_SIZE,
                 bgcolor=bg,
                 border_radius=_SIZE / 2,
-                border=ft.border.all(0.5, border_color),
+                border=ft.Border.all(0.5, border_color),
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
             )
             dot_containers.append(dot)
@@ -257,11 +257,11 @@ class CustomTitleBar(ft.Container):
                 if self._mac_is_focused:
                     bg, border_color, _ = self._MAC_COLORS[color_key]
                     dot.bgcolor = bg
-                    dot.border = ft.border.all(0.5, border_color)
+                    dot.border = ft.Border.all(0.5, border_color)
                 else:
                     # 失焦：灰色空心圆
                     dot.bgcolor = self._MAC_INACTIVE_BG
-                    dot.border = ft.border.all(0.5, self._MAC_INACTIVE_BORDER)
+                    dot.border = ft.Border.all(0.5, self._MAC_INACTIVE_BORDER)
 
         def _on_enter(e):
             """鼠标进入整组区域：显示所有符号。"""
@@ -283,7 +283,7 @@ class CustomTitleBar(ft.Container):
                 if self._mac_is_focused:
                     bg, border_color, _ = self._MAC_COLORS[color_key]
                     dot_containers[i].bgcolor = bg
-                    dot_containers[i].border = ft.border.all(0.5, border_color)
+                    dot_containers[i].border = ft.Border.all(0.5, border_color)
             try:
                 self._page.update()
             except Exception:
@@ -295,7 +295,7 @@ class CustomTitleBar(ft.Container):
                 if self._mac_is_focused:
                     _, _, hover_bg = self._MAC_COLORS[color_key]
                     dot_containers[idx].bgcolor = hover_bg
-                    dot_containers[idx].border = ft.border.all(0.5, hover_bg)
+                    dot_containers[idx].border = ft.Border.all(0.5, hover_bg)
                     try:
                         self._page.update()
                     except Exception:
@@ -308,7 +308,7 @@ class CustomTitleBar(ft.Container):
                 if self._mac_is_focused:
                     bg, border_color, _ = self._MAC_COLORS[color_key]
                     dot_containers[idx].bgcolor = bg
-                    dot_containers[idx].border = ft.border.all(0.5, border_color)
+                    dot_containers[idx].border = ft.Border.all(0.5, border_color)
                     try:
                         self._page.update()
                     except Exception:
@@ -336,7 +336,7 @@ class CustomTitleBar(ft.Container):
                     alignment=ft.MainAxisAlignment.START,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.padding.only(left=7, right=10, top=0, bottom=0),
+                padding=ft.Padding.only(left=7, right=10, top=0, bottom=0),
             ),
             on_enter=_on_enter,
             on_exit=_on_exit,
@@ -414,7 +414,7 @@ class CustomTitleBar(ft.Container):
                 spacing=4,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=8),
+            padding=ft.Padding.symmetric(horizontal=8),
             tooltip="天气信息",
             visible=self.show_weather,
             opacity=1.0,
@@ -500,7 +500,7 @@ class CustomTitleBar(ft.Container):
         # ── 配置容器属性 ──
         self.content = title_bar_content
         self.height = 42
-        self.padding = ft.padding.symmetric(horizontal=PADDING_MEDIUM)
+        self.padding = ft.Padding.symmetric(horizontal=PADDING_MEDIUM)
         self.gradient = self._create_gradient()
         self.bgcolor = ft.Colors.with_opacity(0.95, self.theme_color)
         self.gradient = None

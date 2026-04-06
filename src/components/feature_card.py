@@ -64,7 +64,7 @@ class FeatureCard(ft.Container):
         self.click_handler: Optional[Callable] = on_click
         self.gradient_colors: Optional[tuple[str, str]] = gradient_colors
         # 如果没有指定 margin，默认设置四边外边距为 8
-        self.card_margin: Union[int, float, ft.Margin] = margin if margin is not None else ft.margin.only(left=5, right=0, top=5, bottom=10)
+        self.card_margin: Union[int, float, ft.Margin] = margin if margin is not None else ft.Margin.only(left=5, right=0, top=5, bottom=10)
         self.tool_id: Optional[str] = tool_id
         self.is_pinned: bool = is_pinned
         self.on_pin_change: Optional[Callable[[str, bool], None]] = on_pin_change
@@ -265,7 +265,7 @@ class FeatureCard(ft.Container):
                 ],
                 spacing=10,
             ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
             on_click=on_menu_click,
             on_hover=lambda e: self._menu_item_hover(e, menu_item),
             border_radius=8,
@@ -275,7 +275,7 @@ class FeatureCard(ft.Container):
         menu_card = ft.Container(
             content=menu_item,
             bgcolor=ft.Colors.SURFACE,  # 跟随主题
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
             padding=4,
             shadow=ft.BoxShadow(

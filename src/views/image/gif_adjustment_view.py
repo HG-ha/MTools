@@ -87,7 +87,7 @@ class GifAdjustmentView(ft.Container):
         self.pending_file: Optional[Path] = None  # 等待 FFmpeg 安装后要加载的文件
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -106,7 +106,7 @@ class GifAdjustmentView(ft.Container):
         if not is_ffmpeg_available:
             # 只有当有父容器时才显示安装视图，否则显示常规界面但禁用实况图功能
             if self.parent_container:
-                self.padding = ft.padding.all(0)
+                self.padding = ft.Padding.all(0)
                 self.content = FFmpegInstallView(
                     self._page,
                     self.ffmpeg_service,
@@ -182,7 +182,7 @@ class GifAdjustmentView(ft.Container):
         
         preview_container: ft.Container = ft.Container(
             content=preview_stack,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             alignment=ft.Alignment.CENTER,
@@ -236,7 +236,7 @@ class GifAdjustmentView(ft.Container):
         
         cover_preview_container: ft.Container = ft.Container(
             content=cover_preview_stack,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_SMALL,
             alignment=ft.Alignment.CENTER,
@@ -256,7 +256,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -290,7 +290,7 @@ class GifAdjustmentView(ft.Container):
                             ],
                             spacing=4,
                         ),
-                        margin=ft.margin.only(bottom=PADDING_SMALL),
+                        margin=ft.Margin.only(bottom=PADDING_SMALL),
                     ),
                     self.speed_text,
                     self.speed_slider,
@@ -298,7 +298,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -335,7 +335,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -376,7 +376,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -404,7 +404,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -424,7 +424,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -498,7 +498,7 @@ class GifAdjustmentView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
         
@@ -565,7 +565,7 @@ class GifAdjustmentView(ft.Container):
                 on_click=self._on_process,
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -1680,7 +1680,7 @@ class GifAdjustmentView(ft.Container):
         """FFmpeg 安装完成后重建界面。"""
         
         # 重置 padding
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,

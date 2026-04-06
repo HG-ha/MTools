@@ -66,7 +66,7 @@ class ImageBorderView(ft.Container):
         self.border_color: Tuple[int, int, int, int] = (0, 0, 0, 255)  # RGBA
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -133,12 +133,12 @@ class ImageBorderView(ft.Container):
                         ],
                         spacing=8,
                     ),
-                    margin=ft.margin.only(left=4, bottom=4),
+                    margin=ft.Margin.only(left=4, bottom=4),
                 ),
                 ft.Container(
                     content=self.file_list_view,
                     height=240,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                 ),
@@ -245,7 +245,7 @@ class ImageBorderView(ft.Container):
             height=40,
             bgcolor="#000000",
             border_radius=8,
-            border=ft.border.all(2, ft.Colors.OUTLINE),
+            border=ft.Border.all(2, ft.Colors.OUTLINE),
         )
         
         self.color_hex_field = ft.TextField(
@@ -289,7 +289,7 @@ class ImageBorderView(ft.Container):
                 spacing=8,
             ),
             visible=False,
-            margin=ft.margin.only(top=8),
+            margin=ft.Margin.only(top=8),
         )
         
         self.border_options = ft.Container(
@@ -346,7 +346,7 @@ class ImageBorderView(ft.Container):
                 spacing=PADDING_MEDIUM // 2,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             expand=1,
@@ -404,7 +404,7 @@ class ImageBorderView(ft.Container):
                 ],
                 spacing=PADDING_MEDIUM // 2,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
             expand=1,
@@ -423,7 +423,7 @@ class ImageBorderView(ft.Container):
                 spacing=8,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.PRIMARY),
+            border=ft.Border.all(1, ft.Colors.PRIMARY),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY),
             visible=False,
@@ -442,7 +442,7 @@ class ImageBorderView(ft.Container):
                 ),
                 on_click=self._on_process,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -648,7 +648,7 @@ class ImageBorderView(ft.Container):
                             ],
                             spacing=PADDING_MEDIUM // 2,
                         ),
-                        padding=ft.padding.symmetric(vertical=8, horizontal=PADDING_MEDIUM),
+                        padding=ft.Padding.symmetric(vertical=8, horizontal=PADDING_MEDIUM),
                         border_radius=BORDER_RADIUS_MEDIUM,
                         ink=True,
                     )
@@ -809,7 +809,7 @@ class ImageBorderView(ft.Container):
             height=80,
             bgcolor=self._rgb_to_hex(current_r, current_g, current_b),
             border_radius=12,
-            border=ft.border.all(2, ft.Colors.OUTLINE),
+            border=ft.Border.all(2, ft.Colors.OUTLINE),
         )
         
         rgb_text = ft.Text(
@@ -888,7 +888,7 @@ class ImageBorderView(ft.Container):
                                 height=40,
                                 bgcolor=self._rgb_to_hex(*color),
                                 border_radius=8,
-                                border=ft.border.all(2, ft.Colors.OUTLINE),
+                                border=ft.Border.all(2, ft.Colors.OUTLINE),
                                 ink=True,
                                 on_click=lambda e, c=color: self._apply_preset_color(
                                     c, r_slider, g_slider, b_slider, preview_box, rgb_text, hex_text

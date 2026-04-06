@@ -82,7 +82,7 @@ class ScreenRecordView(ft.Container):
         self.window_list: List[Tuple[str, str]] = []  # (window_id, title)
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -450,7 +450,7 @@ class ScreenRecordView(ft.Container):
         # 检查 FFmpeg 是否可用
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -509,7 +509,7 @@ class ScreenRecordView(ft.Container):
                 spacing=PADDING_SMALL,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
         )
@@ -543,7 +543,7 @@ class ScreenRecordView(ft.Container):
             ),
             on_click=self._on_pick_area_click,
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
             ),
         )
         
@@ -607,19 +607,19 @@ class ScreenRecordView(ft.Container):
                                 controls=[
                                     ft.Container(
                                         content=ft.Text("🖥️ 全屏", size=11),
-                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                                         bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                                         border_radius=4,
                                     ),
                                     ft.Container(
                                         content=ft.Text("🪟 窗口", size=11),
-                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                                         bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                                         border_radius=4,
                                     ),
                                     ft.Container(
                                         content=ft.Text("📐 区域", size=11),
-                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                        padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                                         bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                                         border_radius=4,
                                     ),
@@ -650,7 +650,7 @@ class ScreenRecordView(ft.Container):
                     ft.Colors.with_opacity(0.02, ft.Colors.SECONDARY),
                 ],
             ),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY)),
         )
         
         # ===== 音频设置 =====
@@ -762,7 +762,7 @@ class ScreenRecordView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.PRIMARY),
         )
@@ -975,7 +975,7 @@ class ScreenRecordView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.PRIMARY),
         )
@@ -1025,7 +1025,7 @@ class ScreenRecordView(ft.Container):
                 spacing=PADDING_MEDIUM,
             ),
             padding=PADDING_LARGE,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.PRIMARY),
         )
@@ -1052,7 +1052,7 @@ class ScreenRecordView(ft.Container):
                     elevation={"default": 4, "hovered": 8},
                     animation_duration=200,
                     shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=32, vertical=16),
+                    padding=ft.Padding.symmetric(horizontal=32, vertical=16),
                 ),
                 height=60,
             ),
@@ -1066,7 +1066,7 @@ class ScreenRecordView(ft.Container):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=PADDING_MEDIUM,
             ),
-            padding=ft.padding.symmetric(vertical=PADDING_LARGE),
+            padding=ft.Padding.symmetric(vertical=PADDING_LARGE),
         )
         
         # 平台提示
@@ -1088,7 +1088,7 @@ class ScreenRecordView(ft.Container):
                 ],
                 spacing=6,
             ),
-            padding=ft.padding.symmetric(horizontal=PADDING_MEDIUM),
+            padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM),
         )
         
         # 可滚动内容区域
@@ -1867,7 +1867,7 @@ class ScreenRecordView(ft.Container):
                 color=ft.Colors.WHITE,
                 elevation={"default": 2, "hovered": 4},
                 shape=ft.RoundedRectangleBorder(radius=12),
-                padding=ft.padding.symmetric(horizontal=32, vertical=16),
+                padding=ft.Padding.symmetric(horizontal=32, vertical=16),
             )
             self.status_text.value = "● 正在录制..."
             self.status_text.color = ft.Colors.RED
@@ -1905,7 +1905,7 @@ class ScreenRecordView(ft.Container):
                 color=ft.Colors.WHITE,
                 elevation={"default": 4, "hovered": 8},
                 shape=ft.RoundedRectangleBorder(radius=12),
-                padding=ft.padding.symmetric(horizontal=32, vertical=16),
+                padding=ft.Padding.symmetric(horizontal=32, vertical=16),
             )
             self.status_text.value = "准备就绪"
             self.status_text.color = ft.Colors.ON_SURFACE_VARIANT

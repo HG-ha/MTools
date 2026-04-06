@@ -36,7 +36,7 @@ class ColorToolView(ft.Container):
         self._page = page
         self.on_back = on_back
         self.expand = True
-        self.padding = ft.padding.only(
+        self.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -108,7 +108,7 @@ class ColorToolView(ft.Container):
                         height=100,
                         border_radius=8,
                         bgcolor=self.current_color,
-                        border=ft.border.all(2, ft.Colors.OUTLINE),
+                        border=ft.Border.all(2, ft.Colors.OUTLINE),
                     ),
                 ],
                 spacing=5,
@@ -143,7 +143,7 @@ class ColorToolView(ft.Container):
                             alignment=ft.MainAxisAlignment.CENTER,
                         ),
                         height=300,
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=8,
                         alignment=ft.Alignment.CENTER,
                     ),
@@ -151,7 +151,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -181,7 +181,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -222,7 +222,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -263,7 +263,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -310,7 +310,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -330,7 +330,7 @@ class ColorToolView(ft.Container):
                 spacing=5,
             ),
             padding=PADDING_SMALL,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=8,
         )
         
@@ -388,7 +388,7 @@ class ColorToolView(ft.Container):
                     height=40,
                     bgcolor=color,
                     border_radius=4,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     tooltip=color,
                     on_click=lambda e, c=color: self._set_color(c),
                     ink=True,
@@ -709,7 +709,7 @@ class ColorToolView(ft.Container):
                         width=container_width,
                         height=container_height,
                         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
-                        border=ft.border.all(1, ft.Colors.OUTLINE),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE),
                         border_radius=4,
                     ),
                     # 图片（使用 CONTAIN 模式）

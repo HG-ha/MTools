@@ -50,7 +50,7 @@ class ImageToolsInstallView(ft.Container):
         self.on_installed: Optional[callable] = on_installed
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.all(PADDING_LARGE)
+        self.padding: ft.padding = ft.Padding.all(PADDING_LARGE)
         
         # 构建界面
         self._build_ui()
@@ -104,7 +104,7 @@ class ImageToolsInstallView(ft.Container):
                 spacing=PADDING_SMALL // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.BLUE_200),
+            border=ft.Border.all(1, ft.Colors.BLUE_200),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
         )
@@ -179,7 +179,7 @@ class ImageToolsInstallView(ft.Container):
                 spacing=PADDING_SMALL // 2,
             ),
             padding=PADDING_MEDIUM,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
             bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
         )

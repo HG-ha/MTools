@@ -73,7 +73,7 @@ class SubtitleRemoveView(ft.Container):
         self.mask_color: str = self.config_service.get_config_value("video_subtitle_mask_color", "#000000")
         
         self.expand: bool = True
-        self.padding: ft.padding = ft.padding.only(
+        self.padding: ft.padding = ft.Padding.only(
             left=PADDING_MEDIUM,
             right=PADDING_MEDIUM,
             top=PADDING_MEDIUM,
@@ -94,7 +94,7 @@ class SubtitleRemoveView(ft.Container):
         is_ffmpeg_available, _ = self.ffmpeg_service.is_ffmpeg_available()
         if not is_ffmpeg_available:
             # 显示 FFmpeg 安装视图
-            self.padding = ft.padding.all(0)
+            self.padding = ft.Padding.all(0)
             self.content = FFmpegInstallView(
                 self._page,
                 self.ffmpeg_service,
@@ -160,11 +160,11 @@ class SubtitleRemoveView(ft.Container):
                         ],
                         spacing=PADDING_SMALL,
                     ),
-                    padding=ft.padding.only(top=PADDING_SMALL),
+                    padding=ft.Padding.only(top=PADDING_SMALL),
                 ),
                 ft.Container(
                     content=self.file_list_view,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                     border_radius=BORDER_RADIUS_MEDIUM,
                     padding=PADDING_MEDIUM,
                     height=200,
@@ -283,13 +283,13 @@ class SubtitleRemoveView(ft.Container):
                     height=24,
                     bgcolor=self.mask_color,
                     border_radius=4,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.Border.all(1, ft.Colors.OUTLINE),
                 ),
                 ft.Text("选择颜色", size=12),
             ], spacing=PADDING_SMALL),
             on_click=self._show_color_picker,
             ink=True,
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             border_radius=4,
         )
         
@@ -317,7 +317,7 @@ class SubtitleRemoveView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -335,7 +335,7 @@ class SubtitleRemoveView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            padding=ft.padding.only(top=PADDING_SMALL),
+            padding=ft.Padding.only(top=PADDING_SMALL),
         )
         
         # 输出设置
@@ -381,7 +381,7 @@ class SubtitleRemoveView(ft.Container):
                 ],
                 spacing=PADDING_SMALL,
             ),
-            border=ft.border.all(1, ft.Colors.OUTLINE),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=BORDER_RADIUS_MEDIUM,
             padding=PADDING_MEDIUM,
         )
@@ -413,7 +413,7 @@ class SubtitleRemoveView(ft.Container):
                 on_click=lambda _: self._start_processing(),
                 disabled=True,
                 style=ft.ButtonStyle(
-                    padding=ft.padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
+                    padding=ft.Padding.symmetric(horizontal=PADDING_LARGE * 2, vertical=PADDING_LARGE),
                     shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
                 ),
             ),
@@ -432,7 +432,7 @@ class SubtitleRemoveView(ft.Container):
                 self.progress_bar,
                 ft.Container(
                     content=self.process_btn,
-                    padding=ft.padding.only(top=PADDING_MEDIUM),
+                    padding=ft.Padding.only(top=PADDING_MEDIUM),
                 ),
             ],
             spacing=PADDING_LARGE,
@@ -543,7 +543,7 @@ class SubtitleRemoveView(ft.Container):
                     height=40,
                     bgcolor=c,
                     border_radius=4,
-                    border=ft.border.all(2, ft.Colors.OUTLINE if c != self.mask_color else ft.Colors.PRIMARY),
+                    border=ft.Border.all(2, ft.Colors.OUTLINE if c != self.mask_color else ft.Colors.PRIMARY),
                     on_click=lambda e, color=c: on_color_selected(color),
                     ink=True,
                 )
@@ -805,7 +805,7 @@ class SubtitleRemoveView(ft.Container):
         # 选择框覆盖层（用于显示正在绘制的区域）
         selection_box = ft.Container(
             bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.RED),
-            border=ft.border.all(2, ft.Colors.RED),
+            border=ft.Border.all(2, ft.Colors.RED),
             visible=False,
             top=0, left=0, width=0, height=0,
         )
@@ -889,7 +889,7 @@ class SubtitleRemoveView(ft.Container):
                                             value=format_time(start_t),
                                             width=60, height=28,
                                             text_size=10,
-                                            content_padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                            content_padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                                             on_blur=make_time_change_handler(i, 'start_time'),
                                             tooltip="开始时间 (MM:SS)",
                                         ),
@@ -898,7 +898,7 @@ class SubtitleRemoveView(ft.Container):
                                             value=format_time(end_t),
                                             width=60, height=28,
                                             text_size=10,
-                                            content_padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                            content_padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                                             on_blur=make_time_change_handler(i, 'end_time'),
                                             tooltip="结束时间 (MM:SS)",
                                         ),
@@ -910,9 +910,9 @@ class SubtitleRemoveView(ft.Container):
                             spacing=2,
                         ),
                         padding=4,
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                         border_radius=4,
-                        margin=ft.margin.only(bottom=4),
+                        margin=ft.Margin.only(bottom=4),
                     )
                 )
             if not regions_list:
@@ -1008,7 +1008,7 @@ class SubtitleRemoveView(ft.Container):
         gesture_detector = ft.GestureDetector(
             content=ft.Container(
                 content=preview_stack,
-                border=ft.border.all(2, ft.Colors.PRIMARY),
+                border=ft.Border.all(2, ft.Colors.PRIMARY),
                 border_radius=4,
             ),
             on_pan_start=on_pan_start,
@@ -1115,7 +1115,7 @@ class SubtitleRemoveView(ft.Container):
                 spacing=8,
             ),
             width=left_panel_width,
-            padding=ft.padding.only(right=12),
+            padding=ft.Padding.only(right=12),
         )
         
         # 右侧：已标注区域列表
@@ -1139,14 +1139,14 @@ class SubtitleRemoveView(ft.Container):
                             size=10, 
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
-                        padding=ft.padding.only(top=8),
+                        padding=ft.Padding.only(top=8),
                     ),
                 ],
                 spacing=4,
             ),
             width=260,
-            padding=ft.padding.only(left=12),
-            border=ft.border.only(left=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
+            padding=ft.Padding.only(left=12),
+            border=ft.Border.only(left=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
         )
         
         # 主布局：左右分栏
