@@ -35,6 +35,10 @@ BUILD_FLUTTER_DIR = PROJECT_ROOT / "build" / "flutter"
 
 PATCHES = []
 
+_LOCAL_EXTENSIONS = {
+    "flet-gpt-markdown": "extensions/flet-gpt-markdown",
+}
+
 
 def register_patch(fn):
     PATCHES.append(fn)
@@ -128,13 +132,45 @@ def patch_icon_selection(build_dir: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Patch 3: 修复扩展包 Flutter 代码缺失
+# ---------------------------------------------------------------------------
+@register_patch
+def patch_flutter_packages(build_dir: Path) -> bool:
+    """
+    serious_python 的 cleanup-packages 可能删除扩展包中的 Dart 源文件。
+    如果 build/flutter-packages/ 下的扩展目录缺少 lib/ 文件，
+    从本地扩展源码重新复制。
+    """
+    flutter_pkgs_dir = build_dir.parent / "flutter-packages"
+    if not flutter_pkgs_dir.exists():
+        return False
+
+    any_fixed = False
+    for pkg_name, rel_path in _LOCAL_EXTENSIONS.items():
+        pkg_dart_name = pkg_name.replace("-", "_")
+        target_dir = flutter_pkgs_dir / pkg_dart_name
+        source_dir = PROJECT_ROOT / rel_path / "src" / "flutter" / pkg_dart_name
+
+        if not source_dir.exists():
+            continue
+
+        dart_entry = target_dir / "lib" / f"{pkg_dart_name}.dart"
+        if target_dir.exists() and dart_entry.exists():
+            print(f"  [patch] {pkg_dart_name} Flutter 代码: 完整，跳过")
+            continue
+
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+        shutil.copytree(source_dir, target_dir)
+        print(f"  [patch] {pkg_dart_name} Flutter 代码: 已从源码复制 ✓")
+        any_fixed = True
+
+    return any_fixed
+
+
+# ---------------------------------------------------------------------------
 # Pre-build: 解析 pyproject.toml 中的路径变量
 # ---------------------------------------------------------------------------
-_LOCAL_EXTENSIONS = {
-    "flet-gpt-markdown": "extensions/flet-gpt-markdown",
-}
-
-
 def _resolve_pyproject_paths() -> str | None:
     """
     将 pyproject.toml 中的本地扩展包名替换为 pip 可识别的 file:/// 绝对路径。
