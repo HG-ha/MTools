@@ -162,7 +162,11 @@ def patch_flutter_packages(build_dir: Path) -> bool:
         if target_dir.exists():
             shutil.rmtree(target_dir)
         shutil.copytree(source_dir, target_dir)
-        print(f"  [patch] {pkg_dart_name} Flutter 代码: 已从源码复制 ✓")
+        # 验证复制结果
+        copied_files = [str(p.relative_to(target_dir)) for p in target_dir.rglob("*") if p.is_file()]
+        print(f"  [patch] {pkg_dart_name} Flutter 代码: 已从源码复制 ✓ ({len(copied_files)} 个文件)")
+        for f in copied_files:
+            print(f"    - {f}")
         any_fixed = True
 
     return any_fixed
@@ -305,11 +309,21 @@ def retry_flutter_build(build_dir: Path, original_args: list[str]) -> int:
     else:
         print("⚠️  build/site-packages 不存在，Python 依赖可能不会被打包！")
 
-    # 需要清除 CMake 缓存，否则旧的 CMake 配置不会感知到我们的修补
-    cmake_cache = build_dir / "build" / "windows" / "x64"
-    if cmake_cache.exists():
-        print("清除 CMake 缓存以应用修补...")
-        shutil.rmtree(cmake_cache)
+    # 清除构建缓存，否则编译器可能使用旧的缓存结果
+    cache_dirs = [
+        build_dir / "build" / "windows" / "x64",          # Windows CMake 缓存
+        build_dir / "build" / "macos" / "Build",           # macOS Xcode 构建缓存
+        build_dir / "build" / "linux" / "x64",             # Linux CMake 缓存
+    ]
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            print(f"清除构建缓存: {cache_dir.name}...")
+            shutil.rmtree(cache_dir)
+
+    # 重新获取 Flutter 依赖以确保扩展包被正确解析
+    pub_get_cmd = [str(flutter_bin), "pub", "get", "--no-version-check", "--suppress-analytics"]
+    print(f"命令: {' '.join(pub_get_cmd)}")
+    subprocess.run(pub_get_cmd, cwd=str(build_dir), env=env)
 
     print(f"命令: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=str(build_dir), env=env)
