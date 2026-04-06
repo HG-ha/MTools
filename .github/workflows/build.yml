@@ -179,15 +179,9 @@ jobs:
         if: runner.os == 'macOS'
         run: rm -f src/assets/icon.ico
 
-      - name: Build with Flet (Windows - with patches)
-        if: runner.os == 'Windows'
+      - name: Build with Flet
         run: |
           python flet_build.py ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
-
-      - name: Build with Flet (macOS/Linux)
-        if: runner.os != 'Windows'
-        run: |
-          flet build ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
       
       - name: Bundle pywin32 runtime files (Windows)
         if: runner.os == 'Windows'
