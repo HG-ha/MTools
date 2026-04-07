@@ -321,7 +321,8 @@ def retry_flutter_build(build_dir: Path, original_args: list[str]) -> int:
             shutil.rmtree(cache_dir)
 
     # 重新获取 Flutter 依赖以确保扩展包被正确解析
-    pub_get_cmd = [str(flutter_bin), "pub", "get", "--no-version-check", "--suppress-analytics"]
+    # --no-version-check 和 --suppress-analytics 是 flutter 顶级参数，必须放在子命令之前
+    pub_get_cmd = [str(flutter_bin), "--no-version-check", "--suppress-analytics", "pub", "get"]
     print(f"命令: {' '.join(pub_get_cmd)}")
     subprocess.run(pub_get_cmd, cwd=str(build_dir), env=env)
 
