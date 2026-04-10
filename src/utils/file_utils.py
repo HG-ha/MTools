@@ -22,13 +22,18 @@ if TYPE_CHECKING:
 def is_packaged_app() -> bool:
     """判断当前程序是否为打包后的可执行文件。
     
-    通过检查程序文件扩展名是否为 .exe 来判断。
+    Windows: 检查 .exe 后缀。
+    macOS: 检查可执行文件是否在 .app bundle 内。
     
     Returns:
         如果是打包的程序返回 True，否则返回 False
     """
     exe_path = Path(sys.argv[0])
-    return exe_path.suffix.lower() == '.exe'
+    if exe_path.suffix.lower() == '.exe':
+        return True
+    if sys.platform == "darwin" and ".app/" in str(Path(sys.executable).resolve()):
+        return True
+    return False
 
 
 def get_app_root() -> Path:
@@ -531,6 +536,30 @@ def get_desktop_path() -> Optional[Path]:
     except Exception as e:
         logger.error(f"获取桌面路径失败: {e}")
         return None
+
+
+def check_macos_applications_install() -> bool:
+    """检查 macOS app 是否在 /Applications 或 ~/Applications 下运行。
+
+    非 macOS 或非打包环境返回 True（表示不需要提示）。
+
+    Returns:
+        在 Applications 目录内返回 True，否则返回 False
+    """
+    if sys.platform != "darwin" or not is_packaged_app():
+        return True
+
+    try:
+        exe_resolved = str(Path(sys.executable).resolve())
+        home_apps = str(Path.home() / "Applications")
+        if exe_resolved.startswith("/Applications/") or exe_resolved.startswith(home_apps):
+            logger.debug(f"macOS: 应用在 Applications 内运行: {exe_resolved}")
+            return True
+        logger.info(f"macOS: 应用不在 Applications 目录: {exe_resolved}")
+        return False
+    except Exception as e:
+        logger.error(f"检查 macOS Applications 安装位置失败: {e}")
+        return True
 
 
 def check_desktop_shortcut() -> bool:

@@ -184,15 +184,18 @@ class AutoUpdater:
         try:
             # 获取当前应用目录
             if _is_packaged_app():
-                # 打包后的应用：使用可执行文件所在目录
                 app_dir = Path(sys.executable).parent
+                # macOS: 向上找到 .app bundle 根目录
+                if sys.platform == "darwin":
+                    app_dir = self._find_macos_app_bundle()
             else:
-                # 开发环境（Python 解释器）：使用当前工作目录
                 app_dir = Path(os.getcwd())
             
             # 创建更新脚本
             if platform.system() == 'Windows':
                 self._create_windows_update_script(extract_dir, app_dir, exit_callback)
+            elif sys.platform == 'darwin':
+                self._create_macos_update_script(extract_dir, app_dir, exit_callback)
             else:
                 self._create_unix_update_script(extract_dir, app_dir, exit_callback)
             
@@ -222,6 +225,41 @@ class AutoUpdater:
                 for exe in child.glob("*.exe"):
                     return exe
 
+        return None
+
+    @staticmethod
+    def _find_macos_app_bundle() -> Path:
+        """定位当前运行的 macOS .app bundle 根目录。
+
+        优先使用 NSBundle（macOS 原生 API），回退到遍历 sys.executable 的
+        父路径查找 .app 后缀目录。
+        """
+        # 方式 1: NSBundle（最可靠，不受重命名/移动影响）
+        try:
+            from Foundation import NSBundle
+            bundle_path = NSBundle.mainBundle().bundlePath()
+            if bundle_path and bundle_path.endswith(".app"):
+                return Path(bundle_path)
+        except Exception:
+            pass
+
+        # 方式 2: 遍历父路径
+        for parent in Path(sys.executable).resolve().parents:
+            if parent.suffix == ".app":
+                return parent
+
+        # 兜底：返回可执行文件所在目录
+        return Path(sys.executable).parent
+
+    @staticmethod
+    def _find_app_in_extract(search_dir: Path) -> Optional[Path]:
+        """在解压目录中查找 macOS .app bundle。
+
+        递归搜索含 Contents/MacOS 子目录的 .app 目录。
+        """
+        for d in search_dir.rglob("*.app"):
+            if d.is_dir() and (d / "Contents" / "MacOS").exists():
+                return d
         return None
 
     @staticmethod
@@ -510,8 +548,90 @@ exit /b 0
         # 使用 os._exit 而不是 sys.exit，确保立即退出，不执行清理
         os._exit(0)
     
+    def _create_macos_update_script(
+        self,
+        source_dir: Path,
+        target_app: Path,
+        exit_callback: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """创建 macOS 专用更新脚本（整包替换 .app bundle）。
+
+        Args:
+            source_dir: 解压后的更新文件目录
+            target_app: 当前 .app bundle 路径（如 /Applications/MTools.app）
+            exit_callback: 自定义退出回调函数
+        """
+        new_app = self._find_app_in_extract(source_dir)
+        if not new_app:
+            raise Exception("更新包中未找到 .app bundle")
+
+        install_dir = target_app.parent  # e.g. /Applications
+        app_name = target_app.name       # e.g. MTools.app
+
+        needs_admin = str(target_app).startswith("/Applications/")
+
+        script_path = source_dir.parent / "update_macos.sh"
+
+        core_cmds = f'''
+echo "[2/5] 删除旧版本..."
+rm -rf "{target_app}" || {{ echo "删除旧版本失败"; exit 1; }}
+
+echo "[3/5] 安装新版本..."
+cp -R "{new_app}" "{install_dir}/{app_name}" || {{ echo "复制新版本失败"; exit 1; }}
+
+echo "[4/5] 清除隔离属性..."
+xattr -cr "{install_dir}/{app_name}" 2>/dev/null || true
+'''
+
+        script_content = f'''#!/bin/bash
+echo "========================================"
+echo "MTools macOS 自动更新"
+echo "========================================"
+echo ""
+echo "[1/5] 等待主程序退出..."
+sleep 3
+
+# 终止残留进程
+pkill -f "{target_app.stem}" 2>/dev/null || true
+sleep 1
+{core_cmds}
+echo "[5/5] 清理临时文件..."
+rm -rf "{source_dir.parent}" 2>/dev/null || true
+
+echo ""
+echo "更新完成！正在启动新版本..."
+open "{install_dir}/{app_name}"
+
+rm -f "$0" 2>/dev/null || true
+exit 0
+'''
+
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(script_content)
+        os.chmod(script_path, 0o755)
+
+        if needs_admin:
+            # 通过 osascript 以管理员权限执行更新脚本
+            subprocess.Popen([
+                'osascript', '-e',
+                f'do shell script "bash \\"{script_path}\\"" '
+                f'with administrator privileges',
+            ], start_new_session=True)
+        else:
+            subprocess.Popen(['/bin/bash', str(script_path)], start_new_session=True)
+
+        # 退出当前应用
+        if exit_callback:
+            try:
+                exit_callback()
+            except Exception as e:
+                logger.warning(f"自定义退出回调失败: {e}，使用强制退出")
+                self._force_exit_application()
+        else:
+            self._force_exit_application()
+
     def _create_unix_update_script(self, source_dir: Path, target_dir: Path, exit_callback: Optional[Callable[[], None]] = None) -> None:
-        """创建 Unix/Linux/macOS 更新脚本。
+        """创建 Unix/Linux 更新脚本。
         
         Args:
             source_dir: 更新文件源目录

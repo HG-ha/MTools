@@ -424,11 +424,16 @@ def is_admin() -> bool:
 
 
 def request_admin_restart() -> bool:
-    """请求以管理员身份重新启动程序（仅 Windows）。
-    
+    """请求以管理员身份重新启动程序。
+
+    Windows: 通过 UAC 提权重启。
+    macOS: 通过 osascript 以管理员权限重新打开 .app。
+
     Returns:
         True 如果成功请求重启（程序将退出），False 如果失败或用户取消
     """
+    if sys.platform == "darwin":
+        return _request_admin_restart_macos()
     if sys.platform != "win32":
         return False
     
@@ -469,5 +474,42 @@ def request_admin_restart() -> bool:
         else:
             return False
             
+    except Exception:
+        return False
+
+
+def _request_admin_restart_macos() -> bool:
+    """macOS: 通过 osascript 以管理员权限重新打开 .app bundle。"""
+    import subprocess
+    from pathlib import Path
+
+    try:
+        # 找到 .app bundle 路径
+        try:
+            from Foundation import NSBundle
+            bundle = NSBundle.mainBundle().bundlePath()
+            if bundle and bundle.endswith(".app"):
+                app_path = bundle
+            else:
+                raise ValueError("NSBundle 未返回有效 .app 路径")
+        except Exception:
+            app_path = None
+            for parent in Path(sys.executable).resolve().parents:
+                if parent.suffix == ".app":
+                    app_path = str(parent)
+                    break
+
+        if not app_path:
+            return False
+
+        subprocess.Popen([
+            'osascript', '-e',
+            f'do shell script "open \\"{app_path}\\"" '
+            f'with administrator privileges',
+        ], start_new_session=True)
+
+        import os
+        os._exit(0)
+        return True
     except Exception:
         return False

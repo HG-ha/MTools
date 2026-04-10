@@ -176,8 +176,9 @@ def main(page: ft.Page) -> None:
     # if auto_check:
     #     _check_update_on_startup(page, config_service)
     
-    # 检查桌面快捷方式（延迟执行，避免阻塞启动）
+    # 检查桌面快捷方式 / macOS Applications 安装（延迟执行，避免阻塞启动）
     _check_desktop_shortcut(page, config_service)
+    _check_macos_applications(page, config_service)
     
     # 监听窗口事件（移动和调整大小时自动保存）
     def on_window_event(e):
@@ -562,6 +563,73 @@ def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> Non
     # 在后台线程中执行检查
     thread = threading.Thread(target=check_shortcut_task, daemon=True)
     thread.start()
+
+
+def _check_macos_applications(page: ft.Page, config_service: ConfigService) -> None:
+    """macOS: 检查应用是否在 /Applications 下运行，否则提示用户移动。"""
+    import sys
+    if sys.platform != "darwin":
+        return
+
+    import threading
+    import time
+    from utils.file_utils import check_macos_applications_install
+
+    def check_task():
+        try:
+            time.sleep(3)
+
+            if check_macos_applications_install():
+                return
+
+            if config_service.get_config_value("never_show_applications_prompt", False):
+                logger.debug("用户已选择不再提示 Applications 安装")
+                return
+
+            last_prompt = config_service.get_config_value("last_applications_prompt_time", 0)
+            if time.time() - last_prompt < 86400:
+                logger.debug("24h 内已提示过 Applications 安装")
+                return
+
+            config_service.set_config_value("last_applications_prompt_time", time.time())
+
+            never_show_cb = ft.Checkbox(label="不再提示", value=False)
+
+            def on_ok(e):
+                if never_show_cb.value:
+                    config_service.set_config_value("never_show_applications_prompt", True)
+                page.pop_dialog()
+
+            dialog = ft.AlertDialog(
+                modal=False,
+                title=ft.Text("建议安装到 Applications"),
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "当前 MTools 不在 Applications 文件夹中运行。\n\n"
+                            "建议将 MTools.app 拖动到 /Applications 文件夹，"
+                            "以获得更好的体验：\n"
+                            "  • 可在 Dock 中固定\n"
+                            "  • 支持 Spotlight 搜索\n"
+                            "  • 系统更新更兼容",
+                        ),
+                        never_show_cb,
+                    ],
+                    tight=True,
+                    spacing=12,
+                ),
+                actions=[
+                    ft.TextButton("我知道了", on_click=on_ok),
+                ],
+            )
+            page.show_dialog(dialog)
+
+        except Exception as e:
+            import traceback
+            logger.error(f"检查 macOS Applications 安装失败: {e}")
+            logger.error(traceback.format_exc())
+
+    threading.Thread(target=check_task, daemon=True).start()
 
 
 def _check_and_fix_auto_start(config_service: ConfigService) -> None:

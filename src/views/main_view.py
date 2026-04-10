@@ -1052,11 +1052,12 @@ class MainView(ft.Column):
         # 定义按钮事件处理
         def on_auto_update(e):
             """自动更新"""
+            import sys as _sys
             from utils import is_admin, request_admin_restart
-            
-            # 检查是否以管理员身份运行
-            if not is_admin():
-                # 显示提示对话框
+
+            # macOS: 更新脚本通过 osascript 自行提权，无需预先检查管理员
+            # Windows: 需要 UAC 提权
+            if _sys.platform != "darwin" and not is_admin():
                 admin_dialog = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("需要管理员权限"),
@@ -1111,7 +1112,7 @@ class MainView(ft.Column):
                                 progress_bar.value = progress
                                 downloaded_mb = downloaded / 1024 / 1024
                                 total_mb = total / 1024 / 1024
-                                progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)  如果更新失败请尝试管理员权限运行程序"
+                                progress_text.value = f"下载中: {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress*100:.0f}%)"
                                 self._page.update()
                             try:
                                 self._page.run_task(_update_dl_progress)
