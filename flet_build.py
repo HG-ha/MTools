@@ -225,6 +225,12 @@ def run_flet_build(args: list[str]) -> int:
     print(f"命令: flet build {' '.join(args)}")
     print()
 
+    # 清除上次构建残留，防止 flet build 误判 site-packages 已就绪而跳过安装
+    build_dir = PROJECT_ROOT / "build"
+    if build_dir.exists():
+        print("清除上次构建残留 build/ ...")
+        shutil.rmtree(build_dir)
+
     original_pyproject = _resolve_pyproject_paths()
     try:
         return _do_build(cmd, args)

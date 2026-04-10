@@ -1234,7 +1234,7 @@ class MainView(ft.Column):
 
         if has_bg:
             if cs.get_config_value("bg_titlebar_transparent", True):
-                t_op = cs.get_config_value("bg_titlebar_opacity", 0.45)
+                t_op = cs.get_config_value("bg_titlebar_opacity", 0.55)
             else:
                 t_op = 0.95
             self.title_bar.bgcolor = ft.Colors.with_opacity(
@@ -1242,7 +1242,7 @@ class MainView(ft.Column):
             )
 
             if cs.get_config_value("bg_navbar_transparent", True):
-                n_op = cs.get_config_value("bg_navbar_opacity", 0.55)
+                n_op = cs.get_config_value("bg_navbar_opacity", 0.25)
             else:
                 n_op = 1.0
             self.navigation_container.bgcolor = ft.Colors.with_opacity(
@@ -1250,7 +1250,7 @@ class MainView(ft.Column):
             )
 
             if cs.get_config_value("bg_content_transparent", True):
-                c_op = cs.get_config_value("bg_content_opacity", 0.75)
+                c_op = cs.get_config_value("bg_content_opacity", 0.10)
             else:
                 c_op = 1.0
             self.content_bg.bgcolor = ft.Colors.with_opacity(

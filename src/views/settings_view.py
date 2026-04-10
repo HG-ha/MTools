@@ -1447,11 +1447,11 @@ class SettingsView(ft.Container):
         )
         self._bg_titlebar_slider = ft.Slider(
             min=0.1, max=0.9, divisions=16,
-            value=self.config_service.get_config_value("bg_titlebar_opacity", 0.45),
+            value=self.config_service.get_config_value("bg_titlebar_opacity", 0.55),
             on_change=self._on_bg_titlebar_opacity,
         )
         self._bg_titlebar_label = ft.Text(
-            f"{int(self.config_service.get_config_value('bg_titlebar_opacity', 0.45) * 100)}%",
+            f"{int(self.config_service.get_config_value('bg_titlebar_opacity', 0.55) * 100)}%",
             size=12, width=40, text_align=ft.TextAlign.END,
         )
 
@@ -1462,11 +1462,11 @@ class SettingsView(ft.Container):
         )
         self._bg_navbar_slider = ft.Slider(
             min=0.1, max=0.9, divisions=16,
-            value=self.config_service.get_config_value("bg_navbar_opacity", 0.55),
+            value=self.config_service.get_config_value("bg_navbar_opacity", 0.25),
             on_change=self._on_bg_navbar_opacity,
         )
         self._bg_navbar_label = ft.Text(
-            f"{int(self.config_service.get_config_value('bg_navbar_opacity', 0.55) * 100)}%",
+            f"{int(self.config_service.get_config_value('bg_navbar_opacity', 0.25) * 100)}%",
             size=12, width=40, text_align=ft.TextAlign.END,
         )
 
@@ -1477,11 +1477,11 @@ class SettingsView(ft.Container):
         )
         self._bg_content_slider = ft.Slider(
             min=0.1, max=0.9, divisions=16,
-            value=self.config_service.get_config_value("bg_content_opacity", 0.75),
+            value=self.config_service.get_config_value("bg_content_opacity", 0.10),
             on_change=self._on_bg_content_opacity,
         )
         self._bg_content_label = ft.Text(
-            f"{int(self.config_service.get_config_value('bg_content_opacity', 0.75) * 100)}%",
+            f"{int(self.config_service.get_config_value('bg_content_opacity', 0.10) * 100)}%",
             size=12, width=40, text_align=ft.TextAlign.END,
         )
 
