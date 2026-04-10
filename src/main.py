@@ -10,6 +10,7 @@
 # 补丁，请勿删除
 from utils import patch  # noqa: F401
 import sys
+import threading
 import flet as ft
 
 from constants import (
@@ -48,38 +49,43 @@ def main(page: ft.Page) -> None:
     saved_font = config_service.get_config_value("font_family", "System")
     saved_theme_color = config_service.get_config_value("theme_color", PRIMARY_COLOR)
     saved_theme_mode = config_service.get_config_value("theme_mode", "system")
-    saved_left = config_service.get_config_value("window_left")
-    saved_top = config_service.get_config_value("window_top")
-    saved_width = config_service.get_config_value("window_width")
-    saved_height = config_service.get_config_value("window_height")
-    saved_maximized = config_service.get_config_value("window_maximized", False)
-    
+    _is_macos = sys.platform == "darwin"
+
     # 配置页面属性
     page.title = APP_TITLE
     
-    # Flet 1.0 中 window.icon 已移除，窗口图标由 assets_dir 中的图标文件和 app bundle 提供
+    # 隐藏系统标题栏
+    page.window.title_bar_hidden = True
+    if _is_macos:
+        # macOS: 保留原生交通灯按钮，外观更一致
+        page.window.title_bar_buttons_hidden = False
+    else:
+        page.window.title_bar_buttons_hidden = True
     
     # 设置窗口最小大小
     page.window.min_width = WINDOW_WIDTH
     page.window.min_height = WINDOW_HEIGHT
     
-    # 先设置窗口大小（使用保存的大小或默认大小）
-    page.window.width = saved_width if saved_width is not None else WINDOW_WIDTH
-    page.window.height = saved_height if saved_height is not None else WINDOW_HEIGHT
-    
-    # 恢复窗口位置（如果有保存的位置）
-    # 先移动到上次的位置，这样最大化时会在正确的显示器上
-    if saved_left is not None and saved_top is not None:
-        page.window.left = saved_left
-        page.window.top = saved_top
-    
-    # 隐藏系统标题栏，使用自定义标题栏（必须在设置最大化之前）
-    page.window.title_bar_hidden = True
-    page.window.title_bar_buttons_hidden = True
-    
-    # 最后应用最大化状态（如果上次是最大化）
-    if saved_maximized:
-        page.window.maximized = True
+    if _is_macos:
+        # macOS 由系统 NSWindow 自动记忆窗口位置和大小，不手动干预
+        page.window.width = WINDOW_WIDTH
+        page.window.height = WINDOW_HEIGHT
+    else:
+        saved_left = config_service.get_config_value("window_left")
+        saved_top = config_service.get_config_value("window_top")
+        saved_width = config_service.get_config_value("window_width")
+        saved_height = config_service.get_config_value("window_height")
+        saved_maximized = config_service.get_config_value("window_maximized", False)
+
+        page.window.width = saved_width if saved_width is not None else WINDOW_WIDTH
+        page.window.height = saved_height if saved_height is not None else WINDOW_HEIGHT
+
+        if saved_left is not None and saved_top is not None:
+            page.window.left = saved_left
+            page.window.top = saved_top
+
+        if saved_maximized:
+            page.window.maximized = True
     
     # 设置浅色主题 - 使用用户选择的主题色或默认色
     page.theme = ft.Theme(
@@ -180,27 +186,23 @@ def main(page: ft.Page) -> None:
     _check_desktop_shortcut(page, config_service)
     _check_macos_applications(page, config_service)
     
-    # 监听窗口事件（移动和调整大小时自动保存）
+    # 监听窗口事件
     def on_window_event(e):
         """处理窗口事件。"""
-        # 窗口移动时保存位置（只在非最大化时保存）
-        if e.data == "moved":
-            if not page.window.maximized:
-                if page.window.left is not None and page.window.top is not None:
-                    config_service.set_config_value("window_left", page.window.left)
-                    config_service.set_config_value("window_top", page.window.top)
-        # 窗口大小改变时保存大小和最大化状态
-        elif e.data == "resized":
-            # 保存最大化状态
-            config_service.set_config_value("window_maximized", page.window.maximized)
-            
-            # 只在非最大化时保存窗口大小
-            if not page.window.maximized:
-                if page.window.width is not None and page.window.height is not None:
-                    config_service.set_config_value("window_width", page.window.width)
-                    config_service.set_config_value("window_height", page.window.height)
-        # 窗口聚焦/失焦时更新 macOS 交通灯外观
-        elif e.data in ("focus", "blur"):
+        if not _is_macos:
+            if e.data == "moved":
+                if not page.window.maximized:
+                    if page.window.left is not None and page.window.top is not None:
+                        config_service.set_config_value("window_left", page.window.left)
+                        config_service.set_config_value("window_top", page.window.top)
+            elif e.data == "resized":
+                config_service.set_config_value("window_maximized", page.window.maximized)
+                if not page.window.maximized:
+                    if page.window.width is not None and page.window.height is not None:
+                        config_service.set_config_value("window_width", page.window.width)
+                        config_service.set_config_value("window_height", page.window.height)
+
+        if e.data in ("focus", "blur"):
             try:
                 if hasattr(main_view, 'title_bar') and main_view.title_bar:
                     main_view.title_bar.set_window_focused(e.data == "focus")
@@ -593,34 +595,29 @@ def _check_macos_applications(page: ft.Page, config_service: ConfigService) -> N
 
             config_service.set_config_value("last_applications_prompt_time", time.time())
 
-            never_show_cb = ft.Checkbox(label="不再提示", value=False)
-
             def on_ok(e):
-                if never_show_cb.value:
-                    config_service.set_config_value("never_show_applications_prompt", True)
+                page.pop_dialog()
+
+            def on_never(e):
+                config_service.set_config_value("never_show_applications_prompt", True)
                 page.pop_dialog()
 
             dialog = ft.AlertDialog(
                 modal=False,
                 title=ft.Text("建议安装到 Applications"),
-                content=ft.Column(
-                    controls=[
-                        ft.Text(
-                            "当前 MTools 不在 Applications 文件夹中运行。\n\n"
-                            "建议将 MTools.app 拖动到 /Applications 文件夹，"
-                            "以获得更好的体验：\n"
-                            "  • 可在 Dock 中固定\n"
-                            "  • 支持 Spotlight 搜索\n"
-                            "  • 系统更新更兼容",
-                        ),
-                        never_show_cb,
-                    ],
-                    tight=True,
-                    spacing=12,
+                content=ft.Text(
+                    "当前 MTools 不在 Applications 文件夹中运行。\n\n"
+                    "建议将 MTools.app 拖动到 /Applications 文件夹，"
+                    "以获得更好的体验：\n"
+                    "  • 可在 Dock 中固定\n"
+                    "  • 支持 Spotlight 搜索\n"
+                    "  • 系统更新更兼容",
                 ),
                 actions=[
+                    ft.TextButton("不再提示", on_click=on_never),
                     ft.TextButton("我知道了", on_click=on_ok),
                 ],
+                actions_alignment=ft.MainAxisAlignment.END,
             )
             page.show_dialog(dialog)
 

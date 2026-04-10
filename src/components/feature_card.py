@@ -63,8 +63,7 @@ class FeatureCard(ft.Container):
         self.card_description: str = description
         self.click_handler: Optional[Callable] = on_click
         self.gradient_colors: Optional[tuple[str, str]] = gradient_colors
-        # 如果没有指定 margin，默认设置四边外边距为 8
-        self.card_margin: Union[int, float, ft.Margin] = margin if margin is not None else ft.Margin.only(left=5, right=0, top=5, bottom=10)
+        self.card_margin: Union[int, float, ft.Margin] = margin if margin is not None else 0
         self.tool_id: Optional[str] = tool_id
         self.is_pinned: bool = is_pinned
         self.on_pin_change: Optional[Callable[[str, bool], None]] = on_pin_change
@@ -145,72 +144,60 @@ class FeatureCard(ft.Container):
                 ft.Container(height=PADDING_MEDIUM // 2),
                 description_text,
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.START,  # 改为左对齐
+            horizontal_alignment=ft.CrossAxisAlignment.START,
             spacing=0,
         )
         
-        # 内部卡片容器
-        inner_card = ft.Container(
+        # padding 放在内容包装器上（而非 FeatureCard 自身），
+        # 确保 ink=True 的 Material 表面覆盖整个卡片区域
+        padded_content = ft.Container(
             content=card_content,
             padding=PADDING_LARGE,
-            width=280,
-            height=220,
-            border_radius=BORDER_RADIUS_LARGE,
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=3,
-                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
-                offset=ft.Offset(0, 4),
-            ),
-            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-            ink=True if self.click_handler else False,
-            on_click=self.click_handler,
-            on_hover=self._on_hover,
         )
-        self._inner_card = inner_card  # 保存引用用于悬停效果
-        
-        # 如果有 tool_id，用 GestureDetector 包装以支持右键菜单
+
         if self.tool_id:
             self.content = ft.GestureDetector(
-                content=inner_card,
+                content=padded_content,
                 on_secondary_tap_up=self._on_right_click,
             )
         else:
-            self.content = inner_card
+            self.content = padded_content
         
-        # 配置外层容器属性
-        self.margin = self.card_margin
+        # 所有视觉样式直接在 FeatureCard 自身（单层容器）
         self.width = 280
         self.height = 220
+        self.border_radius = BORDER_RADIUS_LARGE
+        self.shadow = ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=3,
+            color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+            offset=ft.Offset(0, 4),
+        )
+        self.animate = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+        self.animate_scale = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+        self.ink = True if self.click_handler else False
+        self.on_click = self.click_handler
+        self.on_hover = self._on_hover
+        self.margin = self.card_margin
     
     def _on_hover(self, e: ft.HoverEvent) -> None:
-        """悬停事件处理。
-        
-        Args:
-            e: 悬停事件对象
-        """
-        card = self._inner_card
+        """悬停事件处理。"""
         if e.data == "true":
-            # 鼠标悬停
-            card.scale = 1.02
-            card.shadow = ft.BoxShadow(
+            self.scale = 1.02
+            self.shadow = ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=5,
                 color=ft.Colors.with_opacity(0.12, ft.Colors.BLACK),
                 offset=ft.Offset(0, 3),
             )
         else:
-            # 鼠标离开
-            card.scale = 1.0
-            card.shadow = ft.BoxShadow(
+            self.scale = 1.0
+            self.shadow = ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=3,
                 color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
                 offset=ft.Offset(0, 1),
             )
-        
-        # 安全更新：使用page.update()而不是self.update()
         if self.page:
             self.page.update()
     

@@ -201,7 +201,7 @@ class TranslateView(ft.Container):
         )
         
         # 翻译按钮
-        self.translate_btn: ft.ElevatedButton = ft.ElevatedButton(
+        self.translate_btn: ft.Button = ft.Button(
             content="翻译",
             icon=ft.Icons.TRANSLATE,
             on_click=self._on_translate,

@@ -367,26 +367,25 @@ class CustomTitleBar(ft.Container):
         is_mac = sys.platform == "darwin"
 
         # ── 拖拽区域：应用图标 + 标题 ──
+        # ── 拖拽区域：标题（macOS 不显示图标） ──
+        title_controls = []
+        if not is_mac:
+            title_controls.append(ft.Image(
+                src=_get_icon_path(),
+                width=22, height=22,
+                fit=ft.BoxFit.CONTAIN,
+            ))
+            title_controls.append(ft.Container(width=PADDING_SMALL))
+        title_controls.append(ft.Text(
+            APP_TITLE,
+            size=14,
+            weight=ft.FontWeight.W_500,
+            color=ft.Colors.WHITE,
+        ))
+
         drag_area: ft.WindowDragArea = ft.WindowDragArea(
             content=ft.GestureDetector(
-                content=ft.Row(
-                    controls=[
-                        ft.Image(
-                            src=_get_icon_path(),
-                            width=22,
-                            height=22,
-                            fit=ft.BoxFit.CONTAIN,
-                        ),
-                        ft.Container(width=PADDING_SMALL),
-                        ft.Text(
-                            APP_TITLE,
-                            size=14,
-                            weight=ft.FontWeight.W_500,
-                            color=ft.Colors.WHITE,
-                        ),
-                    ],
-                    spacing=0,
-                ),
+                content=ft.Row(controls=title_controls, spacing=0),
                 on_double_tap=self._toggle_maximize,
             ),
             expand=True,
@@ -436,8 +435,8 @@ class CustomTitleBar(ft.Container):
         
         # ── 窗口控制按钮（平台差异） ──
         if is_mac:
-            # macOS 交通灯：关闭(红) → 最小化(黄) → 最大化(绿)，在左侧
-            left_controls = self._build_mac_traffic_lights()
+            # macOS: 使用原生交通灯，左侧留空占位（约 70px）
+            traffic_light_spacer = ft.Container(width=70)
 
             right_section = ft.Row(
                 controls=[self.weather_container, self.theme_icon],
@@ -446,7 +445,7 @@ class CustomTitleBar(ft.Container):
             )
 
             title_bar_content = ft.Row(
-                controls=[left_controls, drag_area, right_section],
+                controls=[traffic_light_spacer, drag_area, right_section],
                 spacing=0,
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -499,7 +498,7 @@ class CustomTitleBar(ft.Container):
         
         # ── 配置容器属性 ──
         self.content = title_bar_content
-        self.height = 42
+        self.height = 34 if is_mac else 42
         self.padding = ft.Padding.symmetric(horizontal=PADDING_MEDIUM)
         self.gradient = self._create_gradient()
         self.bgcolor = ft.Colors.with_opacity(0.95, self.theme_color)

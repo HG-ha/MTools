@@ -141,56 +141,52 @@ class GlobalHotkeyService:
     def _check_accessibility_permission() -> bool:
         """检查并请求 macOS 辅助功能权限（pynput 全局热键必需）。
         
+        使用 ctypes 调用 AXIsProcessTrusted()，避免依赖 pyobjc-framework-ApplicationServices。
+        未授权时通过 subprocess 打开系统设置引导用户授权。
+        
         Returns:
             True 表示已获得权限，False 表示未授权
         """
+        import ctypes
+        import ctypes.util
+
         try:
-            import objc
-            from ApplicationServices import AXIsProcessTrustedWithOptions
-            from CoreFoundation import (
-                kCFBooleanTrue,
-                CFStringCreateWithCString,
-                kCFStringEncodingUTF8,
-                CFDictionaryCreate,
-                kCFTypeDictionaryKeyCallBacks,
-                kCFTypeDictionaryValueCallBacks,
-            )
-            
-            # kAXTrustedCheckOptionPrompt = "AXTrustedCheckOptionPrompt"
-            key = CFStringCreateWithCString(
-                None, b"AXTrustedCheckOptionPrompt", kCFStringEncodingUTF8
-            )
-            value = kCFBooleanTrue
-            options = CFDictionaryCreate(
-                None,
-                [key], [value], 1,
-                kCFTypeDictionaryKeyCallBacks,
-                kCFTypeDictionaryValueCallBacks,
-            )
-            trusted = AXIsProcessTrustedWithOptions(options)
-            return bool(trusted)
+            lib_path = ctypes.util.find_library('ApplicationServices')
+            if not lib_path:
+                logger.warning("未找到 ApplicationServices framework")
+                return False
+            lib = ctypes.cdll.LoadLibrary(lib_path)
+            lib.AXIsProcessTrusted.restype = ctypes.c_bool
+            lib.AXIsProcessTrusted.argtypes = []
+            return bool(lib.AXIsProcessTrusted())
         except Exception as ex:
             logger.warning(f"检查辅助功能权限失败: {ex}")
             return False
-    
-    # ── macOS pynput 热键配置转换 ─────────────────────────────────
+
     @staticmethod
-    def _build_pynput_hotkey_str(config: dict) -> str:
-        """将热键配置字典转换为 pynput HotKey 字符串。
-        
-        例如 {"ctrl": True, "shift": True, "key": "Q"} -> "<ctrl>+<shift>+q"
-        """
-        parts = []
-        if config.get("ctrl"):
-            parts.append("<ctrl>")  # macOS 使用 Control 键，避免与 Cmd 系统快捷键冲突
-        if config.get("alt"):
-            parts.append("<alt>")
-        if config.get("shift"):
-            parts.append("<shift>")
-        key = config.get("key", "").lower()
-        if key:
-            parts.append(key)
-        return "+".join(parts)
+    def _prompt_accessibility_settings() -> None:
+        """打开系统设置的辅助功能权限页面，引导用户授权。"""
+        try:
+            import subprocess
+            subprocess.Popen([
+                "open",
+                "x-apple.systempreferences:"
+                "com.apple.preference.security?Privacy_Accessibility",
+            ])
+        except Exception as ex:
+            logger.debug(f"打开系统设置失败: {ex}")
+    
+    # macOS 虚拟键码映射（与 Windows VK_CODES 对应）
+    _MAC_KEY_CODES = {
+        "A": 0, "S": 1, "D": 2, "F": 3, "H": 4, "G": 5, "Z": 6, "X": 7,
+        "C": 8, "V": 9, "B": 11, "Q": 12, "W": 13, "E": 14, "R": 15,
+        "Y": 16, "T": 17, "U": 32, "I": 34, "O": 31, "P": 35,
+        "J": 38, "K": 40, "L": 37, "N": 45, "M": 46,
+        "1": 18, "2": 19, "3": 20, "4": 21, "5": 23,
+        "6": 22, "7": 26, "8": 28, "9": 25, "0": 29,
+        "F1": 122, "F2": 120, "F3": 99, "F4": 118, "F5": 96, "F6": 97,
+        "F7": 98, "F8": 100, "F9": 101, "F10": 109, "F11": 103, "F12": 111,
+    }
 
     def start(self) -> bool:
         """启动全局热键监听。
@@ -326,54 +322,107 @@ class GlobalHotkeyService:
         self._hotkey_thread.start()
         return True
     
-    # ── macOS 热键启动（pynput） ──────────────────────────────────
+    # ── macOS 热键启动（NSEvent） ─────────────────────────────────
     def _start_macos(self, ocr_enabled, record_enabled, ocr_config, record_config) -> bool:
-        """macOS 平台使用 pynput 监听全局热键。"""
+        """macOS 平台使用 NSEvent 全局监听器监听热键。
+        
+        替代 pynput（CGEventTap）以避免在 Flutter 打包应用中崩溃。
+        """
         # 1. 检查辅助功能权限
         if not self._check_accessibility_permission():
             logger.warning("macOS 辅助功能权限未授予，全局热键不可用。"
                            "请在 系统设置 > 隐私与安全性 > 辅助功能 中授权本应用，然后重启。")
+            self._prompt_accessibility_settings()
             self._show_notification(
                 "需要辅助功能权限才能使用全局热键，请在系统设置中授权后重启应用"
             )
             return False
-        
+
         try:
-            from pynput import keyboard
+            from AppKit import NSEvent
+            from Foundation import NSRunLoop, NSDate, NSDefaultRunLoopMode
         except ImportError:
-            logger.error("pynput 未安装，macOS 全局热键不可用")
+            logger.error("AppKit/Foundation 未安装，macOS 全局热键不可用")
             return False
-        
-        # 2. 构建 hotkey 映射 {pynput_str: handler}
-        hotkeys = {}
-        
+
+        # 2. 构建 (keycode, ctrl, alt, shift) -> handler 映射
+        _NSControlKeyMask = 1 << 18
+        _NSAlternateKeyMask = 1 << 19
+        _NSShiftKeyMask = 1 << 17
+
+        hotkey_map: dict[tuple, Callable] = {}
+
         if ocr_enabled:
-            ocr_hk_str = self._build_pynput_hotkey_str(ocr_config)
-            if ocr_hk_str:
-                hotkeys[ocr_hk_str] = lambda: self._handle_hotkey(self.HOTKEY_OCR)
-                logger.info(f"全局热键已注册: OCR 截图识别 ({ocr_hk_str})")
-        
+            kc = self._MAC_KEY_CODES.get(ocr_config.get("key", "Q").upper())
+            if kc is not None:
+                entry = (kc, bool(ocr_config.get("ctrl")),
+                         bool(ocr_config.get("alt")), bool(ocr_config.get("shift")))
+                hotkey_map[entry] = lambda: self._handle_hotkey(self.HOTKEY_OCR)
+                logger.info(f"全局热键已注册: OCR 截图识别 ({self._get_hotkey_display(ocr_config)})")
+
         if record_enabled:
-            rec_hk_str = self._build_pynput_hotkey_str(record_config)
-            if rec_hk_str:
-                hotkeys[rec_hk_str] = lambda: self._handle_hotkey(self.HOTKEY_SCREEN_RECORD)
-                logger.info(f"全局热键已注册: 屏幕录制 ({rec_hk_str})")
-        
-        if not hotkeys:
+            kc = self._MAC_KEY_CODES.get(record_config.get("key", "C").upper())
+            if kc is not None:
+                entry = (kc, bool(record_config.get("ctrl")),
+                         bool(record_config.get("alt")), bool(record_config.get("shift")))
+                hotkey_map[entry] = lambda: self._handle_hotkey(self.HOTKEY_SCREEN_RECORD)
+                logger.info(f"全局热键已注册: 屏幕录制 ({self._get_hotkey_display(record_config)})")
+
+        if not hotkey_map:
             logger.warning("没有可注册的 macOS 热键")
             return False
-        
-        # 3. 启动 pynput GlobalHotKeys 监听
-        listener = keyboard.GlobalHotKeys(hotkeys)
-        listener.daemon = True
-        listener.start()
-        
-        # 保存引用以便 stop() 中清理
-        self._pynput_listener = listener
-        # 复用 _hotkey_thread 字段，方便 is_alive() 判断
-        self._hotkey_thread = listener
-        
-        logger.info("macOS 全局热键监听已启动 (pynput)")
+
+        # 3. 在后台线程运行 NSEvent 全局监听
+        self._hotkey_stop_event = threading.Event()
+
+        def _monitor_loop():
+            try:
+                NSKeyDownMask = 1 << 10
+
+                def _on_global_key(event):
+                    try:
+                        keycode = event.keyCode()
+                        flags = event.modifierFlags()
+                        key = (
+                            keycode,
+                            bool(flags & _NSControlKeyMask),
+                            bool(flags & _NSAlternateKeyMask),
+                            bool(flags & _NSShiftKeyMask),
+                        )
+                        cb = hotkey_map.get(key)
+                        if cb:
+                            threading.Thread(target=cb, daemon=True).start()
+                    except Exception as ex:
+                        logger.error(f"热键事件处理异常: {ex}")
+
+                global_mon = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+                    NSKeyDownMask, _on_global_key)
+
+                local_mon = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+                    NSKeyDownMask, lambda evt: (_on_global_key(evt), evt)[1])
+
+                if not global_mon:
+                    logger.error("NSEvent 全局监听器创建失败")
+                    return
+
+                run_loop = NSRunLoop.currentRunLoop()
+                while not self._hotkey_stop_event.is_set():
+                    run_loop.runMode_beforeDate_(
+                        NSDefaultRunLoopMode,
+                        NSDate.dateWithTimeIntervalSinceNow_(0.5),
+                    )
+
+                if global_mon:
+                    NSEvent.removeMonitor_(global_mon)
+                if local_mon:
+                    NSEvent.removeMonitor_(local_mon)
+            except Exception as ex:
+                logger.error(f"macOS 全局热键监听异常: {ex}", exc_info=True)
+
+        self._hotkey_thread = threading.Thread(target=_monitor_loop, daemon=True)
+        self._hotkey_thread.start()
+
+        logger.info("macOS 全局热键监听已启动 (NSEvent)")
         return True
     
     def stop(self) -> None:
@@ -397,14 +446,10 @@ class GlobalHotkeyService:
         if not self._hotkey_thread:
             return
         
-        # macOS: 停止 pynput 监听
+        # macOS: 通知 NSEvent 监听线程退出
         if sys.platform == 'darwin':
-            if hasattr(self, '_pynput_listener') and self._pynput_listener:
-                try:
-                    self._pynput_listener.stop()
-                except Exception:
-                    pass
-                self._pynput_listener = None
+            if self._hotkey_stop_event:
+                self._hotkey_stop_event.set()
         else:
             # Windows: 发送 WM_QUIT 消息
             try:
