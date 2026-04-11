@@ -164,21 +164,6 @@ class AudioToTextView(ft.Container):
         # 构建界面
         self._build_ui()
     
-    def _check_cuda_available(self) -> bool:
-        """检测是否支持 CUDA。
-        
-        Returns:
-            True 如果支持 CUDA，否则 False
-        """
-        try:
-            import onnxruntime as ort
-            available_providers = ort.get_available_providers()
-            return 'CUDAExecutionProvider' in available_providers
-        except ImportError:
-            return False
-        except Exception as e:
-            logger.warning(f"检测 CUDA 支持时出错: {e}")
-            return False
     
     def _build_ui(self) -> None:
         """构建用户界面。"""
@@ -751,56 +736,12 @@ class AudioToTextView(ft.Container):
             margin=ft.Margin.only(top=4, left=4),
         )
         
-        # GPU加速设置
-        # 检测是否支持 CUDA
-        cuda_available = self._check_cuda_available()
-        gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True) if cuda_available else False
-        
-        self.gpu_checkbox = ft.Checkbox(
-            label="启用 GPU 加速 (CUDA)" if cuda_available else "启用 GPU 加速 (不可用)",
-            value=gpu_enabled,
-            on_change=self._on_gpu_change,
-            disabled=not cuda_available,
-        )
-        
-        # GPU 加速提示
-        if cuda_available:
-            hint_text = "检测到 CUDA 支持，可使用 NVIDIA GPU 加速"
-            hint_icon = ft.Icons.CHECK_CIRCLE
-            hint_color = ft.Colors.GREEN
-        else:
-            hint_text = "sherpa要求使用CUDA，未检测到 CUDA 支持。请下载 CUDA 或 CUDA_FULL 版本"
-            hint_icon = ft.Icons.INFO_OUTLINE
-            hint_color = ft.Colors.ORANGE
-        
-        gpu_hint_text = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(hint_icon, size=14, color=hint_color),
-                    ft.Text(
-                        hint_text,
-                        size=11,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    ),
-                ],
-                spacing=4,
-            ),
-            padding=ft.Padding.only(left=28),  # 对齐 checkbox
-        )
-        
         # 输出设置 - 横向布局
         settings_row = ft.Row(
             controls=[
                 self.output_format_dropdown,
                 self.language_dropdown,
                 self.task_dropdown,
-                ft.Column(
-                    controls=[
-                        self.gpu_checkbox,
-                        gpu_hint_text,
-                    ],
-                    spacing=4,
-                ),
             ],
             spacing=PADDING_LARGE,
             wrap=True,
@@ -1321,36 +1262,23 @@ class AudioToTextView(ft.Container):
             self._page.update()
             
             def _do_load():
-                # GPU设置
-                gpu_enabled = self.config_service.get_config_value("gpu_acceleration", True)
-                gpu_device_id = self.config_service.get_config_value("gpu_device_id", 0)
-                gpu_memory_limit = self.config_service.get_config_value("gpu_memory_limit", 8192)
-                enable_memory_arena = self.config_service.get_config_value("gpu_enable_memory_arena", False)
-                
-                # 获取选择的语言和任务类型
                 language = self.config_service.get_config_value("whisper_language", "auto")
-                # sherpa-onnx 使用空字符串表示自动检测
                 sherpa_language = "" if language == "auto" else language
                 task = self.config_service.get_config_value("whisper_task", "transcribe")
                 
-                # 根据模型类型加载模型
                 model_dir = self.speech_service.get_model_dir(self.current_model_key)
                 
                 if isinstance(self.current_model, SenseVoiceModelInfo):
-                    # 加载 SenseVoice/Paraformer 单文件模型
                     model_path = model_dir / self.current_model.model_filename
                     tokens_path = model_dir / self.current_model.tokens_filename
                     
                     self.speech_service.load_sensevoice_model(
                         model_path=model_path,
                         tokens_path=tokens_path,
-                        use_gpu=gpu_enabled,
-                        gpu_device_id=gpu_device_id,
                         language=sherpa_language,
                         model_type=self.current_model.model_type,
                     )
                 elif isinstance(self.current_model, WhisperModelInfo):
-                    # 加载 Whisper/Paraformer encoder-decoder 模型
                     encoder_path = model_dir / self.current_model.encoder_filename
                     decoder_path = model_dir / self.current_model.decoder_filename
                     config_path = model_dir / self.current_model.config_filename
@@ -1359,10 +1287,6 @@ class AudioToTextView(ft.Container):
                         encoder_path,
                         decoder_path,
                         config_path,
-                        use_gpu=gpu_enabled,
-                        gpu_device_id=gpu_device_id,
-                        gpu_memory_limit=gpu_memory_limit,
-                        enable_memory_arena=enable_memory_arena,
                         language=sherpa_language,
                         task=task,
                     )
@@ -1384,10 +1308,6 @@ class AudioToTextView(ft.Container):
             self.reload_model_button.visible = True
             
             logger.info(f"{engine_name}模型加载完成, 设备: {device_info}")
-            
-            # 如果使用了 CUDA，显示警告提示
-            if "CUDA" in device_info.upper() or self.speech_service.current_provider == "cuda":
-                self._show_cuda_warning()
             
         except Exception as e:
             logger.error(f"加载模型失败: {e}")
@@ -1564,15 +1484,7 @@ class AudioToTextView(ft.Container):
         self.auto_load_model = e.control.value
         self.config_service.set_config_value("whisper_auto_load_model", self.auto_load_model)
     
-    def _on_gpu_change(self, e: ft.ControlEvent) -> None:
-        """GPU加速选项变更事件。"""
-        gpu_enabled = e.control.value
-        self.config_service.set_config_value("gpu_acceleration", gpu_enabled)
-        
-        # 如果当前有模型加载，提示需要重新加载
-        if self.model_loaded:
-            self._show_info("提示", "GPU设置已更改，需要重新加载模型才能生效。")
-    
+
     def _on_vad_change(self, e: ft.ControlEvent) -> None:
         """VAD 选项变更事件。"""
         self.use_vad = e.control.value
@@ -1925,7 +1837,6 @@ class AudioToTextView(ft.Container):
             
             self.speech_service.load_punctuation_model(
                 model_path=model_dir,
-                use_gpu=self.config_service.get_config_value("whisper_use_gpu", True),
                 num_threads=4
             )
             
@@ -2431,64 +2342,11 @@ class AudioToTextView(ft.Container):
             ],
         )
         self._page.show_dialog(dialog)
-    
-    def _show_cuda_warning(self) -> None:
-        """显示 CUDA 使用警告。"""
-        warning_dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.WARNING_AMBER, color=ft.Colors.ORANGE, size=24),
-                    ft.Text("重要提示", size=18, weight=ft.FontWeight.BOLD),
-                ],
-                spacing=10,
-            ),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text(
-                            "您已使用 CUDA GPU 加速加载了语音识别模型。",
-                            size=14,
-                        ),
-                        ft.Container(height=10),
-                        ft.Text(
-                            "⚠️ 由于 sherpa-onnx 的适配性问题：",
-                            size=14,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.ORANGE,
-                        ),
-                        ft.Container(height=5),
-                        ft.Text(
-                            "• 使用 CUDA 后，其他 AI 功能（智能抠图、人声分离等）可能无法正常工作",
-                            size=13,
-                        ),
-                        ft.Text(
-                            "• 如需使用其他 AI 功能，建议重启程序",
-                            size=13,
-                        ),
-                        ft.Container(height=10),
-                        ft.Text(
-                            "💡 建议：如果需要频繁切换使用不同功能，可考虑使用 CPU 模式或 DirectML。",
-                            size=13,
-                            italic=True,
-                            color=ft.Colors.BLUE_GREY_700,
-                        ),
-                    ],
-                    spacing=5,
-                    tight=True,
-                ),
-                padding=10,
-            ),
-            actions=[
-                ft.TextButton("我知道了", on_click=lambda e: self._close_dialog(warning_dialog)),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-        self._page.show_dialog(warning_dialog)
-    
+
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
         """关闭对话框。"""
         self._page.pop_dialog()
-    
+
     def add_files(self, files: list) -> None:
         """从拖放添加文件。"""
         added_count = 0

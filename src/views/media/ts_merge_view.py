@@ -594,19 +594,18 @@ class TSMergeView(ft.Container):
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
             for file_path in files:
-                # 使用 file 协议，转义单引号
                 escaped_path = str(file_path).replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
             concat_list_path = f.name
         
         try:
-            # FFmpeg 命令
+            ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path() or 'ffmpeg'
             cmd = [
-                'ffmpeg', '-y',
+                ffmpeg_path, '-y',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concat_list_path,
-                '-c', 'copy',  # 流复制，无损
+                '-c', 'copy',
                 str(output_path)
             ]
             

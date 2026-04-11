@@ -367,23 +367,15 @@ class SpeechRecognitionService:
         encoder_path: Path,
         decoder_path: Path,
         config_path: Optional[Path] = None,
-        use_gpu: bool = True,
-        gpu_device_id: int = 0,
-        gpu_memory_limit: int = 8192,
-        enable_memory_arena: bool = True,
         language: str = "auto",
         task: str = "transcribe"
     ) -> None:
-        """加载 ONNX 模型（使用 sherpa-onnx）。
+        """加载 Whisper ONNX 模型（使用 sherpa-onnx）。
         
         Args:
             encoder_path: 编码器模型文件路径
             decoder_path: 解码器模型文件路径
             config_path: 配置文件路径（可选，sherpa-onnx 会使用 tokens.txt）
-            use_gpu: 是否使用GPU加速
-            gpu_device_id: GPU设备ID
-            gpu_memory_limit: GPU内存限制（MB）
-            enable_memory_arena: 是否启用内存池优化
             language: 识别语言（"auto" 自动检测，或 "zh", "en" 等）
             task: 任务类型（"transcribe" 转录，"translate" 翻译为英文）
         """
@@ -425,27 +417,6 @@ class SpeechRecognitionService:
         tokens_str = str(tokens_path)
         logger.info(f"使用 tokens 文件: {tokens_path.name}")
         
-        # 构建 sherpa-onnx 配置
-        # 配置执行提供者
-        provider = "cpu"
-        if use_gpu:
-            try:
-                import onnxruntime as ort
-                import platform
-                available_providers = ort.get_available_providers()
-                
-                if 'CUDAExecutionProvider' in available_providers:
-                    provider = "cuda"
-                    logger.info(f"语音识别使用 CUDA GPU (设备 {gpu_device_id})")
-                    logger.warning("⚠️ 由于 sherpa-onnx 适配问题，当前工具使用 CUDA 后，可能需要重启程序才能正常使用其他 ONNX 模型")
-                elif 'CoreMLExecutionProvider' in available_providers and platform.system() == 'Darwin':
-                    provider = "coreml"
-                    logger.info("语音识别使用 CoreML (Apple Silicon)")
-                else:
-                    logger.info("语音识别使用 CPU (GPU 不可用)")
-            except ImportError:
-                logger.warning("onnxruntime 未安装，使用 CPU")
-        
         # 将语言代码转换为 sherpa-onnx 支持的格式
         # auto 时使用空字符串让模型自动检测，或者指定具体语言
         if language == "auto":
@@ -457,11 +428,10 @@ class SpeechRecognitionService:
         import os
         num_threads = min(os.cpu_count() or 4, 8)
         
-        # 创建识别器
+        from utils.onnx_helper import get_sherpa_provider
+        provider = get_sherpa_provider()
+
         try:
-            # 使用 from_whisper 工厂方法创建识别器
-            # 这是官方推荐的方式，而不是直接实例化 OfflineRecognizer
-            # 参考：https://github.com/k2-fsa/sherpa-onnx/blob/master/sherpa-onnx/python/sherpa_onnx/offline_recognizer.py
             self.recognizer = sherpa_onnx.OfflineRecognizer.from_whisper(
                 encoder=str(encoder_path),
                 decoder=str(decoder_path),
@@ -469,17 +439,17 @@ class SpeechRecognitionService:
                 language=lang_code,
                 task=task,
                 num_threads=num_threads,
-                debug=self.debug_mode,  # 调试模式：输出详细的识别过程
+                debug=self.debug_mode,
                 provider=provider,
-                tail_paddings=1500,  # 尾部填充：增加到1500以确保音频末尾不被截断（默认800）
-                decoding_method="greedy_search",  # 使用贪婪搜索，更稳定
+                tail_paddings=1500,
+                decoding_method="greedy_search",
             )
             self.current_model = encoder_path.stem
             self.current_provider = provider
             
             logger.info(
                 f"Whisper模型已加载: {encoder_path.name} + {decoder_path.name}, "
-                f"执行提供者: {provider.upper()}"
+                f"设备: {provider.upper()}"
             )
         except Exception as e:
             error_msg = str(e)
@@ -493,22 +463,14 @@ class SpeechRecognitionService:
         self,
         model_path: Path,
         tokens_path: Path,
-        use_gpu: bool = True,
-        gpu_device_id: int = 0,
         language: str = "auto",
         model_type: str = "sensevoice"
     ) -> None:
         """加载 SenseVoice/Paraformer 模型（使用 sherpa-onnx）。
         
-        支持两种模型文件：
-        - model.onnx: FP32 完整版（高精度，需要 onnxruntime 支持 opset 17）
-        - model.int8.onnx: INT8 量化版（兼容性好，支持标准 onnxruntime）
-        
         Args:
             model_path: 模型文件路径（model.onnx 或 model.int8.onnx）
             tokens_path: tokens.txt 文件路径
-            use_gpu: 是否使用GPU加速
-            gpu_device_id: GPU设备ID
             language: 识别语言（"auto" 自动检测，或 "zh", "en" 等）
             model_type: 模型类型（"sensevoice" 或 "paraformer"）
         """
@@ -525,28 +487,13 @@ class SpeechRecognitionService:
         if not tokens_path.exists():
             raise FileNotFoundError(f"tokens 文件不存在: {tokens_path}")
         
-        # 配置执行提供者
-        provider = "cpu"
-        if use_gpu:
-            try:
-                import onnxruntime as ort
-                import platform
-                available_providers = ort.get_available_providers()
-                
-                if 'CUDAExecutionProvider' in available_providers:
-                    provider = "cuda"
-                    logger.info(f"语音识别使用 CUDA GPU (设备 {gpu_device_id})")
-                else:
-                    logger.info("语音识别使用 CPU (GPU 不可用)")
-            except ImportError:
-                logger.warning("onnxruntime 未安装，使用 CPU")
-        
-        # 根据模型类型创建识别器
+        from utils.onnx_helper import get_sherpa_provider
+        provider = get_sherpa_provider()
+
         try:
             num_threads = min(os.cpu_count() or 4, 8)
             
             if model_type == "paraformer":
-                # 加载 Paraformer 模型
                 self.recognizer = sherpa_onnx.OfflineRecognizer.from_paraformer(
                     paraformer=str(model_path),
                     tokens=str(tokens_path),
@@ -556,14 +503,13 @@ class SpeechRecognitionService:
                 )
                 model_name = "Paraformer"
             else:
-                # 加载 SenseVoice 模型
                 self.recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
                     model=str(model_path),
                     tokens=str(tokens_path),
                     num_threads=num_threads,
                     debug=self.debug_mode,
                     provider=provider,
-                    use_itn=True,  # 使用逆文本规范化（数字、日期等）
+                    use_itn=True,
                     language=language if language != "auto" else "",
                 )
                 model_name = "SenseVoice"
@@ -574,7 +520,7 @@ class SpeechRecognitionService:
             
             logger.info(
                 f"{model_name}模型已加载: {model_path.name}, "
-                f"执行提供者: {provider.upper()}"
+                f"设备: {provider.upper()}"
             )
         except Exception as e:
             raise RuntimeError(f"加载SenseVoice模型失败: {e}")
@@ -582,14 +528,12 @@ class SpeechRecognitionService:
     def load_punctuation_model(
         self,
         model_path: Path,
-        use_gpu: bool = False,
         num_threads: int = 4
     ) -> None:
         """加载标点恢复模型。
         
         Args:
             model_path: 模型目录路径（包含 model.onnx 或 model.int8.onnx）
-            use_gpu: 是否使用 GPU
             num_threads: CPU 线程数
         """
         try:
@@ -614,20 +558,15 @@ class SpeechRecognitionService:
                 else:
                     raise FileNotFoundError(f"标点恢复模型文件不存在于: {model_path}")
             
-            # 确定执行提供者
-            if use_gpu:
-                provider = "cuda"
-            else:
-                provider = "cpu"
-            
-            # 创建模型配置 - sherpa-onnx 期望的是完整的模型文件路径（包含 .onnx 文件）
-            # 使用正斜杠确保跨平台兼容性
+            from utils.onnx_helper import get_sherpa_provider
+            provider = get_sherpa_provider()
+
             model_file_str = str(model_file).replace("\\", "/")
             model_config = sherpa_onnx.OfflinePunctuationModelConfig(
                 ct_transformer=model_file_str,
                 num_threads=num_threads,
                 debug=self.debug_mode,
-                provider=provider
+                provider=provider,
             )
             
             # 创建配置

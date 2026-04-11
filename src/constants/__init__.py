@@ -87,6 +87,9 @@ from .model_config import (
     VAD_MODELS,
     VADModelInfo,
     VOCAL_SEPARATION_MODELS,
+    TTS_MODELS,
+    TTSModelInfo,
+    DEFAULT_TTS_MODEL_KEY,
     WHISPER_MODELS,
     WhisperModelInfo,
 )
@@ -174,6 +177,9 @@ __all__ = [
     "VAD_MODELS",
     "VADModelInfo",
     "VOCAL_SEPARATION_MODELS",
+    "TTS_MODELS",
+    "TTSModelInfo",
+    "DEFAULT_TTS_MODEL_KEY",
     "WHISPER_MODELS",
     "WhisperModelInfo",
     "BUILD_CUDA_VARIANT"

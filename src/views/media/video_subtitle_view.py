@@ -339,28 +339,6 @@ class VideoSubtitleView(ft.Container):
             on_change=self._on_auto_load_change,
         )
         
-        # GPU 加速提示
-        cuda_available = self._check_cuda_available()
-        if cuda_available:
-            gpu_hint_text = "检测到 CUDA 支持，可使用 NVIDIA GPU 加速"
-            gpu_hint_icon = ft.Icons.CHECK_CIRCLE
-            gpu_hint_color = ft.Colors.GREEN
-        else:
-            gpu_hint_text = "sherpa要求使用CUDA，未检测到 CUDA 支持。请下载 CUDA 或 CUDA_FULL 版本"
-            gpu_hint_icon = ft.Icons.INFO_OUTLINE
-            gpu_hint_color = ft.Colors.ORANGE
-        
-        gpu_hint = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(gpu_hint_icon, size=14, color=gpu_hint_color),
-                    ft.Text(gpu_hint_text, size=11, color=ft.Colors.ON_SURFACE_VARIANT),
-                ],
-                spacing=6,
-            ),
-            padding=ft.Padding.only(top=PADDING_SMALL),
-        )
-        
         recognition_area = ft.Container(
             content=ft.Column(
                 controls=[
@@ -372,7 +350,6 @@ class VideoSubtitleView(ft.Container):
                     ),
                     model_status_row,
                     self.auto_load_checkbox,
-                    gpu_hint,
                 ],
                 spacing=PADDING_SMALL,
             ),
@@ -1125,20 +1102,6 @@ class VideoSubtitleView(ft.Container):
             )
         )
     
-    def _check_cuda_available(self) -> bool:
-        """检测是否支持 CUDA。
-        
-        Returns:
-            是否支持 CUDA
-        """
-        try:
-            import onnxruntime as ort
-            available_providers = ort.get_available_providers()
-            return 'CUDAExecutionProvider' in available_providers
-        except ImportError:
-            return False
-        except Exception:
-            return False
     
     def _on_back_click(self, e: ft.ControlEvent = None) -> None:
         """返回按钮点击事件。"""
@@ -2825,9 +2788,8 @@ class VideoSubtitleView(ft.Container):
                     self.speech_service.load_sensevoice_model(
                         model_path=model_path,
                         tokens_path=tokens_path,
-                        use_gpu=False,
                         language="auto",
-                        model_type=self.current_model.model_type,  # 传递模型类型
+                        model_type=self.current_model.model_type,
                     )
                 elif isinstance(self.current_model, WhisperModelInfo):
                     encoder_path = model_dir / self.current_model.encoder_filename
@@ -2838,7 +2800,6 @@ class VideoSubtitleView(ft.Container):
                         encoder_path,
                         decoder_path,
                         config_path,
-                        use_gpu=False,
                         language="auto",
                     )
 
@@ -3306,12 +3267,10 @@ class VideoSubtitleView(ft.Container):
                 self.speech_service.load_sensevoice_model(
                     model_path=model_path,
                     tokens_path=tokens_path,
-                    use_gpu=False,  # 默认使用 CPU
                     language="auto",
-                    model_type=self.current_model.model_type,  # 传递模型类型
+                    model_type=self.current_model.model_type,
                 )
             elif isinstance(self.current_model, WhisperModelInfo):
-                # 加载 Whisper 模型
                 encoder_path = model_dir / self.current_model.encoder_filename
                 decoder_path = model_dir / self.current_model.decoder_filename
                 config_path = model_dir / self.current_model.config_filename
@@ -3320,7 +3279,6 @@ class VideoSubtitleView(ft.Container):
                     encoder_path,
                     decoder_path,
                     config_path,
-                    use_gpu=False,  # 默认使用 CPU
                     language="auto",
                 )
 

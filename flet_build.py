@@ -211,6 +211,23 @@ def _restore_pyproject(original: str | None):
     print("  [post-build] pyproject.toml 已恢复")
 
 
+SHERPA_CUDA_FIND_LINKS = "https://k2-fsa.github.io/sherpa/onnx/cuda.html"
+
+
+def _setup_sherpa_cuda_find_links():
+    """如果 pyproject.toml 中包含 sherpa-onnx+cuda，自动设置 PIP_FIND_LINKS。"""
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    if "+cuda" not in text:
+        return
+    existing = os.environ.get("PIP_FIND_LINKS", "")
+    if SHERPA_CUDA_FIND_LINKS in existing:
+        return
+    sep = " " if existing else ""
+    os.environ["PIP_FIND_LINKS"] = existing + sep + SHERPA_CUDA_FIND_LINKS
+    print(f"  [pre-build] 已设置 PIP_FIND_LINKS（sherpa-onnx CUDA 轮子索引）")
+
+
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
@@ -232,6 +249,7 @@ def run_flet_build(args: list[str]) -> int:
         shutil.rmtree(build_dir)
 
     original_pyproject = _resolve_pyproject_paths()
+    _setup_sherpa_cuda_find_links()
     try:
         return _do_build(cmd, args)
     finally:

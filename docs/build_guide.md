@@ -157,13 +157,17 @@ python flet_build.py windows -v
 
 | 特性 | 标准版 | CUDA 版 | CUDA FULL 版 |
 |------|--------|---------|--------------|
-| **依赖包** | `onnxruntime-directml` (Win)<br>`onnxruntime` (Mac/Linux) | `onnxruntime-gpu` | `onnxruntime-gpu[cuda,cudnn]` |
+| **onnxruntime** | `onnxruntime-directml` (Win)<br>`onnxruntime` (Mac/Linux) | `onnxruntime-gpu` | `onnxruntime-gpu[cuda,cudnn]` |
+| **sherpa-onnx** | `sherpa-onnx` (CPU) | `sherpa-onnx+cuda` | `sherpa-onnx+cuda` |
 | **GPU 支持** | DirectML/CoreML | CUDA (NVIDIA) | CUDA (NVIDIA) |
 | **用户依赖** | ✅ 无 | ⚠️ 需 CUDA Toolkit | ✅ 无（内置完整） |
 | **部署难度** | 🟢 简单 | 🔴 困难 | 🟢 简单 |
 | **AI 性能** | ⭐⭐ 中等 | ⭐⭐⭐ 最佳 | ⭐⭐⭐ 最佳 |
 | **兼容性** | ⭐⭐⭐ 最广 | ⭐⭐ 需配置 | ⭐⭐⭐ 开箱即用 |
 | **切换脚本** | 默认 | `prepare_cuda_variant.py cuda` | `prepare_cuda_variant.py cuda_full` |
+
+> **注意**: CUDA 版的 `sherpa-onnx` 轮子托管在 [k2-fsa 自定义索引](https://k2-fsa.github.io/sherpa/onnx/cuda.html)。
+> `prepare_cuda_variant.py` 会自动添加 `[[tool.uv.find-links]]`，`flet_build.py` 会自动设置 `PIP_FIND_LINKS`。
 
 ## 🗂️ 输出结构
 

@@ -389,6 +389,21 @@ def register_all_tools():
     )
     
     register_tool_manual(
+        name="文字转语音",
+        description="AI语音合成，多模型多语言TTS",
+        category="媒体处理",
+        keywords=[
+            "语音合成", "文字转语音", "TTS", "朗读", "配音",
+            "text to speech", "tts", "speech synthesis", "voice",
+            "合成语音", "语音生成", "文本转语音", "AI配音",
+            "sherpa", "vits", "kokoro", "piper", "matcha",
+        ],
+        icon="RECORD_VOICE_OVER",
+        tool_id="audio.text_to_speech",
+        gradient_colors=("#6a11cb", "#2575fc"),
+    )
+    
+    register_tool_manual(
         name="视频压缩",
         description="减小视频文件大小，支持CRF和分辨率调整",
         category="媒体处理",

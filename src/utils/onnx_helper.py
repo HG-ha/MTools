@@ -185,6 +185,34 @@ def is_directml_provider() -> bool:
     return get_primary_provider() == "DirectML"
 
 
+def get_sherpa_provider() -> str:
+    """获取 sherpa-onnx 应使用的 provider 字符串。
+
+    标准版 (pip install sherpa-onnx) 仅支持 CPU。
+    CUDA 版 (sherpa-onnx==x.y.z+cuda) 支持 ``provider="cuda"``。
+
+    根据构建变体 ``BUILD_CUDA_VARIANT`` 和全局 GPU 加速设置决定
+    返回 ``"cpu"`` 或 ``"cuda"``。
+    """
+    try:
+        from constants import BUILD_CUDA_VARIANT
+    except ImportError:
+        return "cpu"
+
+    if BUILD_CUDA_VARIANT not in ("cuda", "cuda_full"):
+        return "cpu"
+
+    try:
+        from services import ConfigService
+        cfg = ConfigService()
+        if not cfg.get_config_value("gpu_acceleration", True):
+            return "cpu"
+    except Exception:
+        pass
+
+    return "cuda"
+
+
 def create_session_options(
     enable_memory_arena: bool = True,
     enable_mem_pattern: bool = True,

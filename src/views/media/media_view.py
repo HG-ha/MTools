@@ -32,6 +32,7 @@ from views.media.video_vocal_separation_view import VideoVocalSeparationView
 from views.media.video_watermark_view import VideoWatermarkView
 from views.media.subtitle_remove_view import SubtitleRemoveView
 from views.media.subtitle_convert_view import SubtitleConvertView
+from views.media.text_to_speech_view import TextToSpeechView
 from views.media.ts_merge_view import TSMergeView
 from views.media.video_subtitle_view import VideoSubtitleView
 from views.media.screen_record_view import ScreenRecordView
@@ -88,6 +89,7 @@ class MediaView(ft.Container):
         self.audio_speed_view: Optional[AudioSpeedView] = None
         self.vocal_extraction_view = None  # 人声提取视图
         self.audio_to_text_view: Optional[AudioToTextView] = None  # 音视频转文字视图
+        self.text_to_speech_view: Optional[TextToSpeechView] = None  # 文字转语音视图
         
         # 创建视频子视图（延迟创建）
         self.video_compress_view: Optional[VideoCompressView] = None
@@ -230,6 +232,14 @@ class MediaView(ft.Container):
                 on_click=lambda e: self._open_view('audio_to_text'),
                 gradient_colors=("#a8c0ff", "#3f2b96"),
                 tool_id="audio.to_text",
+            ),
+            self._create_card(
+                icon=ft.Icons.RECORD_VOICE_OVER,
+                title="文字转语音",
+                description="AI语音合成，多模型多语言TTS",
+                on_click=lambda e: self._open_view('text_to_speech'),
+                gradient_colors=("#6a11cb", "#2575fc"),
+                tool_id="audio.text_to_speech",
             ),
             # 视频处理
             self._create_card(
@@ -389,6 +399,8 @@ class MediaView(ft.Container):
             tool_id = "audio." + view_name.replace("audio_", "")
         elif view_name.startswith("video_"):
             tool_id = "video." + view_name.replace("video_", "")
+        elif view_name == "text_to_speech":
+            tool_id = "audio.text_to_speech"
         else:
             tool_id = None
         
@@ -455,6 +467,16 @@ class MediaView(ft.Container):
                     on_back=self._back_to_main
                 )
             self._switch_to_sub_view(self.audio_to_text_view, 'audio_to_text')
+            
+        elif view_name == 'text_to_speech':
+            if not self.text_to_speech_view:
+                self.text_to_speech_view = TextToSpeechView(
+                    self._saved_page,
+                    self.config_service,
+                    self.ffmpeg_service,
+                    on_back=self._back_to_main,
+                )
+            self._switch_to_sub_view(self.text_to_speech_view, 'text_to_speech')
             
         elif view_name == 'video_compress':
             if not self.video_compress_view:
@@ -673,6 +695,7 @@ class MediaView(ft.Container):
                 "audio_speed": "audio_speed_view",
                 "vocal_extraction": "vocal_extraction_view",
                 "audio_to_text": "audio_to_text_view",
+                "text_to_speech": "text_to_speech_view",
                 "video_compress": "video_compress_view",
                 "video_convert": "video_convert_view",
                 "video_enhance": "video_enhance_view",
@@ -824,6 +847,7 @@ cd /d "{work_dir}"
             ("音频倍速调整", _audio_exts, 'audio_speed', "audio_speed_view"),
             ("人声提取", _audio_exts, 'vocal_extraction', "vocal_extraction_view"),
             ("音视频转文字", _media_exts, 'audio_to_text', "audio_to_text_view"),
+            ("文字转语音", set(), None, None),
             # 视频工具
             ("视频增强", _video_exts, 'video_enhance', "video_enhance_view"),
             ("视频插帧", _video_exts, 'video_interpolation', "video_interpolation_view"),

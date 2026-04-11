@@ -1104,3 +1104,211 @@ PUNCTUATION_MODELS: Final[dict[str, PunctuationModelInfo]] = {
 
 # 默认标点恢复模型
 DEFAULT_PUNCTUATION_MODEL_KEY: Final[str] = "ct_transformer_zh_en_int8"
+
+
+# TTS（文字转语音）模型配置
+@dataclass
+class TTSModelInfo:
+    """TTS 模型信息数据类。
+    
+    Attributes:
+        name: 模型名称
+        display_name: 显示名称
+        model_url: 模型文件下载链接
+        tokens_url: tokens 文件下载链接
+        size_mb: 文件大小(MB)
+        quality: 质量描述
+        performance: 性能描述
+        model_filename: 模型文件名
+        tokens_filename: tokens 文件名
+        language_support: 支持的语言
+        num_speakers: 说话人数量
+        model_type: 模型架构类型（vits/kokoro/matcha）
+        lexicon_url: 词典文件下载链接（部分 VITS 模型需要）
+        lexicon_filename: 词典文件名
+        data_dir_url: espeak-ng 数据目录下载链接（压缩包，部分 Piper 模型需要）
+        data_dir_name: espeak-ng 数据目录名
+        rule_fsts_url: 文本规范化 FST 文件下载链接
+        rule_fsts_filename: FST 文件名
+        vocoder_url: vocoder 模型下载链接（Matcha 架构需要）
+        vocoder_filename: vocoder 模型文件名
+        voices_url: 说话人音色文件下载链接（Kokoro 架构需要）
+        voices_filename: 说话人音色文件名
+        dict_dir_url: 词典目录下载链接（Kokoro 架构需要）
+        dict_dir_name: 词典目录名
+    """
+    name: str
+    display_name: str
+    model_url: str
+    tokens_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    model_filename: str = "model.onnx"
+    tokens_filename: str = "tokens.txt"
+    language_support: str = "中文"
+    num_speakers: int = 1
+    model_type: str = "vits"
+    lexicon_url: str = ""
+    lexicon_filename: str = ""
+    data_dir_url: str = ""
+    data_dir_name: str = ""
+    rule_fsts_url: str = ""
+    rule_fsts_filename: str = ""
+    vocoder_url: str = ""
+    vocoder_filename: str = ""
+    voices_url: str = ""
+    voices_filename: str = ""
+    dict_dir_url: str = ""
+    dict_dir_name: str = ""
+    rule_fars_url: str = ""
+    rule_fars_filename: str = ""
+    speaker_names: dict = None
+
+
+# Kokoro v1.0 speaker name mapping (53 speakers)
+KOKORO_SPEAKER_NAMES: Final[dict[int, str]] = {
+    0: "af_alloy", 1: "af_aoede", 2: "af_bella", 3: "af_heart", 4: "af_jessica",
+    5: "af_kore", 6: "af_nicole", 7: "af_nova", 8: "af_river", 9: "af_sarah",
+    10: "af_sky", 11: "am_adam", 12: "am_echo", 13: "am_eric", 14: "am_fenrir",
+    15: "am_liam", 16: "am_michael", 17: "am_onyx", 18: "am_puck", 19: "am_santa",
+    20: "bf_alice", 21: "bf_emma", 22: "bf_isabella", 23: "bf_lily", 24: "bm_daniel",
+    25: "bm_fable", 26: "bm_george", 27: "bm_lewis", 28: "ef_dora", 29: "em_alex",
+    30: "ff_siwis", 31: "hf_alpha", 32: "hf_beta", 33: "hm_omega", 34: "hm_psi",
+    35: "if_sara", 36: "im_nicola", 37: "jf_alpha", 38: "jf_gongitsune",
+    39: "jf_nezumi", 40: "jf_tebukuro", 41: "jm_kumo",
+    42: "pf_dora", 43: "pm_alex", 44: "pm_santa", 45: "zf_xiaobei", 46: "zf_xiaoni",
+    47: "zf_xiaoxiao", 48: "zf_xiaoyi", 49: "zm_yunjian", 50: "zm_yunxi",
+    51: "zm_yunxia", 52: "zm_yunyang",
+}
+
+
+_TTS_BASE = "https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/models/tts"
+
+TTS_MODELS: Final[dict[str, TTSModelInfo]] = {
+    "melo_tts_zh_en": TTSModelInfo(
+        name="melo_tts_zh_en",
+        display_name="MeloTTS 中英文（推荐）",
+        model_url=f"{_TTS_BASE}/vits-melo-tts-zh_en/model.onnx",
+        tokens_url=f"{_TTS_BASE}/vits-melo-tts-zh_en/tokens.txt",
+        size_mb=170,
+        quality="高质量中英文混合语音",
+        performance="快速 | 内存占用 ~300MB",
+        model_filename="model.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文、英文",
+        num_speakers=1,
+        model_type="vits",
+        lexicon_url=f"{_TTS_BASE}/vits-melo-tts-zh_en/lexicon.txt",
+        lexicon_filename="lexicon.txt",
+        dict_dir_url=f"{_TTS_BASE}/vits-melo-tts-zh_en/dict.tar.gz",
+        dict_dir_name="dict",
+        rule_fsts_url=f"{_TTS_BASE}/vits-melo-tts-zh_en/phone.fst,{_TTS_BASE}/vits-melo-tts-zh_en/date.fst,{_TTS_BASE}/vits-melo-tts-zh_en/number.fst",
+        rule_fsts_filename="phone.fst,date.fst,number.fst",
+    ),
+    "piper_zh_huayan": TTSModelInfo(
+        name="piper_zh_huayan",
+        display_name="Piper 中文花妍（轻量）",
+        model_url=f"{_TTS_BASE}/piper-zh_CN-huayan-medium/zh_CN-huayan-medium.onnx",
+        tokens_url=f"{_TTS_BASE}/piper-zh_CN-huayan-medium/tokens.txt",
+        size_mb=65,
+        quality="中文女声，自然流畅",
+        performance="极速 | 内存占用 ~150MB",
+        model_filename="zh_CN-huayan-medium.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        num_speakers=1,
+        model_type="vits",
+        data_dir_url=f"{_TTS_BASE}/piper-zh_CN-huayan-medium/espeak-ng-data.tar.gz",
+        data_dir_name="espeak-ng-data",
+    ),
+    "vits_zh_fanchen": TTSModelInfo(
+        name="vits_zh_fanchen",
+        display_name="VITS 中文多人（187说话人）",
+        model_url=f"{_TTS_BASE}/vits-zh-hf-fanchen-C/vits-zh-hf-fanchen-C.onnx",
+        tokens_url=f"{_TTS_BASE}/vits-zh-hf-fanchen-C/tokens.txt",
+        size_mb=120,
+        quality="多角色中文语音，187种音色可选",
+        performance="中速 | 内存占用 ~500MB",
+        model_filename="vits-zh-hf-fanchen-C.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        num_speakers=187,
+        model_type="vits",
+        lexicon_url=f"{_TTS_BASE}/vits-zh-hf-fanchen-C/lexicon.txt",
+        lexicon_filename="lexicon.txt",
+        dict_dir_url=f"{_TTS_BASE}/vits-zh-hf-fanchen-C/dict.tar.gz",
+        dict_dir_name="dict",
+        rule_fsts_url=f"{_TTS_BASE}/vits-zh-hf-fanchen-C/phone.fst,{_TTS_BASE}/vits-zh-hf-fanchen-C/date.fst,{_TTS_BASE}/vits-zh-hf-fanchen-C/number.fst",
+        rule_fsts_filename="phone.fst,date.fst,number.fst",
+    ),
+    "vits_zh_aishell3": TTSModelInfo(
+        name="vits_zh_aishell3",
+        display_name="VITS aishell3（174说话人）",
+        model_url=f"{_TTS_BASE}/vits-icefall-zh-aishell3/model.onnx",
+        tokens_url=f"{_TTS_BASE}/vits-icefall-zh-aishell3/tokens.txt",
+        size_mb=210,
+        quality="专业中文多人语音，174种音色",
+        performance="中速 | 内存占用 ~800MB",
+        model_filename="model.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        num_speakers=174,
+        model_type="vits",
+        lexicon_url=f"{_TTS_BASE}/vits-icefall-zh-aishell3/lexicon.txt",
+        lexicon_filename="lexicon.txt",
+        rule_fsts_url=f"{_TTS_BASE}/vits-icefall-zh-aishell3/phone.fst,{_TTS_BASE}/vits-icefall-zh-aishell3/date.fst,{_TTS_BASE}/vits-icefall-zh-aishell3/number.fst",
+        rule_fsts_filename="phone.fst,date.fst,number.fst",
+        rule_fars_url=f"{_TTS_BASE}/vits-icefall-zh-aishell3/rule.far",
+        rule_fars_filename="rule.far",
+    ),
+    "kokoro_multi": TTSModelInfo(
+        name="kokoro_multi",
+        display_name="Kokoro 多语言（高音质）",
+        model_url=f"{_TTS_BASE}/kokoro-multi/model.onnx",
+        tokens_url=f"{_TTS_BASE}/kokoro-multi/tokens.txt",
+        size_mb=350,
+        quality="高音质多语言，53种音色",
+        performance="中速 | 内存占用 ~600MB",
+        model_filename="model.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文、英文、日文、韩文、法文等",
+        num_speakers=53,
+        model_type="kokoro",
+        speaker_names=KOKORO_SPEAKER_NAMES,
+        lexicon_url=f"{_TTS_BASE}/kokoro-multi/lexicon-us-en.txt,{_TTS_BASE}/kokoro-multi/lexicon-zh.txt",
+        lexicon_filename="lexicon-us-en.txt,lexicon-zh.txt",
+        voices_url=f"{_TTS_BASE}/kokoro-multi/voices.bin",
+        voices_filename="voices.bin",
+        data_dir_url=f"{_TTS_BASE}/kokoro-multi/espeak-ng-data.tar.gz",
+        data_dir_name="espeak-ng-data",
+        dict_dir_url=f"{_TTS_BASE}/kokoro-multi/dict.tar.gz",
+        dict_dir_name="dict",
+        rule_fsts_url=f"{_TTS_BASE}/kokoro-multi/phone-zh.fst,{_TTS_BASE}/kokoro-multi/date-zh.fst,{_TTS_BASE}/kokoro-multi/number-zh.fst",
+        rule_fsts_filename="phone-zh.fst,date-zh.fst,number-zh.fst",
+    ),
+    "matcha_zh_baker": TTSModelInfo(
+        name="matcha_zh_baker",
+        display_name="Matcha 中文 Baker",
+        model_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/model-steps-3.onnx",
+        tokens_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/tokens.txt",
+        size_mb=130,
+        quality="高质量中文语音，配合 Vocos vocoder",
+        performance="较快 | 内存占用 ~400MB",
+        model_filename="model-steps-3.onnx",
+        tokens_filename="tokens.txt",
+        language_support="中文",
+        num_speakers=1,
+        model_type="matcha",
+        lexicon_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/lexicon.txt",
+        lexicon_filename="lexicon.txt",
+        vocoder_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/vocos-22khz-univ.onnx",
+        vocoder_filename="vocos-22khz-univ.onnx",
+        dict_dir_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/dict.tar.gz",
+        dict_dir_name="dict",
+        rule_fsts_url=f"{_TTS_BASE}/matcha-icefall-zh-baker/phone.fst,{_TTS_BASE}/matcha-icefall-zh-baker/date.fst,{_TTS_BASE}/matcha-icefall-zh-baker/number.fst",
+        rule_fsts_filename="phone.fst,date.fst,number.fst",
+    ),
+}
+
+DEFAULT_TTS_MODEL_KEY: Final[str] = "melo_tts_zh_en"

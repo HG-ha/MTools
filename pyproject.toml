@@ -43,6 +43,7 @@ dependencies = [
   "flet-dropzone==0.3.1", # 原生拖放支持（需要 flet build）
   "cryptography>=44.0.0", # 配置加密存储（flet.security 依赖）
   "flet-gpt-markdown",
+  "flet-audio>=0.84.0",
 ]
 
 [tool.uv.sources]
