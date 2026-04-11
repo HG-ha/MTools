@@ -15,6 +15,24 @@
 
 集成图片处理、音视频编辑、AI 智能工具、开发辅助等功能，支持跨平台GPU加速
 
+---
+
+## 📸 界面预览
+
+<div align="center">
+<table>
+<tr>
+<td align="center">
+<img src="./assets/MTools_Light.png" alt="Light Mode" width="400">
+<br><b>浅色主题</b>
+</td>
+<td align="center">
+<img src="./assets/MTools_Dark.png" alt="Dark Mode" width="400">
+<br><b>深色主题</b>
+</td>
+</tr>
+</table>
+</div>
 
 </div>
 

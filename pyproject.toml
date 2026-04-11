@@ -71,7 +71,6 @@ dev = [
     "flet[all]==0.84.0",
     "flet-desktop==0.84.0",
     "flet-cli==0.84.0",
-    "nuitka>=2.5.0",
 ]
 
 [tool.poetry]
