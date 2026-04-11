@@ -86,7 +86,7 @@ class JwtToolView(ft.Container):
                 ),
                 ft.Row(
                     controls=[
-                        ft.ElevatedButton(
+                        ft.Button(
                             content="解析 JWT",
                             icon=ft.Icons.LOCK_OPEN,
                             on_click=self._parse_jwt,

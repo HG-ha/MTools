@@ -129,7 +129,7 @@ class ICPQueryView(ft.Container):
             width=120, dense=True, keyboard_type=ft.KeyboardType.NUMBER,
         )
 
-        self.query_button = ft.ElevatedButton(
+        self.query_button = ft.Button(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SEARCH, size=20),

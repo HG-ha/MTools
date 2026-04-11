@@ -65,7 +65,7 @@ class HttpClientView(ft.Container):
         self.files_dict = {}  # {field_name: file_path}
         
         self.body_type_tabs = ft.Ref[ft.Tabs]()
-        self.send_button = ft.Ref[ft.ElevatedButton]()
+        self.send_button = ft.Ref[ft.Button]()
         
         self.current_file_field = None  # 当前正在选择文件的字段名
         self.response_tabs = ft.Ref[ft.Tabs]()

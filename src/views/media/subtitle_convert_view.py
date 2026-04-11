@@ -369,8 +369,8 @@ class SubtitleConvertView(ft.Container):
             allowed_extensions=['srt', 'vtt', 'lrc', 'ass', 'ssa', 'txt'],
             allow_multiple=True,
         )
-        if result and result.files:
-            for f in result.files:
+        if result:
+            for f in result:
                 file_path = Path(f.path)
                 if file_path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
                     if file_path not in self.selected_files:

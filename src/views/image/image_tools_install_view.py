@@ -124,7 +124,7 @@ class ImageToolsInstallView(ft.Container):
         )
         
         # 按钮
-        self.install_button = ft.ElevatedButton(
+        self.install_button = ft.Button(
             "开始安装",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_install_click,

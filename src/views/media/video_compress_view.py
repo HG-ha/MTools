@@ -780,8 +780,8 @@ class VideoCompressView(ft.Container):
             ],
             allow_multiple=True,
         )
-        if result and result.files:
-            new_files = [Path(f.path) for f in result.files]
+        if result:
+            new_files = [Path(f.path) for f in result]
             for new_file in new_files:
                 if new_file not in self.selected_files:
                     self.selected_files.append(new_file)

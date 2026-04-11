@@ -254,7 +254,7 @@ class ImageCompressView(ft.Container):
         
         # 底部按钮 - 大号主按钮
         self.compress_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.COMPRESS, size=24),

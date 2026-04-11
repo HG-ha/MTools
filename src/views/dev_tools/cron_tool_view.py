@@ -92,7 +92,7 @@ class CronToolView(ft.Container):
                     on_select=self._on_template_select,
                 ),
                 ft.Container(expand=True),
-                ft.ElevatedButton(
+                ft.Button(
                     content="解析",
                     icon=ft.Icons.PLAY_ARROW,
                     on_click=self._parse,

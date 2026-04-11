@@ -4442,9 +4442,9 @@ class SettingsView(ft.Container):
                 dialog_title="选择配置文件",
                 allowed_extensions=["json"],
             )
-            if not result or not result.files:
+            if not result:
                 return
-            path = Path(result.files[0].path)
+            path = Path(result[0].path)
             if self.config_service.import_config(path):
                 self._show_snackbar("配置已导入，部分设置需重启后生效", ft.Colors.GREEN)
             else:

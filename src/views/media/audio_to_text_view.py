@@ -2011,8 +2011,8 @@ class AudioToTextView(ft.Container):
             allowed_extensions=["mp3", "wav", "flac", "m4a", "aac", "ogg", "wma", "mp4", "mkv", "avi", "mov", "flv", "wmv"],
             allow_multiple=True,
         )
-        if result and result.files:
-            for file in result.files:
+        if result:
+            for file in result:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)

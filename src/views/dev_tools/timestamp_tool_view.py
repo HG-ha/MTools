@@ -150,7 +150,7 @@ class TimestampToolView(ft.Container):
                                 ],
                                 value="秒",
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="转换",
                                 icon=ft.Icons.ARROW_FORWARD,
                                 on_click=self._convert_timestamp_to_datetime,
@@ -189,7 +189,7 @@ class TimestampToolView(ft.Container):
                                 hint_text="例如: 2024-12-08 15:30:00",
                                 expand=True,
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="转换",
                                 icon=ft.Icons.ARROW_FORWARD,
                                 on_click=self._convert_datetime_to_timestamp,
@@ -255,7 +255,7 @@ class TimestampToolView(ft.Container):
                                 ],
                                 value="天",
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="计算",
                                 icon=ft.Icons.CALCULATE,
                                 on_click=self._calculate_time,

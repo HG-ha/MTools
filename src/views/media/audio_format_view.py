@@ -646,9 +646,9 @@ class AudioFormatView(ft.Container):
         self.progress_text.value = "准备转换..."
         self._page.update()
         
-        self._page.run_task(lambda: self._process_task(
-            output_dir, output_format, bitrate, sample_rate, channels
-        ))
+        async def _task():
+            await self._process_task(output_dir, output_format, bitrate, sample_rate, channels)
+        self._page.run_task(_task)
 
     async def _process_task(self, output_dir, output_format, bitrate, sample_rate, channels) -> None:
         """异步处理音频转换任务。"""

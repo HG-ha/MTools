@@ -496,7 +496,9 @@ class VideoRepairView(ft.Container):
         self.progress_text.value = "准备修复..."
         self._page.update()
 
-        self._page.run_task(lambda: self._process_task(repair_mode, output_mode))
+        async def _task():
+            await self._process_task(repair_mode, output_mode)
+        self._page.run_task(_task)
 
     async def _process_task(self, repair_mode: str, output_mode: str) -> None:
         import asyncio

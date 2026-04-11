@@ -231,7 +231,7 @@ class WindowsUpdateView(ft.Container):
                         spacing=PADDING_MEDIUM // 2,
                     ),
                     self.status_text,
-                    ft.ElevatedButton(
+                    ft.Button(
                         "检查更新状态",
                         icon=ft.Icons.REFRESH,
                         on_click=self._on_check_status,
@@ -246,7 +246,7 @@ class WindowsUpdateView(ft.Container):
         
         # 操作按钮区域
         disable_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.BLOCK, size=24, color=ft.Colors.WHITE),
@@ -267,7 +267,7 @@ class WindowsUpdateView(ft.Container):
         )
         
         restore_button = ft.Container(
-            content=ft.ElevatedButton(
+            content=ft.Button(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.RESTORE, size=24, color=ft.Colors.WHITE),

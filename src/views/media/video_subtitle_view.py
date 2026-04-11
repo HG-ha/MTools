@@ -685,7 +685,7 @@ class VideoSubtitleView(ft.Container):
                 font_family=self.current_font_key,
                 color=ft.Colors.WHITE,
             ),
-            bgcolor=ft.Colors.BLACK54,
+            bgcolor=ft.Colors.BLACK_54,
             padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
@@ -2915,7 +2915,7 @@ class VideoSubtitleView(ft.Container):
                 font_family=self.current_font_key,
                 color=ft.Colors.WHITE,
             ),
-            bgcolor=ft.Colors.BLACK54,
+            bgcolor=ft.Colors.BLACK_54,
             padding=ft.Padding.symmetric(horizontal=PADDING_MEDIUM, vertical=PADDING_SMALL),
             border_radius=BORDER_RADIUS_MEDIUM,
         )

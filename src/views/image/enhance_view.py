@@ -243,7 +243,7 @@ class ImageEnhanceView(ft.Container):
         )
         
         # 下载按钮
-        self.download_model_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.download_model_button: ft.Button = ft.Button(
             content="下载模型",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._start_download_model,
@@ -251,7 +251,7 @@ class ImageEnhanceView(ft.Container):
         )
         
         # 加载模型按钮
-        self.load_model_button: ft.ElevatedButton = ft.ElevatedButton(
+        self.load_model_button: ft.Button = ft.Button(
             content="加载模型",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._on_load_model,
@@ -848,7 +848,7 @@ class ImageEnhanceView(ft.Container):
         # 模型文件
         download_instructions.extend([
             ft.Text("1. 模型文件:"),
-            ft.ElevatedButton(
+            ft.Button(
                 f"下载 {self.current_model.filename}",
                 icon=ft.Icons.DOWNLOAD,
                 on_click=lambda e: open_url_and_close(e, self.current_model.url),
@@ -866,7 +866,7 @@ class ImageEnhanceView(ft.Container):
             download_instructions.extend([
                 ft.Container(height=PADDING_SMALL),
                 ft.Text("2. 数据文件:"),
-                ft.ElevatedButton(
+                ft.Button(
                     f"下载 {self.current_model.data_filename}",
                     icon=ft.Icons.DOWNLOAD,
                     on_click=lambda e: open_url_and_close(e, self.current_model.data_url),
@@ -928,7 +928,7 @@ class ImageEnhanceView(ft.Container):
                 content=ft.Text("切换模型将卸载当前已加载的模型。是否继续？", size=14),
                 actions=[
                     ft.TextButton("取消", on_click=cancel_switch),
-                    ft.ElevatedButton("切换", on_click=confirm_switch),
+                    ft.Button("切换", on_click=confirm_switch),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
@@ -1051,7 +1051,7 @@ class ImageEnhanceView(ft.Container):
             ),
             actions=[
                 ft.TextButton("取消", on_click=cancel_unload),
-                ft.ElevatedButton("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
+                ft.Button("卸载", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=confirm_unload),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )

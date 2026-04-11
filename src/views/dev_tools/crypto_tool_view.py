@@ -117,12 +117,12 @@ class CryptoToolView(ft.Container):
                     dense=True,
                 ),
                 ft.Container(expand=True),
-                ft.ElevatedButton(
+                ft.Button(
                     content="加密/计算",
                     icon=ft.Icons.LOCK,
                     on_click=lambda _: self._process(True),
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     content="解密",
                     icon=ft.Icons.LOCK_OPEN,
                     on_click=lambda _: self._process(False),

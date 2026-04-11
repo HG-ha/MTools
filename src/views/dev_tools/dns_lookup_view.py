@@ -129,7 +129,7 @@ class DnsLookupView(ft.Container):
                 
             dns_menu_items.append(
                 ft.PopupMenuItem(
-                    text=text,
+                    content=text,
                     on_click=on_click_handler
                 )
             )
@@ -190,7 +190,7 @@ class DnsLookupView(ft.Container):
                         ),
                     ),
                     ft.Container(expand=True),
-                    ft.ElevatedButton(
+                    ft.Button(
                         content="开始查询",
                         icon=ft.Icons.PLAY_ARROW,
                         style=ft.ButtonStyle(

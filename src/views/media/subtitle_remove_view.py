@@ -577,8 +577,8 @@ class SubtitleRemoveView(ft.Container):
             allowed_extensions=["mp4", "avi", "mov", "mkv", "flv", "wmv"],
             allow_multiple=True,
         )
-        if result and result.files:
-            for file in result.files:
+        if result:
+            for file in result:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)
@@ -1177,7 +1177,7 @@ class SubtitleRemoveView(ft.Container):
                     on_click=on_apply_to_all,
                     tooltip="将当前区域设置应用到列表中所有文件",
                 ),
-                ft.ElevatedButton("保存", icon=ft.Icons.SAVE, on_click=on_confirm),
+                ft.Button("保存", icon=ft.Icons.SAVE, on_click=on_confirm),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )

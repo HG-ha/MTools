@@ -980,7 +980,7 @@ class MainView(ft.Column):
         progress_text = ft.Text("", size=12, visible=False)
         
         # 创建按钮
-        auto_update_btn = ft.ElevatedButton(
+        auto_update_btn = ft.Button(
             content="立即更新",
             icon=ft.Icons.SYSTEM_UPDATE,
         )

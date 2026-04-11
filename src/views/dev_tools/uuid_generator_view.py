@@ -82,12 +82,12 @@ class UuidGeneratorView(ft.Container):
                     ft.Text("UUID 生成器", weight=ft.FontWeight.BOLD, size=16),
                     ft.Row(
                         controls=[
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="生成 UUID v4 (随机)",
                                 icon=ft.Icons.REFRESH,
                                 on_click=lambda _: self._generate_uuid(4),
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="生成 UUID v1 (时间戳)",
                                 icon=ft.Icons.ACCESS_TIME,
                                 on_click=lambda _: self._generate_uuid(1),
@@ -140,7 +140,7 @@ class UuidGeneratorView(ft.Container):
                                 ],
                                 value="字母+数字 (a-zA-Z0-9)",
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="生成",
                                 icon=ft.Icons.REFRESH,
                                 on_click=self._generate_random_string,
@@ -205,7 +205,7 @@ class UuidGeneratorView(ft.Container):
                     ),
                     ft.Row(
                         controls=[
-                            ft.ElevatedButton(
+                            ft.Button(
                                 content="生成密码",
                                 icon=ft.Icons.LOCK,
                                 on_click=self._generate_password,

@@ -603,7 +603,9 @@ class VideoSpeedView(ft.Container):
         self.progress_text.value = "准备处理..."
         self._page.update()
 
-        self._page.run_task(lambda: self._process_task(speed, adjust_audio, output_mode))
+        async def _task():
+            await self._process_task(speed, adjust_audio, output_mode)
+        self._page.run_task(_task)
 
     async def _process_task(self, speed: float, adjust_audio: bool, output_mode: str) -> None:
         import asyncio

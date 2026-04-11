@@ -121,7 +121,7 @@ class EncoderDecoderView(ft.Container):
                     value="标准",
                     visible=False,  # 默认隐藏，只在选择 URL 时显示
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     content="转换",
                     icon=ft.Icons.PLAY_ARROW,
                     on_click=self._on_convert,

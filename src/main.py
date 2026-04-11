@@ -290,7 +290,7 @@ def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, up
     progress_text = ft.Text("", size=12, visible=False)
     
     # 创建按钮
-    auto_update_btn = ft.ElevatedButton(
+    auto_update_btn = ft.Button(
         content="立即更新",
         icon=ft.Icons.SYSTEM_UPDATE,
     )
@@ -470,7 +470,7 @@ def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> Non
             # 没有快捷方式，显示提示
             def show_shortcut_dialog():
                 # 创建按钮
-                create_btn = ft.ElevatedButton(
+                create_btn = ft.Button(
                     content="立即创建",
                     icon=ft.Icons.ADD_TO_HOME_SCREEN,
                 )

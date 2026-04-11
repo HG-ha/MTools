@@ -91,12 +91,12 @@ class SqlFormatterView(ft.Container):
                     value="4",
                 ),
                 ft.Container(expand=True),
-                ft.ElevatedButton(
+                ft.Button(
                     content="格式化",
                     icon=ft.Icons.AUTO_FIX_HIGH,
                     on_click=lambda _: self._format_sql(False),
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     content="压缩",
                     icon=ft.Icons.COMPRESS,
                     on_click=lambda _: self._format_sql(True),

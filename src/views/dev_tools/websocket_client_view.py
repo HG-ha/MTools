@@ -63,11 +63,11 @@ class WebSocketClientView(ft.Container):
         self.url_input = ft.Ref[ft.TextField]()
         self.version_dropdown = ft.Ref[ft.Dropdown]()  # 新增版本选择
         self.headers_input = ft.Ref[ft.TextField]()
-        self.connect_button = ft.Ref[ft.ElevatedButton]()
+        self.connect_button = ft.Ref[ft.Button]()
         self.status_text = ft.Ref[ft.Text]()
         self.message_text_input = ft.Ref[ft.TextField]()
         self.message_json_input = ft.Ref[ft.TextField]()
-        self.send_button = ft.Ref[ft.ElevatedButton]()
+        self.send_button = ft.Ref[ft.Button]()
         self.message_history = ft.Ref[ft.Column]()
         self.auto_scroll = ft.Ref[ft.Checkbox]()
         
@@ -242,7 +242,7 @@ class WebSocketClientView(ft.Container):
         )
         
         # 连接按钮
-        connect_button = ft.ElevatedButton(
+        connect_button = ft.Button(
             ref=self.connect_button,
             content="连接",
             icon=ft.Icons.LINK,
@@ -391,7 +391,7 @@ class WebSocketClientView(ft.Container):
         )
         
         # 发送按钮
-        send_button = ft.ElevatedButton(
+        send_button = ft.Button(
             ref=self.send_button,
             content="发送消息",
             icon=ft.Icons.SEND,

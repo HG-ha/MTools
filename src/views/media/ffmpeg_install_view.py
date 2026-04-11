@@ -85,7 +85,7 @@ class FFmpegInstallView(ft.Container):
         self.download_progress_text = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
         
         # 自动安装按钮
-        self.auto_install_button = ft.ElevatedButton(
+        self.auto_install_button = ft.Button(
             "自动安装 FFmpeg",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_auto_install_ffmpeg,

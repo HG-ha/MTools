@@ -1269,7 +1269,9 @@ class VideoInterpolationView(ft.Container):
             pass
         
         # 在事件循环中处理
-        self._page.run_task(lambda: self._process_task(self.selected_files[:], output_dir))
+        async def _task():
+            await self._process_task(self.selected_files[:], output_dir)
+        self._page.run_task(_task)
     
     def _on_cancel(self, e: ft.ControlEvent) -> None:
         """取消处理。"""

@@ -1844,7 +1844,7 @@ class ScreenRecordView(ft.Container):
     
     def _update_ui_state(self) -> None:
         """更新 UI 状态。"""
-        # 获取按钮引用（Container 里的 ElevatedButton）
+        # 获取按钮引用（Container 里的 Button）
         btn = self.record_btn.content
         
         if self.is_recording:

@@ -63,7 +63,7 @@ class PortScannerView(ft.Container):
         # 统一控件引用
         self.host_input = ft.Ref[ft.TextField]()
         self.mode_selector = ft.Ref[ft.Dropdown]()
-        self.scan_btn = ft.Ref[ft.ElevatedButton]()
+        self.scan_btn = ft.Ref[ft.Button]()
         
         # 动态输入控件
         self.port_input = ft.Ref[ft.TextField]()      # 单个端口
@@ -135,7 +135,7 @@ class PortScannerView(ft.Container):
                                 text_size=14,
                                 content_padding=10,
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 ref=self.scan_btn,
                                 content="开始扫描",
                                 icon=ft.Icons.PLAY_ARROW,

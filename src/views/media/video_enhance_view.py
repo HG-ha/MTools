@@ -1154,8 +1154,8 @@ class VideoEnhanceView(ft.Container):
             allowed_extensions=["mp4", "mkv", "mov", "avi", "wmv", "flv", "webm", "m4v", "3gp", "ts", "m2ts"],
             allow_multiple=True,
         )
-        if result and result.files:
-            for file in result.files:
+        if result:
+            for file in result:
                 file_path = Path(file.path)
                 if file_path not in self.selected_files:
                     self.selected_files.append(file_path)

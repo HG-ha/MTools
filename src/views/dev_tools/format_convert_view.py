@@ -93,7 +93,7 @@ class FormatConvertView(ft.Container):
                     value="YAML",
                 ),
                 ft.Container(expand=True),
-                ft.ElevatedButton(
+                ft.Button(
                     content="转换",
                     icon=ft.Icons.TRANSFORM,
                     on_click=self._convert,

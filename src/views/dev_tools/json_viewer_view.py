@@ -951,37 +951,37 @@ class JsonViewerView(ft.Container):
         # 操作按钮组
         action_buttons = ft.Row(
             controls=[
-                ft.ElevatedButton(
+                ft.Button(
                     "格式化",
                     icon=ft.Icons.AUTO_AWESOME,
                     on_click=self._on_format_click,
                     tooltip="格式化JSON并显示树形结构",
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "压缩",
                     icon=ft.Icons.COMPRESS,
                     on_click=self._on_compress_click,
                     tooltip="压缩JSON为单行",
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "全部展开",
                     icon=ft.Icons.UNFOLD_MORE,
                     on_click=self._on_expand_all_click,
                     tooltip="智能展开节点（大数据时限制深度以保证性能）",
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "全部收起",
                     icon=ft.Icons.UNFOLD_LESS,
                     on_click=self._on_collapse_all_click,
                     tooltip="收起所有树节点",
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "加载示例",
                     icon=ft.Icons.LIGHTBULB_OUTLINE,
                     on_click=self._on_load_example_click,
                     tooltip="加载示例JSON",
                 ),
-                ft.ElevatedButton(
+                ft.Button(
                     "清空",
                     icon=ft.Icons.CLEAR,
                     on_click=self._on_clear_click,

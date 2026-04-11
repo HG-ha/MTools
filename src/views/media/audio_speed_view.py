@@ -572,7 +572,9 @@ class AudioSpeedView(ft.Container):
         self.progress_text.value = "准备处理..."
         self._page.update()
 
-        self._page.run_task(lambda: self._process_task(speed, output_mode, output_format))
+        async def _task():
+            await self._process_task(speed, output_mode, output_format)
+        self._page.run_task(_task)
 
     async def _process_task(self, speed, output_mode, output_format) -> None:
         """异步处理音频任务。"""
