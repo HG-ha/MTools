@@ -227,7 +227,7 @@ class OCRService:
                     enable_mem_reuse=False,
                     enable_model_cache=False,
                 )
-                logger.info("  方向分类模型已加载 ✓")
+                logger.info("  方向分类模型已加载 [OK]")
             
             if progress_callback:
                 progress_callback(0.6, "正在加载识别模型...")
@@ -268,7 +268,7 @@ class OCRService:
             # 检查是否包含常见中文字符
             has_chinese = any('\u4e00' <= char <= '\u9fff' for char in ''.join(self.char_dict[:100]))
             if has_chinese:
-                logger.info(f"  字典类型: 包含中文字符 ✓")
+                logger.info(f"  字典类型: 包含中文字符 [OK]")
             else:
                 logger.warning(f"  字典类型: 未检测到中文字符（前100个字符中）")
             
@@ -299,7 +299,7 @@ class OCRService:
             
             # 获取实际使用的执行提供者
             actual_providers = self.det_session.get_providers()
-            logger.info(f"✓ OCR模型加载成功: {model_key}")
+            logger.info(f"[OK] OCR模型加载成功: {model_key}")
             logger.info(f"  检测模型执行提供者: {actual_providers[0]}")
             logger.info(f"  字符字典大小: {len(self.char_dict)} 个字符（含blank）")
             
@@ -558,9 +558,9 @@ class OCRService:
                 # 最终过滤：score >= 0.5
                 if conf >= 0.5:
                     filtered_results.append((box.tolist(), text, conf))
-                    logger.debug(f"✓ '{text}' (置信度: {conf:.3f})")
+                    logger.debug(f"[OK] '{text}' (置信度: {conf:.3f})")
                 elif text:
-                    logger.debug(f"✗ 过滤: '{text}' (置信度: {conf:.3f})")
+                    logger.debug(f"[SKIP] 过滤: '{text}' (置信度: {conf:.3f})")
             
             if progress_callback:
                 progress_callback(1.0, f"识别完成！有效结果: {len(filtered_results)}/{len(boxes)}")

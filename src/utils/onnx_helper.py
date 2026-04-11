@@ -560,8 +560,16 @@ def create_onnx_session(
     )
     
     # 创建会话
+    # 注意：确保模型路径使用 UTF-8 编码，避免 Windows GBK 编码问题
+    model_path_str = str(model_path)
+    try:
+        # 尝试用 UTF-8 编码模型路径（用于 Windows GBK 环境）
+        model_path_str.encode('utf-8')
+    except UnicodeEncodeError:
+        pass  # 如果路径本身无法编码为 UTF-8，ONNX Runtime 会处理错误
+    
     session = ort.InferenceSession(
-        str(model_path),
+        model_path_str,
         sess_options=sess_options,
         providers=providers
     )

@@ -6,7 +6,7 @@
 一款功能强大、界面精美的现代化桌面工具集
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![Flet](https://img.shields.io/badge/Flet-0.28.3-brightgreen.svg)](https://flet.dev/)
+[![Flet](https://img.shields.io/badge/Flet-0.84.0-brightgreen.svg)](https://flet.dev/)
 [![License](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
 [![Downloads](https://img.shields.io/github/downloads/HG-ha/MTools/total?style=flat-square)](https://github.com/HG-ha/MTools/releases)
@@ -47,10 +47,10 @@
   - MTools_Windows_amd64_CUDA：体积中等，使用CUDA进行加速，但需要手动安装CUDA 12.x + cuDNN 9.x
   - MTools_Windows_amd64_CUDA_FULL：体积最大，内置完整的CUDA加速环境，无需手动安装CUDA和cuDNN
 
-- ⚠️ macOS (实验性支持)
+- ✅ macOS (实验性支持)
   - MTools_Darwin_arm64：只支M系列芯片，支持Core ML加速
 
-- ⚠️ Linux (实验性支持)
+- ✅ Linux (实验性支持)
   - MTools_Linux_amd64：体积最小，不支持GPU加速
   - MTools_Linux_amd64_CUDA：体积中等，使用CUDA进行加速，但需要手动安装CUDA 12.x + cuDNN 9.x
   - MTools_Linux_amd64_CUDA_FULL：体积最大，内置完整的CUDA加速环境，无需手动安装CUDA和cuDNN

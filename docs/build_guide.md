@@ -96,7 +96,7 @@ uv sync
 python flet_build.py windows
 
 # 带详细输出和版本号
-python flet_build.py windows --verbose --build-version=0.0.13-beta --build-number=42
+python flet_build.py windows --verbose --build-version=0.0.14-beta --build-number=42
 
 # macOS
 python flet_build.py macos
@@ -128,7 +128,7 @@ flet build windows --verbose
 |------|------|------|
 | `windows` / `macos` / `linux` | 目标平台 | `python flet_build.py windows` |
 | `--verbose` / `-v` | 详细输出 | `python flet_build.py windows -v` |
-| `--build-version` | 版本号 | `--build-version=0.0.13-beta` |
+| `--build-version` | 版本号 | `--build-version=0.0.14-beta` |
 | `--build-number` | 构建号 | `--build-number=42` |
 | `--no-rich-output` | 关闭富文本输出（CI 环境） | `--no-rich-output` |
 | `--yes` | 自动确认提示 | `--yes` |
@@ -140,7 +140,7 @@ flet build windows --verbose
 python flet_build.py windows -v
 
 # CI 环境构建
-python flet_build.py windows --verbose --no-rich-output --yes --build-version=0.0.13-beta --build-number=123
+python flet_build.py windows --verbose --no-rich-output --yes --build-version=0.0.14-beta --build-number=123
 
 # CUDA 版本
 python scripts/prepare_cuda_variant.py cuda

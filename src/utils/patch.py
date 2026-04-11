@@ -4,6 +4,18 @@ import warnings
 import os
 from pathlib import Path
 
+# ===== 设置 UTF-8 编码（解决 Windows GBK 编码问题）=====
+# 这个必须在最前面设置，确保整个应用使用 UTF-8 编码
+# 特别是在 Windows 系统上，默认使用 GBK 编码会导致 Unicode 字符输出失败
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+try:
+    # Python 3.7+ 支持直接设置 UTF-8 模式
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    # Python < 3.7 或其他环境不支持 reconfigure
+    pass
+
 # 屏蔽 libpng 警告
 warnings.filterwarnings("ignore", message=".*iCCP.*")
 
