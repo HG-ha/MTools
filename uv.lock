@@ -302,18 +302,6 @@ all = [
 ]
 
 [[package]]
-name = "flet-audio"
-version = "0.84.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "flet" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/7f/1e7c1eccd888780f2ffd66a2d28085f6dbfafbc190876cd73e8d3756cf7d/flet_audio-0.84.0.tar.gz", hash = "sha256:9e19016f0fd4b9d8d671d3e4ef506491b5e48afecc6f61f8ecce47b03f686fd7", size = 10705, upload-time = "2026-04-01T19:24:14.51Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/ed/4be54b35387675ee719c6882a68b3ea3e43c4b34e25fac49e7f8dcf31335/flet_audio-0.84.0-py3-none-any.whl", hash = "sha256:39b9cd1bec0711db9ebf0fedb6a02ad915e709b3206bff1c59bf3faf5eab5bac", size = 12483, upload-time = "2026-04-01T19:24:13.42Z" },
-]
-
-[[package]]
 name = "flet-cli"
 version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
@@ -551,7 +539,6 @@ dependencies = [
     { name = "dnspython" },
     { name = "ffmpeg-python" },
     { name = "flet" },
-    { name = "flet-audio" },
     { name = "flet-dropzone" },
     { name = "flet-gpt-markdown" },
     { name = "httpx", extra = ["socks"] },
@@ -594,7 +581,6 @@ requires-dist = [
     { name = "dnspython", specifier = "==2.8.0" },
     { name = "ffmpeg-python", specifier = "==0.2.0" },
     { name = "flet", specifier = "==0.84.0" },
-    { name = "flet-audio", specifier = ">=0.84.0" },
     { name = "flet-dropzone", specifier = "==0.3.1" },
     { name = "flet-gpt-markdown", editable = "extensions/flet-gpt-markdown" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },

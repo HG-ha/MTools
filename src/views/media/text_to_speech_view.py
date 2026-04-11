@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import flet as ft
-import flet_audio as fta
 
 from constants import (
     BORDER_RADIUS_MEDIUM,
@@ -23,7 +22,7 @@ from constants import (
 from services import ConfigService, FFmpegService
 from services.tts_service import TTSService
 from utils import logger, get_unique_path
-from utils.file_utils import pick_files, get_directory_path
+from utils.file_utils import get_directory_path
 
 _VOICE_PREFIX_LABELS: dict[str, str] = {
     "af": "美式英语·女", "am": "美式英语·男",
@@ -76,7 +75,6 @@ class TextToSpeechView(ft.Container):
         )
 
         self._last_generated_file: Optional[Path] = None
-        self.audio_player: Optional[fta.Audio] = None
 
         self._build_ui()
 
@@ -380,40 +378,10 @@ class TextToSpeechView(ft.Container):
                 shape=ft.RoundedRectangleBorder(radius=BORDER_RADIUS_MEDIUM),
             ),
         )
-        self.preview_button = ft.Button(
-            "试听结果", icon=ft.Icons.HEADPHONES,
-            on_click=self._on_preview_click,
-            disabled=True,
-        )
-        self.stop_button = ft.Button(
-            "停止播放", icon=ft.Icons.STOP,
-            on_click=self._on_stop_click,
-            visible=False,
-        )
-        self.batch_button = ft.Button(
-            "批量 TXT 转语音", icon=ft.Icons.FOLDER_OPEN,
-            on_click=self._on_batch_click,
-            disabled=True,
-        )
-
         generate_container = ft.Container(
             content=self.generate_button,
             alignment=ft.Alignment.CENTER,
             margin=ft.Margin.only(top=PADDING_MEDIUM, bottom=PADDING_SMALL),
-        )
-
-        button_row = ft.Container(
-            content=ft.Row(
-                controls=[
-                    self.preview_button,
-                    self.stop_button,
-                    ft.Container(expand=True),
-                    self.batch_button,
-                ],
-                spacing=PADDING_MEDIUM,
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
-            margin=ft.Margin.only(top=PADDING_SMALL),
         )
 
         # ── Main layout (vertical scroll) ──
@@ -431,7 +399,6 @@ class TextToSpeechView(ft.Container):
                 ft.Container(height=PADDING_MEDIUM),
                 self.progress_container,
                 generate_container,
-                button_row,
                 ft.Container(height=PADDING_LARGE),
             ],
             scroll=ft.ScrollMode.HIDDEN,
@@ -727,39 +694,6 @@ class TextToSpeechView(ft.Container):
     # ------------------------------------------------------------------
     # Preview (play last generated file)
     # ------------------------------------------------------------------
-
-    async def _on_preview_click(self, e) -> None:
-        if not self._last_generated_file or not self._last_generated_file.exists():
-            self._show_snackbar("请先生成语音文件", ft.Colors.ORANGE)
-            return
-
-        await self._stop_audio()
-
-        self.audio_player = fta.Audio(
-            src=str(self._last_generated_file),
-            autoplay=True,
-            volume=1.0,
-        )
-        self._page.services.append(self.audio_player)
-        self.stop_button.visible = True
-        self._page.update()
-
-    async def _on_stop_click(self, e) -> None:
-        await self._stop_audio()
-        self.stop_button.visible = False
-        self._page.update()
-
-    async def _stop_audio(self) -> None:
-        if self.audio_player is not None:
-            try:
-                await self.audio_player.pause()
-                if self.audio_player in self._page.services:
-                    self._page.services.remove(self.audio_player)
-            except Exception:
-                pass
-            self.audio_player = None
-
-    # ------------------------------------------------------------------
     # Generate file
     # ------------------------------------------------------------------
 
@@ -823,84 +757,6 @@ class TextToSpeechView(ft.Container):
     # Batch
     # ------------------------------------------------------------------
 
-    async def _on_batch_click(self, e) -> None:
-        if not self.tts_service.is_loaded() or self.is_processing:
-            return
-
-        result = await pick_files(
-            self._page,
-            dialog_title="选择 TXT 文件",
-            allowed_extensions=["txt"],
-            allow_multiple=True,
-        )
-        if not result:
-            return
-
-        txt_files = [Path(f.path) for f in result]
-        if not txt_files:
-            return
-
-        output_dir = self._get_output_dir()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        fmt = self.format_dropdown.value or "wav"
-        sid = self._get_speaker_id()
-        speed = round(self.speed_slider.value, 1)
-
-        self.is_processing = True
-        self.batch_button.disabled = True
-        self.progress_container.visible = True
-        self._page.update()
-
-        try:
-            total_files = len(txt_files)
-            for file_idx, txt_file in enumerate(txt_files):
-                self.progress_bar.value = file_idx / total_files
-                self.progress_text.value = f"处理文件 {file_idx + 1}/{total_files}: {txt_file.name}"
-                self._page.update()
-
-                try:
-                    text = txt_file.read_text(encoding="utf-8").strip()
-                except UnicodeDecodeError:
-                    text = txt_file.read_text(encoding="gbk", errors="replace").strip()
-
-                if not text:
-                    continue
-
-                output_name = txt_file.stem + f".{fmt}"
-                add_sequence = self.config_service.get_config_value("output_add_sequence", False)
-                output_path = get_unique_path(output_dir / output_name, add_sequence=add_sequence)
-
-                batch_last_update = [0.0]
-
-                def on_seg_progress(current: int, total: int, _fi=file_idx):
-                    if total > 0:
-                        now = time.monotonic()
-                        if current >= total or now - batch_last_update[0] > 0.5:
-                            file_progress = (_fi + current / total) / total_files
-                            self.progress_bar.value = file_progress
-                            self.progress_text.value = (
-                                f"文件 {_fi + 1}/{total_files} | 段 {current}/{total}"
-                            )
-                            self._page.update()
-                            batch_last_update[0] = now
-
-                await asyncio.to_thread(
-                    self.tts_service.generate_to_file,
-                    text, output_path, sid, speed, fmt, on_seg_progress,
-                )
-
-            self.progress_bar.value = 1.0
-            self.progress_text.value = f"批量完成: 共 {total_files} 个文件 → {output_dir}"
-            self._show_snackbar(f"批量转换完成: {total_files} 个文件", ft.Colors.GREEN)
-        except Exception as ex:
-            logger.error(f"TTS 批量处理失败: {ex}")
-            self._show_snackbar(f"批量处理失败: {ex}", ft.Colors.ERROR)
-        finally:
-            self.is_processing = False
-            self._refresh_button_states()
-            self._page.update()
-
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -915,16 +771,9 @@ class TextToSpeechView(ft.Container):
     def _refresh_button_states(self) -> None:
         loaded = self.tts_service.is_loaded()
         has_text = bool((self.text_input.value or "").strip())
-        has_file = (
-            self._last_generated_file is not None
-            and self._last_generated_file.exists()
-        )
 
         self.model_dropdown.disabled = self.is_downloading or self.is_processing
-
-        self.preview_button.disabled = not has_file or self.is_processing
         self.generate_button.disabled = not (loaded and has_text) or self.is_processing
-        self.batch_button.disabled = not loaded or self.is_processing
 
     def _show_snackbar(self, message: str, color: str = None) -> None:
         snackbar = ft.SnackBar(
@@ -940,14 +789,6 @@ class TextToSpeechView(ft.Container):
 
     def cleanup(self) -> None:
         import gc
-
-        if self.audio_player is not None:
-            try:
-                if self.audio_player in self._page.services:
-                    self._page.services.remove(self.audio_player)
-            except Exception:
-                pass
-            self.audio_player = None
 
         self._last_generated_file = None
         self.tts_service.cleanup()
