@@ -81,15 +81,20 @@ def update_pyproject_for_cuda(variant: str) -> None:
             continue
 
         # ---- sherpa-onnx 替换 ----
+        # +cuda = CUDA 11 + cuDNN 8（需用户自装 CUDA 11）
+        # +cuda12.cudnn9 = CUDA 12 + cuDNN 9（与 onnxruntime-gpu 1.24 匹配）
         if re.match(r'^\s*"sherpa-onnx[=<>!]', line):
             if not sherpa_cuda_added:
                 ver = _extract_sherpa_version(stripped)
                 if variant == "cuda":
-                    new_lines.append(f'  "sherpa-onnx=={ver}+cuda",')
+                    sherpa_suffix = "cuda12.cudnn9"
                 elif variant == "cuda_full":
-                    new_lines.append(f'  "sherpa-onnx=={ver}+cuda",')
+                    sherpa_suffix = "cuda12.cudnn9"
+                else:
+                    sherpa_suffix = "cuda"
+                new_lines.append(f'  "sherpa-onnx=={ver}+{sherpa_suffix}",')
                 sherpa_cuda_added = True
-                print(f"  已替换 sherpa-onnx 依赖 → {ver}+cuda")
+                print(f"  已替换 sherpa-onnx 依赖 → {ver}+{sherpa_suffix}")
             continue
 
         new_lines.append(line)
