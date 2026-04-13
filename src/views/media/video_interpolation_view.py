@@ -771,22 +771,22 @@ class VideoInterpolationView(ft.Container):
                 await asyncio.sleep(0.3)
         
         def _do_download():
-            import requests
+            import httpx
             url = self.current_model.url
             logger.info(f"开始下载RIFE模型: {url}")
             self.model_path.parent.mkdir(parents=True, exist_ok=True)
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded = 0
-            with open(self.model_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0:
-                            progress = downloaded / total_size
-                            self._pending_download_progress = f"下载中... {progress*100:.1f}%"
+            with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                with open(self.model_path, 'wb') as f:
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                progress = downloaded / total_size
+                                self._pending_download_progress = f"下载中... {progress*100:.1f}%"
         
         try:
             poll_task = asyncio.create_task(_poll_download())

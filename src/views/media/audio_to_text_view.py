@@ -1756,55 +1756,51 @@ class AudioToTextView(ft.Container):
         
         def download_task():
             try:
-                import requests
+                import httpx
                 
                 punctuation_model_info = PUNCTUATION_MODELS[DEFAULT_PUNCTUATION_MODEL_KEY]
                 
-                # 确保模型目录存在
                 model_dir = self.punctuation_model_dir / punctuation_model_info.name
                 model_dir.mkdir(parents=True, exist_ok=True)
                 
                 model_path = model_dir / punctuation_model_info.model_filename
                 tokens_path = model_dir / punctuation_model_info.tokens_filename
                 
-                # 下载模型文件
                 self.punctuation_status_text.value = "下载模型文件..."
                 try:
                     self._page.update()
                 except Exception:
                     pass
                 
-                response = requests.get(punctuation_model_info.model_url, stream=True, timeout=120)
-                response.raise_for_status()
+                with httpx.stream("GET", punctuation_model_info.model_url, follow_redirects=True, timeout=120.0) as response:
+                    response.raise_for_status()
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(model_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if total_size > 0:
+                                    progress = downloaded / total_size * 100
+                                    self.punctuation_status_text.value = f"下载模型... {progress:.0f}%"
+                                    try:
+                                        self._page.update()
+                                    except Exception:
+                                        pass
                 
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded = 0
-                
-                with open(model_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total_size > 0:
-                                progress = downloaded / total_size * 100
-                                self.punctuation_status_text.value = f"下载模型... {progress:.0f}%"
-                                try:
-                                    self._page.update()
-                                except Exception:
-                                    pass
-                
-                # 下载 tokens 文件
                 self.punctuation_status_text.value = "下载 tokens 文件..."
                 try:
                     self._page.update()
                 except Exception:
                     pass
                 
-                response = requests.get(punctuation_model_info.tokens_url, timeout=60)
-                response.raise_for_status()
-                
-                with open(tokens_path, 'wb') as f:
-                    f.write(response.content)
+                with httpx.stream("GET", punctuation_model_info.tokens_url, follow_redirects=True, timeout=60.0) as response:
+                    response.raise_for_status()
+                    with open(tokens_path, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            f.write(chunk)
                 
                 self.punctuation_status_icon.name = ft.Icons.CHECK_CIRCLE
                 self.punctuation_status_icon.color = ft.Colors.GREEN

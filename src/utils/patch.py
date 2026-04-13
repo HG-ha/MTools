@@ -58,6 +58,11 @@ def _setup_library_paths():
     _sp_env = os.environ.get("SERIOUS_PYTHON_SITE_PACKAGES")
     if _sp_env:
         sp_dirs.append(Path(_sp_env))
+    # 从 sys.path 兜底查找 site-packages（防止环境变量未设置）
+    for p in sys.path:
+        pp = Path(p)
+        if pp.name == "site-packages" and pp.is_dir() and pp not in sp_dirs:
+            sp_dirs.append(pp)
 
     if debug_patch:
         print(f"DEBUG | site-packages 候选: {[str(p) for p in sp_dirs]}")
@@ -78,13 +83,18 @@ def _setup_library_paths():
             if debug_patch:
                 print(f"DEBUG | 应用根目录: {app_root}")
 
-    # ── 2. onnxruntime/capi（不 import，直接在文件系统中查找）──
+    # ── 2. onnxruntime/capi 和 sherpa_onnx/lib（不 import，直接在文件系统中查找）
     for sp in sp_dirs:
         capi = sp / "onnxruntime" / "capi"
         if capi.is_dir() and capi not in lib_paths:
             lib_paths.append(capi)
             if debug_patch:
                 print(f"DEBUG | 找到 ONNX Runtime capi: {capi}")
+        sherpa_lib = sp / "sherpa_onnx" / "lib"
+        if sherpa_lib.is_dir() and sherpa_lib not in lib_paths:
+            lib_paths.append(sherpa_lib)
+            if debug_patch:
+                print(f"DEBUG | 找到 sherpa_onnx lib: {sherpa_lib}")
 
     # ── 3. NVIDIA CUDA 库（nvidia/*/bin 或 lib）────────────────
     for sp in sp_dirs:
@@ -119,6 +129,39 @@ def _setup_library_paths():
                             print(f"DEBUG | 找到本地 NVIDIA 库: {bin_dir}")
         except Exception:
             pass
+
+    # ── 5. 系统安装的 CUDA Toolkit（cuda 变体，用户自装 CUDA）──
+    if system == "Windows":
+        cuda_path = os.environ.get("CUDA_PATH", "")
+        if cuda_path:
+            cuda_bin = Path(cuda_path) / "bin"
+            if cuda_bin.is_dir() and cuda_bin not in lib_paths:
+                lib_paths.append(cuda_bin)
+                if debug_patch:
+                    print(f"DEBUG | 找到系统 CUDA: {cuda_bin}")
+        else:
+            cuda_base = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA")
+            if cuda_base.is_dir():
+                try:
+                    versions = sorted(cuda_base.iterdir(), reverse=True)
+                    for ver_dir in versions:
+                        cuda_bin = ver_dir / "bin"
+                        if cuda_bin.is_dir() and cuda_bin not in lib_paths:
+                            lib_paths.append(cuda_bin)
+                            if debug_patch:
+                                print(f"DEBUG | 找到系统 CUDA: {cuda_bin}")
+                            break
+                except Exception:
+                    pass
+    elif system == "Linux":
+        for cuda_candidate in [
+            Path("/usr/local/cuda/lib64"),
+            Path("/usr/lib/x86_64-linux-gnu"),
+        ]:
+            if cuda_candidate.is_dir() and cuda_candidate not in lib_paths:
+                lib_paths.append(cuda_candidate)
+                if debug_patch:
+                    print(f"DEBUG | 找到系统 CUDA: {cuda_candidate}")
 
     # ── 应用路径 ──────────────────────────────────────────────
     if not lib_paths:

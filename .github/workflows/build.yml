@@ -255,6 +255,62 @@ jobs:
               tmp.rename(dst)
               print(f"Renamed: {src} -> {dst}")
 
+      # ========== 验证 CUDA DLLs ==========
+
+      - name: Verify CUDA libraries in build output
+        if: matrix.cuda_variant != 'none'
+        shell: python
+        run: |
+          from pathlib import Path
+          import sys
+
+          platform = "${{ matrix.flet_platform }}"
+          build_root = Path(f"build/{platform}")
+          if not build_root.exists():
+              print(f"WARNING: build/{platform} not found")
+              sys.exit(0)
+
+          # 查找 site-packages
+          sp_dirs = list(build_root.rglob("site-packages"))
+          print(f"Found {len(sp_dirs)} site-packages dir(s)")
+          for sp in sp_dirs:
+              print(f"\n=== {sp} ===")
+
+              # onnxruntime capi
+              capi = sp / "onnxruntime" / "capi"
+              if capi.exists():
+                  dlls = [f.name for f in capi.iterdir() if f.suffix in ('.dll', '.so', '.pyd', '.dylib')]
+                  print(f"\nonnxruntime/capi/ ({len(dlls)} binaries):")
+                  for d in sorted(dlls):
+                      print(f"  {d}")
+                  cuda_providers = [d for d in dlls if 'cuda' in d.lower()]
+                  if cuda_providers:
+                      print(f"  ✓ CUDA providers found: {cuda_providers}")
+                  else:
+                      print("  ✗ WARNING: No CUDA provider DLLs found!")
+              else:
+                  print("\n✗ WARNING: onnxruntime/capi/ not found!")
+
+              # nvidia packages
+              nvidia_dir = sp / "nvidia"
+              if nvidia_dir.exists():
+                  print(f"\nnvidia/ subdirectories:")
+                  for sub in sorted(nvidia_dir.iterdir()):
+                      if sub.is_dir():
+                          bin_dir = sub / "bin"
+                          lib_dir = sub / "lib"
+                          for d in (bin_dir, lib_dir):
+                              if d.exists():
+                                  files = [f.name for f in d.iterdir() if f.is_file()]
+                                  print(f"  {sub.name}/{d.name}/ ({len(files)} files): {files[:5]}{'...' if len(files) > 5 else ''}")
+              else:
+                  variant = "${{ matrix.cuda_variant }}"
+                  if variant == "cuda_full":
+                      print("\n✗ ERROR: nvidia/ not found in cuda_full build! CUDA DLLs are missing!")
+                      sys.exit(1)
+                  else:
+                      print("\nnvidia/ not found (expected for cuda variant - user provides CUDA)")
+
       # ========== 打包产物 ==========
 
       - name: Get artifact name
