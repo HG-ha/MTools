@@ -17,7 +17,7 @@ dependencies = [
   "opencv-python-headless==4.11.0.86",
   "numpy==1.26.4",
   # ONNX Runtime - 自动根据平台选择合适的版本
-  "onnxruntime>=1.23.0,<2.0",
+  "onnxruntime>=1.23.0",
   "websockets==12.0", # 避免弃用警告，等待 flet 更新
   "qrcode[pil]==7.4.2",
   "sherpa-onnx==1.12.35",
