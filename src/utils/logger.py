@@ -75,19 +75,24 @@ class Logger:
             return
         
         # 控制台处理器（彩色输出）- 始终启用
-        # 使用 UTF-8 编码确保 Unicode 字符正确输出（解决 Windows GBK 编码问题）
-        console_handler = logging.StreamHandler(sys.stdout)
+        # 打包后的 GUI 应用没有控制台，stdout/stderr 可能为 None
+        stream = sys.stdout
+        if stream is None:
+            stream = sys.stderr
+        if stream is None:
+            stream = open(os.devnull, 'w', encoding='utf-8')
+
+        console_handler = logging.StreamHandler(stream)
         console_handler.setLevel(logging.DEBUG)
         console_formatter = ColoredFormatter(
             '%(levelname)s | %(message)s'
         )
         console_handler.setFormatter(console_formatter)
-        # 设置 StreamHandler 的编码为 UTF-8
         if hasattr(console_handler, 'stream') and hasattr(console_handler.stream, 'reconfigure'):
             try:
                 console_handler.stream.reconfigure(encoding='utf-8')
             except Exception:
-                pass  # Python < 3.7 或其他环境不支持 reconfigure
+                pass
         self._logger.addHandler(console_handler)
         
         # 文件处理器默认不创建，需要调用 enable_file_logging() 启用

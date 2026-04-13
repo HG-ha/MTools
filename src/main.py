@@ -636,18 +636,54 @@ def _cleanup_auto_start_registry() -> None:
 # 启动应用
 if __name__ == "__main__":
     import sys
+    import os
+    import platform
     from pathlib import Path
-    
-    # 获取 assets 目录路径（兼容源码运行和 Nuitka 打包环境）
-    # 开发环境: src/assets (相对于 main.py)
-    # 打包环境: exe所在目录/src/assets
-    assets_path = Path(__file__).parent / "assets"
-    if not assets_path.exists():
-        # 打包环境下 __file__ 可能不可靠，使用 sys.argv[0] 定位
-        app_dir = Path(sys.argv[0]).parent
-        for candidate in [app_dir / "src" / "assets", app_dir / "assets"]:
-            if candidate.exists():
-                assets_path = candidate
-                break
-    
-    ft.run(main, assets_dir=str(assets_path))
+
+    def _get_crash_log_path() -> Path:
+        """获取崩溃日志路径（使用 ASCII 安全的系统目录）。"""
+        system = platform.system()
+        if system == "Windows":
+            base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        elif system == "Darwin":
+            base = Path.home() / "Library" / "Application Support"
+        else:
+            base = Path.home() / ".local" / "share"
+        crash_dir = base / "MTools"
+        crash_dir.mkdir(parents=True, exist_ok=True)
+        return crash_dir / "crash.log"
+
+    def _write_crash_log(exc: BaseException) -> None:
+        """将崩溃信息写入日志文件。"""
+        import traceback
+        from datetime import datetime
+        try:
+            log_path = _get_crash_log_path()
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"Crash at {datetime.now().isoformat()}\n")
+                f.write(f"Python: {sys.version}\n")
+                f.write(f"Executable: {sys.executable}\n")
+                f.write(f"argv: {sys.argv}\n")
+                f.write(f"CWD: {os.getcwd()}\n")
+                f.write(f"PYTHONUTF8: {os.environ.get('PYTHONUTF8', 'not set')}\n")
+                f.write(f"{'='*60}\n")
+                traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+                f.write("\n")
+        except Exception:
+            pass
+
+    try:
+        # 获取 assets 目录路径（兼容源码运行和打包环境）
+        assets_path = Path(__file__).parent / "assets"
+        if not assets_path.exists():
+            app_dir = Path(sys.argv[0]).parent
+            for candidate in [app_dir / "src" / "assets", app_dir / "assets"]:
+                if candidate.exists():
+                    assets_path = candidate
+                    break
+
+        ft.run(main, assets_dir=str(assets_path))
+    except Exception as _exc:
+        _write_crash_log(_exc)
+        raise

@@ -5,15 +5,24 @@ import os
 from pathlib import Path
 
 # ===== 设置 UTF-8 编码（解决 Windows GBK 编码问题）=====
-# 这个必须在最前面设置，确保整个应用使用 UTF-8 编码
-# 特别是在 Windows 系统上，默认使用 GBK 编码会导致 Unicode 字符输出失败
+# 必须最先设置，确保整个应用使用 UTF-8 编码
+# PYTHONUTF8=1 启用 Python UTF-8 模式，影响文件 I/O、os.fsdecode 等
+os.environ['PYTHONUTF8'] = '1'
 os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+
+# 打包后的 GUI 应用没有控制台，stdout/stderr 可能为 None
+# 必须在任何 print/logging 之前修复，否则写入 None 会直接崩溃
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w', encoding='utf-8')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w', encoding='utf-8')
+
 try:
-    # Python 3.7+ 支持直接设置 UTF-8 模式
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
-    # Python < 3.7 或其他环境不支持 reconfigure
     pass
 
 # 屏蔽 libpng 警告
@@ -233,8 +242,11 @@ def _setup_library_paths():
         if dyld_path != os.environ.get('DYLD_LIBRARY_PATH', ''):
             os.environ['DYLD_LIBRARY_PATH'] = dyld_path
 
-# 执行库路径设置
-_setup_library_paths()
+# 执行库路径设置（捕获所有异常，避免中文路径等问题导致启动崩溃）
+try:
+    _setup_library_paths()
+except Exception:
+    pass
 
 # ===== Windows 子进程窗口隐藏 =====
 if sys.platform == "win32":
