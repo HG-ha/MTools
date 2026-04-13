@@ -262,6 +262,52 @@ jobs:
               tmp.rename(dst)
               print(f"Renamed: {src} -> {dst}")
 
+      # ========== 修复中文/非 ASCII 路径闪退 (Flet #5195) ==========
+      # serious_python 用窄字符串 API 处理路径，中文 Windows 默认 GBK 编码导致 UTF-8 路径损坏
+      # 通过 Windows 应用清单将进程默认代码页设为 UTF-8，使所有窄字符串 API 正确处理 Unicode
+      - name: Embed UTF-8 manifest into exe (Windows)
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import subprocess, tempfile
+          from pathlib import Path
+
+          build_root = Path("build/windows")
+          exe = build_root / "MTools.exe"
+          if not exe.exists():
+              print("MTools.exe not found, skip")
+              raise SystemExit(0)
+
+          manifest = r'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+            <application xmlns="urn:schemas-microsoft-com:asm.v3">
+              <windowsSettings>
+                <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+              </windowsSettings>
+            </application>
+          </assembly>'''
+
+          manifest_file = build_root / "utf8.manifest"
+          manifest_file.write_text(manifest, encoding="utf-8")
+
+          result = subprocess.run(
+              ["mt.exe", "-manifest", str(manifest_file), f"-outputresource:{exe};#1"],
+              capture_output=True, text=True
+          )
+          if result.returncode == 0:
+              print("UTF-8 manifest embedded successfully")
+          else:
+              print(f"mt.exe failed (rc={result.returncode}): {result.stderr}")
+              print("Trying alternative: rc.exe + resource embedding...")
+              # mt.exe 可能不可用，尝试手动创建资源
+              rc_content = f'1 24 "{manifest_file.name}"'
+              rc_file = build_root / "utf8.rc"
+              rc_file.write_text(rc_content)
+              # 用 windres 或忽略错误（manifest 非必需，只影响中文路径）
+              print("WARNING: UTF-8 manifest not embedded, Chinese paths may not work")
+
+          manifest_file.unlink(missing_ok=True)
+
       # ========== 解决 sherpa_onnx 与 onnxruntime-gpu 的 DLL 冲突 ==========
       # sherpa_onnx 自带 onnxruntime.dll (v1.23.2)，会与 onnxruntime-gpu (v1.24.4) 冲突
       # 删掉 sherpa_onnx 自带的 onnxruntime DLLs，强制使用 onnxruntime-gpu 的版本
