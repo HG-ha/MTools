@@ -151,10 +151,16 @@ class ImageService:
         mozjpeg_available = self._is_tool_available("mozjpeg")
         pngquant_available = self._is_tool_available("pngquant")
         
+        # macOS/Linux 不支持 mozjpeg，只需 pngquant 即视为全部就绪
+        if platform.system() in ("Darwin", "Linux"):
+            all_installed = pngquant_available
+        else:
+            all_installed = mozjpeg_available and pngquant_available
+        
         return {
             "mozjpeg": mozjpeg_available,
             "pngquant": pngquant_available,
-            "all_installed": mozjpeg_available and pngquant_available,
+            "all_installed": all_installed,
         }
     
     def _get_temp_dir(self) -> Path:
