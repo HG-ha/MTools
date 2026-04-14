@@ -1,6 +1,6 @@
 [project]
 name = "MTools"
-version = "0.0.15-beta"
+version = "0.0.16-beta"
 description = "Multi-functional desktop application with media processing, encoding conversion, and more"
 readme = "README.md"
 license = {text = "MIT"}
@@ -42,7 +42,7 @@ dependencies = [
   "pynput>=1.7.7 ; sys_platform == 'darwin'", # macOS 全局热键
   "flet-dropzone==0.3.1", # 原生拖放支持（需要 flet build）
   "cryptography>=44.0.0", # 配置加密存储（flet.security 依赖）
-  "flet-gpt-markdown",
+  "flet-gpt-markdown @ file:///Users/yiming/Projects/Python_projects/MTools/extensions/flet-gpt-markdown",
 ]
 
 [tool.uv.sources]

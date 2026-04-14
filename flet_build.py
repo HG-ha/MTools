@@ -13,8 +13,8 @@ flet build 包装脚本 — 自动修补已知的上游构建问题。
 
 用法：
     python flet_build.py windows -v
-    python flet_build.py windows --build-version=0.0.15-beta
-    python flet_build.py windows -v --build-version=0.0.15-beta --build-number=42
+    python flet_build.py windows --build-version=0.0.16-beta
+    python flet_build.py windows -v --build-version=0.0.16-beta --build-number=42
 
 所有参数原样传递给 flet build。
 """
