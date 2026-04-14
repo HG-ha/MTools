@@ -1573,12 +1573,16 @@ class ScreenRecordView(ft.Container):
         
         async def _select_and_record_async():
             from utils.screen_selector import select_screen_region
-            result = await asyncio.to_thread(
-                select_screen_region,
-                hint_main="🎬 点击选择窗口  |  拖拽框选区域",
-                hint_sub="按 F 录制当前屏幕  |  ESC 取消",
-                return_window_title=True,
-            )
+            try:
+                result = await asyncio.to_thread(
+                    select_screen_region,
+                    hint_main="🎬 点击选择窗口  |  拖拽框选区域",
+                    hint_sub="按 F 录制当前屏幕  |  ESC 取消",
+                    return_window_title=True,
+                )
+            except Exception as ex:
+                logger.error(f"屏幕区域选择失败: {ex}", exc_info=True)
+                result = None
             
             self.record_btn.disabled = False
             
@@ -1710,6 +1714,21 @@ class ScreenRecordView(ft.Container):
             
         except Exception as ex:
             logger.error(f"启动录制失败: {ex}", exc_info=True)
+            if self.recording_process is not None:
+                try:
+                    self.recording_process.stdin.close()
+                except Exception:
+                    pass
+                try:
+                    self.recording_process.terminate()
+                    self.recording_process.wait(timeout=5)
+                except Exception:
+                    try:
+                        self.recording_process.kill()
+                    except Exception:
+                        pass
+                self.recording_process = None
+            self.is_recording = False
             self._show_message(f"启动录制失败: {ex}", ft.Colors.RED)
     
     def _on_pause_recording(self, e) -> None:

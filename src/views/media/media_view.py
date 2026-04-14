@@ -742,36 +742,31 @@ class MediaView(ft.Container):
         """打开FFmpeg终端。"""
         import os
         import subprocess
+        import platform
         from pathlib import Path
-        
+
         try:
-            # 检查FFmpeg是否可用
             is_available, location = self.ffmpeg_service.is_ffmpeg_available()
             if not is_available:
-                # 如果FFmpeg不可用，显示安装视图
                 self._show_ffmpeg_install_view()
                 return
-            
-            # 获取FFmpeg路径
+
             ffmpeg_path = self.ffmpeg_service.get_ffmpeg_path()
-            
-            # 准备环境变量
             env = os.environ.copy()
-            
-            # 如果使用本地FFmpeg，需要添加到PATH
+            system = platform.system()
+            path_sep = ";" if system == "Windows" else ":"
+
             if self.ffmpeg_service.ffmpeg_exe.exists():
                 ffmpeg_bin_dir = str(self.ffmpeg_service.ffmpeg_bin)
-                # 将FFmpeg bin目录添加到PATH的最前面
-                if 'PATH' in env:
-                    env['PATH'] = f"{ffmpeg_bin_dir};{env['PATH']}"
+                if "PATH" in env:
+                    env["PATH"] = f"{ffmpeg_bin_dir}{path_sep}{env['PATH']}"
                 else:
-                    env['PATH'] = ffmpeg_bin_dir
-            
-            # 获取用户主目录作为工作目录
+                    env["PATH"] = ffmpeg_bin_dir
+
             work_dir = str(Path.home())
-            
-            # 创建启动脚本
-            startup_script = f"""@echo off
+
+            if system == "Windows":
+                startup_script = f"""@echo off
 title FFmpeg Terminal
 echo ========================================
 echo FFmpeg Terminal - Ready
@@ -785,29 +780,56 @@ echo Type 'ffmpeg -version' to verify.
 echo.
 cd /d "{work_dir}"
 """
-            
-            # 保存临时启动脚本
-            temp_script = Path(self.config_service.get_temp_dir()) / "ffmpeg_terminal_startup.bat"
-            temp_script.write_text(startup_script, encoding='utf-8')
-            
-            # 打开CMD并执行启动脚本
-            subprocess.Popen(
-                ['cmd.exe', '/K', str(temp_script)],
-                env=env,
-                cwd=work_dir,
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-            )
-            
-            # 显示成功消息
+                temp_script = Path(self.config_service.get_temp_dir()) / "ffmpeg_terminal_startup.bat"
+                temp_script.write_text(startup_script, encoding="utf-8")
+                subprocess.Popen(
+                    ["cmd.exe", "/K", str(temp_script)],
+                    env=env,
+                    cwd=work_dir,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                )
+            elif system == "Darwin":
+                temp_script = Path(self.config_service.get_temp_dir()) / "ffmpeg_terminal.sh"
+                temp_script.write_text(
+                    f'#!/bin/bash\nexport PATH="{env.get("PATH", "")}"\ncd "{work_dir}"\n'
+                    f'echo "FFmpeg Terminal - Ready"\necho "FFmpeg: {ffmpeg_path}"\n'
+                    f'echo "Type ffmpeg -version to verify."\nexec $SHELL\n',
+                    encoding="utf-8",
+                )
+                temp_script.chmod(0o755)
+                subprocess.Popen(["open", "-a", "Terminal", str(temp_script)], cwd=work_dir)
+            else:
+                temp_script = Path(self.config_service.get_temp_dir()) / "ffmpeg_terminal.sh"
+                temp_script.write_text(
+                    f'#!/bin/bash\nexport PATH="{env.get("PATH", "")}"\ncd "{work_dir}"\n'
+                    f'echo "FFmpeg Terminal - Ready"\necho "FFmpeg: {ffmpeg_path}"\n'
+                    f'echo "Type ffmpeg -version to verify."\nexec $SHELL\n',
+                    encoding="utf-8",
+                )
+                temp_script.chmod(0o755)
+                for term_cmd in [
+                    ["gnome-terminal", "--", "bash", str(temp_script)],
+                    ["xfce4-terminal", "-e", str(temp_script)],
+                    ["konsole", "-e", str(temp_script)],
+                    ["x-terminal-emulator", "-e", str(temp_script)],
+                    ["xterm", "-e", str(temp_script)],
+                ]:
+                    try:
+                        subprocess.Popen(term_cmd, env=env, cwd=work_dir)
+                        break
+                    except FileNotFoundError:
+                        continue
+                else:
+                    raise RuntimeError("未找到可用的终端模拟器")
+
             snackbar = ft.SnackBar(
                 content=ft.Text("FFmpeg 终端已打开！"),
                 bgcolor=ft.Colors.GREEN,
                 duration=2000,
             )
             self._page.show_dialog(snackbar)
-            
+
         except Exception as e:
-            # 显示错误消息
             snackbar = ft.SnackBar(
                 content=ft.Text(f"打开终端失败: {str(e)}"),
                 bgcolor=ft.Colors.ERROR,

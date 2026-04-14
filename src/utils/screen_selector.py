@@ -563,6 +563,11 @@ def _select_win32(hint_main: str, hint_sub: str, return_window_title: bool) -> R
 # 当不为 None 时，_select_macos 以非模态方式运行（不调用 runModalForWindow_）
 _selector_completion = None
 
+# ObjC 运行时不允许重复注册同名类，必须将回调参数通过全局变量传递
+_setup_callback = None
+_setup_done_event = None
+_SetupRunnerClass = None
+
 
 def _dispatch_to_main_thread(_func, hint_main, hint_sub, return_window_title):
     """在主线程创建并显示屏幕选择器窗口，调用线程阻塞等待结果。
@@ -570,28 +575,34 @@ def _dispatch_to_main_thread(_func, hint_main, hint_sub, return_window_title):
     不使用 runModalForWindow_（会破坏 Flutter 事件循环），
     而是让窗口作为普通 key window 接受事件，通过 threading.Event 同步。
     """
-    global _selector_completion
+    global _selector_completion, _setup_callback, _setup_done_event, _SetupRunnerClass
     from Foundation import NSObject
 
     done = threading.Event()
     result_box = [None]
     _selector_completion = (done, result_box)
+    _setup_callback = lambda: _func(hint_main, hint_sub, return_window_title)
+    _setup_done_event = done
 
-    class _SetupRunner(NSObject):
-        def doSetup_(self, _sender):
-            try:
-                _func(hint_main, hint_sub, return_window_title)
-            except Exception as ex:
-                logger.error(f"屏幕选择器主线程执行失败: {ex}")
-                done.set()
+    if _SetupRunnerClass is None:
+        class _SetupRunner(NSObject):
+            def doSetup_(self, _sender):
+                try:
+                    _setup_callback()
+                except Exception as ex:
+                    logger.error(f"屏幕选择器主线程执行失败: {ex}")
+                    _setup_done_event.set()
+        _SetupRunnerClass = _SetupRunner
 
-    runner = _SetupRunner.alloc().init()
+    runner = _SetupRunnerClass.alloc().init()
     runner.performSelectorOnMainThread_withObject_waitUntilDone_(
         "doSetup:", None, False,
     )
 
     done.wait(timeout=120)
     _selector_completion = None
+    _setup_callback = None
+    _setup_done_event = None
     return result_box[0]
 
 
@@ -691,279 +702,289 @@ def _select_macos(hint_main: str, hint_sub: str, return_window_title: bool) -> R
                 windows.append((name, x, y, w, h))
         return windows
 
-    # ── NSWindow 子类（无边框窗口需要接收键盘） ──
-    class KeyableWindow(NSWindow):
-        def canBecomeKeyWindow(self):
-            return True
+    # ── NSWindow / NSView 子类 ──
+    # ObjC 运行时不允许重复注册同名类：先查找已注册的，未找到再定义
+    _reuse_classes = False
+    try:
+        KeyableWindow = objc.lookUpClass('KeyableWindow')
+        SelectorView = objc.lookUpClass('SelectorView')
+        _reuse_classes = True
+    except Exception:
+        pass
 
-    # ── NSView 子类 ──
-    class SelectorView(NSView):
-        def initWithFrame_data_(self, frame, data):
-            self = objc.super(SelectorView, self).initWithFrame_(frame)
-            if self is None:
-                return None
-            self._original = data["original"]
-            self._darkened = data["darkened"]
-            self._img_w = data["img_w"]
-            self._img_h = data["img_h"]
-            self._windows = data["windows"]
-            self._monitors = data["monitors"]
-            self._hint_main = data.get("hint_main", "")
-            self._hint_sub = data.get("hint_sub", "")
-            self._return_title = data.get("return_title", False)
-            self._dragging = False
-            self._start_x = self._start_y = 0.0
-            self._cur_x = self._cur_y = 0.0
-            self._hover_window = None
-            self._hover_monitor = None
-            self._cur_monitor = 0
-            self.result = None
-            tracking = NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
-                self.bounds(),
-                NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect,
-                self, None,
-            )
-            self.addTrackingArea_(tracking)
-            return self
+    if not _reuse_classes:
 
-        def acceptsFirstResponder(self):
-            return True
+        class KeyableWindow(NSWindow):
+            def canBecomeKeyWindow(self):
+                return True
 
-        def resetCursorRects(self):
-            self.addCursorRect_cursor_(self.bounds(), NSCursor.crosshairCursor())
-
-        @objc.python_method
-        def _d2c(self, dx, dy, dw, dh):
-            return NSMakeRect(dx, self._img_h - dy - dh, dw, dh)
-
-        @objc.python_method
-        def _mouse_to_display(self, event):
-            pt = self.convertPoint_fromView_(event.locationInWindow(), None)
-            return (pt.x, self._img_h - pt.y)
-
-        def drawRect_(self, dirty):
-            full = NSMakeRect(0, 0, self._img_w, self._img_h)
-            self._darkened.drawInRect_fromRect_operation_fraction_(
-                full, NSZeroRect, NSCompositingOperationCopy, 1.0,
-            )
-            title_text = ""
-            if self._dragging:
-                x1 = min(self._start_x, self._cur_x)
-                y1 = min(self._start_y, self._cur_y)
-                x2 = max(self._start_x, self._cur_x)
-                y2 = max(self._start_y, self._cur_y)
-                sw, sh = x2 - x1, y2 - y1
-                if sw > 0 and sh > 0:
-                    self._draw_highlight(x1, y1, sw, sh,
-                                         NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.42, 0.42, 1.0))
-                    self._draw_size_label(x1, y1, sw, sh)
-                title_text = "拖拽选择区域..."
-            else:
-                if self._hover_window:
-                    t, wx, wy, ww, wh = self._hover_window
-                    self._draw_highlight(wx, wy, ww, wh,
-                                         NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.75, 1.0, 1.0))
-                    display = t[:50] + "..." if len(t) > 50 else t
-                    title_text = f"\U0001f5a5 {display}"
-                elif self._hover_monitor:
-                    idx, mx, my, mw, mh = self._hover_monitor
-                    self._draw_highlight(mx, my, mw, mh,
-                                         NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.42, 0.42, 1.0))
-                    title_text = f"\U0001f5a5 屏幕 {idx + 1} ({mw}×{mh})"
-            self._draw_hint(title_text)
-
-        @objc.python_method
-        def _draw_highlight(self, dx, dy, dw, dh, border_color):
-            cocoa_rect = self._d2c(dx, dy, dw, dh)
-            self._original.drawInRect_fromRect_operation_fraction_(
-                cocoa_rect, cocoa_rect, NSCompositingOperationSourceOver, 1.0,
-            )
-            border_color.setStroke()
-            path = NSBezierPath.bezierPathWithRect_(cocoa_rect)
-            path.setLineWidth_(3.0)
-            path.stroke()
-
-        @objc.python_method
-        def _draw_hint(self, title_text):
-            if self._cur_monitor < len(self._monitors):
-                mx, _, mw, _ = self._monitors[self._cur_monitor]
-            else:
-                mx, mw = 0, self._img_w
-            cx = mx + mw / 2
-            box_dw, box_dh = 480, 70
-            box_dx = cx - box_dw / 2
-            box_dy = 25
-            box_cocoa = self._d2c(box_dx, box_dy, box_dw, box_dh)
-            NSColor.colorWithCalibratedWhite_alpha_(0.1, 0.85).setFill()
-            bg_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(box_cocoa, 8, 8)
-            bg_path.fill()
-            NSColor.colorWithCalibratedWhite_alpha_(0.3, 1.0).setStroke()
-            bg_path.setLineWidth_(1.0)
-            bg_path.stroke()
-            bx, by = box_cocoa.origin.x, box_cocoa.origin.y
-            bw, bh = box_cocoa.size.width, box_cocoa.size.height
-            self._draw_text(self._hint_main,
-                            NSMakeRect(bx, by + bh / 2 + 2, bw, bh / 2 - 4),
-                            size=16, bold=True, color=NSColor.whiteColor())
-            self._draw_text(self._hint_sub,
-                            NSMakeRect(bx, by + 4, bw, bh / 2 - 4),
-                            size=13, bold=False,
-                            color=NSColor.colorWithCalibratedWhite_alpha_(0.55, 1.0))
-            if title_text:
-                title_cocoa = self._d2c(cx - 300, box_dy + box_dh + 8, 600, 24)
-                self._draw_text(title_text, title_cocoa, size=14, bold=False,
-                                color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.75, 1.0, 1.0))
-
-        @objc.python_method
-        def _draw_size_label(self, dx, dy, dw, dh):
-            label = f"{int(dw)} × {int(dh)}"
-            lx, ly = dx, dy + dh + 4
-            if ly + 22 > self._img_h:
-                ly = dy - 22
-            label_w = len(label) * 9 + 16
-            label_cocoa = self._d2c(lx, ly, label_w, 20)
-            NSColor.colorWithCalibratedWhite_alpha_(0.12, 0.85).setFill()
-            NSBezierPath.fillRect_(label_cocoa)
-            self._draw_text(label, label_cocoa, size=12, bold=False,
-                            color=NSColor.colorWithCalibratedWhite_alpha_(0.8, 1.0))
-
-        @staticmethod
-        def _draw_text(text, rect, size=14, bold=False, color=None):
-            if color is None:
-                color = NSColor.whiteColor()
-            font = NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size)
-            para = NSMutableParagraphStyle.alloc().init()
-            para.setAlignment_(1)
-            attrs = NSDictionary.dictionaryWithObjects_forKeys_(
-                [font, color, para],
-                [NSFontAttributeName, NSForegroundColorAttributeName, NSParagraphStyleAttributeName],
-            )
-            NSAttributedString.alloc().initWithString_attributes_(text, attrs).drawInRect_(rect)
-
-        @objc.python_method
-        def _find_window_at(self, x, y):
-            for w in self._windows:
-                title, wx, wy, ww, wh = w
-                if wx <= x <= wx + ww and wy <= y <= wy + wh:
-                    return w
-            return None
-
-        @objc.python_method
-        def _find_monitor_at(self, x, y):
-            for i, (mx, my, mw, mh) in enumerate(self._monitors):
-                if mx <= x <= mx + mw and my <= y <= my + mh:
-                    return i, (mx, my, mw, mh)
-            return 0, (0, 0, self._img_w, self._img_h)
-
-        @objc.python_method
-        def _update_hover(self, dx, dy):
-            changed = False
-            idx, _ = self._find_monitor_at(dx, dy)
-            if self._cur_monitor != idx:
-                self._cur_monitor = idx
-                changed = True
-            win = self._find_window_at(dx, dy)
-            if win != self._hover_window:
-                self._hover_window = win
-                changed = True
-            if win:
-                if self._hover_monitor is not None:
-                    self._hover_monitor = None
-                    changed = True
-            else:
-                mid, mrect = self._find_monitor_at(dx, dy)
-                new_mon = (mid, *mrect)
-                if self._hover_monitor != new_mon:
-                    self._hover_monitor = new_mon
-                    changed = True
-            return changed
-
-        def mouseDown_(self, event):
-            dx, dy = self._mouse_to_display(event)
-            self._start_x = self._cur_x = dx
-            self._start_y = self._cur_y = dy
-            self._dragging = True
-            self.setNeedsDisplay_(True)
-
-        def mouseDragged_(self, event):
-            if self._dragging:
-                self._cur_x, self._cur_y = self._mouse_to_display(event)
-                self.setNeedsDisplay_(True)
-
-        def mouseUp_(self, event):
-            if not self._dragging:
-                return
-            self._dragging = False
-            ex, ey = self._mouse_to_display(event)
-            x1, y1 = int(min(self._start_x, ex)), int(min(self._start_y, ey))
-            x2, y2 = int(max(self._start_x, ex)), int(max(self._start_y, ey))
-            w, h = x2 - x1, y2 - y1
-            if w >= 10 and h >= 10:
-                self.result = (x1, y1, w, h)
-                self._finish()
-            elif self._hover_window:
-                t, wx, wy, ww, wh = self._hover_window
-                if self._return_title:
-                    self.result = (wx, wy, ww, wh, t)
-                else:
-                    self.result = (wx, wy, ww, wh)
-                self._finish()
-            elif self._hover_monitor:
-                _, mx, my, mw, mh = self._hover_monitor
-                self.result = (mx, my, mw, mh)
-                self._finish()
-            else:
-                self.setNeedsDisplay_(True)
-
-        def mouseMoved_(self, event):
-            dx, dy = self._mouse_to_display(event)
-            if self._update_hover(dx, dy):
-                self.setNeedsDisplay_(True)
-
-        def keyDown_(self, event):
-            key = event.keyCode()
-            chars = event.charactersIgnoringModifiers() or ""
-            if key == 53:  # ESC
+        class SelectorView(NSView):
+            def initWithFrame_data_(self, frame, data):
+                self = objc.super(SelectorView, self).initWithFrame_(frame)
+                if self is None:
+                    return None
+                self._original = data["original"]
+                self._darkened = data["darkened"]
+                self._img_w = data["img_w"]
+                self._img_h = data["img_h"]
+                self._windows = data["windows"]
+                self._monitors = data["monitors"]
+                self._hint_main = data.get("hint_main", "")
+                self._hint_sub = data.get("hint_sub", "")
+                self._return_title = data.get("return_title", False)
+                self._dragging = False
+                self._start_x = self._start_y = 0.0
+                self._cur_x = self._cur_y = 0.0
+                self._hover_window = None
+                self._hover_monitor = None
+                self._cur_monitor = 0
                 self.result = None
-                self._finish()
-            elif chars.lower() == "f" or key == 36:
-                idx = self._cur_monitor
-                if idx < len(self._monitors):
-                    self.result = self._monitors[idx]
-                else:
-                    self.result = (0, 0, self._img_w, self._img_h)
-                self._finish()
-
-        @objc.python_method
-        def _finish(self):
-            global _selector_completion
-            self.window().orderOut_(None)
-
-            completion = _selector_completion
-            if completion is not None:
-                # 嵌入模式：处理结果并通知等待线程
-                done, result_box = completion
-                result = self.result
-                if result:
-                    scale = NSScreen.mainScreen().backingScaleFactor()
-                    if len(result) == 5:
-                        x, y, w, h, title = result
-                        result = (int(x * scale), int(y * scale),
-                                  int(w * scale), int(h * scale), title)
-                    else:
-                        x, y, w, h = result
-                        result = (int(x * scale), int(y * scale),
-                                  int(w * scale), int(h * scale))
-                result_box[0] = result
-                done.set()
-            elif NSApp.modalWindow() is not None:
-                NSApp.stopModal()
-            else:
-                NSApp.stop_(None)
-                dummy = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                    15, NSMakeRect(0, 0, 0, 0).origin, 0, 0, 0, None, 0, 0, 0,
+                tracking = NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
+                    self.bounds(),
+                    NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect,
+                    self, None,
                 )
-                NSApp.postEvent_atStart_(dummy, True)
+                self.addTrackingArea_(tracking)
+                return self
+
+            def acceptsFirstResponder(self):
+                return True
+
+            def resetCursorRects(self):
+                self.addCursorRect_cursor_(self.bounds(), NSCursor.crosshairCursor())
+
+            @objc.python_method
+            def _d2c(self, dx, dy, dw, dh):
+                return NSMakeRect(dx, self._img_h - dy - dh, dw, dh)
+
+            @objc.python_method
+            def _mouse_to_display(self, event):
+                pt = self.convertPoint_fromView_(event.locationInWindow(), None)
+                return (pt.x, self._img_h - pt.y)
+
+            def drawRect_(self, dirty):
+                full = NSMakeRect(0, 0, self._img_w, self._img_h)
+                self._darkened.drawInRect_fromRect_operation_fraction_(
+                    full, NSZeroRect, NSCompositingOperationCopy, 1.0,
+                )
+                title_text = ""
+                if self._dragging:
+                    x1 = min(self._start_x, self._cur_x)
+                    y1 = min(self._start_y, self._cur_y)
+                    x2 = max(self._start_x, self._cur_x)
+                    y2 = max(self._start_y, self._cur_y)
+                    sw, sh = x2 - x1, y2 - y1
+                    if sw > 0 and sh > 0:
+                        self._draw_highlight(x1, y1, sw, sh,
+                                             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.42, 0.42, 1.0))
+                        self._draw_size_label(x1, y1, sw, sh)
+                    title_text = "拖拽选择区域..."
+                else:
+                    if self._hover_window:
+                        t, wx, wy, ww, wh = self._hover_window
+                        self._draw_highlight(wx, wy, ww, wh,
+                                             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.75, 1.0, 1.0))
+                        display = t[:50] + "..." if len(t) > 50 else t
+                        title_text = f"\U0001f5a5 {display}"
+                    elif self._hover_monitor:
+                        idx, mx, my, mw, mh = self._hover_monitor
+                        self._draw_highlight(mx, my, mw, mh,
+                                             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.42, 0.42, 1.0))
+                        title_text = f"\U0001f5a5 屏幕 {idx + 1} ({mw}×{mh})"
+                self._draw_hint(title_text)
+
+            @objc.python_method
+            def _draw_highlight(self, dx, dy, dw, dh, border_color):
+                cocoa_rect = self._d2c(dx, dy, dw, dh)
+                self._original.drawInRect_fromRect_operation_fraction_(
+                    cocoa_rect, cocoa_rect, NSCompositingOperationSourceOver, 1.0,
+                )
+                border_color.setStroke()
+                path = NSBezierPath.bezierPathWithRect_(cocoa_rect)
+                path.setLineWidth_(3.0)
+                path.stroke()
+
+            @objc.python_method
+            def _draw_hint(self, title_text):
+                if self._cur_monitor < len(self._monitors):
+                    mx, _, mw, _ = self._monitors[self._cur_monitor]
+                else:
+                    mx, mw = 0, self._img_w
+                cx = mx + mw / 2
+                box_dw, box_dh = 480, 70
+                box_dx = cx - box_dw / 2
+                box_dy = 25
+                box_cocoa = self._d2c(box_dx, box_dy, box_dw, box_dh)
+                NSColor.colorWithCalibratedWhite_alpha_(0.1, 0.85).setFill()
+                bg_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(box_cocoa, 8, 8)
+                bg_path.fill()
+                NSColor.colorWithCalibratedWhite_alpha_(0.3, 1.0).setStroke()
+                bg_path.setLineWidth_(1.0)
+                bg_path.stroke()
+                bx, by = box_cocoa.origin.x, box_cocoa.origin.y
+                bw, bh = box_cocoa.size.width, box_cocoa.size.height
+                self._draw_text(self._hint_main,
+                                NSMakeRect(bx, by + bh / 2 + 2, bw, bh / 2 - 4),
+                                size=16, bold=True, color=NSColor.whiteColor())
+                self._draw_text(self._hint_sub,
+                                NSMakeRect(bx, by + 4, bw, bh / 2 - 4),
+                                size=13, bold=False,
+                                color=NSColor.colorWithCalibratedWhite_alpha_(0.55, 1.0))
+                if title_text:
+                    title_cocoa = self._d2c(cx - 300, box_dy + box_dh + 8, 600, 24)
+                    self._draw_text(title_text, title_cocoa, size=14, bold=False,
+                                    color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.75, 1.0, 1.0))
+
+            @objc.python_method
+            def _draw_size_label(self, dx, dy, dw, dh):
+                label = f"{int(dw)} × {int(dh)}"
+                lx, ly = dx, dy + dh + 4
+                if ly + 22 > self._img_h:
+                    ly = dy - 22
+                label_w = len(label) * 9 + 16
+                label_cocoa = self._d2c(lx, ly, label_w, 20)
+                NSColor.colorWithCalibratedWhite_alpha_(0.12, 0.85).setFill()
+                NSBezierPath.fillRect_(label_cocoa)
+                self._draw_text(label, label_cocoa, size=12, bold=False,
+                                color=NSColor.colorWithCalibratedWhite_alpha_(0.8, 1.0))
+
+            @staticmethod
+            def _draw_text(text, rect, size=14, bold=False, color=None):
+                if color is None:
+                    color = NSColor.whiteColor()
+                font = NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size)
+                para = NSMutableParagraphStyle.alloc().init()
+                para.setAlignment_(1)
+                attrs = NSDictionary.dictionaryWithObjects_forKeys_(
+                    [font, color, para],
+                    [NSFontAttributeName, NSForegroundColorAttributeName, NSParagraphStyleAttributeName],
+                )
+                NSAttributedString.alloc().initWithString_attributes_(text, attrs).drawInRect_(rect)
+
+            @objc.python_method
+            def _find_window_at(self, x, y):
+                for w in self._windows:
+                    title, wx, wy, ww, wh = w
+                    if wx <= x <= wx + ww and wy <= y <= wy + wh:
+                        return w
+                return None
+
+            @objc.python_method
+            def _find_monitor_at(self, x, y):
+                for i, (mx, my, mw, mh) in enumerate(self._monitors):
+                    if mx <= x <= mx + mw and my <= y <= my + mh:
+                        return i, (mx, my, mw, mh)
+                return 0, (0, 0, self._img_w, self._img_h)
+
+            @objc.python_method
+            def _update_hover(self, dx, dy):
+                changed = False
+                idx, _ = self._find_monitor_at(dx, dy)
+                if self._cur_monitor != idx:
+                    self._cur_monitor = idx
+                    changed = True
+                win = self._find_window_at(dx, dy)
+                if win != self._hover_window:
+                    self._hover_window = win
+                    changed = True
+                if win:
+                    if self._hover_monitor is not None:
+                        self._hover_monitor = None
+                        changed = True
+                else:
+                    mid, mrect = self._find_monitor_at(dx, dy)
+                    new_mon = (mid, *mrect)
+                    if self._hover_monitor != new_mon:
+                        self._hover_monitor = new_mon
+                        changed = True
+                return changed
+
+            def mouseDown_(self, event):
+                dx, dy = self._mouse_to_display(event)
+                self._start_x = self._cur_x = dx
+                self._start_y = self._cur_y = dy
+                self._dragging = True
+                self.setNeedsDisplay_(True)
+
+            def mouseDragged_(self, event):
+                if self._dragging:
+                    self._cur_x, self._cur_y = self._mouse_to_display(event)
+                    self.setNeedsDisplay_(True)
+
+            def mouseUp_(self, event):
+                if not self._dragging:
+                    return
+                self._dragging = False
+                ex, ey = self._mouse_to_display(event)
+                x1, y1 = int(min(self._start_x, ex)), int(min(self._start_y, ey))
+                x2, y2 = int(max(self._start_x, ex)), int(max(self._start_y, ey))
+                w, h = x2 - x1, y2 - y1
+                if w >= 10 and h >= 10:
+                    self.result = (x1, y1, w, h)
+                    self._finish()
+                elif self._hover_window:
+                    t, wx, wy, ww, wh = self._hover_window
+                    if self._return_title:
+                        self.result = (wx, wy, ww, wh, t)
+                    else:
+                        self.result = (wx, wy, ww, wh)
+                    self._finish()
+                elif self._hover_monitor:
+                    _, mx, my, mw, mh = self._hover_monitor
+                    self.result = (mx, my, mw, mh)
+                    self._finish()
+                else:
+                    self.setNeedsDisplay_(True)
+
+            def mouseMoved_(self, event):
+                dx, dy = self._mouse_to_display(event)
+                if self._update_hover(dx, dy):
+                    self.setNeedsDisplay_(True)
+
+            def keyDown_(self, event):
+                key = event.keyCode()
+                chars = event.charactersIgnoringModifiers() or ""
+                if key == 53:  # ESC
+                    self.result = None
+                    self._finish()
+                elif chars.lower() == "f" or key == 36:
+                    idx = self._cur_monitor
+                    if idx < len(self._monitors):
+                        self.result = self._monitors[idx]
+                    else:
+                        self.result = (0, 0, self._img_w, self._img_h)
+                    self._finish()
+
+            @objc.python_method
+            def _finish(self):
+                global _selector_completion
+                self.window().orderOut_(None)
+
+                completion = _selector_completion
+                if completion is not None:
+                    # 嵌入模式：处理结果并通知等待线程
+                    done, result_box = completion
+                    result = self.result
+                    if result:
+                        scale = NSScreen.mainScreen().backingScaleFactor()
+                        if len(result) == 5:
+                            x, y, w, h, title = result
+                            result = (int(x * scale), int(y * scale),
+                                      int(w * scale), int(h * scale), title)
+                        else:
+                            x, y, w, h = result
+                            result = (int(x * scale), int(y * scale),
+                                      int(w * scale), int(h * scale))
+                    result_box[0] = result
+                    done.set()
+                elif NSApp.modalWindow() is not None:
+                    NSApp.stopModal()
+                else:
+                    NSApp.stop_(None)
+                    dummy = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                        15, NSMakeRect(0, 0, 0, 0).origin, 0, 0, 0, None, 0, 0, 0,
+                    )
+                    NSApp.postEvent_atStart_(dummy, True)
 
     # ── 主逻辑 ──
     cg_image = CGWindowListCreateImage(

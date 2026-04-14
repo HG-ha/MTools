@@ -1089,23 +1089,27 @@ class GlobalHotkeyService:
             return False
     
     def _show_notification(self, message: str) -> None:
-        """显示通知。"""
+        """显示通知。窗口不在前台时跳过 UI 提示，避免下次打开窗口时弹出过期消息。"""
+        logger.info(f"通知: {message}")
         if self._page:
             try:
+                window_focused = getattr(self._page.window, "focused", None)
+                if window_focused is False:
+                    logger.debug("窗口未聚焦，跳过 SnackBar")
+                    return
+
                 def show():
                     try:
                         import flet as ft
                         snack = ft.SnackBar(content=ft.Text(message), duration=3000)
-                        self._page.show_dialog(snack)
+                        self._page.open(snack)
                     except Exception as e:
                         logger.debug(f"显示通知失败: {e}")
-                
-                if hasattr(self._page, 'call_from_thread'):
+
+                if hasattr(self._page, "call_from_thread"):
                     self._page.call_from_thread(show)
                 else:
                     show()
             except Exception:
                 pass
-        
-        logger.info(f"通知: {message}")
 
