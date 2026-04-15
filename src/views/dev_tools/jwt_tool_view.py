@@ -113,7 +113,7 @@ class JwtToolView(ft.Container):
                         ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.header_output.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.header_output.current.value),
                         ),
                     ],
                 ),
@@ -145,7 +145,7 @@ class JwtToolView(ft.Container):
                         ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.payload_output.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.payload_output.current.value),
                         ),
                     ],
                 ),
@@ -177,7 +177,7 @@ class JwtToolView(ft.Container):
                         ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.signature_output.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.signature_output.current.value),
                         ),
                     ],
                 ),

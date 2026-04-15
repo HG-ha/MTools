@@ -378,13 +378,13 @@ class VideoRepairView(ft.Container):
                 ),
                 height=190,
                 alignment=ft.Alignment.CENTER,
-                on_click=lambda e: self._on_select_files(e),
+                on_click=self._on_select_files,
                 ink=True,
                 tooltip="点击选择视频文件",
             )
         )
 
-    async def _on_select_files(self) -> None:
+    async def _on_select_files(self, e=None) -> None:
         """选择文件事件处理。"""
         files = await pick_files(
             self._page,

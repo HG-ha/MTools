@@ -102,7 +102,7 @@ class UuidGeneratorView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.uuid_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.uuid_result.current.value),
                         ),
                     ),
                 ],
@@ -155,7 +155,7 @@ class UuidGeneratorView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.random_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.random_result.current.value),
                         ),
                     ),
                 ],
@@ -221,7 +221,7 @@ class UuidGeneratorView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.password_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.password_result.current.value),
                         ),
                     ),
                 ],

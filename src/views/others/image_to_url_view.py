@@ -357,7 +357,7 @@ class ImageToUrlView(ft.Container):
                                         icon=ft.Icons.COPY,
                                         icon_size=14,
                                         tooltip="复制链接",
-                                        on_click=lambda e, url=upload_result['url']: self._copy_url(url),
+                                        on_click=lambda e, url=upload_result['url']: self._page.run_task(self._copy_url, url),
                                     ),
                                 ],
                                 spacing=4,

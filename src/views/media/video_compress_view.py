@@ -764,7 +764,7 @@ class VideoCompressView(ft.Container):
                 ),
                 height=250,  # 固定高度以确保填满显示区域
                 alignment=ft.Alignment.CENTER,
-                on_click=lambda e: self._on_select_files(e),
+                on_click=self._on_select_files,
                 ink=True,
                 tooltip="点击选择视频文件",
             )

@@ -146,7 +146,7 @@ class EncoderDecoderView(ft.Container):
                         ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.input_text.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.input_text.current.value),
                         ),
                     ],
                 ),
@@ -180,7 +180,7 @@ class EncoderDecoderView(ft.Container):
                         ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.output_text.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.output_text.current.value),
                         ),
                         ft.IconButton(
                             icon=ft.Icons.DOWNLOAD,

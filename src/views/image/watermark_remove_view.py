@@ -117,12 +117,12 @@ class ImageWatermarkRemoveView(ft.Container):
                         ft.Button(
                             "选择文件",
                             icon=ft.Icons.FILE_UPLOAD,
-                            on_click=lambda _: self._on_select_files(),
+                            on_click=self._on_select_files,
                         ),
                         ft.Button(
                             "选择文件夹",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: self._on_select_folder(),
+                            on_click=self._on_select_folder,
                         ),
                         ft.TextButton(
                             "清空列表",
@@ -347,7 +347,7 @@ class ImageWatermarkRemoveView(ft.Container):
             icon=ft.Icons.FOLDER_OPEN,
             tooltip="选择目录",
             disabled=True,
-            on_click=lambda _: self._select_output_dir(),
+            on_click=self._select_output_dir,
         )
         
         output_settings_area = ft.Container(
@@ -467,7 +467,7 @@ class ImageWatermarkRemoveView(ft.Container):
                 ),
                 height=168,
                 alignment=ft.Alignment.CENTER,
-                on_click=lambda _: self._on_select_files(),
+                on_click=self._on_select_files,
                 ink=True,
             )
         )
@@ -553,7 +553,7 @@ class ImageWatermarkRemoveView(ft.Container):
         """关闭对话框。"""
         self._page.pop_dialog()
     
-    async def _on_select_files(self) -> None:
+    async def _on_select_files(self, e: ft.ControlEvent = None) -> None:
         """选择文件按钮点击事件。"""
         result = await pick_files(
             self._page,
@@ -569,7 +569,7 @@ class ImageWatermarkRemoveView(ft.Container):
             self._update_file_list()
             self._check_model_status()
     
-    async def _on_select_folder(self) -> None:
+    async def _on_select_folder(self, e=None) -> None:
         """选择文件夹按钮点击事件。"""
         folder_path = await get_directory_path(
             self._page,
@@ -1105,7 +1105,7 @@ class ImageWatermarkRemoveView(ft.Container):
         self.output_dir_btn.disabled = not is_custom
         self._page.update()
     
-    async def _select_output_dir(self) -> None:
+    async def _select_output_dir(self, e=None) -> None:
         """选择输出目录。"""
         folder_path = await get_directory_path(
             self._page,

@@ -165,7 +165,7 @@ class TimestampToolView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.datetime_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.datetime_result.current.value),
                         ),
                     ),
                 ],
@@ -204,7 +204,7 @@ class TimestampToolView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.timestamp_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.timestamp_result.current.value),
                         ),
                     ),
                 ],
@@ -270,7 +270,7 @@ class TimestampToolView(ft.Container):
                         suffix=ft.IconButton(
                             icon=ft.Icons.COPY,
                             tooltip="复制",
-                            on_click=lambda _: self._copy_text(self.calc_result.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.calc_result.current.value),
                         ),
                     ),
                 ],

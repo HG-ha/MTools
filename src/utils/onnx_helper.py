@@ -40,20 +40,53 @@ if TYPE_CHECKING:
 
 
 _ort_import_error: str = ""
+_ort_cached = None
+_ort_tried = False
 
 
 def _get_ort():
     """延迟导入 onnxruntime，避免模块加载时 DLL 路径未就绪导致的导入失败。"""
-    global _ort_import_error
+    global _ort_import_error, _ort_cached, _ort_tried
+    if _ort_tried:
+        return _ort_cached
+    _ort_tried = True
     try:
         import onnxruntime as _ort
         _ort_import_error = ""
+        _ort_cached = _ort
         return _ort
     except Exception as e:
-        _ort_import_error = f"{type(e).__name__}: {e}"
+        import traceback
         import logging
-        logging.getLogger(__name__).warning("onnxruntime 导入失败: %s", _ort_import_error)
+        _log = logging.getLogger(__name__)
+        _ort_import_error = f"{type(e).__name__}: {e}"
+        _log.warning("onnxruntime 导入失败: %s", _ort_import_error)
+        _log.debug("onnxruntime 导入异常详情:\n%s", traceback.format_exc())
+        _diagnose_ort_dll(_log)
         return None
+
+
+def _diagnose_ort_dll(log):
+    """诊断 onnxruntime DLL 问题，输出到日志。"""
+    import site
+    try:
+        sp_dirs = []
+        try:
+            sp_dirs.extend(site.getsitepackages())
+        except Exception:
+            pass
+        _sp_env = os.environ.get("SERIOUS_PYTHON_SITE_PACKAGES", "")
+        if _sp_env:
+            sp_dirs.append(_sp_env)
+        for sp in sp_dirs:
+            capi = Path(sp) / "onnxruntime" / "capi"
+            if capi.is_dir():
+                files = [f.name for f in capi.iterdir() if f.suffix in ('.dll', '.pyd', '.so', '.dylib')]
+                log.warning("  onnxruntime/capi 目录 (%s) 包含 %d 个库文件: %s", capi, len(files), files)
+            else:
+                log.warning("  onnxruntime/capi 目录不存在: %s", capi)
+    except Exception as ex:
+        log.warning("  DLL 诊断失败: %s", ex)
 
 
 # 缓存检测到的 Provider 类型，避免重复检测

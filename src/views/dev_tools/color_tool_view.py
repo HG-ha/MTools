@@ -172,7 +172,7 @@ class ColorToolView(ft.Container):
                             ft.IconButton(
                                 icon=ft.Icons.COPY,
                                 tooltip="复制",
-                                on_click=lambda _: self._copy_text(self.hex_input.current.value),
+                                on_click=lambda _: self._page.run_task(self._copy_text, self.hex_input.current.value),
                             ),
                         ],
                         spacing=PADDING_SMALL,

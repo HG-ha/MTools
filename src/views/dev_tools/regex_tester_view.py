@@ -313,7 +313,7 @@ class RegexTesterView(ft.Container):
                                         icon=ft.Icons.COPY,
                                         icon_size=16,
                                         tooltip="复制",
-                                        on_click=lambda _, m=match.group(0): self._copy_text(m),
+                                        on_click=lambda _, m=match.group(0): self._page.run_task(self._copy_text, m),
                                     ),
                                 ],
                             ),

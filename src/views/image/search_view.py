@@ -599,7 +599,7 @@ class ImageSearchView(ft.Container):
                                                     ],
                                                     spacing=4,
                                                 ),
-                                                on_click=lambda e, url=pic_url: self._copy_to_clipboard(url, "图片URL"),
+                                                on_click=lambda e, url=pic_url: self._page.run_task(self._copy_to_clipboard, url, "图片URL"),
                                                 style=ft.ButtonStyle(
                                                     padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                                                 ),

@@ -253,7 +253,7 @@ class TextDiffView(ft.Container):
                         icon=ft.Icons.FOLDER_OPEN,
                         icon_size=18,
                         tooltip="从文件导入",
-                        on_click=lambda _, s=side: self._import_file(s),
+                        on_click=lambda _, s=side: self._page.run_task(self._import_file, s),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.CONTENT_PASTE,

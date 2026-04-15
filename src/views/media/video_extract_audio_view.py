@@ -412,13 +412,13 @@ class VideoExtractAudioView(ft.Container):
                 ),
                 height=250,
                 alignment=ft.Alignment.CENTER,
-                on_click=lambda e: self._on_select_files(),
+                on_click=self._on_select_files,
                 ink=True,
                 tooltip="点击选择视频文件",
             )
         )
     
-    async def _on_select_files(self) -> None:
+    async def _on_select_files(self, e=None) -> None:
         """选择文件。"""
         files = await pick_files(
             self._page,

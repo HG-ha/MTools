@@ -173,7 +173,7 @@ class CronToolView(ft.Container):
                             icon=ft.Icons.COPY,
                             tooltip="复制",
                             icon_size=16,
-                            on_click=lambda _: self._copy_text(self.output_text.current.value),
+                            on_click=lambda _: self._page.run_task(self._copy_text, self.output_text.current.value),
                         ),
                     ],
                 ),
