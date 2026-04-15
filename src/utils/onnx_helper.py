@@ -31,6 +31,7 @@
    >>> print(device_name)  # 如 "NVIDIA GeForce RTX 4090 (CUDA)"
 """
 
+import os
 from pathlib import Path
 from typing import Optional, Tuple, List, Union, TYPE_CHECKING, Any, Dict
 

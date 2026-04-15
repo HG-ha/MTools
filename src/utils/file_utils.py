@@ -22,12 +22,19 @@ if TYPE_CHECKING:
 def is_packaged_app() -> bool:
     """判断当前程序是否为打包后的可执行文件。
     
-    Windows: 检查 .exe 后缀。
-    macOS: 检查可执行文件是否在 .app bundle 内。
+    检测方式（满足任一即为打包环境）：
+    - Nuitka / PyInstaller: sys.frozen == True
+    - flet build (serious_python): SERIOUS_PYTHON_SITE_PACKAGES 环境变量已设置
+    - Windows: sys.argv[0] 以 .exe 结尾
+    - macOS: 可执行文件位于 .app bundle 内
     
     Returns:
         如果是打包的程序返回 True，否则返回 False
     """
+    if getattr(sys, 'frozen', False):
+        return True
+    if os.environ.get("SERIOUS_PYTHON_SITE_PACKAGES"):
+        return True
     exe_path = Path(sys.argv[0])
     if exe_path.suffix.lower() == '.exe':
         return True

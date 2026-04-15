@@ -168,7 +168,15 @@ class OCRService:
             (是否成功, 消息)
         """
         try:
-            import onnxruntime as ort
+            try:
+                import onnxruntime as ort
+            except Exception as _ort_err:
+                import traceback as _tb
+                logger.error("onnxruntime 导入失败: %s", _ort_err)
+                logger.debug("onnxruntime 导入异常详情:\n%s", _tb.format_exc())
+                from utils.onnx_helper import _diagnose_ort_dll
+                _diagnose_ort_dll(logger._logger)
+                raise
             
             # 如果已加载相同模型，直接返回
             if self.current_model_key == model_key and self.det_session and self.rec_session:

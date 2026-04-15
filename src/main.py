@@ -45,6 +45,12 @@ def main(page: ft.Page) -> None:
     save_logs = config_service.get_config_value("save_logs", False)
     if save_logs:
         logger.enable_file_logging()
+
+    # 输出 patch.py 在启动早期收集的诊断信息（DLL 路径、预加载结果等）
+    from utils.patch import _patch_diagnostics
+    if _patch_diagnostics:
+        for _msg in _patch_diagnostics:
+            logger.debug("[patch] %s", _msg)
     
     saved_font = config_service.get_config_value("font_family", "System")
     saved_theme_color = config_service.get_config_value("theme_color", PRIMARY_COLOR)

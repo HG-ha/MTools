@@ -45,15 +45,25 @@ def _setup_library_paths():
     1. 应用根目录（vcruntime140.dll 所在位置）
     2. site-packages/onnxruntime/capi（onnxruntime.dll 所在位置）
     3. site-packages/nvidia/*/bin（CUDA 库）
+
+    诊断信息存储在 _patch_diagnostics 列表中，由 main.py 在日志系统初始化后输出。
     """
+    global _patch_diagnostics
     import platform
     import site
 
     system = platform.system()
     debug_patch = os.environ.get('MYTOOLS_DEBUG_PATCH', '').lower() in ('1', 'true', 'yes')
 
-    if debug_patch:
-        print(f"DEBUG | 开始设置库路径... (平台: {system})")
+    def _diag(msg: str):
+        _patch_diagnostics.append(msg)
+        if debug_patch:
+            print(f"DEBUG | {msg}")
+
+    _diag(f"开始设置库路径 (平台: {system})")
+    _diag(f"SERIOUS_PYTHON_SITE_PACKAGES={os.environ.get('SERIOUS_PYTHON_SITE_PACKAGES', '<未设置>')}")
+    _diag(f"sys.argv[0]={sys.argv[0] if sys.argv else '<空>'}")
+    _diag(f"sys.executable={sys.executable}")
 
     lib_paths: list[Path] = []
 
@@ -73,13 +83,11 @@ def _setup_library_paths():
         if pp.name == "site-packages" and pp.is_dir() and pp not in sp_dirs:
             sp_dirs.append(pp)
 
-    if debug_patch:
-        print(f"DEBUG | site-packages 候选: {[str(p) for p in sp_dirs]}")
+    _diag(f"site-packages 候选: {[str(p) for p in sp_dirs]}")
 
     # ── 1. 应用根目录（vcruntime140.dll 等 CRT 所在位置）──────
     _app_roots: list[Path] = []
     if _sp_env:
-        # flet build: site-packages 与 exe 在同一层级
         _app_roots.append(Path(_sp_env).parent)
     if hasattr(sys, 'argv') and sys.argv and sys.argv[0]:
         _app_roots.append(Path(sys.argv[0]).parent)
@@ -89,37 +97,39 @@ def _setup_library_paths():
     for app_root in _app_roots:
         if app_root.is_dir() and app_root not in lib_paths:
             lib_paths.append(app_root)
-            if debug_patch:
-                print(f"DEBUG | 应用根目录: {app_root}")
+            _diag(f"应用根目录: {app_root}")
 
     # ── 2. onnxruntime/capi 和 sherpa_onnx/lib（不 import，直接在文件系统中查找）
+    _capi_found = False
     for sp in sp_dirs:
         capi = sp / "onnxruntime" / "capi"
         if capi.is_dir() and capi not in lib_paths:
             lib_paths.append(capi)
-            if debug_patch:
-                print(f"DEBUG | 找到 ONNX Runtime capi: {capi}")
+            _capi_found = True
+            _capi_files = [f.name for f in capi.iterdir()
+                           if f.suffix in ('.dll', '.pyd', '.so', '.dylib')]
+            _diag(f"找到 onnxruntime/capi: {capi} ({len(_capi_files)} 个库文件)")
+            _diag(f"  capi 库文件: {_capi_files}")
         sherpa_lib = sp / "sherpa_onnx" / "lib"
         if sherpa_lib.is_dir() and sherpa_lib not in lib_paths:
             lib_paths.append(sherpa_lib)
-            if debug_patch:
-                print(f"DEBUG | 找到 sherpa_onnx lib: {sherpa_lib}")
+            _diag(f"找到 sherpa_onnx lib: {sherpa_lib}")
+    if not _capi_found:
+        _diag("警告: 未在任何 site-packages 中找到 onnxruntime/capi 目录!")
 
     # ── 3. NVIDIA CUDA 库（nvidia/*/bin 或 lib）────────────────
     for sp in sp_dirs:
         nvidia_dir = sp / "nvidia"
         if not nvidia_dir.is_dir():
             continue
-        if debug_patch:
-            print(f"DEBUG | 找到 NVIDIA 目录: {nvidia_dir}")
+        _diag(f"找到 NVIDIA 目录: {nvidia_dir}")
         try:
             for subdir in nvidia_dir.iterdir():
                 if subdir.is_dir() and not subdir.name.startswith('_'):
                     bin_dir = subdir / ("bin" if system == "Windows" else "lib")
                     if bin_dir.is_dir() and bin_dir not in lib_paths:
                         lib_paths.append(bin_dir)
-                        if debug_patch:
-                            print(f"DEBUG | 找到 NVIDIA 库: {bin_dir}")
+                        _diag(f"找到 NVIDIA 库: {bin_dir}")
         except Exception:
             pass
 
@@ -134,8 +144,7 @@ def _setup_library_paths():
                     bin_dir = subdir / ("bin" if system == "Windows" else "lib")
                     if bin_dir.is_dir() and bin_dir not in lib_paths:
                         lib_paths.append(bin_dir)
-                        if debug_patch:
-                            print(f"DEBUG | 找到本地 NVIDIA 库: {bin_dir}")
+                        _diag(f"找到本地 NVIDIA 库: {bin_dir}")
         except Exception:
             pass
 
@@ -146,8 +155,7 @@ def _setup_library_paths():
             cuda_bin = Path(cuda_path) / "bin"
             if cuda_bin.is_dir() and cuda_bin not in lib_paths:
                 lib_paths.append(cuda_bin)
-                if debug_patch:
-                    print(f"DEBUG | 找到系统 CUDA: {cuda_bin}")
+                _diag(f"找到系统 CUDA: {cuda_bin}")
         else:
             cuda_base = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA")
             if cuda_base.is_dir():
@@ -157,8 +165,7 @@ def _setup_library_paths():
                         cuda_bin = ver_dir / "bin"
                         if cuda_bin.is_dir() and cuda_bin not in lib_paths:
                             lib_paths.append(cuda_bin)
-                            if debug_patch:
-                                print(f"DEBUG | 找到系统 CUDA: {cuda_bin}")
+                            _diag(f"找到系统 CUDA: {cuda_bin}")
                             break
                 except Exception:
                     pass
@@ -169,17 +176,14 @@ def _setup_library_paths():
         ]:
             if cuda_candidate.is_dir() and cuda_candidate not in lib_paths:
                 lib_paths.append(cuda_candidate)
-                if debug_patch:
-                    print(f"DEBUG | 找到系统 CUDA: {cuda_candidate}")
+                _diag(f"找到系统 CUDA: {cuda_candidate}")
 
     # ── 应用路径 ──────────────────────────────────────────────
     if not lib_paths:
-        if debug_patch:
-            print("DEBUG | 未找到任何库路径，跳过配置")
+        _diag("未找到任何库路径，跳过配置")
         return
 
-    if debug_patch:
-        print(f"DEBUG | 共找到 {len(lib_paths)} 个库路径")
+    _diag(f"共找到 {len(lib_paths)} 个库路径: {[str(p) for p in lib_paths]}")
 
     if system == "Windows":
         for lib_path in lib_paths:
@@ -187,37 +191,37 @@ def _setup_library_paths():
             if sys.version_info >= (3, 8):
                 try:
                     os.add_dll_directory(lib_path_str)
-                    if debug_patch:
-                        print(f"DEBUG | DLL 目录已添加: {lib_path}")
+                    _diag(f"DLL 目录已添加: {lib_path}")
                 except Exception as e:
-                    if debug_patch:
-                        print(f"DEBUG | DLL 目录添加失败: {lib_path} - {e}")
+                    _diag(f"DLL 目录添加失败: {lib_path} - {e}")
             if lib_path_str not in os.environ.get('PATH', ''):
                 os.environ['PATH'] = lib_path_str + os.pathsep + os.environ.get('PATH', '')
-                if debug_patch:
-                    print(f"DEBUG | PATH 已更新: {lib_path}")
 
-        # ── 预加载 CUDA 运行时 DLL（打包环境需要） ──────────────
-        # onnxruntime 的 LoadLibraryExW 在打包环境下可能找不到 CUDA DLL，
+        # ── 预加载 ORT 核心 DLL（DirectML / CUDA，打包环境需要）──
+        # onnxruntime 的 LoadLibraryExW 在打包环境下可能找不到依赖 DLL，
         # 提前用 ctypes.CDLL 加载到进程内存可以解决此问题
         import ctypes
-        _cuda_preload_names = [
+        _preload_names = [
+            # DirectML 核心（Windows 标准版）
+            "DirectML.dll",
+            "onnxruntime.dll",
+            "onnxruntime_providers_shared.dll",
+            # CUDA 运行时
             "cudart64_12.dll", "cublasLt64_12.dll", "cublas64_12.dll",
             "cufft64_11.dll", "curand64_10.dll", "zlibwapi.dll",
             "cudnn64_9.dll", "cudnn_ops64_9.dll", "cudnn_adv64_9.dll",
             "cudnn_cnn64_9.dll", "cudnn_graph64_9.dll", "cudnn_heuristic64_9.dll",
             "cudnn_engines_precompiled64_9.dll", "cudnn_engines_runtime_compiled64_9.dll",
         ]
-        for _name in _cuda_preload_names:
+        for _name in _preload_names:
             for _lp in lib_paths:
                 _fp = _lp / _name
                 if _fp.is_file():
                     try:
                         ctypes.CDLL(str(_fp))
-                        if debug_patch:
-                            print(f"DEBUG | 预加载 CUDA DLL: {_name}")
-                    except Exception:
-                        pass
+                        _diag(f"预加载 DLL 成功: {_name} (from {_lp})")
+                    except Exception as _e:
+                        _diag(f"预加载 DLL 失败: {_name} (from {_lp}) - {_e}")
                     break
 
     elif system == "Linux":
@@ -226,8 +230,7 @@ def _setup_library_paths():
             lib_path_str = str(lib_path)
             if lib_path_str not in ld_path:
                 ld_path = lib_path_str + os.pathsep + ld_path
-                if debug_patch:
-                    print(f"DEBUG | LD_LIBRARY_PATH 已添加: {lib_path}")
+                _diag(f"LD_LIBRARY_PATH 已添加: {lib_path}")
         if ld_path != os.environ.get('LD_LIBRARY_PATH', ''):
             os.environ['LD_LIBRARY_PATH'] = ld_path
 
@@ -237,16 +240,17 @@ def _setup_library_paths():
             lib_path_str = str(lib_path)
             if lib_path_str not in dyld_path:
                 dyld_path = lib_path_str + os.pathsep + dyld_path
-                if debug_patch:
-                    print(f"DEBUG | DYLD_LIBRARY_PATH 已添加: {lib_path}")
+                _diag(f"DYLD_LIBRARY_PATH 已添加: {lib_path}")
         if dyld_path != os.environ.get('DYLD_LIBRARY_PATH', ''):
             os.environ['DYLD_LIBRARY_PATH'] = dyld_path
+
+_patch_diagnostics: list[str] = []
 
 # 执行库路径设置（捕获所有异常，避免中文路径等问题导致启动崩溃）
 try:
     _setup_library_paths()
-except Exception:
-    pass
+except Exception as _exc:
+    _patch_diagnostics.append(f"_setup_library_paths 异常: {_exc}")
 
 # ===== Windows 子进程窗口隐藏 =====
 if sys.platform == "win32":
