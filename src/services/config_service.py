@@ -9,6 +9,7 @@ import getpass
 import hashlib
 import json
 import platform
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -106,38 +107,46 @@ class ConfigService:
 
         优先读取加密的 config.dat；若不存在则尝试迁移旧版明文 config.json。
         解密失败时会尝试从明文备份恢复。
+        加载后始终与默认值合并并校验关键字段，防止老配置导致白屏。
         """
         legacy_file = self._config_dir / self._LEGACY_FILENAME
         backup_file = self._config_dir / "config.json.bak"
 
+        config: Optional[Dict[str, Any]] = None
+
         # 1) 优先读取加密配置
         if self.config_file.exists():
             try:
-                return self._read_and_decrypt(self.config_file)
+                config = self._read_and_decrypt(self.config_file)
             except Exception:
                 # 解密失败（密钥变化等），尝试从明文备份恢复
-                fallback = self._try_load_legacy(legacy_file, backup_file)
-                if fallback is not None:
-                    return fallback
-                return self._get_default_config()
+                config = self._try_load_legacy(legacy_file, backup_file)
 
         # 2) 尝试迁移旧版明文 config.json
-        if legacy_file.exists():
+        if config is None and legacy_file.exists():
             try:
                 with open(legacy_file, "r", encoding="utf-8") as f:
-                    config: Dict[str, Any] = json.load(f)
+                    config = json.load(f)
                 self._encrypt_and_write(config, self.config_file)
-                # 保留明文备份而非删除，便于回退
                 try:
                     legacy_file.rename(backup_file)
                 except Exception:
                     pass
-                return config
             except Exception:
-                return self._get_default_config()
+                config = None
 
         # 3) 全新安装
-        return self._get_default_config()
+        if config is None:
+            return self._get_default_config()
+
+        # 用默认值补全缺失的 key（老配置可能缺少新版本新增的字段）
+        defaults = self._get_default_config()
+        for key, value in defaults.items():
+            config.setdefault(key, value)
+
+        # 校验关键字段，防止无效值导致 UI 白屏
+        config = self._sanitize_config(config, defaults)
+        return config
 
     def _try_load_legacy(self, *paths: Path) -> Dict[str, Any] | None:
         """尝试从明文 JSON 文件恢复配置，成功后重新加密保存。"""
@@ -182,7 +191,49 @@ class ConfigService:
             "onnx_execution_mode": "sequential",
             "onnx_enable_model_cache": False,
         }
-    
+
+    @staticmethod
+    def _sanitize_config(config: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
+        """校验并修正配置中可能导致 UI 异常的值。
+
+        老版本配置可能包含新版本不兼容的值（格式变更、类型不匹配等），
+        此方法将无效值替换为默认值，防止启动白屏。
+        """
+        # theme_color: 必须是 #RRGGBB 格式
+        tc = config.get("theme_color")
+        if tc is not None and not (isinstance(tc, str) and re.match(r'^#[0-9A-Fa-f]{6}$', tc)):
+            config["theme_color"] = defaults.get("theme_color", "#667EEA")
+
+        # theme_mode: 必须是已知值
+        if config.get("theme_mode") not in ("system", "light", "dark"):
+            config["theme_mode"] = "system"
+
+        # window_opacity: 必须是 0~1 之间的数值
+        try:
+            op = float(config.get("window_opacity", 1.0))
+            if not (0.1 <= op <= 1.0):
+                op = 1.0
+            config["window_opacity"] = op
+        except (TypeError, ValueError):
+            config["window_opacity"] = 1.0
+
+        # font_family: 必须是字符串
+        if not isinstance(config.get("font_family"), str) or not config["font_family"]:
+            config["font_family"] = "System"
+
+        # window 尺寸: 必须是正数或 None
+        for key in ("window_width", "window_height"):
+            val = config.get(key)
+            if val is not None:
+                try:
+                    val = float(val)
+                    if val <= 0:
+                        config[key] = None
+                except (TypeError, ValueError):
+                    config[key] = None
+
+        return config
+
     def save_config(self) -> bool:
         """保存配置到加密文件。
         
