@@ -213,9 +213,15 @@ def _setup_library_paths():
         #   DirectML 构建中不存在该文件，自动跳过）
         import ctypes as _ctypes
         _ort_preload = [
-            "onnxruntime_providers_shared.dll",   # 所有构建都需要
-            "onnxruntime_providers_cuda.dll",      # CUDA 构建；不存在则跳过
-            "onnxruntime.dll",                     # 核心，最后加载
+            # DirectML 构建：onnxruntime.dll 依赖 DirectML.dll，必须先加载进模块缓存，
+            # 否则 Windows 按名称搜索 "DirectML.dll" 时因 PATH 缓存问题找不到。
+            # CUDA 构建中不存在此文件，自动跳过。
+            "DirectML.dll",
+            "onnxruntime_providers_shared.dll",
+            # CUDA 构建：providers_cuda.dll 会传递加载 cudart/cublas/cudnn（均在 capi/ 中）。
+            # DirectML 构建中不存在此文件，自动跳过。
+            "onnxruntime_providers_cuda.dll",
+            "onnxruntime.dll",
         ]
         for _name in _ort_preload:
             for _lp in lib_paths:
@@ -248,6 +254,23 @@ def _setup_library_paths():
                 _diag(f"DYLD_LIBRARY_PATH 已添加: {lib_path}")
         if dyld_path != os.environ.get('DYLD_LIBRARY_PATH', ''):
             os.environ['DYLD_LIBRARY_PATH'] = dyld_path
+
+    # ── 为 Nuitka 打包设置 FLET_VIEW_PATH ────────────────────────
+    # Flet 0.84.0+ 通过 FLET_VIEW_PATH 查找客户端可执行文件。
+    # build.py 将客户端打包到 exe 同级的 flet_client/ 目录，
+    # 需在此设置环境变量以便 flet_desktop 找到它。
+    # 仅当该目录真实存在时才设置（开发环境下不存在该目录，自动跳过）。
+    if not os.environ.get("FLET_VIEW_PATH"):
+        _exe_dir: Path | None = None
+        if hasattr(sys, 'argv') and sys.argv and sys.argv[0]:
+            _exe_dir = Path(sys.argv[0]).parent
+        elif sys.executable:
+            _exe_dir = Path(sys.executable).parent
+        if _exe_dir is not None:
+            _flet_client_dir = _exe_dir / "flet_client"
+            if _flet_client_dir.is_dir():
+                os.environ["FLET_VIEW_PATH"] = str(_flet_client_dir)
+                _diag(f"FLET_VIEW_PATH 已设置: {_flet_client_dir}")
 
 _patch_diagnostics: list[str] = []
 

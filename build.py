@@ -497,29 +497,15 @@ def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base
     print(f"📦 准备 Flet 客户端 ({system})")
     print("="*60)
     
-    # 查找 flet_desktop 包的位置
+    # 通过 flet_desktop.ensure_client_cached() 获取/下载客户端
+    # Flet 0.84.0+ 不再在包目录内捆绑客户端，而是按需下载到 ~/.flet/client/
     try:
         import flet_desktop
-        flet_desktop_path = Path(flet_desktop.__file__).parent
+        print(f"⏳ 正在获取 Flet 客户端（如未缓存将自动从 GitHub 下载）...")
+        flet_client_dir = flet_desktop.ensure_client_cached()
         
-        # Windows 的客户端在 app/flet/ 目录下
-        # macOS 和 Linux 也在 app/ 下，但可能是 .app 或其他格式
-        if system == "Windows":
-            flet_client_dir = flet_desktop_path / "app" / "flet"
-        else:
-            # macOS 和 Linux: 检查 app/ 目录
-            flet_client_dir = flet_desktop_path / "app"
-        
-        if not flet_client_dir.exists():
-            print("❌ 错误: 未找到 Flet 客户端目录")
-            print(f"   预期位置: {flet_client_dir}")
-            print("\n请先安装依赖：")
-            print("   uv sync")
-            return None
-        
-        # 检查客户端目录是否有内容
-        if not any(flet_client_dir.iterdir()):
-            print("❌ 错误: Flet 客户端目录为空")
+        if not flet_client_dir or not flet_client_dir.exists():
+            print("❌ 错误: 获取 Flet 客户端失败")
             return None
         
         print(f"源目录: {flet_client_dir}")
@@ -531,6 +517,11 @@ def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base
         print("❌ 错误: 未找到 flet_desktop 模块")
         print("\n请先安装依赖：")
         print("   uv sync")
+        return None
+    except Exception as e:
+        print(f"❌ 错误: 获取 Flet 客户端失败: {e}")
+        import traceback
+        traceback.print_exc()
         return None
     
     # 如果目标目录已存在且完整，直接返回
@@ -557,15 +548,12 @@ def prepare_flet_client(enable_upx_compression=False, upx_path=None, output_base
         flet_client_output.mkdir(parents=True, exist_ok=True)
         
         # 复制 Flet 客户端文件
+        # ensure_client_cached() 返回的目录结构：
+        #   Windows: {cache_dir}/flet/flet.exe + 依赖 DLL
+        #   macOS:   {cache_dir}/Flet.app/
+        #   Linux:   {cache_dir}/flet/flet
         print(f"⏳ 正在复制 Flet 客户端...")
-        
-        if system == "Windows":
-            # Windows: 复制 flet/ 目录下的所有文件
-            target_dir = flet_client_output / "flet"
-            shutil.copytree(flet_client_dir, target_dir, dirs_exist_ok=True)
-        else:
-            # macOS/Linux: 复制整个 app/ 目录
-            shutil.copytree(flet_client_dir, flet_client_output, dirs_exist_ok=True)
+        shutil.copytree(flet_client_dir, flet_client_output, dirs_exist_ok=True)
         
         # 统计文件数量和大小
         all_files = list(flet_client_output.rglob('*'))
@@ -877,19 +865,15 @@ def get_nuitka_cmd(mode="release", enable_upx=False, upx_path=None, jobs=2, flet
         f"--include-data-dir={ASSETS_DIR}=src/assets",
     ]
     
-    # 特别包含 Flet 客户端到 flet_desktop 包的 app 目录
-    # flet_desktop 会从 flet_desktop/app/flet/ 查找客户端
+    # 包含 Flet 客户端到输出目录的 flet_client/ 子目录
+    # 运行时 patch.py 会设置 FLET_VIEW_PATH 指向该目录，flet_desktop 据此找到客户端
     if flet_client_path and flet_client_path.exists():
-        print(f"   🔧 包含 Flet 客户端到 flet_desktop/app/: {flet_client_path.name}")
-        # 递归包含所有文件，包括 .exe 和 .dll
-        # 打包到 flet_desktop/app/ 目录下
+        print(f"   🔧 包含 Flet 客户端到 flet_client/: {flet_client_path.name}")
         for flet_file in flet_client_path.rglob('*'):
             if flet_file.is_file():
-                # 计算相对于 flet_client_path 的路径
                 rel_path = flet_file.relative_to(flet_client_path)
-                # 打包到 flet_desktop/app/flet/...
-                cmd.append(f"--include-data-files={flet_file}=flet_desktop/app/{rel_path}")
-        print("   ✅ Flet 客户端已添加到 flet_desktop 包")
+                cmd.append(f"--include-data-files={flet_file}=flet_client/{rel_path}")
+        print("   ✅ Flet 客户端已添加到 flet_client/ 目录")
     else:
         print("   ⚠️  未找到 Flet 客户端，flet_desktop 将从网络下载")
     
