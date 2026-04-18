@@ -17,6 +17,21 @@ from datetime import datetime
 import os
 
 
+class FlushingFileHandler(logging.FileHandler):
+    """每次写入后立即刷新的 FileHandler。
+    
+    默认 FileHandler 使用缓冲 I/O，在程序崩溃或异常退出时可能丢失最近的日志。
+    对于诊断用途的日志，实时写盘比性能更重要。
+    """
+    
+    def emit(self, record):
+        super().emit(record)
+        try:
+            self.flush()
+        except Exception:
+            pass
+
+
 class ColoredFormatter(logging.Formatter):
     """彩色日志格式化器（仅在控制台输出时使用）"""
     
@@ -123,16 +138,14 @@ class Logger:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # 文件处理器（详细日志）
         log_file = log_dir / f"mytools_{datetime.now().strftime('%Y%m%d')}.log"
-        self._file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        self._file_handler = FlushingFileHandler(log_file, encoding='utf-8')
         self._file_handler.setLevel(logging.DEBUG)
         self._file_handler.setFormatter(file_formatter)
         self._logger.addHandler(self._file_handler)
         
-        # 错误日志文件处理器
         error_log_file = log_dir / f"mytools_error_{datetime.now().strftime('%Y%m%d')}.log"
-        self._error_handler = logging.FileHandler(error_log_file, encoding='utf-8')
+        self._error_handler = FlushingFileHandler(error_log_file, encoding='utf-8')
         self._error_handler.setLevel(logging.ERROR)
         self._error_handler.setFormatter(file_formatter)
         self._logger.addHandler(self._error_handler)

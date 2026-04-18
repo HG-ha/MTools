@@ -212,6 +212,39 @@ def _setup_library_paths():
         #   providers_cuda 会传递加载 CUDA/cuDNN DLL（仅 CUDA 构建中存在，
         #   DirectML 构建中不存在该文件，自动跳过）
         import ctypes as _ctypes
+
+        # ── 预加载系统 VC++ 附加运行时 ─────────────────────────────────
+        # onnxruntime.dll 依赖 MSVCP140_1/_2/_atomic_wait 等 VC++ 附加 DLL，
+        # flet build / serious_python 嵌入的 Python 运行时默认只带 msvcp140.dll，
+        # 导致 onnxruntime.dll 加载失败（"找不到指定的模块"）。
+        # 这里从系统 System32 按名称加载（Windows 默认会搜索 System32），
+        # 加载后 DLL 进入进程模块缓存，onnxruntime.dll 就能找到这些依赖。
+        # 所有 Windows 10/11 都自带这些 DLL，所以按名称加载就行。
+        _vcrt_preload = [
+            "msvcp140_1.dll",
+            "msvcp140_2.dll",
+            "msvcp140_atomic_wait.dll",
+            "msvcp140_codecvt_ids.dll",
+        ]
+        for _name in _vcrt_preload:
+            try:
+                _ctypes.WinDLL(_name)
+                _diag(f"系统 VC++ 运行时已加载: {_name}")
+            except Exception as _e:
+                _diag(f"系统 VC++ 运行时加载失败（可能系统缺失）: {_name} - {_e}")
+
+        # ── 预加载 ORT 核心 DLL ──────────────────────────────────────────
+        # 在 serious_python 嵌入式环境中，os.add_dll_directory() 对 .pyd 文件的
+        # 间接依赖加载不生效（LOAD_LIBRARY_SEARCH_DEFAULT_DIRS 上下文不继承）。
+        # 必须用 ctypes.CDLL 按绝对路径预加载，使 DLL 进入进程模块缓存。
+        #
+        # ctypes.CDLL(绝对路径) 加载时，Windows 将该 DLL 所在目录（capi/）加入本次
+        # 搜索路径，所以 onnxruntime.dll 的所有依赖（DirectML、cudart、cublas 等）
+        # 都会从 capi/ 中被自动找到——不需要逐个预加载这些大型 DLL。
+        #
+        # 加载顺序：providers_shared → providers_cuda（可选）→ onnxruntime
+        #   providers_cuda 会传递加载 CUDA/cuDNN DLL（仅 CUDA 构建中存在，
+        #   DirectML 构建中不存在该文件，自动跳过）
         _ort_preload = [
             # DirectML 构建：onnxruntime.dll 依赖 DirectML.dll，必须先加载进模块缓存，
             # 否则 Windows 按名称搜索 "DirectML.dll" 时因 PATH 缓存问题找不到。
