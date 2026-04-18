@@ -114,10 +114,16 @@ class VideoSubtitleView(ft.Container):
         if self.current_vocal_model_key not in VOCAL_SEPARATION_MODELS:
             self.current_vocal_model_key = DEFAULT_VOCAL_MODEL_KEY
         
-        # AI 字幕修复设置（默认不启用，需要配置 API Key）
+        # AI 字幕修复设置（OpenAI 兼容接口，默认不启用，需要配置 base_url / api_key / 模型）
         self.use_ai_fix: bool = self.config_service.get_config_value("video_subtitle_use_ai_fix", False)
+        self.ai_fix_base_url: str = self.config_service.get_config_value("video_subtitle_ai_fix_base_url", "")
         self.ai_fix_api_key: str = self.config_service.get_config_value("video_subtitle_ai_fix_api_key", "")
-        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
+        self.ai_fix_model: str = self.config_service.get_config_value("video_subtitle_ai_fix_model", "")
+        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(
+            base_url=self.ai_fix_base_url,
+            api_key=self.ai_fix_api_key,
+            model=self.ai_fix_model,
+        )
         
         # 标点恢复设置
         self.use_punctuation: bool = self.config_service.get_config_value("video_subtitle_use_punctuation", True)
@@ -157,7 +163,10 @@ class VideoSubtitleView(ft.Container):
         self.translate_service = TranslateService()
         self.enable_translation: bool = False
         self.target_language: str = "en"  # 默认翻译目标语言
-        self.translate_engine: str = self.config_service.get_config_value("video_subtitle_translate_engine", "bing")  # bing 或 iflow
+        # 翻译引擎：bing 或 ai（OpenAI 兼容）
+        self.translate_engine: str = self.config_service.get_config_value("video_subtitle_translate_engine", "bing")
+        if self.translate_engine == "iflow":
+            self.translate_engine = "ai"
         self.bilingual_line_spacing: int = self.config_service.get_config_value("video_subtitle_bilingual_spacing", 10)  # 双语字幕行距（像素）
         
         # 构建界面
@@ -495,28 +504,43 @@ class VideoSubtitleView(ft.Container):
             on_change=self._on_ai_fix_change,
         )
         
-        self.ai_fix_api_key_field = ft.TextField(
-            label="心流 API Key",
-            value=self.ai_fix_api_key,
-            password=True,
-            can_reveal_password=True,
-            hint_text="请输入心流开放平台 API Key",
-            on_change=self._on_ai_fix_api_key_change,
+        self.ai_fix_base_url_field = ft.TextField(
+            label="Base URL",
+            value=self.ai_fix_base_url,
+            hint_text="https://api.openai.com/v1",
+            on_change=self._on_ai_fix_config_change,
             width=300,
             dense=True,
             text_size=12,
             disabled=not self.use_ai_fix,
         )
-        
-        ai_fix_link = ft.TextButton(
-            "前往心流开放平台注册",
-            icon=ft.Icons.OPEN_IN_NEW,
-            url="https://platform.iflow.cn/",
-            tooltip="免费注册，获取 API Key",
+
+        self.ai_fix_api_key_field = ft.TextField(
+            label="API Key",
+            value=self.ai_fix_api_key,
+            password=True,
+            can_reveal_password=True,
+            hint_text="sk-...",
+            on_change=self._on_ai_fix_config_change,
+            width=300,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
         )
-        
+
+        self.ai_fix_model_field = ft.TextField(
+            label="模型名称",
+            value=self.ai_fix_model,
+            hint_text="gpt-4o-mini",
+            on_change=self._on_ai_fix_config_change,
+            width=300,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
+        )
+
         ai_fix_hint = ft.Text(
-            "使用 AI 修复识别结果中的错词、同音字等问题（需注册心流开放平台，免费使用）",
+            "使用 OpenAI 兼容接口修复识别结果中的错词、同音字等问题，也可用作下方的 AI 翻译引擎",
             size=10,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
@@ -582,8 +606,9 @@ class VideoSubtitleView(ft.Container):
                     vocal_hint,
                     ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
                     self.ai_fix_checkbox,
+                    self.ai_fix_base_url_field,
                     self.ai_fix_api_key_field,
-                    ai_fix_link,
+                    self.ai_fix_model_field,
                     ai_fix_hint,
                     ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
                     self.punctuation_checkbox,
@@ -826,12 +851,12 @@ class VideoSubtitleView(ft.Container):
             width=150,
             options=[
                 ft.dropdown.Option(key="bing", text="Bing 翻译"),
-                ft.dropdown.Option(key="iflow", text="心流 AI"),
+                ft.dropdown.Option(key="ai", text="AI 翻译"),
             ],
             value=self.translate_engine,
             disabled=True,
             on_select=self._on_translate_engine_change,
-            tooltip="Bing 免费无需配置；心流 AI 需要配置 API Key",
+            tooltip="Bing 免费无需配置；AI 翻译复用「预处理设置」中的 Base URL / API Key / 模型",
         )
         
         self.translate_engine_hint = ft.Text(
@@ -2533,14 +2558,28 @@ class VideoSubtitleView(ft.Container):
         """AI 修复选项变更事件。"""
         self.use_ai_fix = e.control.value
         self.config_service.set_config_value("video_subtitle_use_ai_fix", self.use_ai_fix)
+        self.ai_fix_base_url_field.disabled = not self.use_ai_fix
         self.ai_fix_api_key_field.disabled = not self.use_ai_fix
+        self.ai_fix_model_field.disabled = not self.use_ai_fix
+        # 翻译引擎提示依赖 AI 配置状态，同步刷新
+        self._refresh_translate_engine_hint()
         self._page.update()
-    
-    def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
-        """AI 修复 API Key 变更事件。"""
-        self.ai_fix_api_key = e.control.value
+
+    def _on_ai_fix_config_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复配置（Base URL / API Key / 模型）变更事件。"""
+        self.ai_fix_base_url = (self.ai_fix_base_url_field.value or "").strip()
+        self.ai_fix_api_key = (self.ai_fix_api_key_field.value or "").strip()
+        self.ai_fix_model = (self.ai_fix_model_field.value or "").strip()
+        self.config_service.set_config_value("video_subtitle_ai_fix_base_url", self.ai_fix_base_url)
         self.config_service.set_config_value("video_subtitle_ai_fix_api_key", self.ai_fix_api_key)
-        self.ai_fix_service.set_api_key(self.ai_fix_api_key)
+        self.config_service.set_config_value("video_subtitle_ai_fix_model", self.ai_fix_model)
+        self.ai_fix_service.set_config(
+            base_url=self.ai_fix_base_url,
+            api_key=self.ai_fix_api_key,
+            model=self.ai_fix_model,
+        )
+        # 翻译引擎提示依赖 AI 配置状态，同步刷新
+        self._refresh_translate_engine_hint()
     
     def _on_punctuation_change(self, e: ft.ControlEvent) -> None:
         """标点恢复选项变更事件。"""
@@ -3339,18 +3378,27 @@ class VideoSubtitleView(ft.Container):
         """翻译引擎变化事件。"""
         self.translate_engine = e.control.value
         self.config_service.set_config_value("video_subtitle_translate_engine", self.translate_engine)
-        
-        # 更新提示文字
+        self._refresh_translate_engine_hint()
+        self._page.update()
+
+    def _refresh_translate_engine_hint(self) -> None:
+        """根据当前翻译引擎和 AI 配置状态刷新提示文案。
+
+        该方法可能在 dropdown 还没创建时被 _on_ai_fix_change 间接调用，做一次防御。
+        """
+        hint = getattr(self, "translate_engine_hint", None)
+        if hint is None:
+            return
         if self.translate_engine == "bing":
-            self.translate_engine_hint.value = "Bing 翻译：免费，无需配置"
+            hint.value = "Bing 翻译：免费，无需配置"
+            hint.color = ft.Colors.ON_SURFACE_VARIANT
         else:
             if self.ai_fix_service.is_configured():
-                self.translate_engine_hint.value = "心流 AI：已配置 API Key"
-                self.translate_engine_hint.color = ft.Colors.GREEN
+                hint.value = "AI 翻译：已配置 Base URL / API Key / 模型"
+                hint.color = ft.Colors.GREEN
             else:
-                self.translate_engine_hint.value = "心流 AI：需要在「预处理设置」中配置 API Key"
-                self.translate_engine_hint.color = ft.Colors.ORANGE
-        self._page.update()
+                hint.value = "AI 翻译：需在「预处理设置」中配置 Base URL、API Key 和模型"
+                hint.color = ft.Colors.ORANGE
     
     def _on_target_lang_change(self, e) -> None:
         """目标语言变化事件。"""
@@ -3374,8 +3422,8 @@ class VideoSubtitleView(ft.Container):
         """
         import asyncio
         
-        # 如果使用心流 AI 翻译
-        if self.translate_engine == "iflow" and self.ai_fix_service.is_configured():
+        # 如果使用 AI 翻译（OpenAI 兼容）
+        if self.translate_engine == "ai" and self.ai_fix_service.is_configured():
             try:
                 _state = {"finished": False, "progress": None}
                 
@@ -3409,7 +3457,7 @@ class VideoSubtitleView(ft.Container):
                     await poll_task
                 return result
             except Exception as e:
-                logger.warning(f"心流 AI 翻译失败，回退到 Bing 翻译: {e}")
+                logger.warning(f"AI 翻译失败，回退到 Bing 翻译: {e}")
                 # 继续使用 Bing 翻译
         
         # 使用 Bing 翻译 API（默认）

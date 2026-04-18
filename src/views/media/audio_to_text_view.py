@@ -126,10 +126,16 @@ class AudioToTextView(ft.Container):
         if self.current_vocal_model_key not in VOCAL_SEPARATION_MODELS:
             self.current_vocal_model_key = DEFAULT_VOCAL_MODEL_KEY
         
-        # AI 字幕修复设置（默认不启用，需要配置 API Key）
+        # AI 字幕修复设置（OpenAI 兼容接口，默认不启用，需要配置 base_url / api_key / 模型）
         self.use_ai_fix: bool = self.config_service.get_config_value("asr_use_ai_fix", False)
+        self.ai_fix_base_url: str = self.config_service.get_config_value("asr_ai_fix_base_url", "")
         self.ai_fix_api_key: str = self.config_service.get_config_value("asr_ai_fix_api_key", "")
-        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(self.ai_fix_api_key)
+        self.ai_fix_model: str = self.config_service.get_config_value("asr_ai_fix_model", "")
+        self.ai_fix_service: AISubtitleFixService = AISubtitleFixService(
+            base_url=self.ai_fix_base_url,
+            api_key=self.ai_fix_api_key,
+            model=self.ai_fix_model,
+        )
         
         # 字幕分段设置
         self.subtitle_max_length: int = self.config_service.get_config_value("subtitle_max_length", 30)
@@ -495,38 +501,54 @@ class AudioToTextView(ft.Container):
             on_change=self._on_ai_fix_change,
         )
         
-        self.ai_fix_api_key_field = ft.TextField(
-            label="心流 API Key",
-            value=self.ai_fix_api_key,
-            password=True,
-            can_reveal_password=True,
-            hint_text="请输入心流开放平台 API Key",
-            on_change=self._on_ai_fix_api_key_change,
+        self.ai_fix_base_url_field = ft.TextField(
+            label="Base URL",
+            value=self.ai_fix_base_url,
+            hint_text="https://api.openai.com/v1",
+            on_change=self._on_ai_fix_config_change,
             width=350,
             dense=True,
             text_size=12,
             disabled=not self.use_ai_fix,
         )
-        
-        ai_fix_link = ft.TextButton(
-            "前往心流开放平台注册",
-            icon=ft.Icons.OPEN_IN_NEW,
-            url="https://platform.iflow.cn/",
-            tooltip="免费注册，获取 API Key",
+
+        self.ai_fix_api_key_field = ft.TextField(
+            label="API Key",
+            value=self.ai_fix_api_key,
+            password=True,
+            can_reveal_password=True,
+            hint_text="sk-...",
+            on_change=self._on_ai_fix_config_change,
+            width=350,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
         )
-        
+
+        self.ai_fix_model_field = ft.TextField(
+            label="模型名称",
+            value=self.ai_fix_model,
+            hint_text="gpt-4o-mini",
+            on_change=self._on_ai_fix_config_change,
+            width=350,
+            dense=True,
+            text_size=12,
+            disabled=not self.use_ai_fix,
+        )
+
         ai_fix_hint = ft.Text(
-            "使用 AI 修复识别结果中的错词、同音字等问题（需注册心流开放平台，免费使用）",
+            "使用 OpenAI 兼容接口修复识别结果中的错词、同音字等问题",
             size=10,
             color=ft.Colors.ON_SURFACE_VARIANT,
         )
-        
+
         ai_fix_section = ft.Column(
             controls=[
                 ft.Divider(height=1, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
                 self.ai_fix_checkbox,
+                self.ai_fix_base_url_field,
                 self.ai_fix_api_key_field,
-                ai_fix_link,
+                self.ai_fix_model_field,
                 ai_fix_hint,
             ],
             spacing=4,
@@ -1512,14 +1534,24 @@ class AudioToTextView(ft.Container):
         """AI 修复选项变更事件。"""
         self.use_ai_fix = e.control.value
         self.config_service.set_config_value("asr_use_ai_fix", self.use_ai_fix)
+        self.ai_fix_base_url_field.disabled = not self.use_ai_fix
         self.ai_fix_api_key_field.disabled = not self.use_ai_fix
+        self.ai_fix_model_field.disabled = not self.use_ai_fix
         self._page.update()
-    
-    def _on_ai_fix_api_key_change(self, e: ft.ControlEvent) -> None:
-        """AI 修复 API Key 变更事件。"""
-        self.ai_fix_api_key = e.control.value
+
+    def _on_ai_fix_config_change(self, e: ft.ControlEvent) -> None:
+        """AI 修复配置（Base URL / API Key / 模型）变更事件。"""
+        self.ai_fix_base_url = (self.ai_fix_base_url_field.value or "").strip()
+        self.ai_fix_api_key = (self.ai_fix_api_key_field.value or "").strip()
+        self.ai_fix_model = (self.ai_fix_model_field.value or "").strip()
+        self.config_service.set_config_value("asr_ai_fix_base_url", self.ai_fix_base_url)
         self.config_service.set_config_value("asr_ai_fix_api_key", self.ai_fix_api_key)
-        self.ai_fix_service.set_api_key(self.ai_fix_api_key)
+        self.config_service.set_config_value("asr_ai_fix_model", self.ai_fix_model)
+        self.ai_fix_service.set_config(
+            base_url=self.ai_fix_base_url,
+            api_key=self.ai_fix_api_key,
+            model=self.ai_fix_model,
+        )
     
     def _init_vad_status(self) -> None:
         """初始化 VAD 模型状态。"""

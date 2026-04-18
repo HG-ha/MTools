@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""AI 字幕修复服务。
+"""AI 字幕修复 / 翻译服务。
 
-使用心流开放平台 (https://platform.iflow.cn/) 的 AI 模型修复识别字幕中的错词。
+使用 OpenAI 兼容的 Chat Completions 接口（/v1/chat/completions + Bearer Token）
+调用远程 LLM 进行字幕修复或翻译，用户自行提供 base_url / api_key / model。
 """
 
 import httpx
@@ -10,30 +11,66 @@ from utils import logger
 
 
 class AISubtitleFixService:
-    """AI 字幕修复服务。
-    
-    使用心流开放平台的 qwen3-max 模型修复字幕中的错词、语法错误等。
-    """
-    
-    API_URL = "https://apis.iflow.cn/v1/chat/completions"
-    MODEL = "qwen3-max"
-    PLATFORM_URL = "https://platform.iflow.cn/"
-    
-    def __init__(self, api_key: str = ""):
+    """AI 字幕修复 / 翻译服务（OpenAI 兼容接口）。"""
+
+    def __init__(
+        self,
+        base_url: str = "",
+        api_key: str = "",
+        model: str = "",
+    ) -> None:
         """初始化服务。
-        
+
         Args:
-            api_key: 心流开放平台 API Key
+            base_url: OpenAI 兼容 API 的 base URL，如 https://api.openai.com/v1
+            api_key: API Key
+            model: 模型名称，如 gpt-4o-mini
         """
+        self.base_url = base_url
         self.api_key = api_key
-    
+        self.model = model
+
+    # ── 配置 ──────────────────────────────────────────────────────
+    def set_config(
+        self,
+        base_url: str = "",
+        api_key: str = "",
+        model: str = "",
+    ) -> None:
+        """一次性设置 base_url / api_key / model。"""
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+
     def set_api_key(self, api_key: str) -> None:
-        """设置 API Key。"""
+        """设置 API Key（保留兼容旧调用）。"""
         self.api_key = api_key
-    
+
     def is_configured(self) -> bool:
-        """检查是否已配置 API Key。"""
-        return bool(self.api_key and self.api_key.strip())
+        """检查是否已配置（base_url / api_key / model 都必须非空）。"""
+        return bool(
+            self.base_url and self.base_url.strip()
+            and self.api_key and self.api_key.strip()
+            and self.model and self.model.strip()
+        )
+
+    @property
+    def api_url(self) -> str:
+        """根据 base_url 拼出 chat/completions 端点。
+
+        兼容用户填写带或不带 /v1、带或不带 /chat/completions 的情况：
+          - https://api.openai.com          → https://api.openai.com/v1/chat/completions
+          - https://api.openai.com/v1       → https://api.openai.com/v1/chat/completions
+          - https://x.com/v1/chat/completions → 原样返回
+        """
+        base = (self.base_url or "").strip().rstrip("/")
+        if not base:
+            return ""
+        if base.endswith("/chat/completions"):
+            return base
+        if base.endswith("/v1"):
+            return base + "/chat/completions"
+        return base + "/v1/chat/completions"
     
     def fix_text(self, text: str, language: str = "zh") -> str:
         """修复单段文本。
@@ -80,7 +117,7 @@ class AISubtitleFixService:
         }
         
         data = {
-            "model": self.MODEL,
+            "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -90,7 +127,7 @@ class AISubtitleFixService:
         
         try:
             with httpx.Client(timeout=120.0) as client:
-                response = client.post(self.API_URL, json=data, headers=headers)
+                response = client.post(self.api_url, json=data, headers=headers)
                 response.raise_for_status()
                 result = response.json()
                 
@@ -272,7 +309,7 @@ class AISubtitleFixService:
         }
         
         data = {
-            "model": self.MODEL,
+            "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -281,7 +318,7 @@ class AISubtitleFixService:
         }
         
         with httpx.Client(timeout=120.0) as client:
-            response = client.post(self.API_URL, json=data, headers=headers)
+            response = client.post(self.api_url, json=data, headers=headers)
             response.raise_for_status()
             result = response.json()
             
@@ -395,7 +432,7 @@ class AISubtitleFixService:
         }
         
         data = {
-            "model": self.MODEL,
+            "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -405,7 +442,7 @@ class AISubtitleFixService:
         
         try:
             with httpx.Client(timeout=120.0) as client:
-                response = client.post(self.API_URL, json=data, headers=headers)
+                response = client.post(self.api_url, json=data, headers=headers)
                 response.raise_for_status()
                 result = response.json()
                 
@@ -600,7 +637,7 @@ class AISubtitleFixService:
         }
         
         data = {
-            "model": self.MODEL,
+            "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -609,7 +646,7 @@ class AISubtitleFixService:
         }
         
         with httpx.Client(timeout=120.0) as client:
-            response = client.post(self.API_URL, json=data, headers=headers)
+            response = client.post(self.api_url, json=data, headers=headers)
             response.raise_for_status()
             result = response.json()
             

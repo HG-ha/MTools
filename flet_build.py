@@ -211,6 +211,113 @@ def _restore_pyproject(original: str | None):
     print("  [post-build] pyproject.toml 已恢复")
 
 
+# VC++ 运行时 DLL。flet build 打包后的产物在某些情况下：
+#   - msvcp140.dll 可能是 32 位版本（serious_python 的 CMakeLists.txt 从
+#     System32 复制时，若构建工具链以 32 位进程运行，会被 WoW64 重定向到
+#     SysWOW64，拿到 32 位版本，导致 0xc000007b STATUS_INVALID_IMAGE_FORMAT）
+#   - msvcp140_1/_2/_atomic_wait/_codecvt_ids.dll 根本不带，未装 VC++ Redist
+#     的机器直接打不开
+# 这里统一在打包阶段从可靠的 64 位来源（System32 或 Sysnative）强制覆盖/捆绑。
+_VCRT_ALL_DLLS = (
+    "msvcp140.dll",            # 覆盖 serious_python 可能放的 32 位版本
+    "msvcp140_1.dll",
+    "msvcp140_2.dll",
+    "msvcp140_atomic_wait.dll",
+    "msvcp140_codecvt_ids.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+)
+
+
+def _is_pe_x64(path: Path) -> bool | None:
+    """判断 PE 文件是否为 x64 架构。None 表示解析失败。"""
+    try:
+        with path.open("rb") as f:
+            # DOS header: e_lfanew at 0x3C
+            f.seek(0x3C)
+            pe_offset = int.from_bytes(f.read(4), "little")
+            # PE signature "PE\0\0" (4 bytes) + IMAGE_FILE_HEADER.Machine (2 bytes)
+            f.seek(pe_offset + 4)
+            machine = int.from_bytes(f.read(2), "little")
+        return machine == 0x8664
+    except Exception:
+        return None
+
+
+def _find_x64_vcrt_source(name: str) -> Path | None:
+    """找到指定 VC++ DLL 的可靠 64 位来源。
+
+    64 位进程访问 C:\\Windows\\System32 直接拿到 64 位 DLL。
+    本脚本通过 64 位 Python 运行，所以直接用 System32 即可。
+    但为防止其他因素干扰，额外校验 PE 架构。
+    """
+    windir = Path(os.environ.get("WINDIR", r"C:\Windows"))
+    # 候选路径按优先级：
+    # 1) System32（64 位进程不受 WoW64 重定向影响）
+    # 2) Sysnative（32 位进程专用绕过符号链接，64 位进程也能访问）
+    for sub in ("System32", "Sysnative"):
+        candidate = windir / sub / name
+        if candidate.is_file():
+            if _is_pe_x64(candidate):
+                return candidate
+    return None
+
+
+def _bundle_vcrt_extra_dlls() -> None:
+    """将 VC++ 运行时 DLL（x64）复制/覆盖到打包输出目录（与 MTools.exe 同级）。"""
+    if sys.platform != "win32":
+        return
+
+    build_root = PROJECT_ROOT / "build" / "windows"
+    if not build_root.exists():
+        return
+
+    # 定位 MTools.exe 所在目录
+    exe_candidates = list(build_root.glob("MTools.exe")) or list(build_root.rglob("MTools.exe"))
+    if not exe_candidates:
+        exe_candidates = list(build_root.rglob("mtools.exe"))
+    if not exe_candidates:
+        print("  [post-build] ⚠️  未找到 MTools.exe，跳过 VC++ 运行时捆绑")
+        return
+
+    target_dirs = {exe.parent for exe in exe_candidates}
+
+    copied, overwritten, missing = [], [], []
+    for name in _VCRT_ALL_DLLS:
+        src = _find_x64_vcrt_source(name)
+        if src is None:
+            missing.append(name)
+            continue
+        for target_dir in target_dirs:
+            dst = target_dir / name
+            is_replace = dst.is_file()
+            # 若已存在且已是 x64，跳过（除了 msvcp140.dll 始终强制覆盖，
+            # 因为上游可能放的是 32 位版本）
+            if is_replace and name != "msvcp140.dll" and _is_pe_x64(dst):
+                continue
+            try:
+                shutil.copy2(src, dst)
+                rel = str(dst.relative_to(PROJECT_ROOT))
+                if is_replace:
+                    overwritten.append(rel)
+                else:
+                    copied.append(rel)
+            except Exception as e:
+                print(f"  [post-build] 复制 {name} 失败: {e}")
+
+    if copied:
+        print(f"  [post-build] 已捆绑 VC++ 运行时（新增 x64）:")
+        for c in copied:
+            print(f"    + {c}")
+    if overwritten:
+        print(f"  [post-build] 已覆盖 VC++ 运行时（替换为 x64）:")
+        for c in overwritten:
+            print(f"    ~ {c}")
+    if missing:
+        print(f"  [post-build] ⚠️  未找到 x64 版本: {', '.join(missing)}")
+        print(f"               请确认本机已安装 VC++ 2015-2022 Redistributable (x64)")
+
+
 SHERPA_CUDA_FIND_LINKS = "https://k2-fsa.github.io/sherpa/onnx/cuda.html"
 
 
@@ -251,9 +358,13 @@ def run_flet_build(args: list[str]) -> int:
     original_pyproject = _resolve_pyproject_paths()
     _setup_sherpa_cuda_find_links()
     try:
-        return _do_build(cmd, args)
+        rc = _do_build(cmd, args)
     finally:
         _restore_pyproject(original_pyproject)
+
+    if rc == 0:
+        _bundle_vcrt_extra_dlls()
+    return rc
 
 
 def _do_build(cmd: list[str], args: list[str]) -> int:

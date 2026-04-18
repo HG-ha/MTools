@@ -213,25 +213,47 @@ def _setup_library_paths():
         #   DirectML 构建中不存在该文件，自动跳过）
         import ctypes as _ctypes
 
-        # ── 预加载系统 VC++ 附加运行时 ─────────────────────────────────
-        # onnxruntime.dll 依赖 MSVCP140_1/_2/_atomic_wait 等 VC++ 附加 DLL，
-        # flet build / serious_python 嵌入的 Python 运行时默认只带 msvcp140.dll，
-        # 导致 onnxruntime.dll 加载失败（"找不到指定的模块"）。
-        # 这里从系统 System32 按名称加载（Windows 默认会搜索 System32），
-        # 加载后 DLL 进入进程模块缓存，onnxruntime.dll 就能找到这些依赖。
-        # 所有 Windows 10/11 都自带这些 DLL，所以按名称加载就行。
+        # ── 预加载 VC++ 附加运行时 ─────────────────────────────────
+        # onnxruntime.dll / flutter_windows.dll 依赖 MSVCP140_1/_2/_atomic_wait 等
+        # VC++ 附加 DLL，flet build / serious_python 嵌入的 Python 运行时默认
+        # 只带 msvcp140.dll，在未装 VC++ Redist 的机器上会 0xc000007b 打不开。
+        #
+        # 优先从 exe 同级目录加载（打包阶段由 flet_build.py 捆绑进来，自包含），
+        # 找不到再回退到 System32（开发期或当前机器已装 VC++ Redist）。
+        # Flet 应用通过 SetDefaultDllDirectories 限制了 DLL 搜索范围，
+        # WinDLL("xxx.dll") 按名称可能找不到 System32 里的文件，必须用绝对路径。
         _vcrt_preload = [
             "msvcp140_1.dll",
             "msvcp140_2.dll",
             "msvcp140_atomic_wait.dll",
             "msvcp140_codecvt_ids.dll",
         ]
+        _vcrt_search_dirs: list[Path] = []
+        # 1) exe 同级目录（打包产物自包含）
+        try:
+            _exe_dir = Path(sys.executable).parent
+            if _exe_dir.is_dir():
+                _vcrt_search_dirs.append(_exe_dir)
+        except Exception:
+            pass
+        # 2) System32 兜底
+        _vcrt_search_dirs.append(Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32")
+
         for _name in _vcrt_preload:
-            try:
-                _ctypes.WinDLL(_name)
-                _diag(f"系统 VC++ 运行时已加载: {_name}")
-            except Exception as _e:
-                _diag(f"系统 VC++ 运行时加载失败（可能系统缺失）: {_name} - {_e}")
+            _loaded = False
+            for _dir in _vcrt_search_dirs:
+                _vcrt_path = _dir / _name
+                if not _vcrt_path.is_file():
+                    continue
+                try:
+                    _ctypes.WinDLL(str(_vcrt_path))
+                    _diag(f"VC++ 运行时已加载: {_name} ← {_dir}")
+                    _loaded = True
+                    break
+                except Exception as _e:
+                    _diag(f"VC++ 运行时加载失败: {_vcrt_path} - {_e}")
+            if not _loaded:
+                _diag(f"VC++ 运行时未找到: {_name}（已查询: {[str(d) for d in _vcrt_search_dirs]}）")
 
         # ── 预加载 ORT 核心 DLL ──────────────────────────────────────────
         # 在 serious_python 嵌入式环境中，os.add_dll_directory() 对 .pyd 文件的

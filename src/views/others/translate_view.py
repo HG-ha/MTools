@@ -53,10 +53,13 @@ class TranslateView(ft.Container):
         # 翻译服务
         self.bing_service: TranslateService = TranslateService()
         self.ai_service: AISubtitleFixService = AISubtitleFixService()
-        
-        # 加载 AI API Key
-        api_key = self.config_service.get_config_value("ai_translate_api_key", "")
-        self.ai_service.set_api_key(api_key)
+
+        # 加载 AI 配置（OpenAI 兼容）
+        self.ai_service.set_config(
+            base_url=self.config_service.get_config_value("ai_translate_base_url", ""),
+            api_key=self.config_service.get_config_value("ai_translate_api_key", ""),
+            model=self.config_service.get_config_value("ai_translate_model", ""),
+        )
         
         self.is_translating: bool = False
         
@@ -104,33 +107,39 @@ class TranslateView(ft.Container):
             on_change=self._on_engine_change,
         )
         
-        # AI 配置区域
+        # AI 配置区域（OpenAI 兼容）
+        self.ai_base_url_field: ft.TextField = ft.TextField(
+            label="Base URL",
+            hint_text="https://api.openai.com/v1",
+            value=self.config_service.get_config_value("ai_translate_base_url", ""),
+            on_change=self._on_ai_config_change,
+            expand=True,
+        )
         self.ai_api_key_field: ft.TextField = ft.TextField(
-            label="AI API Key",
-            hint_text="输入心流开放平台 API Key",
+            label="API Key",
+            hint_text="sk-...",
             password=True,
             can_reveal_password=True,
             value=self.config_service.get_config_value("ai_translate_api_key", ""),
-            on_change=self._on_api_key_change,
+            on_change=self._on_ai_config_change,
             expand=True,
         )
-        
+        self.ai_model_field: ft.TextField = ft.TextField(
+            label="模型名称",
+            hint_text="gpt-4o-mini",
+            value=self.config_service.get_config_value("ai_translate_model", ""),
+            on_change=self._on_ai_config_change,
+            expand=True,
+        )
+
         self.ai_config_container: ft.Container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Row(
-                        controls=[
-                            self.ai_api_key_field,
-                            ft.TextButton(
-                                "获取 API Key",
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=lambda _: self._page.launch_url("https://platform.iflow.cn/"),
-                            ),
-                        ],
-                        spacing=PADDING_SMALL,
-                    ),
+                    self.ai_base_url_field,
+                    self.ai_api_key_field,
+                    self.ai_model_field,
                     ft.Text(
-                        "AI 翻译使用心流开放平台的 qwen3-max 模型，翻译质量更高，支持上下文理解",
+                        "使用兼容 OpenAI 的 Chat Completions 接口（/v1/chat/completions）",
                         size=12,
                         color=ft.Colors.GREY_600,
                     ),
@@ -325,11 +334,15 @@ class TranslateView(ft.Container):
         self.ai_config_container.visible = is_ai
         self._safe_update()
     
-    def _on_api_key_change(self, e) -> None:
-        """API Key 变更事件。"""
-        api_key = self.ai_api_key_field.value.strip()
-        self.ai_service.set_api_key(api_key)
+    def _on_ai_config_change(self, e) -> None:
+        """AI 配置变更事件（Base URL / API Key / 模型任一变更都会触发）。"""
+        base_url = (self.ai_base_url_field.value or "").strip()
+        api_key = (self.ai_api_key_field.value or "").strip()
+        model = (self.ai_model_field.value or "").strip()
+        self.ai_service.set_config(base_url=base_url, api_key=api_key, model=model)
+        self.config_service.set_config_value("ai_translate_base_url", base_url)
         self.config_service.set_config_value("ai_translate_api_key", api_key)
+        self.config_service.set_config_value("ai_translate_model", model)
     
     def _on_swap_lang(self, e) -> None:
         """交换源语言和目标语言。"""
@@ -384,9 +397,9 @@ class TranslateView(ft.Container):
         
         engine = self.engine_selector.value
         
-        # AI 翻译需要检查 API Key
+        # AI 翻译需要检查 Base URL / API Key / 模型是否都已配置
         if engine == "ai" and not self.ai_service.is_configured():
-            self._show_message("请先配置 AI API Key", is_error=True)
+            self._show_message("请先配置 AI 的 Base URL、API Key 和模型", is_error=True)
             return
         
         self.is_translating = True
