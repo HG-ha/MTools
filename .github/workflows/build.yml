@@ -102,6 +102,19 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Verify Python runtime version
+        shell: python
+        run: |
+          import sys
+
+          print(f"Python runtime: {sys.version}")
+          expected = (3, 11)
+          if sys.version_info[:2] != expected:
+              raise SystemExit(
+                  f"Expected Python {expected[0]}.{expected[1]}, "
+                  f"got {sys.version_info.major}.{sys.version_info.minor}"
+              )
+
       # ========== 平台依赖安装 ==========
 
       - name: Install macOS build dependencies
