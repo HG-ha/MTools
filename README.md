@@ -17,6 +17,26 @@
 
 ---
 
+## 🤝 推荐 AI API 服务商
+
+<div align="center">
+
+<a href="https://www.atlascloud.ai/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas_cloud_logo_white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas_cloud_logo.svg">
+    <img src="./assets/atlas_cloud_logo.svg" alt="Atlas Cloud" width="180">
+  </picture>
+</a>
+
+**[Atlas Cloud](https://www.atlascloud.ai/)** — 一个 API 接入 300+ 大模型，OpenAI 兼容，适用于字幕修复、AI 翻译等功能
+
+Base URL：`https://api.atlascloud.ai/v1` · [配置说明](./docs/ai_providers.md)
+
+</div>
+
+---
+
 ## 📸 界面预览
 
 <div align="center">
@@ -33,18 +53,6 @@
 </tr>
 </table>
 </div>
-
-</div>
-
----
-
-## 🚀 推荐：AI API 中转服务
-
-<div align="center">
-
-**[镜芯AI · ai.wer.plus](https://ai.wer.plus/register?channel=c_ifxqranj)**
-
-极低价格 · 高稳定性 · 支持 OpenClaw 接入，以极低的成本运行你的龙虾 🦞，支持数百种模型，包含Veo3.1、Sora、Nanobanana等等
 
 </div>
 
@@ -162,11 +170,14 @@ uv add onnxruntime-gpu==1.24.4
 - **[catbox.moe](https://catbox.moe/)** - 文件上传服务
 - **[gh-proxy.com](https://gh-proxy.com/)** - GitHub加速代理
 
-### 服务器赞助
+### 合作伙伴 / 赞助
 
-感谢以下赞助商为本项目提供服务器支持：
+感谢以下合作伙伴对本项目的支持：
 
+- **[Atlas Cloud](https://www.atlascloud.ai/)** - 提供 AI API 赞助支持，OpenAI 兼容的多模态推理平台，一个 API 接入 300+ 模型
 - **[林枫云 www.dkdun.cn](https://www.dkdun.cn/)** - 提供稳定的云服务器资源
+
+> AI 功能配置说明见 📘 **[AI API 服务商指南](./docs/ai_providers.md)**
 
 ---
 
