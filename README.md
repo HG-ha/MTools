@@ -17,22 +17,27 @@
 
 ---
 
-## 🤝 推荐 AI API 服务商
+## 🤝 合作伙伴
 
 <div align="center">
-
 <a href="https://www.atlascloud.ai/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas_cloud_logo_white.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas_cloud_logo.svg">
-    <img src="./assets/atlas_cloud_logo.svg" alt="Atlas Cloud" width="180">
-  </picture>
-</a>
-
-**[Atlas Cloud](https://www.atlascloud.ai/)** — 一个 API 接入 300+ 大模型，OpenAI 兼容，适用于字幕修复、AI 翻译等功能
-
-Base URL：`https://api.atlascloud.ai/v1` · [配置说明](./docs/ai_providers.md)
-
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="./assets/atlas_cloud_logo_white.svg">
+<source media="(prefers-color-scheme: light)" srcset="./assets/atlas_cloud_logo.svg">
+<img src="./assets/atlas_cloud_logo.svg" alt="Atlas Cloud" width="180">
+</picture>
+</a><br>
+<b><a href="https://www.atlascloud.ai/">Atlas Cloud</a></b> — 一个 API 接入 300+ 大模型，OpenAI 兼容，适用于字幕修复、AI 翻译等功能<br>
+Base URL：<code>https://api.atlascloud.ai/v1</code> · <a href="./docs/ai_providers.md">配置说明</a>
+<br><br>
+<a href="https://www.dkdun.cn/">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="./assets/dkdun_logo_white.png">
+<source media="(prefers-color-scheme: light)" srcset="./assets/dkdun_logo.png">
+<img src="./assets/dkdun_logo.png" alt="林枫云" height="36">
+</picture>
+</a><br>
+<b><a href="https://www.dkdun.cn/">林枫云 www.dkdun.cn</a></b> — 提供稳定的云服务器资源，支持本项目运行
 </div>
 
 ---
