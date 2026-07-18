@@ -22,6 +22,7 @@ from .update_service import UpdateService, UpdateInfo, UpdateStatus
 from .auto_updater import AutoUpdater
 from .translate_service import TranslateService, SUPPORTED_LANGUAGES
 from .global_hotkey_service import GlobalHotkeyService
+from .mcp_server_service import McpServerService
 
 # ── 可选服务（依赖 onnxruntime / cv2 / numpy 等原生库）────────
 try:
@@ -102,5 +103,6 @@ __all__ = [
     "SUPPORTED_LANGUAGES",
     "AISubtitleFixService",
     "GlobalHotkeyService",
+    "McpServerService",
     "TTSService",
 ]

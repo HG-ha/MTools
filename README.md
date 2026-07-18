@@ -130,6 +130,19 @@ uv add onnxruntime-gpu==1.24.4
 
 ---
 
+## MCP / Agent 接入
+
+MTools 内置 **Streamable HTTP MCP**，可在应用内开启后供 OpenClaw、Hermes、Cursor 等调用本地工具能力。
+
+1. 打开 MTools → **设置 → MCP 服务** → 启用  
+2. 默认地址：`http://127.0.0.1:8765/mcp`  
+3. 将仓库内 Skill 安装到 Agent：[`skills/mtools/`](./skills/mtools/)  
+4. 配置片段与说明见 [`skills/mtools/install.md`](./skills/mtools/install.md) 与 [`docs/mcp.md`](./docs/mcp.md)
+
+语音识别已通过 **sherpa-onnx** 集成 SenseVoice / Paraformer（完全本地，无需 `funasr` Python 包）。
+
+---
+
 ## 性能优化
 
 ### GPU 加速支持

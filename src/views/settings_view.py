@@ -214,6 +214,7 @@ class SettingsView(ft.Container):
         self.theme_color_section_container: ft.Container = self._build_deferred_section_placeholder("主题色设置加载中...")
         self.appearance_section_container: ft.Container = self._build_deferred_section_placeholder("外观设置加载中...")
         self.interface_section_container: ft.Container = self._build_deferred_section_placeholder("界面设置加载中...")
+        self.mcp_section_container: ft.Container = self._build_deferred_section_placeholder("MCP 服务设置加载中...")
         self.gpu_acceleration_section_container: ft.Container = self._build_deferred_section_placeholder("GPU 加速设置加载中...")
         self.performance_section_container: ft.Container = self._build_deferred_section_placeholder("性能优化设置加载中...")
         self.font_section_container: ft.Container = self._build_deferred_section_placeholder("字体设置加载中...")
@@ -228,6 +229,7 @@ class SettingsView(ft.Container):
             (self.theme_color_section_container, self._build_theme_color_section),
             (self.appearance_section_container, self._build_appearance_section),
             (self.interface_section_container, self._build_interface_section),
+            (self.mcp_section_container, self._build_mcp_section),
             (self.gpu_acceleration_section_container, self._build_gpu_acceleration_section),
             (self.performance_section_container, self._build_performance_optimization_section),
             (self.font_section_container, self._build_font_section),
@@ -253,6 +255,8 @@ class SettingsView(ft.Container):
                 self.appearance_section_container,
                 ft.Container(height=PADDING_LARGE),
                 self.interface_section_container,
+                ft.Container(height=PADDING_LARGE),
+                self.mcp_section_container,
                 ft.Container(height=PADDING_LARGE),
                 self.gpu_acceleration_section_container,
                 ft.Container(height=PADDING_LARGE),
@@ -2060,6 +2064,248 @@ class SettingsView(ft.Container):
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=BORDER_RADIUS_MEDIUM,
         )
+
+    def _get_mcp_server_service(self):
+        """从主视图获取 MCP 服务实例。"""
+        try:
+            if self._page and self._page.controls:
+                main_view = self._page.controls[0]
+                return getattr(main_view, "mcp_server_service", None)
+        except Exception:
+            pass
+        return None
+
+    def _get_mcp_endpoint_url(self) -> str:
+        """获取当前 MCP 连接地址（运行中或预期地址）。"""
+        service = self._get_mcp_server_service()
+        if service and service.is_running:
+            return service.get_endpoint_url()
+        host = self.config_service.get_config_value("mcp_host", "127.0.0.1")
+        port = self.config_service.get_config_value("mcp_port", 8765)
+        return f"http://{host}:{port}/mcp"
+
+    def _build_mcp_cursor_config(self, url: str) -> str:
+        """生成 Cursor / MCP 客户端配置 JSON。"""
+        import json
+        return json.dumps(
+            {"mcpServers": {"mtools": {"url": url}}},
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    def _update_mcp_status_ui(self) -> None:
+        """刷新 MCP 状态与连接信息显示。"""
+        if not hasattr(self, "mcp_status_text"):
+            return
+        service = self._get_mcp_server_service()
+        enabled = self.config_service.get_config_value("mcp_enabled", False)
+        if enabled and service and service.is_running:
+            self.mcp_status_text.value = f"运行中 — {service.get_endpoint_url()}"
+            self.mcp_status_text.color = ft.Colors.GREEN
+            self.mcp_endpoint_text.value = service.get_endpoint_url()
+        elif enabled:
+            err = service.get_last_error() if service else None
+            self.mcp_status_text.value = err or "已启用，但服务未运行"
+            self.mcp_status_text.color = ft.Colors.ORANGE
+            self.mcp_endpoint_text.value = self._get_mcp_endpoint_url()
+        else:
+            self.mcp_status_text.value = "未启用"
+            self.mcp_status_text.color = ft.Colors.ON_SURFACE_VARIANT
+            self.mcp_endpoint_text.value = ""
+        if hasattr(self, "mcp_port_field"):
+            self.mcp_port_field.disabled = not enabled
+        if hasattr(self, "mcp_config_field"):
+            url = self.mcp_endpoint_text.value
+            self.mcp_config_field.value = self._build_mcp_cursor_config(url) if url else ""
+            self.mcp_config_field.disabled = not url
+
+    def _restart_mcp_service(self) -> None:
+        """根据配置重启 MCP 服务。"""
+        service = self._get_mcp_server_service()
+        if not service:
+            return
+        try:
+            ok, msg = service.sync_with_config()
+            if ok:
+                logger.info(msg)
+            else:
+                logger.info(msg)
+        except Exception as ex:
+            logger.warning("MCP 服务同步失败: %s", ex)
+
+    def _build_mcp_section(self) -> ft.Container:
+        """构建 MCP 服务设置部分。"""
+        mcp_enabled = self.config_service.get_config_value("mcp_enabled", False)
+        mcp_port = int(self.config_service.get_config_value("mcp_port", 8765))
+
+        self.mcp_switch = ft.Switch(
+            label="启用 MCP 服务",
+            value=mcp_enabled,
+            on_change=self._on_mcp_switch_change,
+        )
+
+        self.mcp_status_text = ft.Text(
+            "",
+            size=13,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+
+        self.mcp_port_field = ft.TextField(
+            label="监听端口",
+            value=str(mcp_port),
+            width=160,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            disabled=not mcp_enabled,
+            on_submit=self._on_mcp_port_change,
+            on_blur=self._on_mcp_port_change,
+        )
+
+        self.mcp_endpoint_text = ft.Text(
+            "",
+            size=12,
+            selectable=True,
+            color=ft.Colors.PRIMARY,
+        )
+
+        self.mcp_config_field = ft.TextField(
+            label="Cursor / MCP 客户端配置",
+            multiline=True,
+            min_lines=6,
+            max_lines=8,
+            read_only=True,
+            text_size=12,
+        )
+
+        cursor_steps = ft.Text(
+            "连接步骤：① 开启 MCP 服务  ② 复制下方配置到 Cursor / OpenClaw / Hermes  "
+            "③ 建议同时安装仓库 skills/mtools（教 Agent 怎么用）  "
+            "④ 调用 mtools_status 验证",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
+
+        self._update_mcp_status_ui()
+
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("MCP 服务", size=20, weight=ft.FontWeight.W_600),
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.mcp_switch,
+                    ft.Container(height=PADDING_SMALL),
+                    ft.Text(
+                        "开启后，MTools 在本地暴露桌面版工具能力（图片/音视频/开发/其他，不含 Markdown 查看器），"
+                        "供 OpenClaw、Hermes、Cursor 等 Agent 通过 MCP 调用。",
+                        size=12,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                    ft.Container(height=PADDING_MEDIUM),
+                    self.mcp_status_text,
+                    ft.Container(height=PADDING_SMALL),
+                    ft.Row(
+                        controls=[
+                            self.mcp_port_field,
+                            ft.IconButton(
+                                icon=ft.Icons.CONTENT_COPY,
+                                tooltip="复制连接地址",
+                                on_click=self._on_mcp_copy_url,
+                            ),
+                        ],
+                        spacing=PADDING_SMALL,
+                    ),
+                    self.mcp_endpoint_text,
+                    ft.Container(height=PADDING_MEDIUM),
+                    cursor_steps,
+                    ft.Container(height=PADDING_SMALL),
+                    self.mcp_config_field,
+                    ft.Container(height=PADDING_SMALL),
+                    ft.Row(
+                        controls=[
+                            ft.OutlinedButton(
+                                "复制 Cursor 配置",
+                                icon=ft.Icons.CODE,
+                                on_click=self._on_mcp_copy_config,
+                            ),
+                        ],
+                    ),
+                ],
+                spacing=0,
+            ),
+            padding=PADDING_LARGE,
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=BORDER_RADIUS_MEDIUM,
+        )
+
+    def _on_mcp_switch_change(self, e: ft.ControlEvent) -> None:
+        """MCP 服务开关变化。"""
+        enabled = bool(e.control.value)
+        self.config_service.set_config_value("mcp_enabled", enabled)
+        self.config_service.save_config()
+        self._restart_mcp_service()
+        self._update_mcp_status_ui()
+        status = "已启用" if enabled else "已关闭"
+        color = ft.Colors.GREEN if enabled else ft.Colors.ON_SURFACE_VARIANT
+        self._show_snackbar(f"MCP 服务{status}", color)
+        try:
+            self._page.update()
+        except Exception:
+            pass
+
+    def _on_mcp_port_change(self, e: ft.ControlEvent) -> None:
+        """MCP 端口变更。"""
+        raw = (e.control.value or "").strip()
+        try:
+            port = int(raw)
+            if port < 1024 or port > 65535:
+                raise ValueError("端口范围应为 1024-65535")
+        except ValueError:
+            self._show_snackbar("端口号无效，请输入 1024-65535 之间的整数", ft.Colors.RED)
+            e.control.value = str(self.config_service.get_config_value("mcp_port", 8765))
+            return
+
+        if port == int(self.config_service.get_config_value("mcp_port", 8765)):
+            return
+
+        self.config_service.set_config_value("mcp_port", port)
+        self.config_service.save_config()
+        if self.config_service.get_config_value("mcp_enabled", False):
+            self._restart_mcp_service()
+        self._update_mcp_status_ui()
+        self._show_snackbar(f"MCP 端口已设为 {port}", ft.Colors.GREEN)
+        try:
+            self._page.update()
+        except Exception:
+            pass
+
+    def _on_mcp_copy_url(self, _e: ft.ControlEvent) -> None:
+        """复制 MCP 连接地址到剪贴板。"""
+        url = self.mcp_endpoint_text.value if hasattr(self, "mcp_endpoint_text") else self._get_mcp_endpoint_url()
+        if not url:
+            self._show_snackbar("暂无可用连接地址", ft.Colors.ORANGE)
+            return
+        try:
+            self._page.set_clipboard(url)
+            self._show_snackbar("连接地址已复制", ft.Colors.GREEN)
+        except Exception:
+            self._show_snackbar(url, ft.Colors.BLUE)
+
+    def _on_mcp_copy_config(self, _e: ft.ControlEvent) -> None:
+        """复制 Cursor MCP 配置 JSON 到剪贴板。"""
+        config = ""
+        if hasattr(self, "mcp_config_field") and self.mcp_config_field.value:
+            config = self.mcp_config_field.value
+        else:
+            url = self._get_mcp_endpoint_url()
+            if url:
+                config = self._build_mcp_cursor_config(url)
+        if not config:
+            self._show_snackbar("请先启用 MCP 服务", ft.Colors.ORANGE)
+            return
+        try:
+            self._page.set_clipboard(config)
+            self._show_snackbar("Cursor 配置已复制", ft.Colors.GREEN)
+        except Exception:
+            self._show_snackbar("复制失败，请手动选中配置文本", ft.Colors.ORANGE)
     
     def _on_recommendations_switch_change(self, e: ft.ControlEvent) -> None:
         """推荐工具页面开关改变事件。"""

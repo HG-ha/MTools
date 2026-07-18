@@ -25,7 +25,7 @@ from constants import (
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
 )
-from services import ConfigService, GlobalHotkeyService
+from services import ConfigService, GlobalHotkeyService, McpServerService
 from views.main_view import MainView
 from utils import logger
 
@@ -142,6 +142,16 @@ def main(page: ft.Page) -> None:
     global_hotkey_service = GlobalHotkeyService(config_service, page)
     main_view.global_hotkey_service = global_hotkey_service  # 保存引用
     global_hotkey_service.start()
+
+    # 启动内置 MCP 服务（若已在设置中启用）
+    mcp_server_service = McpServerService(config_service)
+    main_view.mcp_server_service = mcp_server_service
+    if config_service.get_config_value("mcp_enabled", False):
+        ok, msg = mcp_server_service.start()
+        if ok:
+            logger.info(msg)
+        else:
+            logger.warning("MCP 服务启动失败: %s", msg)
     
     # 导航到初始路由（根据配置决定显示推荐页还是图片处理页）
     show_recommendations = config_service.get_config_value("show_recommendations_page", True)
