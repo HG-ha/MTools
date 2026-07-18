@@ -67,6 +67,11 @@ copyright = "Copyright (C) 2025 by MTools Developer"
 [tool.flet.app]
 path = "src"
 
+# 仅发布 Apple Silicon；避免 CI 在 arm64 runner 上交叉安装 x86_64
+# 依赖（cryptography 等）时触发源码编译与架构错位。
+[tool.flet.macos]
+target_arch = ["arm64"]
+
 [dependency-groups]
 dev = [
     "flet[all]==0.84.0",

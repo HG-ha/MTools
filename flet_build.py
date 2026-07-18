@@ -338,8 +338,19 @@ def _setup_sherpa_cuda_find_links():
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
+def _ensure_macos_arm64_arch(args: list[str]) -> list[str]:
+    """macOS 默认只构建 arm64，避免在 Apple Silicon 上交叉装 x86_64 依赖失败。"""
+    if not args or args[0] != "macos":
+        return args
+    if "--arch" in args:
+        return args
+    # 插在平台名后，保持其余参数不变
+    return [args[0], "--arch", "arm64", *args[1:]]
+
+
 def run_flet_build(args: list[str]) -> int:
     """运行 flet build 并在失败时尝试修补后重试。"""
+    args = _ensure_macos_arm64_arch(list(args))
     flet_exe = shutil.which("flet")
     if flet_exe:
         cmd = [flet_exe, "build"] + args

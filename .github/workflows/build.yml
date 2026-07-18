@@ -120,9 +120,8 @@ jobs:
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
         run: |
-          # Rosetta 2（Apple Silicon 上运行 x86_64 代码需要）
-          sudo softwareupdate --install-rosetta --agree-to-license || true
           # CocoaPods（Flet macOS 构建需要）
+          # 仅构建 arm64（见 pyproject [tool.flet.macos]），无需 Rosetta
           gem install cocoapods || true
 
       - name: Install Linux build dependencies
@@ -190,8 +189,14 @@ jobs:
 
       - name: Build with Flet
         run: |
-          python flet_build.py ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }}
-      
+          EXTRA_ARGS=()
+          if [ "${{ matrix.flet_platform }}" = "macos" ]; then
+            # 与发布产物 Darwin_arm64 一致，跳过 x86_64 依赖安装
+            EXTRA_ARGS+=(--arch arm64)
+          fi
+          python flet_build.py ${{ matrix.flet_platform }} --verbose --no-rich-output --yes --build-version=${{ steps.version.outputs.build_version }} --build-number=${{ github.run_number }} "${EXTRA_ARGS[@]}"
+        shell: bash
+
       - name: Bundle pywin32 runtime files (Windows)
         if: runner.os == 'Windows'
         shell: python
