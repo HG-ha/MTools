@@ -157,7 +157,7 @@ def get_app_config():
     """从配置文件中导入应用信息"""
     config = {
         "APP_TITLE": "MTools",
-        "APP_VERSION": "0.2.0",
+        "APP_VERSION": "0.2.1",
         "APP_DESCRIPTION": "MTools Desktop App"
     }
     

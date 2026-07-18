@@ -15,6 +15,13 @@ import httpx
 from constants import APP_VERSION, GITHUB_API_URL, GITHUB_RELEASES_URL, DOWNLOAD_URL_CHINA
 from utils import get_proxied_url
 
+# GitHub Release 资产扩展名（Linux CUDA FULL 使用 .tar.xz 以压过 2GiB 上限）
+_RELEASE_ARCHIVE_SUFFIXES = (".zip", ".tar.gz", ".tar.xz")
+
+
+def _is_release_archive(name: str) -> bool:
+    return name.endswith(_RELEASE_ARCHIVE_SUFFIXES)
+
 
 class UpdateStatus(Enum):
     """更新状态枚举。"""
@@ -400,7 +407,7 @@ class UpdateService:
                 asset_name = asset.get("name", "")
                 # 精确匹配当前平台的文件
                 # 例如：MTools_Windows_amd64_CUDA_FULL.zip
-                if platform_name in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                if platform_name in asset_name and _is_release_archive(asset_name):
                     download_url = asset.get("browser_download_url")
                     if not is_frozen:
                         logger.debug(f"精确匹配成功: {asset_name}")
@@ -430,7 +437,7 @@ class UpdateService:
                 for variant in fallback_variants:
                     for asset in assets:
                         asset_name = asset.get("name", "")
-                        if variant in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                        if variant in asset_name and _is_release_archive(asset_name):
                             download_url = asset.get("browser_download_url")
                             if not is_frozen:
                                 logger.debug(f"降级匹配成功: {asset_name} (匹配变体: {variant})")
@@ -443,7 +450,7 @@ class UpdateService:
                 system = platform.system().lower()
                 for asset in assets:
                     asset_name = asset.get("name", "").lower()
-                    if system in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                    if system in asset_name and _is_release_archive(asset_name):
                         download_url = asset.get("browser_download_url")
                         break
             
@@ -540,7 +547,7 @@ class UpdateService:
             # 首先尝试精确匹配（包含 CUDA 变体）
             for asset in assets:
                 asset_name = asset.get("name", "")
-                if platform_name in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                if platform_name in asset_name and _is_release_archive(asset_name):
                     download_url = asset.get("browser_download_url")
                     break
             
@@ -558,7 +565,7 @@ class UpdateService:
                 for variant in fallback_variants:
                     for asset in assets:
                         asset_name = asset.get("name", "")
-                        if variant in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                        if variant in asset_name and _is_release_archive(asset_name):
                             download_url = asset.get("browser_download_url")
                             break
                     if download_url:
@@ -569,7 +576,7 @@ class UpdateService:
                 system = platform.system().lower()
                 for asset in assets:
                     asset_name = asset.get("name", "").lower()
-                    if system in asset_name and (asset_name.endswith('.zip') or asset_name.endswith('.tar.gz')):
+                    if system in asset_name and _is_release_archive(asset_name):
                         download_url = asset.get("browser_download_url")
                         break
             

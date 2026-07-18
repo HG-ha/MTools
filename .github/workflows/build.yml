@@ -84,11 +84,12 @@ jobs:
             artifact_ext: .tar.gz
             cuda_variant: cuda
           # Linux CUDA Full 版（内置 CUDA 和 cuDNN）
+          # 使用 .tar.xz：gzip 会略超 GitHub Release 2GiB 上限
           - os: ubuntu-22.04
             platform: Linux
             flet_platform: linux
             arch: amd64
-            artifact_ext: .tar.gz
+            artifact_ext: .tar.xz
             cuda_variant: cuda_full
 
     runs-on: ${{ matrix.os }}
@@ -589,8 +590,19 @@ jobs:
         shell: bash
         run: |
           cd build/windows
-          7z a "../../${{ steps.artifact.outputs.name }}.zip" .
-          echo "Packaged Windows artifact"
+          OUT="../../${{ steps.artifact.outputs.name }}.zip"
+          # CUDA FULL 接近 2GiB，提高压缩率留余量
+          if [ "${{ matrix.cuda_variant }}" = "cuda_full" ]; then
+            7z a -mx=9 "$OUT" .
+          else
+            7z a "$OUT" .
+          fi
+          SIZE=$(stat -c%s "$OUT" 2>/dev/null || stat -f%z "$OUT")
+          echo "Packaged $(basename "$OUT") ($(( SIZE / 1024 / 1024 )) MB)"
+          if [ "$SIZE" -ge 2147483648 ]; then
+            echo "::error::Artifact exceeds GitHub Release 2GiB limit: $SIZE bytes"
+            exit 1
+          fi
 
       - name: Package artifact (macOS)
         if: runner.os == 'macOS'
@@ -603,8 +615,19 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           cd build/linux
-          tar -czf "../../${{ steps.artifact.outputs.name }}.tar.gz" .
-          echo "Packaged Linux artifact"
+          OUT="../../${{ steps.artifact.outputs.name }}${{ matrix.artifact_ext }}"
+          if [ "${{ matrix.artifact_ext }}" = ".tar.xz" ]; then
+            # GitHub Release 单文件上限 2GiB；CUDA FULL 用 xz 高压缩
+            tar -cf - . | xz -T0 -9 > "$OUT"
+          else
+            tar -czf "$OUT" .
+          fi
+          SIZE=$(stat -c%s "$OUT")
+          echo "Packaged $(basename "$OUT") ($(( SIZE / 1024 / 1024 )) MB)"
+          if [ "$SIZE" -ge 2147483648 ]; then
+            echo "::error::Artifact exceeds GitHub Release 2GiB limit: $SIZE bytes"
+            exit 1
+          fi
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -652,6 +675,16 @@ jobs:
         run: |
           echo "Downloaded artifacts:"
           ls -laR artifacts/
+          # GitHub Release 单资产上限 2GiB（2147483648）
+          LIMIT=2147483648
+          while IFS= read -r -d '' f; do
+            SIZE=$(stat -c%s "$f")
+            echo "$(basename "$f"): $SIZE bytes ($(( SIZE / 1024 / 1024 )) MB)"
+            if [ "$SIZE" -ge "$LIMIT" ]; then
+              echo "::error::$(basename "$f") exceeds GitHub Release 2GiB limit ($SIZE bytes)"
+              exit 1
+            fi
+          done < <(find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' -o -name '*.tar.xz' \) -print0)
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -667,5 +700,6 @@ jobs:
           files: |
             artifacts/**/*.zip
             artifacts/**/*.tar.gz
+            artifacts/**/*.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

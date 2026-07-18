@@ -61,7 +61,7 @@ class AutoUpdater:
     """自动更新器。
     
     负责下载更新包、解压并应用更新。
-    支持 Windows (.zip) 和 Linux/macOS (.tar.gz) 格式。
+    支持 Windows (.zip) 和 Linux/macOS (.tar.gz / .tar.xz) 格式。
     """
     
     # 下载超时时间（秒）
@@ -97,7 +97,7 @@ class AutoUpdater:
         
         # 从 URL 提取文件名
         filename = download_url.split('/')[-1]
-        if not filename.endswith(('.zip', '.tar.gz')):
+        if not filename.endswith(('.zip', '.tar.gz', '.tar.xz')):
             # 根据平台设置默认扩展名
             ext = '.zip' if platform.system() == 'Windows' else '.tar.gz'
             filename = f"update{ext}"
@@ -155,9 +155,12 @@ class AutoUpdater:
                 with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                     zip_ref.extractall(extract_dir)
             elif archive_path.name.endswith('.tar.gz'):
-                # 解压 tar.gz 文件
                 import tarfile
                 with tarfile.open(archive_path, 'r:gz') as tar_ref:
+                    tar_ref.extractall(extract_dir)
+            elif archive_path.name.endswith('.tar.xz'):
+                import tarfile
+                with tarfile.open(archive_path, 'r:xz') as tar_ref:
                     tar_ref.extractall(extract_dir)
             else:
                 raise Exception(f"不支持的压缩格式: {archive_path.suffix}")
