@@ -38,21 +38,23 @@ class ImageService:
     """
     
     # 图片压缩工具下载链接（支持多个备用地址）
+    # 注意：勿把会返回 HTML 错误页的代理放在首位；下载后会校验文件魔数再解压。
     MOZJPEG_DOWNLOAD_URLS = [
-        "https://ghproxy.cn/https://github.com/mozilla/mozjpeg/releases/download/v4.0.3/mozjpeg-v4.0.3-win-x64.zip",
         "https://openlist.wer.plus/d/share/MTools/Tools/mozjpeg-v4.0.3-win-x64.zip",
+        "https://gh-proxy.org/https://github.com/mozilla/mozjpeg/releases/download/v4.0.3/mozjpeg-v4.0.3-win-x64.zip",
+        "https://github.com/mozilla/mozjpeg/releases/download/v4.0.3/mozjpeg-v4.0.3-win-x64.zip",
     ]
     PNGQUANT_WINDOWS_URLS = [
-        "https://pngquant.org/pngquant-windows.zip",
         "https://openlist.wer.plus/d/share/MTools/Tools/pngquant-windows.zip",
+        "https://pngquant.org/pngquant-windows.zip",
     ]
     PNGQUANT_MACOS_URLS = [
-        "https://pngquant.org/pngquant.tar.bz2",
         "https://openlist.wer.plus/d/share/MTools/Tools/pngquant.tar.bz2",
+        "https://pngquant.org/pngquant.tar.bz2",
     ]
     PNGQUANT_LINUX_URLS = [
-        "https://pngquant.org/pngquant-linux.tar.bz2",
         "https://openlist.wer.plus/d/share/MTools/Tools/pngquant-linux.tar.bz2",
+        "https://pngquant.org/pngquant-linux.tar.bz2",
     ]
     
     def __init__(self, config_service=None) -> None:
@@ -62,6 +64,28 @@ class ImageService:
             config_service: 配置服务实例（可选）
         """
         self.config_service = config_service
+
+    @staticmethod
+    def _file_starts_with(path: Path, magic: bytes) -> bool:
+        try:
+            with open(path, "rb") as f:
+                return f.read(len(magic)) == magic
+        except Exception:
+            return False
+
+    @classmethod
+    def _is_valid_zip(cls, path: Path, min_size: int = 1024) -> bool:
+        """校验下载结果是否为有效 zip（避免代理返回 HTML 仍被当成功）。"""
+        if not path.exists() or path.stat().st_size < min_size:
+            return False
+        # ZIP local file header / empty archive
+        return cls._file_starts_with(path, b"PK")
+
+    @classmethod
+    def _is_valid_bz2(cls, path: Path, min_size: int = 256) -> bool:
+        if not path.exists() or path.stat().st_size < min_size:
+            return False
+        return cls._file_starts_with(path, b"BZh")
     
     @property
     def mozjpeg_path(self) -> Path:
@@ -278,6 +302,12 @@ class ImageService:
                                             progress,
                                             f"下载 mozjpeg: {size_mb:.1f}/{total_mb:.1f} MB"
                                         )
+
+                    # 代理失效时常返回 HTML 页面且 HTTP 200，需校验后再继续
+                    if not self._is_valid_zip(zip_path, min_size=100_000):
+                        raise ValueError(
+                            f"下载内容不是有效 zip（大小 {zip_path.stat().st_size if zip_path.exists() else 0} 字节）"
+                        )
                     
                     # 下载成功，跳出循环
                     break
@@ -285,6 +315,11 @@ class ImageService:
                 except Exception as e:
                     last_error = str(e)
                     logger.warning(f"从地址 {url_index + 1} 下载 mozjpeg 失败: {e}")
+                    if zip_path.exists():
+                        try:
+                            zip_path.unlink()
+                        except Exception:
+                            pass
                     
                     # 如果不是最后一个地址，继续尝试下一个
                     if url_index < len(self.MOZJPEG_DOWNLOAD_URLS) - 1:
@@ -410,6 +445,17 @@ class ImageService:
                                             progress,
                                             f"下载 pngquant: {size_mb:.1f}/{total_mb:.1f} MB"
                                         )
+
+                    if system == "Windows":
+                        if not self._is_valid_zip(archive_path, min_size=10_000):
+                            raise ValueError(
+                                f"下载内容不是有效 zip（大小 {archive_path.stat().st_size if archive_path.exists() else 0} 字节）"
+                            )
+                    else:
+                        if not self._is_valid_bz2(archive_path):
+                            raise ValueError(
+                                f"下载内容不是有效 bz2（大小 {archive_path.stat().st_size if archive_path.exists() else 0} 字节）"
+                            )
                     
                     # 下载成功，跳出循环
                     break
@@ -417,6 +463,11 @@ class ImageService:
                 except Exception as e:
                     last_error = str(e)
                     logger.warning(f"从地址 {url_index + 1} 下载 pngquant 失败: {e}")
+                    if archive_path.exists():
+                        try:
+                            archive_path.unlink()
+                        except Exception:
+                            pass
                     
                     # 如果不是最后一个地址，继续尝试下一个
                     if url_index < len(download_urls) - 1:
