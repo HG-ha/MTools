@@ -203,7 +203,7 @@ MTools 内置 **Streamable HTTP MCP**，可在应用内开启后供 OpenClaw、H
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=HG-ha/MTools&type=Date)](https://star-history.com/#HG-ha/MTools&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=HG-ha/MTools&type=Date)](https://star-history.dera.page/#HG-ha/MTools&type=Date)
 
 ---
 
