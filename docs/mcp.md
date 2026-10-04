@@ -1,6 +1,6 @@
 # MTools 内置 MCP
 
-MTools 桌面应用可在本地暴露 **Streamable HTTP MCP**，供 OpenClaw、Hermes、Cursor 等 Agent 调用桌面版工具能力（63 项 tool_id，不含 Markdown 查看器）。
+MTools 桌面应用可在本地暴露 **Streamable HTTP MCP**，供 OpenClaw、Hermes、Cursor 等 Agent 调用桌面版工具能力（65 项 tool_id，不含 Markdown 查看器）。
 
 ## 启用
 

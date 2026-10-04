@@ -35,7 +35,7 @@ def _mtools_image_impl():
         action: Literal[
             "compress", "format", "resize", "crop", "rotate", "background", "watermark",
             "watermark_remove", "info", "exif", "qrcode", "to_base64", "gif", "enhance",
-            "puzzle_merge", "puzzle_split", "search", "ocr", "color_space", "border",
+            "puzzle_merge", "puzzle_split", "search", "ocr", "color_space", "border", "depth",
         ],
         input_path: str = "",
         output_path: str = "",
@@ -77,6 +77,7 @@ def _mtools_image_impl():
         denoise_strength: int = 0,
         sharpen_strength: int = 0,
         remove_mode: Literal["simple", "ai"] = "simple",
+        grayscale: bool = True,
     ) -> str:
         """图片处理全能力：压缩/格式/裁剪/旋转/水印/抠图/增强/OCR/拼图/搜图/GIF/边框等。"""
         try:
@@ -209,6 +210,28 @@ def _mtools_image_impl():
                 result.save(out)
                 enhancer.unload_model()
                 return ok({"output_path": str(out)})
+            if action == "depth":
+                from constants.model_config import DEFAULT_DEPTH_MODEL_KEY, DEPTH_MODELS
+                from services.depth_service import DepthEstimator, is_animated_image, is_video_path
+                key = model_key or cfg.get_config_value("depth_model_key", DEFAULT_DEPTH_MODEL_KEY)
+                if key not in DEPTH_MODELS:
+                    return fail(f"未知深度模型: {key}")
+                model = DEPTH_MODELS[key]
+                mp = cfg.get_data_dir() / "models" / "depth_anything" / model.version / model.filename
+                if not mp.exists():
+                    return fail(f"深度模型未下载: {model.display_name}")
+                estimator = DepthEstimator(mp, use_gpu=bool(cfg.get_config_value("gpu_acceleration", True)))
+                if is_video_path(src):
+                    out = resolve_output(src, output_path or None, suffix=".mp4")
+                    estimator.estimate_video(src, out, grayscale=grayscale, config_service=cfg)
+                elif is_animated_image(src):
+                    out = resolve_output(src, output_path or None, suffix=src.suffix.lower() or ".gif")
+                    estimator.estimate_animation(src, out, grayscale=grayscale)
+                else:
+                    out = resolve_output(src, output_path or None, suffix="_depth.png")
+                    estimator.estimate_file(src, out, grayscale=grayscale)
+                estimator.unload_model()
+                return ok({"output_path": str(out), "model_key": key})
             if action == "ocr":
                 import cv2
                 import numpy as np

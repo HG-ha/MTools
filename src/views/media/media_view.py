@@ -16,6 +16,7 @@ from constants import (
     PADDING_MEDIUM,
 )
 from services import AudioService, ConfigService, FFmpegService
+from views.image.depth_view import ImageDepthView
 from views.media.audio_compress_view import AudioCompressView
 from views.media.audio_format_view import AudioFormatView
 from views.media.audio_speed_view import AudioSpeedView
@@ -95,6 +96,7 @@ class MediaView(ft.Container):
         self.video_compress_view: Optional[VideoCompressView] = None
         self.video_convert_view: Optional[VideoConvertView] = None
         self.video_enhance_view: Optional[VideoEnhanceView] = None
+        self.video_depth_view: Optional[ImageDepthView] = None
         self.video_interpolation_view: Optional[VideoInterpolationView] = None
         self.video_extract_audio_view: Optional[VideoExtractAudioView] = None
         self.video_repair_view: Optional[VideoRepairView] = None
@@ -242,6 +244,14 @@ class MediaView(ft.Container):
                 tool_id="audio.text_to_speech",
             ),
             # 视频处理
+            self._create_card(
+                icon=ft.Icons.LAYERS,
+                title="深度估计",
+                description="Depth Anything，图片、动态图和视频估计深度",
+                on_click=lambda e: self._open_view('video_depth'),
+                gradient_colors=("#5B86E5", "#36D1DC"),
+                tool_id="video.depth",
+            ),
             self._create_card(
                 icon=ft.Icons.AUTO_AWESOME,
                 title="视频增强",
@@ -498,6 +508,17 @@ class MediaView(ft.Container):
                 )
             self._switch_to_sub_view(self.video_convert_view, 'video_convert')
             
+        elif view_name == 'video_depth':
+            if not self.video_depth_view:
+                from services import ImageService
+                self.video_depth_view = ImageDepthView(
+                    self._saved_page,
+                    self.config_service,
+                    ImageService(self.config_service),
+                    on_back=self._back_to_main,
+                )
+            self._switch_to_sub_view(self.video_depth_view, 'video_depth')
+
         elif view_name == 'video_enhance':
             if not self.video_enhance_view:
                 self.video_enhance_view = VideoEnhanceView(
@@ -699,6 +720,7 @@ class MediaView(ft.Container):
                 "video_compress": "video_compress_view",
                 "video_convert": "video_convert_view",
                 "video_enhance": "video_enhance_view",
+                "video_depth": "video_depth_view",
                 "video_interpolation": "video_interpolation_view",
                 "subtitle_remove": "subtitle_remove_view",
                 "subtitle_convert": "subtitle_convert_view",
@@ -871,6 +893,7 @@ cd /d "{work_dir}"
             ("音视频转文字", _media_exts, 'audio_to_text', "audio_to_text_view"),
             ("文字转语音", set(), None, None),
             # 视频工具
+            ("深度估计", _video_exts | {'.jpg', '.jpeg', '.jfif', '.png', '.gif', '.webp', '.bmp', '.tiff', '.tif', '.apng'}, 'video_depth', "video_depth_view"),
             ("视频增强", _video_exts, 'video_enhance', "video_enhance_view"),
             ("视频插帧", _video_exts, 'video_interpolation', "video_interpolation_view"),
             ("视频去字幕/水印", _video_exts, 'subtitle_remove', "subtitle_remove_view"),

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 CAPABILITIES = {
     "mtools_image": {
-        "description": "图片处理（20 项）",
+        "description": "图片处理（21 项）",
         "actions": {
             "compress": "image.compress — 图片压缩",
             "format": "image.format — 格式转换",
@@ -21,6 +21,7 @@ CAPABILITIES = {
             "to_base64": "image.to_base64 — 转 Base64",
             "gif": "image.gif — GIF 调整",
             "enhance": "image.enhance — AI 图像增强",
+            "depth": "image.depth — 图片/动态图/视频深度估计",
             "puzzle_merge": "image.puzzle.merge — 拼图合并",
             "puzzle_split": "image.puzzle.split — 拼图切分",
             "search": "image.search — 以图搜图",
@@ -41,7 +42,7 @@ CAPABILITIES = {
         },
     },
     "mtools_video": {
-        "description": "视频处理（13 项）",
+        "description": "视频处理（14 项）",
         "actions": {
             "compress": "video.compress — 视频压缩",
             "convert": "video.convert — 格式转换",
@@ -51,6 +52,7 @@ CAPABILITIES = {
             "watermark": "video.watermark — 文字水印",
             "repair": "video.repair — 视频修复",
             "enhance": "video.enhance — AI 视频增强",
+            "depth": "video.depth — 图片/动态图/视频深度估计",
             "interpolation": "video.interpolation — AI 插帧",
             "subtitle_remove": "video.subtitle_remove — 去字幕",
             "subtitle": "video.subtitle — AI 生成字幕（可翻译/烧录）",

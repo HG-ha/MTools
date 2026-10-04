@@ -22,7 +22,7 @@ DEFAULT_PORT = 8765
 mcp = FastMCP(
     "MTools",
     instructions=(
-        "MTools MCP — 桌面版 63 项工具能力（不含 Markdown 查看器）。\n\n"
+        "MTools MCP — 桌面版 65 项工具能力（不含 Markdown 查看器）。\n\n"
         "【AI 调用规范 — 请严格遵守】\n"
         "1. 优先使用原子工具（mtools_image_compress、mtools_video_convert 等），"
         "每个工具只有该场景需要的参数，JSON Schema 含 description。\n"

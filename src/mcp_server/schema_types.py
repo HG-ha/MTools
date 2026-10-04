@@ -37,6 +37,7 @@ PARAM_SPECS: dict[str, tuple[str, str, str, str]] = {
     "font_size": ("int", "integer", "36", "水印字号"),
     "remove_mode": ('Literal["simple", "ai"]', "string", '"simple"', "去水印模式：simple 区域修复 / ai 模型修复"),
     "model_key": ("str", "string", '""', "ONNX 模型 key，留空用默认；需先在 MTools 下载模型"),
+    "grayscale": ("bool", "boolean", "True", "深度图是否输出灰度；False 为 MAGMA 彩色"),
     "qrcode_level": ('Literal["L", "M", "Q", "H"]', "string", '"M"', "二维码纠错级别"),
     "color_space": ("str", "string", '"grayscale"', "目标色彩空间：grayscale/rgba/rgb/cmyk/lab/hsv/invert/sepia/binary"),
     "binary_threshold": ("int", "integer", "128", "二值化阈值"),

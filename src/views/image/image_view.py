@@ -20,6 +20,7 @@ from utils import logger
 from views.image.background_view import ImageBackgroundView
 from views.image.compress_view import ImageCompressView
 from views.image.crop_view import ImageCropView
+from views.image.depth_view import ImageDepthView
 from views.image.enhance_view import ImageEnhanceView
 from views.image.format_view import ImageFormatView
 from views.image.gif_adjustment_view import GifAdjustmentView
@@ -74,6 +75,7 @@ class ImageView(ft.Container):
         self.format_view: Optional[ImageFormatView] = None
         self.background_view: Optional[ImageBackgroundView] = None
         self.enhance_view: Optional[ImageEnhanceView] = None
+        self.depth_view: Optional[ImageDepthView] = None
         self.split_view = None  # 九宫格切分视图
         self.merge_view = None  # 多图合并视图
         self.crop_view: Optional[ImageCropView] = None
@@ -207,6 +209,14 @@ class ImageView(ft.Container):
                     gradient_colors=("#30CFD0", "#330867"),
                     on_click=self._open_enhance_dialog,
                     tool_id="image.enhance",
+                ),
+                self._create_card(
+                    icon=ft.Icons.LAYERS,
+                    title="深度估计",
+                    description="Depth Anything，图片、动态图和视频估计深度",
+                    gradient_colors=("#5B86E5", "#36D1DC"),
+                    on_click=self._open_depth_dialog,
+                    tool_id="image.depth",
                 ),
                 self._create_card(
                     icon=ft.Icons.GRID_ON,
@@ -364,6 +374,7 @@ class ImageView(ft.Container):
             ("格式转换", _img_exts, self._open_format_dialog, "format_view"),
             ("背景移除", _img_no_gif, self._open_background_dialog, "background_view"),
             ("图像增强", _img_no_gif, self._open_enhance_dialog, "enhance_view"),
+            ("深度估计", _img_no_gif | {".gif", ".apng", ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}, self._open_depth_dialog, "depth_view"),
             ("单图切分", _img_no_gif, self._open_split_dialog, "split_view"),
             ("多图拼接", _img_no_gif, self._open_merge_dialog, "merge_view"),
             ("图片裁剪", _img_no_gif, self._open_crop_dialog, "crop_view"),
@@ -680,6 +691,30 @@ class ImageView(ft.Container):
             self.parent_container.content = self.enhance_view
             self._safe_page_update()
         
+        self._saved_page.run_task(delayed_create_and_switch)
+
+    def _open_depth_dialog(self, e: ft.ControlEvent) -> None:
+        """切换到深度估计界面。"""
+        if not self.parent_container:
+            logger.error("错误: 未设置父容器")
+            return
+        self._hide_search_button()
+
+        async def delayed_create_and_switch():
+            import asyncio
+            await asyncio.sleep(0.2)
+            if not self.depth_view:
+                self.depth_view = ImageDepthView(
+                    self._saved_page,
+                    self.config_service,
+                    self.image_service,
+                    on_back=self._back_to_main,
+                )
+            self.current_sub_view = self.depth_view
+            self.current_sub_view_type = "depth"
+            self.parent_container.content = self.depth_view
+            self._safe_page_update()
+
         self._saved_page.run_task(delayed_create_and_switch)
     
     def _open_split_dialog(self, e: ft.ControlEvent) -> None:
@@ -1152,6 +1187,7 @@ class ImageView(ft.Container):
                 "format": "format_view",
                 "background": "background_view",
                 "enhance": "enhance_view",
+                "depth": "depth_view",
                 "split": "split_view",
                 "merge": "merge_view",
                 "crop": "crop_view",
@@ -1284,6 +1320,7 @@ class ImageView(ft.Container):
             "search": self._open_search_dialog,
             "ocr": self._open_ocr_dialog,
             "enhance": self._open_enhance_dialog,
+            "depth": self._open_depth_dialog,
             "color_space": self._open_color_space_dialog,
             "border": self._open_border_dialog,
         }

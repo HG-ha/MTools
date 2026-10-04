@@ -222,6 +222,20 @@ def register_all_tools():
         tool_id="image.enhance",
         gradient_colors=("#30CFD0", "#330867"),
     )
+
+    register_tool_manual(
+        name="深度估计",
+        description="Depth Anything，图片、动态图和视频估计深度",
+        category="图片处理",
+        keywords=[
+            "深度", "深度图", "景深", "距离", "Depth Anything", "depth",
+            "单目深度", "深度估计", "3D", "视差", "indoor", "outdoor",
+            "GIF", "动图", "webp", "APNG",
+        ],
+        icon="LAYERS",
+        tool_id="image.depth",
+        gradient_colors=("#5B86E5", "#36D1DC"),
+    )
     
     register_tool_manual(
         name="多图拼接",
@@ -515,6 +529,19 @@ def register_all_tools():
         icon="AUTO_AWESOME",
         tool_id="video.enhance",
         gradient_colors=("#30CFD0", "#330867"),
+    )
+
+    register_tool_manual(
+        name="深度估计",
+        description="Depth Anything，图片、动态图和视频估计深度",
+        category="媒体处理",
+        keywords=[
+            "深度", "深度图", "视频深度", "Depth Anything", "depth",
+            "GIF", "动图", "单目深度", "景深",
+        ],
+        icon="LAYERS",
+        tool_id="video.depth",
+        gradient_colors=("#5B86E5", "#36D1DC"),
     )
     
     register_tool_manual(

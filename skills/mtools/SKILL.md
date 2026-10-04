@@ -20,7 +20,7 @@ metadata:
 
 # MTools MCP
 
-MTools is a local desktop toolbox. Its **built-in MCP server** exposes ~63 tools
+MTools is a local desktop toolbox. Its **built-in MCP server** exposes ~65 tools
 (plus helpers). This skill teaches when and how to call them.
 
 ## Prerequisites
@@ -49,6 +49,7 @@ If MCP is offline: tell the user to open MTools and enable MCP. Do not invent pa
 | 压缩图片 | `mtools_image_compress` |
 | 图片转 jpg/png/webp | `mtools_image_format` |
 | 抠图 / 去背景 | `mtools_image_background` |
+| 深度估计 | `mtools_image_depth`（图片、GIF/动态 WebP/APNG 或视频；`model_key`: dav2_vits / dav2_vits_indoor / dav2_vits_outdoor） |
 | OCR / 识字 | `mtools_image_ocr` |
 | 去图片水印 | `mtools_image_watermark_remove` |
 | 压缩视频 | `mtools_video_compress` |

@@ -15,7 +15,7 @@ from mcp_server.tool_ids import TOOL_ID_MAP
 ToolId = Literal[tuple(sorted(TOOL_ID_MAP.keys()))]  # type: ignore[valid-type]
 
 _TOOL_ID_DESC = (
-    "桌面版工具 ID，共 63 项。例: image.compress, video.convert, video.ts_merge。"
+    "桌面版工具 ID，共 65 项。例: image.compress, video.convert, video.depth。"
     "完整列表请调 mtools_tool_ids；参数说明请调 mtools_help(tool_id)。"
     "也可直接调用原子工具如 mtools_image_compress（参数更少、schema 更清晰）。"
 )

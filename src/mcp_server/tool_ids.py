@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""桌面版 tool_id 与 MCP action 映射（63 项，不含 dev.markdown_viewer）。"""
+"""桌面版 tool_id 与 MCP action 映射（65 项，不含 dev.markdown_viewer）。"""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ TOOL_ID_MAP: dict[str, tuple[str, str]] = {
     "image.to_base64": ("mtools_image", "to_base64"),
     "image.gif": ("mtools_image", "gif"),
     "image.enhance": ("mtools_image", "enhance"),
+    "image.depth": ("mtools_image", "depth"),
+    "video.depth": ("mtools_image", "depth"),
     "image.puzzle.merge": ("mtools_image", "puzzle_merge"),
     "image.puzzle.split": ("mtools_image", "puzzle_split"),
     "image.search": ("mtools_image", "search"),

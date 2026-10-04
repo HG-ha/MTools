@@ -1312,3 +1312,61 @@ TTS_MODELS: Final[dict[str, TTSModelInfo]] = {
 }
 
 DEFAULT_TTS_MODEL_KEY: Final[str] = "melo_tts_zh_en"
+
+
+@dataclass
+class DepthModelInfo:
+    """Depth Anything V2 ONNX 模型。"""
+
+    name: str
+    display_name: str
+    url: str
+    fallback_url: str
+    size_mb: int
+    quality: str
+    performance: str
+    filename: str
+    version: str = "v2"
+    license: str = "Apache-2.0"
+
+
+_MS_DEPTH = (
+    "https://www.modelscope.cn/models/yiminger/MyTools_Models/resolve/master/"
+    "models/depth_anything/v2"
+)
+_GH_DEPTH = "https://github.com/fabio-sim/Depth-Anything-ONNX/releases/download/v2.0.0"
+
+DEPTH_MODELS: Final[dict[str, DepthModelInfo]] = {
+    "dav2_vits": DepthModelInfo(
+        name="dav2_vits",
+        display_name="Depth Anything V2 Small（相对深度）",
+        url=f"{_MS_DEPTH}/depth_anything_v2_vits_dynamic.onnx",
+        fallback_url=f"{_GH_DEPTH}/depth_anything_v2_vits_dynamic.onnx",
+        size_mb=95,
+        quality="相对深度，通用场景",
+        performance="约 95MB，速度较快",
+        filename="depth_anything_v2_vits_dynamic.onnx",
+    ),
+    "dav2_vits_indoor": DepthModelInfo(
+        name="dav2_vits_indoor",
+        display_name="Depth Anything V2 Small（室内米制）",
+        url=f"{_MS_DEPTH}/depth_anything_v2_vits_indoor_dynamic.onnx",
+        fallback_url=f"{_GH_DEPTH}/depth_anything_v2_vits_indoor_dynamic.onnx",
+        size_mb=95,
+        quality="室内米制深度，最远约 20 米",
+        performance="约 95MB，速度较快",
+        filename="depth_anything_v2_vits_indoor_dynamic.onnx",
+    ),
+    "dav2_vits_outdoor": DepthModelInfo(
+        name="dav2_vits_outdoor",
+        display_name="Depth Anything V2 Small（室外米制）",
+        url=f"{_MS_DEPTH}/depth_anything_v2_vits_outdoor_dynamic.onnx",
+        fallback_url=f"{_GH_DEPTH}/depth_anything_v2_vits_outdoor_dynamic.onnx",
+        size_mb=95,
+        quality="室外米制深度，最远约 80 米",
+        performance="约 95MB，速度较快",
+        filename="depth_anything_v2_vits_outdoor_dynamic.onnx",
+    ),
+}
+
+DEFAULT_DEPTH_MODEL_KEY: Final[str] = "dav2_vits"
