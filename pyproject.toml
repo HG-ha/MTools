@@ -72,6 +72,11 @@ path = "src"
 [tool.flet.macos]
 target_arch = ["arm64"]
 
+# Xcode 26 的 strip 处理不了 pyobjc 轮子里的 .dSYM（string table not at the end）。
+# 这些调试符号和 PyObjCTest 运行时用不到，打包前删掉。
+[tool.flet.macos.cleanup]
+package_files = ["**.dSYM", "PyObjCTest", "**/PyObjCTest"]
+
 # flet-dropzone / flet-gpt-markdown 的 Flutter 包仍声明 flet ^0.8x，
 # 覆盖到 1.0，否则 flet build 的 pub get 解不出依赖。
 [tool.flet.flutter.pubspec.dependency_overrides]

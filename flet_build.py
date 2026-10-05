@@ -11,6 +11,10 @@ flet build 包装脚本 — 自动修补已知的上游构建问题。
    修补方式：按目标平台优先级排序候选图标。
    （此问题已在 .venv 中修补，这里做双重保障。）
 
+3. Xcode 26 在拷贝 macOS 资源时 strip 失败：pyobjc 的 .dSYM
+   报 string table not at the end。打包前会按 pyproject 清理；
+   若仍失败，则删掉已 staging 的 .dSYM / PyObjCTest 后重编。
+
 用法：
     python flet_build.py windows -v
     python flet_build.py windows --build-version=0.0.17-beta
@@ -170,6 +174,66 @@ def patch_flutter_packages(build_dir: Path) -> bool:
         any_fixed = True
 
     return any_fixed
+
+
+# ---------------------------------------------------------------------------
+# Patch 4: macOS — Xcode 26 strip 无法处理 pyobjc 的 .dSYM
+# ---------------------------------------------------------------------------
+def _remove_macos_strip_blockers(root: Path) -> int:
+    """删除 Xcode strip 会失败的调试符号，以及用不到的 PyObjC 测试模块。"""
+    if not root.exists():
+        return 0
+
+    victims: list[Path] = []
+    for dirpath, dirnames, _filenames in os.walk(root):
+        kept: list[str] = []
+        for name in dirnames:
+            path = Path(dirpath) / name
+            if name == "PyObjCTest" or name.endswith(".dSYM"):
+                victims.append(path)
+            else:
+                kept.append(name)
+        dirnames[:] = kept
+
+    removed = 0
+    for path in victims:
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+            removed += 1
+    return removed
+
+
+@register_patch
+def patch_macos_strip_blockers(build_dir: Path) -> bool:
+    """
+    Xcode 26 对已签名的 .so 只警告，但对 pyobjc 轮子里的 .dSYM 会直接失败。
+    清理 build 产物和 pub-cache 里已 staging 的副本，再重跑 flutter build。
+    """
+    if sys.platform != "darwin":
+        return False
+
+    roots = [PROJECT_ROOT / "build", build_dir]
+    pub_cache = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
+    if pub_cache.is_dir():
+        roots.extend(
+            path for path in pub_cache.glob("serious_python_darwin-*") if path.is_dir()
+        )
+
+    removed = 0
+    seen: set[Path] = set()
+    for root in roots:
+        resolved = root.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        removed += _remove_macos_strip_blockers(root)
+
+    if not removed:
+        print("  [patch] macOS strip: 未找到 .dSYM / PyObjCTest")
+        return False
+
+    print(f"  [patch] macOS strip: 已移除 {removed} 个 .dSYM / PyObjCTest ✓")
+    return True
 
 
 # ---------------------------------------------------------------------------
