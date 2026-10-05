@@ -29,7 +29,7 @@ from constants import (
 )
 from services import ConfigService, UpdateService, UpdateInfo, UpdateStatus
 from services.auto_updater import AutoUpdater
-from constants import APP_DESCRIPTION
+from constants import APP_DESCRIPTION, OFFICIAL_QQ_GROUP
 
 
 def get_full_version_string() -> str:
@@ -3871,7 +3871,7 @@ class SettingsView(ft.Container):
                 ),
                 self.update_status_row,
                 ft.Text("By：一铭"),
-                ft.Text("QQ交流群：1029212047"),
+                ft.Text(f"QQ交流群：{OFFICIAL_QQ_GROUP}"),
                 ft.Container(height=PADDING_MEDIUM // 2),
                 ft.Text(
                     APP_DESCRIPTION,

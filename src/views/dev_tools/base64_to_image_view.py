@@ -74,6 +74,7 @@ class Base64ToImageView(ft.Container):
         
         # Base64输入区域
         self.base64_input = ft.TextField(
+            key="base64_input",
             label="Base64编码",
             hint_text="粘贴Base64编码或Data URI格式 (data:image/...;base64,...)",
             multiline=True,

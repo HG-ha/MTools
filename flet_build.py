@@ -348,9 +348,44 @@ def _ensure_macos_arm64_arch(args: list[str]) -> list[str]:
     return [args[0], "--arch", "arm64", *args[1:]]
 
 
+def _ensure_python_312(args: list[str]) -> list[str]:
+    """Flet 1.0 打包运行时只有 3.12/3.13/3.14。固定 3.12，与 requires-python 一致。"""
+    if any(arg == "--python-version" or arg.startswith("--python-version=") for arg in args):
+        return args
+    if args and not args[0].startswith("-"):
+        return [args[0], "--python-version", "3.12", *args[1:]]
+    return ["--python-version", "3.12", *args]
+
+
+def run_flet_test(args: list[str]) -> int:
+    """跑 flet test。先把本地扩展改成 pip 能安装的路径，结束再恢复。
+
+    Windows 上这个测试把应用嵌进 Debug 版 Python（python312_d.dll）。
+    Pillow、NumPy 的轮子链接正式版 python312.dll，嵌进去后会在导入时失败。
+    """
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    os.environ.setdefault("FLET_CLI_NO_RICH_OUTPUT", "1")
+    if "--yes" not in args and "-y" not in args:
+        args = ["--yes", *args]
+
+    flet_exe = shutil.which("flet")
+    if flet_exe:
+        cmd = [flet_exe, "test", *args]
+    else:
+        cmd = [sys.executable, "-m", "flet", "test", *args]
+
+    original_pyproject = _resolve_pyproject_paths()
+    _setup_sherpa_cuda_find_links()
+    try:
+        return subprocess.run(cmd, cwd=PROJECT_ROOT, env=os.environ.copy()).returncode
+    finally:
+        _restore_pyproject(original_pyproject)
+
+
 def run_flet_build(args: list[str]) -> int:
     """运行 flet build 并在失败时尝试修补后重试。"""
-    args = _ensure_macos_arm64_arch(list(args))
+    args = _ensure_python_312(_ensure_macos_arm64_arch(list(args)))
     flet_exe = shutil.which("flet")
     if flet_exe:
         cmd = [flet_exe, "build"] + args
@@ -375,7 +410,38 @@ def run_flet_build(args: list[str]) -> int:
 
     if rc == 0:
         _bundle_vcrt_extra_dlls()
+        _restore_opencv_loader_sources()
     return rc
+
+
+def _restore_opencv_loader_sources() -> None:
+    """OpenCV 的加载器按文件名读取 config.py，不能只留 .pyc。"""
+    names = ("config.py", "config-3.py")
+    src_dir = Path(sys.prefix) / "Lib" / "site-packages" / "cv2"
+    if not (src_dir / "config.py").is_file():
+        src_dir = (
+            Path(sys.prefix)
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+            / "cv2"
+        )
+    if not (src_dir / "config.py").is_file():
+        print("  [post-build] 未找到 OpenCV config.py，跳过恢复")
+        return
+
+    restored = 0
+    for init_pyc in (PROJECT_ROOT / "build").rglob("cv2/__init__.pyc"):
+        if init_pyc.parent.parent.name != "site-packages":
+            continue
+        for name in names:
+            src = src_dir / name
+            dest = init_pyc.parent / name
+            if src.is_file() and not dest.is_file():
+                shutil.copy2(src, dest)
+                restored += 1
+    if restored:
+        print(f"  [post-build] 已恢复 OpenCV 加载脚本 {restored} 个")
 
 
 def _do_build(cmd: list[str], args: list[str]) -> int:
@@ -502,4 +568,7 @@ def _find_flutter_bin() -> Path | None:
 
 
 if __name__ == "__main__":
-    sys.exit(run_flet_build(sys.argv[1:]))
+    argv = sys.argv[1:]
+    if argv and argv[0] == "test":
+        sys.exit(run_flet_test(argv[1:]))
+    sys.exit(run_flet_build(argv))

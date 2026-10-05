@@ -84,6 +84,7 @@ class QRCodeGeneratorView(ft.Container):
         
         # 内容输入区域
         self.content_input = ft.TextField(
+            key="qr_content",
             label="输入内容",
             hint_text="输入文本、网址等内容",
             multiline=True,

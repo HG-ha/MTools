@@ -43,6 +43,7 @@ class FeatureCard(ft.Container):
         tool_id: Optional[str] = None,
         is_pinned: bool = False,
         on_pin_change: Optional[Callable[[str, bool], None]] = None,
+        card_key: Optional[str] = None,
     ) -> None:
         """初始化功能卡片。
         
@@ -56,6 +57,7 @@ class FeatureCard(ft.Container):
             tool_id: 工具ID（用于置顶功能）
             is_pinned: 是否已置顶
             on_pin_change: 置顶状态变化回调 (tool_id, is_pinned) -> None
+            card_key: 测试用稳定标识；缺省时使用 tool_id
         """
         super().__init__()
         self.icon_name: str = icon
@@ -65,6 +67,7 @@ class FeatureCard(ft.Container):
         self.gradient_colors: Optional[tuple[str, str]] = gradient_colors
         self.card_margin: Union[int, float, ft.Margin] = margin if margin is not None else 0
         self.tool_id: Optional[str] = tool_id
+        self.card_key: Optional[str] = card_key
         self.is_pinned: bool = is_pinned
         self.on_pin_change: Optional[Callable[[str, bool], None]] = on_pin_change
         
@@ -179,6 +182,9 @@ class FeatureCard(ft.Container):
         self.on_click = self.click_handler
         self.on_hover = self._on_hover
         self.margin = self.card_margin
+        resolved_key = self.card_key or self.tool_id
+        if resolved_key:
+            self.key = resolved_key
     
     def _on_hover(self, e: ft.HoverEvent) -> None:
         """悬停事件处理。"""

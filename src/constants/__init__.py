@@ -4,6 +4,7 @@
 from .app_config import (
     ACCENT_COLOR,
     APP_DESCRIPTION,
+    OFFICIAL_QQ_GROUP,
     APP_TITLE,
     APP_VERSION,
     BACKGROUND_COLOR,
@@ -101,6 +102,7 @@ __all__ = [
     "APP_TITLE",
     "APP_VERSION",
     "APP_DESCRIPTION",
+    "OFFICIAL_QQ_GROUP",
     "GITHUB_OWNER",
     "GITHUB_REPO",
     "GITHUB_API_URL",

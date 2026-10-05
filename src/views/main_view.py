@@ -330,6 +330,7 @@ class MainView(ft.Column):
         
         # 创建悬浮搜索按钮（半透明背景）
         self.fab_search = ft.FloatingActionButton(
+            key="search_fab",
             icon=ft.Icons.SEARCH,
             tooltip="搜索工具 (Ctrl+K)",
             on_click=self._open_search,
@@ -759,6 +760,7 @@ class MainView(ft.Column):
                 "interpolation": "video_interpolation",
                 "subtitle": "video_subtitle",
                 "subtitle_remove": "subtitle_remove",
+                "depth": "video_depth",
             }
             sub_view = video_tool_map.get(tool_name, tool_name)
             self._safe_go(f"/media/{sub_view}")

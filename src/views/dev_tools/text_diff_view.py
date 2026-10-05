@@ -284,6 +284,7 @@ class TextDiffView(ft.Container):
         return ft.Container(
             content=ft.TextField(
                 ref=ref,
+                key="diff_left" if side == "left" else "diff_right",
                 multiline=True,
                 min_lines=1,
                 hint_text=f"在此输入内容或从文件导入",

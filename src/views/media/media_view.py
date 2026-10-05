@@ -371,6 +371,7 @@ class MediaView(ft.Container):
                 description="配置环境变量并打开命令行",
                 on_click=lambda e: self._open_ffmpeg_terminal(),
                 gradient_colors=("#4facfe", "#00f2fe"),
+                card_key="media.ffmpeg_terminal",
             ),
         ]
         

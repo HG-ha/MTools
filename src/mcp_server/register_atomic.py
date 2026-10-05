@@ -79,7 +79,7 @@ def _register_one(mcp, tool_id: str) -> None:
         "Literal": Literal,
         "call_handler": call_handler,
     }
-    exec(code, local, local)  # noqa: S102 — globals=locals 以便 FastMCP 解析 Annotated
+    exec(code, local, local)  # noqa: S102 — globals=locals 以便 MCPServer 解析 Annotated
     fn = local[name]
     fn.__doc__ = doc
     mcp.tool(name=name, description=doc)(fn)

@@ -15,6 +15,8 @@ import flet as ft
 
 from constants import (
     APP_TITLE,
+    APP_VERSION,
+    OFFICIAL_QQ_GROUP,
     BACKGROUND_COLOR,
     BORDER_RADIUS_MEDIUM,
     CARD_BACKGROUND,
@@ -181,9 +183,13 @@ def main(page: ft.Page) -> None:
     if config_service.get_config_value("auto_start", False):
         config_service.set_config_value("auto_start", False)
 
-    # 检查桌面快捷方式 / macOS Applications 安装（延迟执行，避免阻塞启动）
-    _check_desktop_shortcut(page, config_service)
-    _check_macos_applications(page, config_service)
+    # 首次使用或版本更新后提示官方群。同一版本只提示一次，
+    # 这次就不叠加快捷方式 / Applications 弹窗。
+    if _should_show_official_group(config_service):
+        _show_official_group_notice(page, config_service)
+    else:
+        _check_desktop_shortcut(page, config_service)
+        _check_macos_applications(page, config_service)
 
     def on_window_event(e):
         if not _is_macos:
@@ -421,6 +427,60 @@ def _show_startup_update_dialog(page: ft.Page, config_service: ConfigService, up
     later_btn.on_click = on_later
     
     page.show_dialog(dialog)
+
+
+def _should_show_official_group(config_service: ConfigService) -> bool:
+    """当前版本还没看过官方群说明时返回 True。"""
+    seen = config_service.get_config_value("official_group_seen_version", "")
+    return seen != APP_VERSION
+
+
+def _show_official_group_notice(page: ft.Page, config_service: ConfigService) -> None:
+    """首次打开或升级后提示官方群、无官网、不收费。"""
+
+    def show_notice() -> None:
+        import time
+
+        time.sleep(1.5)
+        if not _should_show_official_group(config_service):
+            return
+
+        def acknowledge(_=None) -> None:
+            config_service.set_config_value("official_group_seen_version", APP_VERSION)
+            page.pop_dialog()
+
+        async def copy_group_number() -> None:
+            await ft.Clipboard().set(OFFICIAL_QQ_GROUP)
+            page.show_dialog(ft.SnackBar(content=ft.Text(f"已复制群号 {OFFICIAL_QQ_GROUP}")))
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("官方交流群"),
+            content=ft.Column(
+                controls=[
+                    ft.Text(f"QQ交流群：{OFFICIAL_QQ_GROUP}", size=16, weight=ft.FontWeight.W_500),
+                    ft.Text(
+                        "本软件没有官网，也不收费。\n"
+                        "请勿轻信任何收费网站、付费客服或代下载。",
+                        size=14,
+                    ),
+                ],
+                tight=True,
+                spacing=12,
+            ),
+            actions=[
+                ft.Button(
+                    "复制群号",
+                    icon=ft.Icons.CONTENT_COPY,
+                    on_click=lambda _: page.run_task(copy_group_number),
+                ),
+                ft.TextButton("我知道了", on_click=acknowledge),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        page.show_dialog(dialog)
+
+    threading.Thread(target=show_notice, daemon=True).start()
 
 
 def _check_desktop_shortcut(page: ft.Page, config_service: ConfigService) -> None:

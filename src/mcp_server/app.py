@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from mcp_server import (
     register_atomic,
@@ -18,8 +18,13 @@ from mcp_server import (
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+STREAMABLE_HTTP_PATH = "/mcp"
 
-mcp = FastMCP(
+# host/port 在 MCP 2.x 里不再属于服务器构造参数，启动 HTTP 时再使用。
+_bind_host = DEFAULT_HOST
+_bind_port = DEFAULT_PORT
+
+mcp = MCPServer(
     "MTools",
     instructions=(
         "MTools MCP — 桌面版 65 项工具能力（不含 Markdown 查看器）。\n\n"
@@ -33,22 +38,33 @@ mcp = FastMCP(
         "6. 文件路径必须是用户本机绝对路径；AI/ONNX 需用户先在 MTools 下载模型。\n"
         "7. 返回 JSON 字符串，检查 ok 字段判断成功与否。"
     ),
-    host=DEFAULT_HOST,
-    port=DEFAULT_PORT,
     log_level="WARNING",
 )
 
 
-def configure_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> FastMCP:
-    mcp.settings.host = host
-    mcp.settings.port = port
+def get_bind() -> tuple[str, int]:
+    return _bind_host, _bind_port
+
+
+def configure_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> MCPServer:
+    global _bind_host, _bind_port
+    _bind_host = host
+    _bind_port = port
     return mcp
 
 
 def get_endpoint_url(host: str | None = None, port: int | None = None) -> str:
-    h = host or mcp.settings.host
-    p = port or mcp.settings.port
-    return f"http://{h}:{p}{mcp.settings.streamable_http_path}"
+    h = host or _bind_host
+    p = port or _bind_port
+    return f"http://{h}:{p}{STREAMABLE_HTTP_PATH}"
+
+
+def create_asgi_app():
+    """构建 Streamable HTTP 应用。本机地址会打开 DNS 重绑定防护。"""
+    return mcp.streamable_http_app(
+        streamable_http_path=STREAMABLE_HTTP_PATH,
+        host=_bind_host,
+    )
 
 
 def _register_all() -> None:

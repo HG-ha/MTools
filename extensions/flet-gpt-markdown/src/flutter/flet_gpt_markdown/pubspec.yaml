@@ -8,7 +8,7 @@ environment:
   flutter: ">=1.17.0"
 
 dependencies:
-  flet: ^0.84.0
+  flet: ">=1.0.0 <2.0.0"
   flutter:
     sdk: flutter
   gpt_markdown: ^1.1.6

@@ -78,6 +78,7 @@ class CronToolView(ft.Container):
             controls=[
                 ft.TextField(
                     ref=self.cron_input,
+                    key="cron_input",
                     label="Cron 表达式",
                     hint_text="* * * * *",
                     width=250,

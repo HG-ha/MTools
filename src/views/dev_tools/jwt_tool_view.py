@@ -74,6 +74,7 @@ class JwtToolView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.jwt_input,
+                        key="jwt_input",
                         multiline=True,
                         min_lines=4,
                         hint_text='粘贴 JWT Token 到这里...\n例如: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',

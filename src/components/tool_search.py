@@ -58,6 +58,7 @@ class ToolSearchDialog(ft.AlertDialog):
         
         # 搜索框
         self.search_field = ft.TextField(
+            key="tool_search_field",
             hint_text="搜索工具... (输入工具名称或关键词)",
             prefix_icon=ft.Icons.SEARCH,
             autofocus=True,
@@ -96,7 +97,7 @@ class ToolSearchDialog(ft.AlertDialog):
                 height=500,
             ),
             actions=[
-                ft.TextButton("关闭", on_click=self._on_close),
+                ft.TextButton("关闭", key="tool_search_close", on_click=self._on_close),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
             on_dismiss=lambda e: None,  # 添加关闭回调

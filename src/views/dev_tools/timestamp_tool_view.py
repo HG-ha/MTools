@@ -136,6 +136,7 @@ class TimestampToolView(ft.Container):
                         controls=[
                             ft.TextField(
                                 ref=self.timestamp_input,
+                                key="timestamp_input",
                                 label="时间戳",
                                 hint_text="例如: 1699999999",
                                 expand=True,

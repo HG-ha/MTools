@@ -76,6 +76,7 @@ class RegexTesterView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.regex_input,
+                        key="regex_pattern",
                         hint_text=r'例如: \d{3}-\d{4}',
                         text_size=14,
                         border=ft.InputBorder.NONE,
@@ -131,6 +132,7 @@ class RegexTesterView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.test_text,
+                        key="regex_text",
                         multiline=True,
                         min_lines=10,
                         hint_text='在此输入要测试的文本...',

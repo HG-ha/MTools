@@ -645,7 +645,10 @@ class ImageSearchView(ft.Container):
     def _open_url(self, url: str):
         """打开URL"""
         if url:
-            self._page.launch_url(url)
+            self._page.run_task(self._launch_url, url)
+
+    async def _launch_url(self, url: str) -> None:
+        await ft.UrlLauncher().launch_url(url)
     
     async def _copy_to_clipboard(self, text: str, label: str = "内容"):
         """复制文本到剪贴板"""

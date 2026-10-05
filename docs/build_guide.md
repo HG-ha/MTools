@@ -2,7 +2,7 @@
 
 本指南将帮助您使用 `flet build` 编译 MTools 项目，生成独立的可执行文件。
 
-> 💡 **说明**：自 v0.84.0 起，项目已切换为 `flet build` 打包方式。旧的 Nuitka 构建脚本 (`build.py`) 仍保留在项目中，但不再作为主要构建方式。
+> 💡 **说明**：项目使用 `flet build` 打包。Flet 1.0 内置 Python 只提供 3.12 及以上，因此打包运行时固定为 3.12。
 
 ## 🚀 快速开始
 
@@ -12,7 +12,7 @@
 uv sync
 
 # 2. 安装 flet CLI
-pip install flet-cli==0.84.0
+pip install flet-cli==1.0.3
 
 # 3. 编译
 python flet_build.py windows
@@ -30,7 +30,7 @@ python flet_build.py windows
 uv sync
 
 # 2. 安装 flet CLI
-pip install flet-cli==0.84.0
+pip install flet-cli==1.0.3
 
 # 3. 切换为 CUDA FULL onnxruntime
 python scripts/prepare_cuda_variant.py cuda_full
@@ -48,9 +48,9 @@ python flet_build.py windows
 
 | 工具 | 必需 | 说明 |
 |------|------|------|
-| **Python 3.11** | ✅ | 运行 `python --version` 验证 |
+| **Python 3.12** | ✅ | 运行 `python --version` 验证 |
 | **uv 包管理器** | ✅ | 推荐的依赖管理工具 |
-| **flet-cli 0.84.0** | ✅ | `pip install flet-cli==0.84.0` |
+| **flet-cli 1.0.3** | ✅ | `pip install flet-cli==1.0.3` |
 | **Visual Studio Build Tools** | ✅ (Windows) | 需要 C++ 桌面开发工作负载 |
 | **Flutter SDK** | ❌ | flet-cli 会自动下载并管理 |
 
@@ -67,7 +67,7 @@ pip install uv
 
 **2. 安装 flet-cli**
 ```bash
-pip install flet-cli==0.84.0
+pip install flet-cli==1.0.3
 ```
 
 **3. Visual Studio Build Tools（Windows）**
@@ -191,6 +191,21 @@ build/flutter/build/windows/x64/runner/Release/
 
 CI 使用 `python flet_build.py` 包装脚本进行构建，以确保自动修补生效。
 
+## 界面测试
+
+`flet test` 会按正式打包的方式构建应用，再逐个打开界面并执行能离线完成的功能。依赖模型和网络的工具只检查界面能打开。开发依赖使用 `pytest`、`pytest-asyncio` 和 `scikit-image` 0.24。没有启用 `flet[test]`，因为那个额外依赖要求 NumPy 2.2 以上，和本项目锁定的 NumPy 1.26.4 冲突；`flet.testing` 仍会导入 scikit-image，0.24 可以和 NumPy 1.26 一起用。
+
+```bash
+uv sync --group dev
+uv run python flet_build.py test
+```
+
+`flet_build.py test` 会在打包前把本地扩展换成 pip 能安装的路径，测完再改回去。第一次会下载测试宿主，比较慢。Windows 上 Flet 把应用嵌进 Debug 版 Python，Pillow 这类正式轮子会在启动时导入失败。只跑某一个用例：
+
+```bash
+uv run python flet_build.py test -k test_every_screen
+```
+
 ## 🐛 常见问题
 
 ### Q1: `vcruntime140_1.dll` 复制失败
@@ -198,10 +213,10 @@ CI 使用 `python flet_build.py` 包装脚本进行构建，以确保自动修�
 
 **解决方案**：使用 `python flet_build.py` 而非直接 `flet build`，脚本会自动修补此问题。
 
-### Q2: `NoDecoderForImageFormatException` (图标问题)
-**症状**：Windows 构建时 flutter_launcher_icons 无法解码 `.icns` 图标
+### Q2: 图标被当成错误格式
+**症状**：构建时选中了 `.icns` / `.ico`，而不是 `icon.png`
 
-**解决方案**：使用 `python flet_build.py`，脚本会自动移除不兼容的图标文件。
+**解决方案**：CI 和 `flet_build.py` 会去掉平台专用图标，让 Flet 1.0 从 `icon.png` 生成各平台图标。
 
 ### Q3: `Unknown control: FilePicker`
 **症状**：打包后运行界面显示 Unknown control: FilePicker

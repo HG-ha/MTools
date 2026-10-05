@@ -153,6 +153,7 @@ class CryptoToolView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.input_text,
+                        key="crypto_input",
                         multiline=True,
                         min_lines=20,
                         hint_text="输入要加密/解密的文本...",

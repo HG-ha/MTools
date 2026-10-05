@@ -5,8 +5,8 @@
 # MTools
 一款功能强大、界面精美的现代化桌面工具集
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![Flet](https://img.shields.io/badge/Flet-0.84.0-brightgreen.svg)](https://flet.dev/)
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Flet](https://img.shields.io/badge/Flet-1.0.3-brightgreen.svg)](https://flet.dev/)
 [![License](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
 [![Downloads](https://img.shields.io/github/downloads/HG-ha/MTools/total?style=flat-square)](https://github.com/HG-ha/MTools/releases)
@@ -97,7 +97,7 @@ Base URL：<code>https://api.atlascloud.ai/v1</code> · <a href="./docs/ai_provi
 
 #### 环境要求
 - **操作系统**: Windows 10/11、macOS 或 Linux
-- **Python**: 3.11+
+- **Python**: 3.12
 - **包管理器**: [uv](https://github.com/astral-sh/uv) - 推荐使用的 Python 包管理器
 
 #### 一键安装依赖

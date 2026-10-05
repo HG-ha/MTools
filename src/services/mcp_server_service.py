@@ -63,10 +63,14 @@ class McpServerService:
             self._error_message = None
             self._started_event.clear()
 
-            from mcp_server import configure_server, init_runtime
+            try:
+                from mcp_server import configure_server, init_runtime
 
-            init_runtime(self.config_service)
-            configure_server(self.get_host(), self.get_port())
+                init_runtime(self.config_service)
+                configure_server(self.get_host(), self.get_port())
+            except Exception as exc:
+                self._error_message = str(exc)
+                return False, self._error_message
 
             self._thread = threading.Thread(
                 target=self._run_server,
@@ -132,9 +136,10 @@ class McpServerService:
             if self.is_running:
                 current_port = self.get_port()
                 current_host = self.get_host()
-                from mcp_server.app import mcp
+                from mcp_server.app import get_bind
 
-                if mcp.settings.port != current_port or mcp.settings.host != current_host:
+                bound_host, bound_port = get_bind()
+                if bound_port != current_port or bound_host != current_host:
                     return self.restart()
                 return True, f"MCP 服务运行中: {self.get_endpoint_url()}"
             return self.start()
@@ -155,14 +160,15 @@ class McpServerService:
     def _run_server(self) -> None:
         import uvicorn
 
-        from mcp_server.app import mcp
+        from mcp_server.app import create_asgi_app, get_bind
 
         async def serve() -> None:
-            app = mcp.streamable_http_app()
+            host, port = get_bind()
+            app = create_asgi_app()
             config = uvicorn.Config(
                 app,
-                host=mcp.settings.host,
-                port=mcp.settings.port,
+                host=host,
+                port=port,
                 log_level="warning",
             )
             self._uvicorn_server = uvicorn.Server(config)

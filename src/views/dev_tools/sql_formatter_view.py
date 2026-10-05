@@ -128,6 +128,7 @@ class SqlFormatterView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.input_text,
+                        key="sql_input",
                         multiline=True,
                         min_lines=20,
                         hint_text="输入 SQL 语句...",

@@ -164,6 +164,7 @@ class ColorToolView(ft.Container):
                         controls=[
                             ft.TextField(
                                 ref=self.hex_input,
+                                key="color_hex",
                                 label="HEX",
                                 hint_text="#3498DB",
                                 expand=True,

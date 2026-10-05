@@ -153,6 +153,7 @@ class EncoderDecoderView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.input_text,
+                        key="encoder_input",
                         multiline=True,
                         min_lines=15,
                         hint_text='在此输入需要处理的文本...',

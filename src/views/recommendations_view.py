@@ -67,6 +67,7 @@ class RecommendationsView(ft.Container):
         # 构建工具卡片
         recommended_cards = self._build_tool_cards(recommended_tool_ids)
         
+        self.key = "recommendations_page"
         # 组装内容 - 只显示工具卡片
         self.content = ft.Column(
             controls=[

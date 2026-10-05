@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
   FLET_CLI_NO_RICH_OUTPUT: 1
   PYTHONUTF8: 1
 
@@ -109,7 +109,7 @@ jobs:
           import sys
 
           print(f"Python runtime: {sys.version}")
-          expected = (3, 11)
+          expected = (3, 12)
           if sys.version_info[:2] != expected:
               raise SystemExit(
                   f"Expected Python {expected[0]}.{expected[1]}, "
@@ -128,8 +128,18 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
+          # Flet 1.0 / Flutter Linux 桌面编译依赖。缺 lld 会在链接阶段失败。
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgtk-3-dev
+          sudo apt-get install -y --no-install-recommends \
+            binutils clang cmake llvm lld ninja-build pkg-config \
+            libgtk-3-dev libsecret-1-0 libsecret-1-dev libunwind-dev \
+            gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-libav \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-ugly gstreamer1.0-pulseaudio gstreamer1.0-qt5 \
+            gstreamer1.0-tools gstreamer1.0-x \
+            libasound2-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
+            libmpv-dev mpv
 
       # Windows 无需额外安装（Visual Studio 已预装）
 
@@ -138,7 +148,7 @@ jobs:
       - name: Install flet-cli
         run: |
           python -m pip install --upgrade pip
-          pip install flet-cli==0.84.0
+          pip install flet-cli==1.0.3
 
       # ========== CUDA 变体处理 ==========
 
@@ -182,8 +192,7 @@ jobs:
 
       # ========== Flet Build ==========
 
-      # 移除平台专用图标，强制 flet build 使用高分辨率 icon.png (1024x1024)
-      # flutter_launcher_icons 从 PNG 生成各平台所需的全部尺寸，效果最佳
+      # Flet 1.0 从 icon.png 生成各平台图标。去掉 icns/ico，避免被当成平台专用源。
       - name: Remove platform-specific icon files
         shell: bash
         run: rm -f src/assets/icon.icns src/assets/icon.ico

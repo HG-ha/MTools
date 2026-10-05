@@ -136,6 +136,7 @@ class FormatConvertView(ft.Container):
                 ft.Container(
                     content=ft.TextField(
                         ref=self.input_text,
+                        key="format_input",
                         multiline=True,
                         min_lines=20,
                         hint_text="在此输入源数据...",
