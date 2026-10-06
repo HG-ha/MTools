@@ -614,7 +614,48 @@ def run_flet_build(args: list[str]) -> int:
 
 def _restore_opencv_loader_sources() -> None:
     """OpenCV 的加载器按文件名读取 config.py，不能只留 .pyc。"""
-    names = ("config.py", "config-3.py")
+    binary_dir = (
+        "x64/vc14/bin"
+        if sys.platform == "win32"
+        else "lib"
+        if sys.platform == "darwin"
+        else "lib64"
+    )
+    fallback_sources = {
+        "config.py": f"""\
+import os
+
+BINARIES_PATHS = [
+    os.path.join(os.path.join(LOADER_DIR, '../../'), '{binary_dir}')
+] + BINARIES_PATHS
+""",
+        "config-3.py": """\
+PYTHON_EXTENSIONS_PATHS = [
+    LOADER_DIR
+] + PYTHON_EXTENSIONS_PATHS
+
+ci_and_not_headless = False
+
+try:
+    from .version import ci_build, headless
+
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+
+# the Qt plugin is included currently only in the pre-built wheels
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "qt", "plugins"
+    )
+
+# Qt will throw warning on Linux if fonts are not found
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ["QT_QPA_FONTDIR"] = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "qt", "fonts"
+    )
+""",
+    }
     src_dir = Path(sys.prefix) / "Lib" / "site-packages" / "cv2"
     if not (src_dir / "config.py").is_file():
         src_dir = (
@@ -624,22 +665,49 @@ def _restore_opencv_loader_sources() -> None:
             / "site-packages"
             / "cv2"
         )
-    if not (src_dir / "config.py").is_file():
-        print("  [post-build] 未找到 OpenCV config.py，跳过恢复")
-        return
+
+    cv2_dirs = sorted(
+        {
+            path
+            for path in (PROJECT_ROOT / "build").rglob("cv2")
+            if path.is_dir()
+            and path.parent.name == "site-packages"
+            and (
+                (path / "__init__.pyc").is_file()
+                or any(path.glob("cv2*.pyd"))
+                or any(path.glob("cv2*.so"))
+            )
+        }
+    )
+    if not cv2_dirs:
+        raise RuntimeError("构建产物中未找到 site-packages/cv2，无法验证 OpenCV 加载器")
 
     restored = 0
-    for init_pyc in (PROJECT_ROOT / "build").rglob("cv2/__init__.pyc"):
-        if init_pyc.parent.parent.name != "site-packages":
-            continue
-        for name in names:
+    for cv2_dir in cv2_dirs:
+        for name, fallback in fallback_sources.items():
             src = src_dir / name
-            dest = init_pyc.parent / name
-            if src.is_file() and not dest.is_file():
+            dest = cv2_dir / name
+            if dest.is_file():
+                continue
+            if src.is_file():
                 shutil.copy2(src, dest)
-                restored += 1
-    if restored:
-        print(f"  [post-build] 已恢复 OpenCV 加载脚本 {restored} 个")
+            else:
+                # CI 只安装 flet-cli，runner 环境通常没有 cv2，不能依赖
+                # sys.prefix 提供源文件。直接恢复 opencv-python 4.11 的
+                # 两个加载配置，避免发布成功但应用启动即崩溃。
+                dest.write_text(fallback, encoding="utf-8", newline="\n")
+            restored += 1
+    missing = [
+        str(cv2_dir)
+        for cv2_dir in cv2_dirs
+        if any(not (cv2_dir / name).is_file() for name in fallback_sources)
+    ]
+    if missing:
+        raise RuntimeError(f"OpenCV 加载脚本恢复失败: {missing}")
+    print(
+        f"  [post-build] OpenCV 加载脚本已验证，"
+        f"恢复 {restored} 个（{len(cv2_dirs)} 个 cv2 目录）"
+    )
 
 
 def _do_build(cmd: list[str], args: list[str]) -> int:

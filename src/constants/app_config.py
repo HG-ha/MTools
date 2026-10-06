@@ -9,7 +9,7 @@ from typing import Final
 
 # 应用基本信息
 APP_TITLE: Final[str] = "MTools"
-APP_VERSION: Final[str] = "0.2.3"
+APP_VERSION: Final[str] = "0.2.4"
 APP_DESCRIPTION: Final[str] = "MTools 是一个功能强大的全能桌面应用程序，集成了音视频处理、图片编辑、文本操作和编码工具，内置AI功能。旨在简化您的工作流程，提升生产效率。"
 OFFICIAL_QQ_GROUP: Final[str] = "1029212047"
 
