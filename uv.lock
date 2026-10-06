@@ -686,7 +686,7 @@ wheels = [
 
 [[package]]
 name = "mtools"
-version = "0.2.4"
+version = "0.2.3"
 source = { virtual = "." }
 dependencies = [
     { name = "chardet" },
