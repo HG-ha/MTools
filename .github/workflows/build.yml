@@ -220,10 +220,20 @@ jobs:
           if not build_root.exists():
               raise SystemExit("build/windows not found")
           
-          site_packages_targets = [p for p in build_root.rglob("site-packages") if (p / "pythoncom.py").exists()]
+          # pywin32 311+ 不再提供 pythoncom.py；扩展模块是 pythoncom312.dll。
+          # 不能再用 pythoncom.py 判断 site-packages，否则实际构建已成功也会
+          # 在后处理阶段误报失败。
+          site_packages_targets = sorted(
+              (p for p in build_root.rglob("site-packages") if p.is_dir()),
+              key=lambda p: (
+                  not (p / "pywin32_system32").is_dir(),
+                  not (p / "win32").is_dir(),
+                  len(p.parts),
+              ),
+          )
           if not site_packages_targets:
-              raise SystemExit("No target site-packages with pythoncom.py found in build output")
-          
+              raise SystemExit("No site-packages directory found in build output")
+
           target_sp = site_packages_targets[0]
           print(f"Target site-packages: {target_sp}")
           
