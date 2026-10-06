@@ -15,6 +15,10 @@ flet build 包装脚本 — 自动修补已知的上游构建问题。
    报 string table not at the end。打包前会按 pyproject 清理；
    若仍失败，则删掉已 staging 的 .dSYM / PyObjCTest 后重编。
 
+4. serious_python 5.0.0 先读完 stdout 再读 stderr。Windows 上
+   compileall 把 stderr 管道写满后会死锁，直到 CI 6 小时超时。
+   打包前改成同时排空两条管道，并给 compileall 加上 -q。
+
 用法：
     python flet_build.py windows -v
     python flet_build.py windows --build-version=0.0.17-beta
@@ -23,10 +27,14 @@ flet build 包装脚本 — 自动修补已知的上游构建问题。
 所有参数原样传递给 flet build。
 """
 
+import hashlib
+import io
 import os
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
 from pathlib import Path
 
 if sys.stdout.encoding != "utf-8":
@@ -447,6 +455,131 @@ def run_flet_test(args: list[str]) -> int:
         _restore_pyproject(original_pyproject)
 
 
+# 与 flet-cli 1.0.3 模板里的 serious_python 版本一致。
+_SERIOUS_PYTHON_VERSION = "5.0.0"
+_SERIOUS_PYTHON_SHA256 = (
+    "64af9e492f71189aff40459fc2c375c827e79647b1299f3bd304d1067f728c85"
+)
+_SERIOUS_PYTHON_ARCHIVE = (
+    "https://pub.dev/api/archives/"
+    f"serious_python-{_SERIOUS_PYTHON_VERSION}.tar.gz"
+)
+
+_OLD_RUN_EXEC = """\
+  Future<int> runExec(String execPath, List<String> args,
+      {Map<String, String>? environment}) async {
+    final proc = await Process.start(execPath, args, environment: environment);
+
+    await for (final line in proc.stdout.transform(utf8.decoder)) {
+      verbose(line.trim());
+    }
+
+    if (await proc.exitCode != 0) {
+      stderr.write(await proc.stderr.transform(utf8.decoder).join());
+      exit(1);
+    }
+    return proc.exitCode;
+  }
+"""
+
+_NEW_RUN_EXEC = """\
+  Future<int> runExec(String execPath, List<String> args,
+      {Map<String, String>? environment}) async {
+    final proc = await Process.start(execPath, args, environment: environment);
+
+    // Drain stdout and stderr together. Reading stderr only after exit deadlocks
+    // when the child fills the stderr pipe (compileall / pip on Windows).
+    final stderrBuf = StringBuffer();
+    final stdoutDone = proc.stdout
+        .transform(utf8.decoder)
+        .forEach((line) => verbose(line.trim()));
+    final stderrDone =
+        proc.stderr.transform(utf8.decoder).forEach(stderrBuf.write);
+    await Future.wait([stdoutDone, stderrDone]);
+
+    final code = await proc.exitCode;
+    if (code != 0) {
+      stderr.write(stderrBuf.toString());
+      exit(1);
+    }
+    return code;
+  }
+"""
+
+_COMPILEALL_REPLACEMENTS = (
+    (
+        "await runPython(['-m', 'compileall', '-b', tempDir.path]);",
+        "await runPython(['-m', 'compileall', '-q', '-b', tempDir.path]);",
+    ),
+    (
+        "await runPython(['-m', 'compileall', '-b', sitePackagesDir]);",
+        "await runPython(['-m', 'compileall', '-q', '-b', sitePackagesDir]);",
+    ),
+)
+
+
+def _pub_cache_dir() -> Path:
+    if os.environ.get("PUB_CACHE"):
+        return Path(os.environ["PUB_CACHE"])
+    if sys.platform == "win32":
+        local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(local) / "Pub" / "Cache"
+    return Path.home() / ".pub-cache"
+
+
+def _install_serious_python_cache(pkg_dir: Path, cache: Path) -> None:
+    """把官方包放进 pub-cache。目录已存在时 pub get 不会重新解压。"""
+    print(f"  [pre-build] 下载 serious_python {_SERIOUS_PYTHON_VERSION}")
+    with urllib.request.urlopen(_SERIOUS_PYTHON_ARCHIVE, timeout=120) as response:
+        data = response.read()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != _SERIOUS_PYTHON_SHA256:
+        raise RuntimeError(
+            f"serious_python 压缩包校验失败: {digest} != {_SERIOUS_PYTHON_SHA256}"
+        )
+
+    if pkg_dir.exists():
+        shutil.rmtree(pkg_dir)
+    pkg_dir.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        archive.extractall(pkg_dir, filter="data")
+
+    hash_path = (
+        cache / "hosted-hashes" / "pub.dev" / f"serious_python-{_SERIOUS_PYTHON_VERSION}.sha256"
+    )
+    hash_path.parent.mkdir(parents=True, exist_ok=True)
+    hash_path.write_text(_SERIOUS_PYTHON_SHA256, encoding="ascii")
+
+
+def _patch_serious_python_compileall() -> None:
+    """避免 Windows 打包在 compileall 阶段把 stderr 管道写满后卡死。"""
+    cache = _pub_cache_dir()
+    pkg_dir = cache / "hosted" / "pub.dev" / f"serious_python-{_SERIOUS_PYTHON_VERSION}"
+    dart_file = pkg_dir / "bin" / "package_command.dart"
+    if not dart_file.is_file():
+        _install_serious_python_cache(pkg_dir, cache)
+    if not dart_file.is_file():
+        raise RuntimeError(f"未找到 {dart_file}")
+
+    text = dart_file.read_text(encoding="utf-8")
+    original = text
+    if _OLD_RUN_EXEC in text:
+        text = text.replace(_OLD_RUN_EXEC, _NEW_RUN_EXEC, 1)
+    elif "Drain stdout and stderr together" not in text:
+        raise RuntimeError("serious_python runExec 与预期不一致，无法修补")
+
+    for old, new in _COMPILEALL_REPLACEMENTS:
+        if old in text:
+            text = text.replace(old, new, 1)
+
+    if text == original:
+        print("  [pre-build] serious_python compileall: 已是最新，跳过")
+        return
+
+    dart_file.write_text(text, encoding="utf-8", newline="\n")
+    print("  [pre-build] serious_python compileall: 已修补管道死锁 ✓")
+
+
 def run_flet_build(args: list[str]) -> int:
     """运行 flet build 并在失败时尝试修补后重试。"""
     args = _ensure_python_312(_ensure_macos_arm64_arch(list(args)))
@@ -458,6 +591,7 @@ def run_flet_build(args: list[str]) -> int:
     print(f"=== flet_build.py 包装脚本 ===")
     print(f"命令: flet build {' '.join(args)}")
     print()
+    _patch_serious_python_compileall()
 
     # 清除上次构建残留，防止 flet build 误判 site-packages 已就绪而跳过安装
     build_dir = PROJECT_ROOT / "build"
