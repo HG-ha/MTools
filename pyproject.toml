@@ -79,8 +79,11 @@ package_files = ["**.dSYM", "PyObjCTest", "**/PyObjCTest"]
 
 # flet-dropzone / flet-gpt-markdown 的 Flutter 包仍声明 flet ^0.8x，
 # 覆盖到 1.0，否则 flet build 的 pub get 解不出依赖。
+# Flet 模板把 jni 锁在 1.0.0，jni_flutter 1.0.4+ 要求 jni ^1.1.0，
+# 会在 Dart 编译期断言失败，所以固定 jni_flutter。
 [tool.flet.flutter.pubspec.dependency_overrides]
 flet = "^1.0.0"
+jni_flutter = "1.0.3"
 
 [dependency-groups]
 dev = [
