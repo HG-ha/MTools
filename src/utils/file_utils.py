@@ -46,6 +46,20 @@ def is_packaged_app() -> bool:
     return False
 
 
+def dropped_file_paths(event: Any) -> List[Path]:
+    """把 flet-dropzone 拖放事件里的文件转成 Path 列表。
+
+    flet-dropzone 0.4 起 ``e.files`` 是 ``DropzoneFile(name, path)``，
+    旧版本是路径字符串，两种都要能处理。
+    """
+    paths: List[Path] = []
+    for item in getattr(event, "files", None) or []:
+        raw = item if isinstance(item, (str, os.PathLike)) else getattr(item, "path", "")
+        if raw:
+            paths.append(Path(raw))
+    return paths
+
+
 def get_app_root() -> Path:
     """获取应用程序根目录。
     

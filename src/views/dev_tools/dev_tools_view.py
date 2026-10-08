@@ -138,9 +138,9 @@ class DevToolsView(ft.Container):
 
     def _on_card_drop(self, e, on_click) -> None:
         """处理卡片上的文件拖放：打开工具并导入文件。"""
-        from pathlib import Path
+        from utils.file_utils import dropped_file_paths
 
-        files = [Path(f) for f in e.files]
+        files = dropped_file_paths(e)
         if not files:
             return
         # 1. 打开工具

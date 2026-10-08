@@ -207,7 +207,9 @@ class RecommendationsView(ft.Container):
     
     def _on_card_drop(self, e, tool_id: str) -> None:
         """处理卡片上的文件拖放：通过 _pending_drop_files 机制传递文件并跳转工具。"""
-        files = [Path(f) for f in e.files]
+        from utils.file_utils import dropped_file_paths
+
+        files = dropped_file_paths(e)
         if not files or not self.on_tool_click_handler:
             return
         self._saved_page._pending_drop_files = files

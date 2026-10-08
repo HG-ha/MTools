@@ -2100,7 +2100,11 @@ class SettingsView(ft.Container):
         service = self._get_mcp_server_service()
         enabled = self.config_service.get_config_value("mcp_enabled", False)
         if enabled and service and service.is_running:
-            self.mcp_status_text.value = f"运行中 — {service.get_endpoint_url()}"
+            status = f"运行中 — {service.get_endpoint_url()}"
+            note = service.get_port_fallback_note()
+            if note:
+                status = f"{status}（{note}）"
+            self.mcp_status_text.value = status
             self.mcp_status_text.color = ft.Colors.GREEN
             self.mcp_endpoint_text.value = service.get_endpoint_url()
         elif enabled:

@@ -112,18 +112,17 @@ class MainView(ft.Column):
         
     def _on_files_dropped(self, e) -> None:
         """处理 flet-dropzone 拖放事件 - 分发文件到当前视图。"""
-        from pathlib import Path
         from utils import logger
+        from utils.file_utils import dropped_file_paths
         
         logger.info(f"Dropzone: on_dropped 触发, event={e}")
         logger.info(f"Dropzone: e.files={getattr(e, 'files', 'N/A')}, e.data={getattr(e, 'data', 'N/A')}")
         
-        files_list = getattr(e, 'files', None) or []
-        if not files_list:
+        files = dropped_file_paths(e)
+        if not files:
             logger.warning("Dropzone: 没有收到文件")
             return
         
-        files = [Path(f) for f in files_list]
         logger.info(f"Dropzone: 收到 {len(files)} 个文件: {files}")
         
         def dispatch():
