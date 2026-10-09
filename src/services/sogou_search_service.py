@@ -127,7 +127,9 @@ class SogouSearchService:
         Returns:
             bool: 上传成功返回True，否则返回False
         """
-        return result.get("status") == 0 and result.get("image_url", "")
+        if not isinstance(result, dict):
+            return False
+        return result.get("status") == 0 and bool(result.get("image_url"))
 
     async def search_similar_images(self, image_url: str, start: int = 0, 
                                    page_size: int = 20) -> Dict:
@@ -156,7 +158,8 @@ class SogouSearchService:
         resp.raise_for_status()
         
         data = resp.json()
-        items = data.get("data", {}).get("items", [])
+        payload = data.get("data") if isinstance(data, dict) else None
+        items = payload.get("items", []) if isinstance(payload, dict) else []
         
         # 限制返回数量
         items = items[:page_size]

@@ -54,8 +54,10 @@ def register(mcp) -> None:
         params["action"] = action
         if tool_id == "dev.encoding" and params.get("encoding_action") == "convert":
             params["action"] = "encoding_convert"
+        params.pop("encoding_action", None)
         if tool_id == "dev.json_viewer" and params.get("json_action") == "minify":
             params["action"] = "json_minify"
+        params.pop("json_action", None)
         if tool_id == "dev.websocket_client":
             mcp_tool = "mtools_websocket"
             if "ws_action" in params:

@@ -35,11 +35,13 @@ def _action_override(tool_id: str, kwargs_var: str = "_kwargs") -> str:
         return (
             f'    if {kwargs_var}.get("encoding_action") == "convert":\n'
             f'        {kwargs_var}["action"] = "encoding_convert"\n'
+            f'    {kwargs_var}.pop("encoding_action", None)\n'
         )
     if tool_id == "dev.json_viewer":
         return (
             f'    if {kwargs_var}.get("json_action") == "minify":\n'
             f'        {kwargs_var}["action"] = "json_minify"\n'
+            f'    {kwargs_var}.pop("json_action", None)\n'
         )
     return ""
 

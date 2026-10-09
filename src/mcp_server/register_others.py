@@ -79,13 +79,17 @@ def _mtools_others_impl():
                 import asyncio
                 from services.icp_service import ICPService
                 svc = ICPService(cfg)
-                try:
-                    result = asyncio.run(svc.query_icp(query_type, domain or text))
-                    if not result:
-                        return fail("查询失败")
-                    return ok({"result": result, "formatted": svc.format_icp_result(result)})
-                finally:
-                    asyncio.run(svc.close())
+
+                async def _query():
+                    try:
+                        return await svc.query_icp(query_type, domain or text)
+                    finally:
+                        await svc.close()
+
+                result = asyncio.run(_query())
+                if not result:
+                    return fail("查询失败")
+                return ok({"result": result, "formatted": svc.format_icp_result(result)})
             if action == "id_photo":
                 src = resolve_input(input_path)
                 out = resolve_output(src, output_path or None, suffix=".jpg")

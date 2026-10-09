@@ -14,7 +14,7 @@ from mcp_server.helpers import (
     resolve_input,
     resolve_output,
 )
-from mcp_server.media_ops import image_search_similar, watermark_remove_ai
+from mcp_server.media_ops import image_search_similar, make_image_enhancer, watermark_remove_ai
 from mcp_server.handlers import register_handler
 from mcp_server.runtime import get_config_service, get_image_service, get_output_dir
 from services.image_service import ImageService
@@ -188,13 +188,14 @@ def _mtools_image_impl():
                 return ok({"output_path": str(out)})
             if action == "enhance":
                 from constants.model_config import IMAGE_ENHANCE_MODELS
-                from services.image_service import ImageEnhancer
                 from PIL import Image
                 import numpy as np
                 key = model_key or cfg.get_config_value("enhance_model_key", "realesrgan_x4plus")
+                if key not in IMAGE_ENHANCE_MODELS:
+                    return fail(f"未知增强模型: {key}")
                 model = IMAGE_ENHANCE_MODELS[key]
                 mp = cfg.get_data_dir() / "models" / "image_enhance" / model.version / model.filename
-                enhancer = ImageEnhancer(mp, cfg)
+                enhancer = make_image_enhancer(cfg, mp, model)
                 with Image.open(src) as img:
                     result = enhancer.enhance_image(img)
                 from PIL import Image as PILImage

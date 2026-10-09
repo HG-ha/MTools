@@ -252,7 +252,7 @@ async def generate_subtitle_srt(
     from services.speech_recognition_service import SpeechRecognitionService
     from utils.subtitle_utils import segments_to_ass, segments_to_srt
 
-    svc = SpeechRecognitionService(cfg, ff)
+    svc = SpeechRecognitionService(cfg.get_data_dir() / "models" / "whisper", ff)
     load_asr_model(svc, cfg, model_key, language)
     segments = svc.recognize_with_timestamps(input_path, language=language)
     svc.unload_model()
@@ -361,7 +361,6 @@ def video_enhance(
     scale: int = 0,
 ) -> None:
     from constants.model_config import IMAGE_ENHANCE_MODELS
-    from services.image_service import ImageEnhancer
     from PIL import Image
 
     if model_key not in IMAGE_ENHANCE_MODELS:
@@ -370,7 +369,7 @@ def video_enhance(
     model_path = cfg.get_data_dir() / "models" / "image_enhance" / model.version / model.filename
     if not model_path.exists():
         raise FileNotFoundError(f"增强模型未下载: {model_path}")
-    enhancer = ImageEnhancer(model_path, cfg)
+    enhancer = make_image_enhancer(cfg, model_path, model)
     out_scale = scale if scale > 0 else int(getattr(model, "scale", 4) or 4)
 
     cap = cv2.VideoCapture(str(input_path))
@@ -401,15 +400,45 @@ def video_enhance(
     remux_audio_from_source(ff, silent, input_path, output_path)
 
 
+def make_image_enhancer(cfg, model_path: Path, model):
+    """按桌面版的方式创建图像增强器。
+
+    第二个参数是可选的外部权重文件，不是 ConfigService。
+    """
+    from services.image_service import ImageEnhancer
+
+    if not model_path.exists():
+        raise FileNotFoundError(f"增强模型未下载: {model_path}")
+    data_name = getattr(model, "data_filename", None)
+    data_path = model_path.parent / data_name if data_name else None
+    if data_path is not None and not data_path.exists():
+        raise FileNotFoundError(f"增强模型数据未下载: {data_path}")
+    return ImageEnhancer(
+        model_path,
+        data_path=data_path,
+        use_gpu=bool(cfg.get_config_value("gpu_acceleration", True)),
+        gpu_device_id=int(cfg.get_config_value("gpu_device_id", 0) or 0),
+        gpu_memory_limit=int(cfg.get_config_value("gpu_memory_limit", 8192) or 8192),
+        enable_memory_arena=bool(cfg.get_config_value("gpu_enable_memory_arena", False)),
+        scale=int(getattr(model, "scale", 4) or 4),
+        cpu_threads=int(cfg.get_config_value("onnx_cpu_threads", 0) or 0),
+        execution_mode=str(cfg.get_config_value("onnx_execution_mode", "sequential") or "sequential"),
+        enable_model_cache=bool(cfg.get_config_value("onnx_enable_model_cache", False)),
+    )
+
+
 def image_search_similar(cfg, image_path: Path, page_size: int = 20) -> dict:
     from services.sogou_search_service import SogouSearchService
 
     async def _run():
         svc = SogouSearchService()
         upload = await svc.upload_image(str(image_path))
-        if not svc.is_upload_success(upload):
-            raise RuntimeError("图片上传失败")
-        url = upload.get("data", {}).get("url") or upload.get("url")
+        if not isinstance(upload, dict) or not svc.is_upload_success(upload):
+            message = upload.get("message") if isinstance(upload, dict) else ""
+            raise RuntimeError(message or "图片上传失败")
+        url = str(upload.get("image_url") or "").strip()
+        if not url:
+            raise RuntimeError("图片上传成功但没有返回地址")
         return await svc.search_similar_images(url, page_size=page_size)
 
     return asyncio.run(_run())

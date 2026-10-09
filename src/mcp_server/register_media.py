@@ -66,7 +66,7 @@ def _mtools_audio_impl():
                 if not text.strip():
                     return fail("需要 text")
                 from services.tts_service import TTSService
-                tts = TTSService(cfg)
+                tts = TTSService(cfg.get_data_dir() / "models" / "tts", ff)
                 key = model_key or cfg.get_config_value("tts_model_key", "vits-zh-hf-fanchen")
                 if not tts.load_model(key):
                     return fail("TTS 模型未下载")
@@ -107,7 +107,7 @@ def _mtools_audio_impl():
                 return ok(data)
             if action == "to_text":
                 from services.speech_recognition_service import SpeechRecognitionService
-                svc = SpeechRecognitionService(cfg, ff)
+                svc = SpeechRecognitionService(cfg.get_data_dir() / "models" / "whisper", ff)
                 engine = load_asr_model(svc, cfg, model_key, language)
                 result = svc.recognize(src, language=language)
                 svc.unload_model()
